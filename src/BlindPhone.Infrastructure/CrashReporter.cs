@@ -283,10 +283,26 @@ public static class DiagnosticEnvironment
     /// È quella che porta l'etichetta «beta», e va riportata su ogni segnalazione:
     /// senza, una traccia dello stack non si sa a quale codice appartenga.
     /// </remarks>
-    public static string ProductVersion =>
-        System.Reflection.CustomAttributeExtensions
-            .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(
-                System.Reflection.Assembly.GetEntryAssembly()!)
-            ?.InformationalVersion
-        ?? "sconosciuta";
+    /// <remarks>
+    /// L'identificativo della revisione, che il compilatore appende dopo un segno
+    /// più da quando il progetto è sotto controllo di versione, viene tolto: questa
+    /// stringa finisce nell'oggetto della segnalazione all'assistenza e in testa al
+    /// rapporto di errore, dove quaranta caratteri esadecimali non aiutano nessuno.
+    /// Il pacchetto resta identificabile dalla versione e dalla sua impronta.
+    /// </remarks>
+    public static string ProductVersion
+    {
+        get
+        {
+            var informativa = System.Reflection.CustomAttributeExtensions
+                .GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(
+                    System.Reflection.Assembly.GetEntryAssembly()!)
+                ?.InformationalVersion;
+
+            if (string.IsNullOrWhiteSpace(informativa)) return "sconosciuta";
+
+            var piu = informativa.IndexOf('+', StringComparison.Ordinal);
+            return piu > 0 ? informativa[..piu] : informativa;
+        }
+    }
 }
