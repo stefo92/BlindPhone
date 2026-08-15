@@ -31,10 +31,11 @@ namespace BlindPhone.Audio;
 /// riservato in un ufficio aperto.
 /// </para>
 /// </remarks>
-public sealed class NAudioEngine : IAudioEngine, IAudioDucker, IMMNotificationClient
+public sealed class NAudioEngine : IAudioEngine, IAudioDucker
 {
     private readonly ILogger<NAudioEngine> _log;
     private readonly MMDeviceEnumerator _enumerator = new();
+    private MMDeviceNotificationClient? _notifiche;
     private readonly Lock _gate = new();
 
     private readonly Dictionary<AudioRoute, string?> _assignedDeviceIds = new()
@@ -64,7 +65,16 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker, IMMNotificationCl
 
         try
         {
-            _enumerator.RegisterEndpointNotificationCallback(this);
+            // DA NAUDIO 3.0 NON SI IMPLEMENTA PIU' L'INTERFACCIA COM.
+            //
+            // IMMNotificationClient e' diventata internal: al suo posto NAudio
+            // espone un oggetto che solleva eventi. Cambia la forma, non la
+            // sostanza — gli avvisi che interessano restano i due di sempre, il
+            // dispositivo che cambia stato e quello che viene tolto.
+            _notifiche = _enumerator.CreateNotificationClient(false);
+
+            _notifiche.DeviceStateChanged += OnDeviceStateChanged;
+            _notifiche.DeviceRemoved += OnDeviceRemoved;
         }
         catch (Exception ex)
         {
@@ -313,10 +323,25 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker, IMMNotificationCl
     // Notifiche di sistema sui dispositivi
     // -----------------------------------------------------------------------
 
-    /// <inheritdoc />
-    public void OnDeviceStateChanged(string deviceId, DeviceState newState)
+    /// <summary>
+    /// Un dispositivo ha cambiato stato: se e' uno di quelli in uso e non e' piu'
+    /// attivo, l'audio migra sulla riserva.
+    /// </summary>
+    /// <remarks>
+    /// Gli altri avvisi disponibili — dispositivo aggiunto, dispositivo predefinito
+    /// cambiato, proprieta' modificata — non vengono sottoscritti, come non venivano
+    /// gestiti prima: un dispositivo che compare non cambia nulla per chi sta
+    /// parlando, e il predefinito di sistema non e' quello che il posto operatore usa.
+    /// </remarks>
+    private void OnDeviceStateChanged(object? sender, DeviceStateChangedEventArgs e)
+        => DispositivoNonPiuUtilizzabile(e.DeviceId, e.NewState);
+
+    private void OnDeviceRemoved(object? sender, DeviceNotificationEventArgs e)
+        => DispositivoNonPiuUtilizzabile(e.DeviceId, DeviceState.NotPresent);
+
+    private void DispositivoNonPiuUtilizzabile(string deviceId, DeviceState stato)
     {
-        if (newState == DeviceState.Active) return;
+        if (stato == DeviceState.Active) return;
 
         foreach (var route in Enum.GetValues<AudioRoute>())
         {
@@ -325,23 +350,17 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker, IMMNotificationCl
     }
 
     /// <inheritdoc />
-    public void OnDeviceAdded(string pwstrDeviceId) { }
-
-    /// <inheritdoc />
-    public void OnDeviceRemoved(string deviceId) => OnDeviceStateChanged(deviceId, DeviceState.NotPresent);
-
-    /// <inheritdoc />
-    public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) { }
-
-    /// <inheritdoc />
-    public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
-
-    /// <inheritdoc />
     public ValueTask DisposeAsync()
     {
         try
         {
-            _enumerator.UnregisterEndpointNotificationCallback(this);
+            if (_notifiche is not null)
+            {
+                _notifiche.DeviceStateChanged -= OnDeviceStateChanged;
+                _notifiche.DeviceRemoved -= OnDeviceRemoved;
+                _notifiche.Dispose();
+                _notifiche = null;
+            }
         }
         catch (Exception ex)
         {

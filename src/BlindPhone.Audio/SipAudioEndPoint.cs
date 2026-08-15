@@ -507,25 +507,25 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
 
             if (_conferenceFrame.Length < count) _conferenceFrame = new float[count * 2];
 
-            var needed = resampler.ResamplePrepare(count, 1, out var input, out var inputOffset);
+            var needed = resampler.ResamplePrepare(count, 1, out var input);
 
             if (needed <= 0 || _conferenceQueued < needed)
             {
                 // Niente audio pronto dall'altra gamba: si annulla la richiesta e si
                 // trasmette la sola voce dell'operatore. Non si inventa nulla, come
                 // ovunque su questo percorso.
-                resampler.ResampleOut(_conferenceFrame, 0, 0, 0, 1);
+                resampler.ResampleOut(_conferenceFrame, 0, 0, 1);
                 Interlocked.Increment(ref _conferenceFramesStarved);
                 return;
             }
 
-            Array.Copy(_conferenceQueue, 0, input, inputOffset, needed);
+            _conferenceQueue.AsSpan(0, needed).CopyTo(input);
 
             var remaining = _conferenceQueued - needed;
             if (remaining > 0) Array.Copy(_conferenceQueue, needed, _conferenceQueue, 0, remaining);
             _conferenceQueued = Math.Max(0, remaining);
 
-            var produced = resampler.ResampleOut(_conferenceFrame, 0, needed, count, 1);
+            var produced = resampler.ResampleOut(_conferenceFrame, needed, count, 1);
             if (produced < count)
             {
                 Interlocked.Increment(ref _conferenceFramesStarved);
@@ -936,20 +936,20 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
 
         while (true)
         {
-            var needed = resampler.ResamplePrepare(_samplesPerFrame, 1, out var input, out var inputOffset);
+            var needed = resampler.ResamplePrepare(_samplesPerFrame, 1, out var input);
 
             if (needed <= 0 || _captureQueued < needed)
             {
                 // Si annulla la richiesta dichiarando zero campioni forniti, e si
                 // aspetta. Nulla viene inventato per riempire il vuoto.
-                resampler.ResampleOut(_frameFloat, 0, 0, 0, 1);
+                resampler.ResampleOut(_frameFloat, 0, 0, 1);
                 return;
             }
 
-            Array.Copy(_captureQueue, 0, input, inputOffset, needed);
+            _captureQueue.AsSpan(0, needed).CopyTo(input);
             ConsumeQueuedSamples(needed);
 
-            var produced = resampler.ResampleOut(_frameFloat, 0, needed, _samplesPerFrame, 1);
+            var produced = resampler.ResampleOut(_frameFloat, needed, _samplesPerFrame, 1);
             if (produced < _samplesPerFrame) return;
 
             for (var i = 0; i < _samplesPerFrame; i++)
@@ -1103,16 +1103,28 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
             // WasapiOut.OutputWaveFormat: quest'ultimo e' valorizzato solo dopo
             // Init, quindi leggerlo prima significa costruire il ricampionatore su
             // un formato non ancora definito.
-            var deviceFormat = device.AudioClient.MixFormat;
+            // CreateAudioClient e non la proprieta' AudioClient: da NAudio 3.0 quella
+            // proprieta' e' deprecata perche' costruisce un oggetto nuovo a ogni
+            // lettura senza dichiararlo, e qui se ne creavano due - uno per il
+            // formato e uno buttato via. Il client va chiuso: serve solo a leggere
+            // il formato di missaggio.
+            WaveFormat deviceFormat;
+            using (var audioClient = device.CreateAudioClient())
+            {
+                deviceFormat = audioClient.MixFormat;
+            }
+
             _renderDeviceFormat = deviceFormat;
             _renderIsFloat = IsFloatFormat(deviceFormat);
 
             // Il buffer contiene audio GIA' alla frequenza del dispositivo: la
             // conversione avviene all'arrivo di ogni pacchetto, non qui. Vedi
             // RenderDecodedSamples.
-            _renderBuffer = new BufferedWaveProvider(deviceFormat)
+            // La durata si dichiara al costruttore: da NAudio 3.0 BufferDuration e'
+            // di sola lettura, e assegnarla dopo non compila piu'.
+            _renderBuffer = new BufferedWaveProvider(
+                deviceFormat, TimeSpan.FromMilliseconds(_tuning.MaxBufferMilliseconds))
             {
-                BufferDuration = TimeSpan.FromMilliseconds(_tuning.MaxBufferMilliseconds),
                 DiscardOnBufferOverflow = true,
 
                 // ReadFully DEVE essere disattivato qui, ed e' l'esatto contrario di
@@ -1424,21 +1436,21 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
 
         while (true)
         {
-            var needed = resampler.ResamplePrepare(_renderSamplesPerFrame, 1, out var input, out var inputOffset);
+            var needed = resampler.ResamplePrepare(_renderSamplesPerFrame, 1, out var input);
 
             if (needed <= 0 || _renderQueued < needed)
             {
-                resampler.ResampleOut(_renderFloat, 0, 0, 0, 1);
+                resampler.ResampleOut(_renderFloat, 0, 0, 1);
                 return;
             }
 
-            Array.Copy(_renderQueue, 0, input, inputOffset, needed);
+            _renderQueue.AsSpan(0, needed).CopyTo(input);
 
             var remaining = _renderQueued - needed;
             if (remaining > 0) Array.Copy(_renderQueue, needed, _renderQueue, 0, remaining);
             _renderQueued = Math.Max(0, remaining);
 
-            var produced = resampler.ResampleOut(_renderFloat, 0, needed, _renderSamplesPerFrame, 1);
+            var produced = resampler.ResampleOut(_renderFloat, needed, _renderSamplesPerFrame, 1);
             if (produced < _renderSamplesPerFrame) return;
 
             // 3) da mono in virgola mobile al formato del dispositivo. Il canale si
@@ -1619,12 +1631,12 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
         var wanted = (int)((long)pcm.Length * to / from) + 64;
         var output = new float[wanted];
 
-        var needed = resampler.ResamplePrepare(pcm.Length, 1, out var input, out var inputOffset);
+        var needed = resampler.ResamplePrepare(pcm.Length, 1, out var input);
         var supplied = Math.Min(needed, pcm.Length);
 
-        for (var i = 0; i < supplied; i++) input[inputOffset + i] = pcm[i] / 32768f;
+        for (var i = 0; i < supplied; i++) input[i] = pcm[i] / 32768f;
 
-        var produced = resampler.ResampleOut(output, 0, supplied, wanted, 1);
+        var produced = resampler.ResampleOut(output, supplied, wanted, 1);
         var result = new short[produced];
 
         for (var i = 0; i < produced; i++)

@@ -324,18 +324,21 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
 
         public WaveFormat WaveFormat { get; } = WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, 2);
 
-        public int Read(float[] buffer, int offset, int count)
+        public int Read(Span<float> buffer)
         {
             var written = 0;
 
-            while (written < count && _position < samples.Count)
+            while (written < buffer.Length && _position < samples.Count)
             {
                 var value = samples[_position++];
-                buffer[offset + written++] = value * _leftGain;
+                buffer[written++] = value * _leftGain;
 
-                if (written < count) buffer[offset + written++] = value * _rightGain;
+                if (written < buffer.Length) buffer[written++] = value * _rightGain;
             }
 
+            // Zero significa "flusso finito" e ferma la riproduzione: e' corretto
+            // solo quando non c'e' davvero piu' niente da suonare, e va detto prima
+            // di riempire di silenzio, altrimenti l'earcon successivo non parte.
             if (written == 0) return 0;
 
             // Stesso motivo per cui il buffer di riproduzione della conversazione
@@ -343,9 +346,9 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
             // riproduce memoria non inizializzata nella coda del buffer. Sull'ultimo
             // pacchetto di un earcon questo produce uno schiocco secco, che ripetuto
             // decine di volte all'ora diventa fastidioso.
-            while (written < count) buffer[offset + written++] = 0f;
+            buffer[written..].Clear();
 
-            return written;
+            return buffer.Length;
         }
     }
 }

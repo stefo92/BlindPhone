@@ -1,6 +1,8 @@
 # Migrazione a NAudio 3.0
 
-Piano di lavoro. Non è ancora stato eseguito: la soluzione resta su **NAudio 2.3.0**.
+**Eseguita il 15 agosto 2026, versione 1.0.11.** Il piano che segue è quello con cui
+si è lavorato; in fondo, alla sezione 10, c'è come è andata davvero — compresa la
+parte in cui la stima era sbagliata.
 
 ## 1. Perché farla, e perché non di fretta
 
@@ -199,3 +201,63 @@ La verifica in reparto è la voce che decide il calendario, non le altre due.
 - Non insieme a un altro cambiamento: se qualcosa si rompe si deve sapere da dove viene.
 - Non il giorno prima di un turno scoperto.
 - Non senza aver prima rimesso la cartella sotto controllo di versione (passo 0).
+
+
+## 10. Com'è andata
+
+### La prima misura era incompleta, e va detto
+
+La sezione 2 diceva «tre cose, e solo tre», misurate compilando contro la 3.0. Erano
+tre cose **fino al primo muro**: il compilatore si ferma alla prima ondata di errori, e
+quello che sta dietro non lo vede nessuno finché la prima non è risolta. Superati i
+provider e i pacchetti, ne è comparsa una seconda:
+
+| Emerso dopo | Che cosa |
+|---|---|
+| `WdlResampler` | `ResamplePrepare` perde l'offset di uscita, `ResampleOut` quello di destinazione: sei richiami in quattro punti di `SipAudioEndPoint` |
+| `BufferedWaveProvider` | `BufferDuration` è diventata di sola lettura: la durata si dichiara al costruttore |
+| `Mp3FileReader` | Non esiste più come classe a sé. Il collaudo della registrazione rilegge il file con `MediaFoundationReader`, che è anche il codificatore che lo ha prodotto |
+| `WasapiOut`, `WasapiCapture` | Dichiarati obsoleti in favore di `WasapiPlayerBuilder` e `WasapiRecorderBuilder` |
+| `MMDevice.AudioClient` | Deprecata perché costruiva un oggetto nuovo a ogni lettura senza dichiararlo: sostituita con `CreateAudioClient()`, che si chiude |
+
+La stima di mezza giornata per il codice ha retto lo stesso, ma per fortuna, non per
+merito della misura. La lezione, se serve la prossima volta: **una misura fatta con il
+compilatore vale fino al primo errore risolto**, e il modo per accorgersene prima è
+risolvere gli errori a gruppi invece di contarli tutti insieme.
+
+### Quello che i collaudi hanno detto
+
+Le dodici prove della catena audio sono passate **senza che nessuna asserzione fosse
+toccata**. È cambiata solo la forma della chiamata — `Read(buffer)` al posto di
+`Read(buffer, 0, buffer.Length)` — perché l'interfaccia non offre più l'altra.
+
+Una prova ha trovato un errore mio prima ancora della migrazione: il buffer sorgente
+creato con i valori predefiniti completa da solo le letture, e lo svuotamento non
+veniva mai contato. Il prodotto lo crea con `ReadFully` disattivato. Il collaudo
+misurava una situazione che sulla postazione non esiste.
+
+### Verifica a banco
+
+Fatta la parte silenziosa: il percorso WASAPI si carica, elenca i dispositivi reali e
+riconosce i predefiniti.
+
+    riproduzione: 2   Altoparlanti (Realtek(R) Audio), Altoparlanti (EPOS PC 7 USB) (predefinito)
+    cattura:      2   Gruppo microfoni (Realtek(R) Audio), Microfono (EPOS PC 7 USB) (predefinito)
+
+**Non** è stata fatta la parte che produce suono, né quella che richiede il centralino:
+resta la lista della sezione 7, e resta interamente da spuntare.
+
+## 11. Il lavoro che resta
+
+`WasapiOut` e `WasapiCapture` continuano a funzionare ma sono deprecati. La 3.0 propone
+`WasapiPlayerBuilder` e `WasapiRecorderBuilder`, che offrono buffer senza copia,
+priorità di thread MMCSS e bassa latenza con `IAudioClient3`.
+
+**Non è un rinominare**: cambia il modo in cui riproduzione e cattura vengono create e
+configurate, cioè il percorso su cui passa la voce in conversazione. Farla di straforo
+dentro questa migrazione avrebbe reso impossibile capire da dove viene un eventuale
+difetto in reparto.
+
+L'avviso `CS0618` è silenziato in `BlindPhone.Audio.csproj`, in un punto solo e con la
+motivazione scritta accanto. Quando si affronterà quella migrazione, quella riga cade e
+i sette punti d'uso tornano a segnalarsi da soli.

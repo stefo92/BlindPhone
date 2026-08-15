@@ -87,7 +87,13 @@ public sealed class JitterBufferProvider : IWaveProvider
     public int BufferedMilliseconds => (int)_source.BufferedDuration.TotalMilliseconds;
 
     /// <inheritdoc />
-    public int Read(byte[] buffer, int offset, int count)
+    /// <remarks>
+    /// La destinazione arriva come <see cref="Span{T}"/> e non piu' come terna
+    /// buffer-offset-conteggio: da NAudio 3.0 e' l'unica forma dell'interfaccia.
+    /// L'offset non sparisce, si sposta — chi chiama affetta lo span prima di
+    /// passarlo — e qui dentro si lavora sempre dall'inizio.
+    /// </remarks>
+    public int Read(Span<byte> buffer)
     {
         lock (_gate)
         {
@@ -98,29 +104,29 @@ public sealed class JitterBufferProvider : IWaveProvider
             {
                 if (_source.BufferedBytes < _targetBytes)
                 {
-                    Array.Clear(buffer, offset, count);
-                    Interlocked.Add(ref _silenceBytesInserted, count);
-                    return count;
+                    buffer.Clear();
+                    Interlocked.Add(ref _silenceBytesInserted, buffer.Length);
+                    return buffer.Length;
                 }
 
                 _primed = true;
             }
 
-            var read = _source.Read(buffer, offset, count);
+            var read = _source.Read(buffer);
 
-            if (read < count)
+            if (read < buffer.Length)
             {
                 // Il buffer si e' svuotato: si completa con silenzio e si torna in
                 // riempimento, cosi' il cuscinetto viene ricostruito invece di
                 // restare esaurito e produrre un'interruzione a ogni pacchetto.
-                Array.Clear(buffer, offset + read, count - read);
-                Interlocked.Add(ref _silenceBytesInserted, count - read);
+                buffer[read..].Clear();
+                Interlocked.Add(ref _silenceBytesInserted, buffer.Length - read);
                 Interlocked.Increment(ref _underruns);
 
                 _primed = false;
             }
 
-            return count;
+            return buffer.Length;
         }
     }
 
@@ -170,15 +176,21 @@ public sealed class SilencePaddedProvider : IWaveProvider
     public long PaddedBytes => Interlocked.Read(ref _paddedBytes);
 
     /// <inheritdoc />
-    public int Read(byte[] buffer, int offset, int count)
+    public int Read(Span<byte> buffer)
     {
-        var read = _source.Read(buffer, offset, count);
+        var read = _source.Read(buffer);
 
-        if (read >= count) return count;
+        if (read >= buffer.Length) return buffer.Length;
 
-        Array.Clear(buffer, offset + Math.Max(0, read), count - Math.Max(0, read));
-        Interlocked.Add(ref _paddedBytes, count - Math.Max(0, read));
+        // Il massimo con zero non e' difensivismo: una sorgente che restituisce un
+        // valore negativo farebbe partire l'azzeramento da un indice negativo, e
+        // l'eccezione arriverebbe dentro il thread di riproduzione di WASAPI, dove
+        // nessuno la vede e la voce si limita a sparire.
+        var scritti = Math.Max(0, read);
 
-        return count;
+        buffer[scritti..].Clear();
+        Interlocked.Add(ref _paddedBytes, buffer.Length - scritti);
+
+        return buffer.Length;
     }
 }

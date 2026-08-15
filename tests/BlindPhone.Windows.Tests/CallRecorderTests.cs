@@ -179,7 +179,11 @@ public sealed class CallRecorderTests : IDisposable
         // codificatore invece che per un difetto del prodotto.
         Assert.True(new FileInfo(mp3).Length > 500, "l'MP3 e' troppo piccolo per contenere audio");
 
-        using var lettura = new Mp3FileReader(mp3);
+        // Si rilegge con Media Foundation, non con il lettore ACM: da NAudio 3.0
+        // Mp3FileReader non esiste piu' come classe a se', e Media Foundation e'
+        // anche il codificatore che ha prodotto questo file — la verifica usa la
+        // stessa strada dell'andata.
+        using var lettura = new NAudio.Wave.MediaFoundationReader(mp3);
         Assert.True(lettura.TotalTime > TimeSpan.FromMilliseconds(200), "l'MP3 risulta vuoto");
     }
 

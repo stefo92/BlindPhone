@@ -18,6 +18,25 @@
     <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
   </ItemGroup>
 
+  <PropertyGroup>
+    <!--
+      CS0618: WasapiOut e WasapiCapture sono dichiarati obsoleti da NAudio 3.0, che
+      propone WasapiPlayerBuilder e WasapiRecorderBuilder. Continuano a funzionare, e
+      la sostituzione NON e' un rinominare: cambia il modo in cui riproduzione e
+      cattura vengono create e configurate, cioe' il percorso su cui passa la voce in
+      conversazione. E' una seconda migrazione, con una sua verifica in reparto, e
+      farla di straforo dentro questa avrebbe reso impossibile capire da dove viene
+      un eventuale difetto.
+
+      L'avviso viene silenziato qui e non nei sette punti d'uso perche' la decisione
+      e' una sola e va letta in un posto solo. Se cade, cadono tutti insieme, ed e'
+      il momento in cui si affronta quella migrazione.
+
+      Vedi docs\MIGRAZIONE-NAUDIO-3.md, sezione sul lavoro che resta.
+    -->
+    <NoWarn>$(NoWarn);CS0618</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <!--
       I collaudi della catena audio vivono in BlindPhone.Windows.Tests: NAudio
@@ -30,7 +49,14 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
-    <PackageReference Include="NAudio" Version="2.3.0" />
+    <!--
+      NAudio 3.0 ha diviso il pacchetto: WASAPI e MediaFoundation non arrivano piu'
+      con quello principale e vanno chiesti a parte. Senza NAudio.Wasapi mancano
+      MMDevice, DataFlow, WasapiOut, WasapiCapture e la codifica delle
+      registrazioni - trentaquattro errori di compilazione su trentotto.
+    -->
+    <PackageReference Include="NAudio" Version="3.0.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.0.0" />
     <PackageReference Include="SIPSorceryMedia.Abstractions" Version="10.0.15" />
   </ItemGroup>
 

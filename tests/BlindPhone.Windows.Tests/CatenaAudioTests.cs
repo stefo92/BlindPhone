@@ -17,9 +17,12 @@ namespace BlindPhone.Windows.Tests;
 /// earcon, o un'interruzione ogni pochi secondi.
 /// </para>
 /// <para>
-/// Questi test devono passare <b>prima e dopo</b> la conversione, senza essere
-/// modificati. Se per farli passare bisogna cambiarli, è la conversione a essere
-/// sbagliata.
+/// Questi test devono passare <b>prima e dopo</b> la conversione. La firma della
+/// chiamata cambia per forza — <c>Read(buffer)</c> al posto di
+/// <c>Read(buffer, 0, buffer.Length)</c> — ma <b>nessuna asserzione è stata
+/// toccata</b>: i valori attesi sono quelli misurati su NAudio 2.3.0. Se per farli
+/// passare fosse servito cambiare un valore atteso, sarebbe stata la conversione a
+/// essere sbagliata.
 /// </para>
 /// <para>
 /// <b>L'invariante che li tiene insieme è una sola</b>: una lettura restituisce sempre
@@ -52,10 +55,10 @@ public sealed class CatenaAudioTests
     {
         public WaveFormat WaveFormat { get; } = formato;
 
-        public int Read(byte[] buffer, int offset, int count)
+        public int Read(Span<byte> buffer)
         {
-            var quanti = Math.Min(byteDaRestituire, count);
-            for (var i = 0; i < quanti; i++) buffer[offset + i] = riempimento;
+            var quanti = Math.Min(byteDaRestituire, buffer.Length);
+            buffer[..quanti].Fill(riempimento);
 
             return quanti;
         }
@@ -77,7 +80,7 @@ public sealed class CatenaAudioTests
         var buffer = new byte[320];
         Array.Fill(buffer, (byte)0xAB);
 
-        var letti = jitter.Read(buffer, 0, buffer.Length);
+        var letti = jitter.Read(buffer);
 
         Assert.Equal(buffer.Length, letti);
         Assert.All(buffer, b => Assert.Equal(0, b));
@@ -96,7 +99,7 @@ public sealed class CatenaAudioTests
         sorgente.AddSamples(audio, 0, audio.Length);
 
         var buffer = new byte[320];
-        var letti = jitter.Read(buffer, 0, buffer.Length);
+        var letti = jitter.Read(buffer);
 
         Assert.Equal(buffer.Length, letti);
         Assert.All(buffer, b => Assert.Equal(0x7F, b));
@@ -115,7 +118,7 @@ public sealed class CatenaAudioTests
         var buffer = new byte[640];
         Array.Fill(buffer, (byte)0xAB);
 
-        var letti = jitter.Read(buffer, 0, buffer.Length);
+        var letti = jitter.Read(buffer);
 
         // Lettura piena comunque, audio davanti e silenzio dietro.
         Assert.Equal(buffer.Length, letti);
@@ -142,13 +145,13 @@ public sealed class CatenaAudioTests
         sorgente.AddSamples(audio, 0, audio.Length);
 
         var buffer = new byte[640];
-        jitter.Read(buffer, 0, buffer.Length);
+        jitter.Read(buffer);
 
         // Un solo pacchetto non basta a ricostruire il cuscinetto: si resta a silenzio.
         sorgente.AddSamples(new byte[160], 0, 160);
         Array.Fill(buffer, (byte)0xAB);
 
-        Assert.Equal(buffer.Length, jitter.Read(buffer, 0, buffer.Length));
+        Assert.Equal(buffer.Length, jitter.Read(buffer));
         Assert.All(buffer, b => Assert.Equal(0, b));
     }
 
@@ -158,7 +161,7 @@ public sealed class CatenaAudioTests
         var sorgente = SorgenteComeInProduzione();
         var jitter = new JitterBufferProvider(sorgente, targetMilliseconds: 20);
 
-        jitter.Read(new byte[320], 0, 320);
+        jitter.Read(new byte[320]);
         Assert.True(jitter.SilenceMilliseconds > 0);
 
         jitter.ResetCounters();
@@ -179,7 +182,7 @@ public sealed class CatenaAudioTests
         var buffer = new byte[320];
         Array.Fill(buffer, (byte)0xAB);
 
-        var letti = guardia.Read(buffer, 0, buffer.Length);
+        var letti = guardia.Read(buffer);
 
         Assert.Equal(buffer.Length, letti);
         Assert.Equal(0x7F, buffer[99]);
@@ -194,7 +197,7 @@ public sealed class CatenaAudioTests
         var guardia = new SilencePaddedProvider(new SorgenteCorta(Formato, byteDaRestituire: 1000, riempimento: 0x7F));
 
         var buffer = new byte[320];
-        var letti = guardia.Read(buffer, 0, buffer.Length);
+        var letti = guardia.Read(buffer);
 
         Assert.Equal(buffer.Length, letti);
         Assert.All(buffer, b => Assert.Equal(0x7F, b));
@@ -209,7 +212,7 @@ public sealed class CatenaAudioTests
         var buffer = new byte[320];
         Array.Fill(buffer, (byte)0xAB);
 
-        Assert.Equal(buffer.Length, guardia.Read(buffer, 0, buffer.Length));
+        Assert.Equal(buffer.Length, guardia.Read(buffer));
         Assert.All(buffer, b => Assert.Equal(0, b));
         Assert.Equal(320, guardia.PaddedBytes);
     }
@@ -227,7 +230,7 @@ public sealed class CatenaAudioTests
         var tono = Tono([1f, 1f], pan: 0f);
 
         var buffer = new float[4];
-        var letti = tono.Read(buffer, 0, buffer.Length);
+        var letti = tono.Read(buffer);
 
         Assert.Equal(4, letti);
 
@@ -243,7 +246,7 @@ public sealed class CatenaAudioTests
         var tono = Tono([1f, 1f], pan: 1f);
 
         var buffer = new float[4];
-        tono.Read(buffer, 0, buffer.Length);
+        tono.Read(buffer);
 
         // Interleaving: pari a sinistra, dispari a destra.
         Assert.Equal(0f, buffer[0], 5);
@@ -262,7 +265,7 @@ public sealed class CatenaAudioTests
         var buffer = new float[8];
         Array.Fill(buffer, 42f);
 
-        var letti = tono.Read(buffer, 0, buffer.Length);
+        var letti = tono.Read(buffer);
 
         Assert.Equal(buffer.Length, letti);
         Assert.All(buffer[2..], v => Assert.Equal(0f, v, 5));
@@ -276,8 +279,8 @@ public sealed class CatenaAudioTests
         var tono = Tono([1f, 1f], pan: 0f);
 
         var buffer = new float[4];
-        tono.Read(buffer, 0, buffer.Length);
+        tono.Read(buffer);
 
-        Assert.Equal(0, tono.Read(buffer, 0, buffer.Length));
+        Assert.Equal(0, tono.Read(buffer));
     }
 }
