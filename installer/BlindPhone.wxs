@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    PROCEDURA DI INSTALLAZIONE DI BLINDPHONE
+
+    Si costruisce con tools\crea-installatore.ps1, che pubblica l'applicazione e
+    poi richiama il compilatore WiX passando le variabili qui sotto. Non fa parte
+    di BlindPhone.sln di proposito: dipende dall'esito di una pubblicazione, e
+    metterlo nella soluzione romperebbe "dotnet build" a ogni compilazione
+    ordinaria.
+
+    TRE SCELTE CHE VALE LA PENA MOTIVARE
+
+    1. Il pacchetto porta dentro di se' il motore di esecuzione .NET. Pesa piu' di
+       un pacchetto che lo pretende gia' installato, ma non ha prerequisiti: e' la
+       differenza fra un'installazione che riesce sempre e una che puo' fermarsi
+       con "manca .NET Desktop Runtime". Per chi installa da solo senza vedere lo
+       schermo, quel messaggio e' un muro.
+
+    2. La pagina del contratto di licenza non c'e'. Il prodotto non ha ancora un
+       testo di licenza, e mostrarne uno inventato sarebbe peggio che non
+       mostrarne alcuno. Una pagina in meno e' anche una pagina in meno da
+       ascoltare. Come rimetterla e' scritto in docs\INSTALLAZIONE.md.
+
+    3. La cartella dei dati dell'operatore non e' dichiarata da nessuna parte in
+       questo file, e questo e' voluto. L'installatore di Windows rimuove cio' che
+       ha scritto: non dichiararla significa che un aggiornamento o una
+       disinstallazione non possono cancellare la rubrica dell'operatore.
+
+       %APPDATA%\BlindPhone contiene, e nessuna di queste cose va toccata:
+
+         settings.json              configurazione, account SIP compresi
+         secrets.dat                password SIP e Client Secret, sotto DPAPI
+         hotkeys.json               profili dei tasti rapidi
+         contacts.db                rubrica, cifrata
+         history.db                 ultime chiamate, cifrate
+         certificati-fidati.json    certificati del centralino approvati a mano
+         log\                       registri diagnostici
+         errori\                    rapporti degli errori gravi da segnalare
+
+       Le ultime tre voci sono nuove e vanno ricordate qui perche' la regola vale
+       per tutto quello che sta sotto quella cartella, non solo per i file che
+       c'erano quando questo commento e' stato scritto la prima volta.
+-->
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <!--
+      Il nome porta l'etichetta di versione leggibile, mentre Version resta la forma
+      numerica che l'installatore di Windows pretende. E' il nome che compare
+      nell'elenco delle app installate: chi amministra la postazione deve vedere che
+      ci ha messo una versione di prova senza doverla aprire.
+  -->
+  <Package Name="BlindPhone $(var.EtichettaVersione)"
+           Manufacturer="BlindPhone"
+           Version="$(var.Versione)"
+           UpgradeCode="577CC908-8CF5-4C5F-A874-6B1596D99FF5"
+           Scope="perMachine"
+           Language="1040"
+           Codepage="1252"
+           InstallerVersion="500">
+
+    <!--
+        UpgradeCode identifica il PRODOTTO, non la versione: non va mai cambiato.
+        E' la chiave con cui una nuova versione riconosce e sostituisce quella
+        installata invece di affiancarsi.
+    -->
+
+    <SummaryInformation Description="BlindPhone - posto operatore telefonico accessibile" />
+
+    <!--
+        Aggiornamento in luogo: la versione nuova disinstalla la vecchia da sola.
+        AllowSameVersionUpgrades evita che reinstallare la stessa versione, cosa
+        che capita durante le prove sul campo, lasci due voci nell'elenco
+        programmi.
+    -->
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="E' gia' installata una versione piu' recente di BlindPhone. Per installare questa versione, disinstalla prima quella presente." />
+
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="IconaBlindPhone" SourceFile="$(var.FileIcona)" />
+
+    <!-- L'icona compare anche nell'elenco delle app installate. -->
+    <Property Id="ARPPRODUCTICON" Value="IconaBlindPhone" />
+
+    <!--
+        Nota: ARPNOMODIFY lo dichiara gia' l'interfaccia WixUI_InstallDir, che
+        toglie il pulsante "Modifica" dall'elenco delle app installate. Ha senso:
+        c'e' un solo componente, e quel pulsante non avrebbe nulla da mostrare.
+    -->
+
+    <!--
+        Collegamento sul desktop, attivo salvo richiesta contraria. Non e' una
+        casella nella procedura ma una proprieta': una pagina in piu' da navigare
+        vale meno del collegamento in se', e chi distribuisce a molte postazioni
+        lo disattiva con DESKTOP=0 sulla riga di comando.
+    -->
+    <Property Id="DESKTOP" Value="1" Secure="yes" />
+
+    <!--
+        PRECONFIGURAZIONE E BLOCCO, DALLA RIGA DI COMANDO
+
+        Servono a chi prepara molte postazioni. Il pacchetto di configurazione si
+        copia in %ProgramData%\BlindPhone, dove il programma lo cerca al primo
+        avvio; il criterio di blocco si scrive sotto HKLM, dove un utente senza
+        privilegi amministrativi non arriva.
+
+        msiexec /i BlindPhone.msi /qn ^
+            CONFIGURAZIONE="\\server\deploy\configurazione-predefinita.bpcfg" ^
+            PANNELLO=SoloLettura ^
+            SEZIONIBLOCCATE=SipAccounts,Pbx,Diagnostics ^
+            MESSAGGIO="Configurazione gestita dall'ufficio IT, interno 4000"
+
+        La password di sblocco NON si passa qui: una password sulla riga di comando
+        finisce nei registri di distribuzione e nella cronologia della shell. Si
+        genera dal pannello di BlindPhone, che ne scrive la sola impronta, e si
+        distribuisce con PASSWORDHASH e PASSWORDSALT oppure con un criterio di
+        gruppo.
+    -->
+    <Property Id="CONFIGURAZIONE" Secure="yes" />
+    <Property Id="PANNELLO" Secure="yes" />
+    <Property Id="SEZIONIBLOCCATE" Secure="yes" />
+    <Property Id="MESSAGGIO" Secure="yes" />
+    <Property Id="PASSWORDHASH" Secure="yes" />
+    <Property Id="PASSWORDSALT" Secure="yes" />
+
+    <Feature Id="Principale" Title="BlindPhone" Level="1">
+      <ComponentGroupRef Id="FileApplicazione" />
+      <ComponentGroupRef Id="Collegamenti" />
+      <ComponentGroupRef Id="CriterioDiPostazione" />
+    </Feature>
+
+    <!--==================== Dove va installato ====================-->
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="BlindPhone" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="DesktopFolder" />
+
+    <!--
+        Cartella della configurazione distribuita. Sta in ProgramData e non nella
+        cartella del programma per tre motivi: e' leggibile da tutti gli utenti
+        della postazione, sopravvive alla disinstallazione del programma, e un
+        criterio di gruppo puo' aggiornarne il contenuto senza reinstallare nulla.
+    -->
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="DATIBLINDPHONE" Name="BlindPhone" />
+    </StandardDirectory>
+
+    <!--==================== Che cosa viene installato ====================-->
+
+    <!--
+        L'elenco dei file non e' scritto a mano: viene letto dalla cartella di
+        pubblicazione al momento della compilazione. Sono cinquecento file fra
+        librerie gestite e native, e un elenco manuale sarebbe gia' sbagliato al
+        primo aggiornamento di una dipendenza.
+    -->
+    <ComponentGroup Id="FileApplicazione" Directory="INSTALLFOLDER">
+      <Files Include="$(var.CartellaPubblicazione)\**" />
+    </ComponentGroup>
+
+    <ComponentGroup Id="Collegamenti">
+
+      <!--
+          Il collegamento sta direttamente nell'elenco programmi, senza una
+          cartella "BlindPhone" che lo contenga. Con il menu Start di Windows 11
+          la cartella aggiunge solo un livello da aprire, mentre il tasto Windows
+          seguito dal nome trova comunque il collegamento.
+      -->
+      <Component Id="CollegamentoMenuAvvio" Directory="ProgramMenuFolder">
+        <Shortcut Id="ScorciatoiaMenuAvvio"
+                  Name="BlindPhone"
+                  Description="Posto operatore telefonico accessibile"
+                  Target="[INSTALLFOLDER]BlindPhone.App.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\BlindPhone" Name="MenuAvvio"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+      <Component Id="CollegamentoDesktop" Directory="DesktopFolder" Condition="DESKTOP">
+        <Shortcut Id="ScorciatoiaDesktop"
+                  Name="BlindPhone"
+                  Description="Posto operatore telefonico accessibile"
+                  Target="[INSTALLFOLDER]BlindPhone.App.exe"
+                  WorkingDirectory="INSTALLFOLDER" />
+        <RegistryValue Root="HKLM" Key="Software\BlindPhone" Name="Desktop"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!--==================== Criterio di postazione ====================-->
+
+    <!--
+        Il criterio si scrive sotto HKLM\SOFTWARE\Policies, la convenzione dei
+        criteri di gruppo: un utente senza privilegi amministrativi non ci scrive,
+        ed e' quello che lo rende un vincolo vero invece di una protezione
+        dall'errore.
+
+        Ogni valore e' condizionato alla sua proprieta': un'installazione che non
+        passa PANNELLO non deve lasciare una chiave vuota, che il programma
+        leggerebbe come "criterio presente ma senza contenuto" e riporterebbe nella
+        diagnostica come postazione gestita.
+
+        Il ForceDeleteOnUninstall toglie il criterio alla disinstallazione. E'
+        deliberato e va nella direzione prudente: un criterio che sopravvive al
+        programma resterebbe a limitare una futura installazione senza che nessuno
+        ricordi di averlo messo.
+    -->
+    <ComponentGroup Id="CriterioDiPostazione" Directory="INSTALLFOLDER">
+
+      <Component Id="CriterioPannello" Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B01"
+                 Condition="PANNELLO">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\BlindPhone" ForceDeleteOnUninstall="yes">
+          <RegistryValue Name="Pannello" Type="string" Value="[PANNELLO]" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="CriterioSezioni" Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B02"
+                 Condition="SEZIONIBLOCCATE">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\BlindPhone" ForceDeleteOnUninstall="yes">
+          <RegistryValue Name="SezioniBloccate" Type="string" Value="[SEZIONIBLOCCATE]" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="CriterioMessaggio" Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B03"
+                 Condition="MESSAGGIO">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\BlindPhone" ForceDeleteOnUninstall="yes">
+          <RegistryValue Name="Messaggio" Type="string" Value="[MESSAGGIO]" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="CriterioPassword" Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B04"
+                 Condition="PASSWORDHASH AND PASSWORDSALT">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Policies\BlindPhone" ForceDeleteOnUninstall="yes">
+          <RegistryValue Name="PasswordHash" Type="string" Value="[PASSWORDHASH]" KeyPath="yes" />
+          <RegistryValue Name="PasswordSalt" Type="string" Value="[PASSWORDSALT]" />
+        </RegistryKey>
+      </Component>
+
+      <!--
+          Il pacchetto di configurazione viene copiato in ProgramData. Non e' un
+          file del prodotto ma un file di distribuzione, quindi non sta nella
+          cartella di pubblicazione: arriva da dove lo indica CONFIGURAZIONE.
+      -->
+      <Component Id="ConfigurazioneDistribuita" Directory="DATIBLINDPHONE"
+                 Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B05"
+                 Condition="CONFIGURAZIONE">
+        <CopyFile Id="CopiaConfigurazione"
+                  SourceProperty="CONFIGURAZIONE"
+                  DestinationDirectory="DATIBLINDPHONE"
+                  DestinationName="configurazione-predefinita.bpcfg" />
+
+        <RegistryValue Root="HKLM" Key="SOFTWARE\BlindPhone" Name="Configurazione"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!--==================== La procedura guidata ====================-->
+
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+
+    <WixVariable Id="WixUIBannerBmp" Value="$(var.CartellaGrafica)\striscia.bmp" />
+    <WixVariable Id="WixUIDialogBmp" Value="$(var.CartellaGrafica)\riquadro.bmp" />
+
+    <!-- Casella dell'ultima pagina: avvia il programma appena finito. -->
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Avvia BlindPhone" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <!--
+        Il percorso si compone a installazione avviata e non qui: la cartella di
+        destinazione e' definitiva solo dopo il calcolo dei costi, e scritta come
+        valore fisso resterebbe la stringa letterale "[INSTALLFOLDER]".
+    -->
+    <SetProperty Id="WixShellExecTarget"
+                 Value="[INSTALLFOLDER]BlindPhone.App.exe"
+                 After="CostFinalize"
+                 Sequence="both" />
+
+    <!--
+        Impersonate: il programma parte con l'utenza dell'operatore, non con
+        quella amministrativa usata per installare. Senza, BlindPhone leggerebbe e
+        scriverebbe la configurazione nel profilo sbagliato.
+    -->
+    <CustomAction Id="AvviaApplicazione"
+                  BinaryRef="Wix4UtilCA_X64"
+                  DllEntry="WixShellExec"
+                  Impersonate="yes" />
+
+    <UI>
+      <!--
+          Salto della pagina del contratto di licenza. Le due righe agiscono in
+          coppia: la prima manda Avanti dalla pagina iniziale direttamente alla
+          scelta della cartella, la seconda fa tornare Indietro allo stesso punto.
+          Senza la seconda, Indietro riporterebbe a una pagina che non e' stata
+          mostrata.
+      -->
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg"
+               Order="2" Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg"
+               Order="2" Condition="NOT Installed" />
+
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="AvviaApplicazione"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed" />
+    </UI>
+
+  </Package>
+</Wix>

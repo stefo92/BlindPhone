@@ -1,0 +1,15 @@
+# BlindPhone 1.0.1 beta - 9 agosto 2026
+# Una novita' per riga. Le righe con il cancelletto sono commenti e non compaiono
+# a schermo. La riga SHA256 serve a BlindPhone per verificare il pacchetto scaricato.
+
+Le chiamate entranti squillano finche' non si risponde: prima la suoneria suonava una volta sola e poi restava il silenzio
+Riquadro blu lampeggiante con il nome e il numero di chi chiama, per chi guarda lo schermo
+Barra dei comandi con il mouse: rispondi, attesa, trasferimento, conferenza, registrazione, toni, microfono, pausa, impostazioni e account SIP
+I pulsanti compaiono solo quando la funzione e' disponibile, e restano al loro posto per tutta la durata della chiamata
+Trasferimento cieco e trasferimento con annuncio su due pulsanti distinti, senza dover ricordare la doppia pressione
+Corretti i rapporti di errore grave che la suoneria generava a ogni chiamata entrante
+Registro diagnostico completo della segnalazione SIP: ogni messaggio scambiato con il centralino, con il motivo dichiarato da chi chiude la chiamata
+Il posto operatore non abbandona piu' da solo una chiamata che squilla da oltre tre minuti: quanto squillare lo decide il centralino
+Aggiornamenti scaricabili dal server dell'ente, con le novita' della versione mostrate prima di installarla
+
+SHA256: AC5D2E2A3F051432F34B34366C06C1534BFDF3BE9E586DD752DBEFABD44B2A40

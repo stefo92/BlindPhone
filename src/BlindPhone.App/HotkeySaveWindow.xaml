@@ -1,0 +1,117 @@
+<Window x:Class="BlindPhone.App.HotkeySaveWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Salva la configurazione dei tasti"
+        Width="680"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        SALVATAGGIO DELLA CONFIGURAZIONE DEI TASTI
+
+        Un solo pulsante e quattro destinazioni, invece di quattro pulsanti in fila.
+        La ragione e' di accessibilita': quattro pulsanti costringono a percorrerli
+        tutti con il Tab per sapere quali sono, e a ricordarsene la prossima volta.
+        Un elenco di scelte con i pulsanti di opzione si percorre con le frecce, lo
+        screen reader annuncia "1 di 4" e ogni voce porta con se' la spiegazione di
+        cosa fara'.
+
+        Le quattro destinazioni non sono varianti della stessa cosa: aggiornare il
+        profilo in uso, crearne uno nuovo, produrre un file da portare su un'altra
+        postazione e produrre la scheda da leggere o stampare in braille sono quattro
+        esigenze diverse dello stesso momento, cioe' "ho finito di configurare".
+    -->
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="SummaryText"
+                   FontWeight="Bold"
+                   Margin="0,0,0,12"
+                   Text=""
+                   AutomationProperties.Name="Configurazione da salvare" />
+
+        <GroupBox Grid.Row="1"
+                  Header="Che cosa vuoi fare"
+                  Padding="10"
+                  AutomationProperties.Name="Tipo di salvataggio">
+            <StackPanel>
+
+                <RadioButton x:Name="UpdateCurrentOption"
+                             GroupName="SaveKind"
+                             IsChecked="True"
+                             Content="_Aggiorna il profilo corrente e applicalo subito"
+                             AutomationProperties.Name="Aggiorna il profilo corrente e applicalo subito"
+                             AutomationProperties.HelpText="Le nuove combinazioni diventano attive immediatamente, senza riavviare BlindPhone."
+                             Checked="OnOptionChanged" />
+
+                <TextBlock x:Name="UpdateCurrentHint"
+                           Margin="24,2,0,10"
+                           Opacity="0.85"
+                           Text="" />
+
+                <RadioButton x:Name="SaveAsNewOption"
+                             GroupName="SaveKind"
+                             Content="Salva come _nuovo profilo e attivalo"
+                             AutomationProperties.Name="Salva come nuovo profilo e attivalo"
+                             AutomationProperties.HelpText="Conserva il profilo di partenza e ne crea un altro con le modifiche. Utile su una postazione usata a turni da operatori diversi."
+                             Checked="OnOptionChanged" />
+
+                <StackPanel Margin="24,6,0,10">
+                    <Label Target="{Binding ElementName=ProfileNameBox}" Content="No_me del nuovo profilo" />
+                    <TextBox x:Name="ProfileNameBox"
+                             AutomationProperties.Name="Nome del nuovo profilo"
+                             AutomationProperties.HelpText="Per esempio il proprio nome, oppure il turno. Viene pronunciato quando il profilo si attiva." />
+                </StackPanel>
+
+                <RadioButton x:Name="ExportProfileOption"
+                             GroupName="SaveKind"
+                             Content="_Esporta su file, per un'altra postazione"
+                             AutomationProperties.Name="Esporta la configurazione su file, per portarla su un'altra postazione"
+                             AutomationProperties.HelpText="Produce un file che si importa da un'altra installazione di BlindPhone. Non contiene alcuna credenziale."
+                             Checked="OnOptionChanged" />
+
+                <TextBlock Margin="24,2,0,10"
+                           Opacity="0.85"
+                           Text="Il file contiene solo la mappa dei tasti: nessuna password, nessun dato del centralino." />
+
+                <RadioButton x:Name="ExportCardOption"
+                             GroupName="SaveKind"
+                             Content="Esporta la sc_heda dei tasti in testo, per leggerla o stamparla in braille"
+                             AutomationProperties.Name="Esporta la scheda dei tasti in un file di testo, per la lettura o la stampa braille"
+                             AutomationProperties.HelpText="Produce l'elenco completo dei comandi con le combinazioni assegnate, in righe corte adatte al display braille."
+                             Checked="OnOptionChanged" />
+
+                <TextBlock Margin="24,2,0,0"
+                           Opacity="0.85"
+                           Text="Non modifica la configurazione: produce soltanto il documento da leggere." />
+
+            </StackPanel>
+        </GroupBox>
+
+        <TextBlock Grid.Row="2"
+                   x:Name="EffectText"
+                   Margin="0,12,0,0"
+                   Text=""
+                   AutomationProperties.Name="Effetto della scelta"
+                   AutomationProperties.LiveSetting="Polite" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="OkButton" Content="_Procedi" IsDefault="True" Margin="0,0,8,0"
+                    AutomationProperties.Name="Procedi con il salvataggio scelto"
+                    Click="OnOkClick" />
+            <Button x:Name="CancelButton" Content="Annu_lla" IsCancel="True"
+                    AutomationProperties.Name="Chiudi senza salvare"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </Grid>
+</Window>

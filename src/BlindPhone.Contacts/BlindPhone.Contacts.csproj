@@ -1,0 +1,66 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Contacts: rubrica, repository locale e sorgenti di importazione.
+
+    Sorgenti previste dal capitolato: CSV, LDAP e ripristino da backup SQL.
+    Con Yeastar come PBX di riferimento la sorgente primaria diventa pero'
+    YeastarContactSource (vedi BlindPhone.Pbx.Yeastar): e' gia' configurata nel
+    centralino, si mantiene aggiornata da sola e porta con se' la presenza degli
+    interni. CSV e LDAP restano per i contatti esterni al PBX.
+
+    Le versioni dei pacchetti che seguono il motore di esecuzione non sono scritte
+    qui: arrivano da BandaPacchetti, in Directory.Build.props, che le tiene allineate
+    alla banda del target. Montare i 10.x su un target net9.0 - o il contrario -
+    significherebbe spedire assembly di una banda dentro un pacchetto dell'altra.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.Contacts</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CsvHelper" Version="33.1.0" />
+
+    <!--
+      SQLITE CIFRATO, NON SQLITE E BASTA.
+
+      Microsoft.Data.Sqlite (il pacchetto completo) porta con se' il motore
+      e_sqlite3, che non sa cifrare: i due archivi resterebbero in chiaro sul disco.
+      Contengono la rubrica di un ente e i dati di traffico telefonico - chi ha
+      chiamato chi e quando - cioe' dati personali ai sensi del GDPR, su un portatile
+      che puo' essere rubato.
+
+      Si prende quindi il solo strato gestito (.Core) e gli si abbina il motore
+      SQLCipher, che cifra l'intero file con AES-256. Le due dipendenze vanno insieme:
+      aggiungere il bundle senza togliere il pacchetto completo caricherebbe due
+      provider nativi nello stesso processo, e a decidere quale vince sarebbe
+      l'ordine di inizializzazione.
+    -->
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="$(BandaPacchetti)" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
+
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
+    <PackageReference Include="System.DirectoryServices.Protocols" Version="$(BandaPacchetti)" />
+
+    <!--
+      MICROSOFT SQL SERVER, PER LE RUBRICHE CHE VIVONO NEL GESTIONALE DELL'ENTE.
+
+      E' una dipendenza esterna in piu' su un prodotto destinato alla PA, e non si
+      aggiunge a cuor leggero: porta con se' la propria catena di aggiornamenti di
+      sicurezza. La si accetta perche' l'alternativa - far riesportare a mano un file
+      a ogni cambio di organico - e' il motivo per cui, nella pratica, le rubriche
+      degli enti smettono di essere aggiornate dopo pochi mesi.
+
+      Il collegamento e' di sola lettura: BlindPhone non scrive mai nel database
+      dell'ente, e i contatti finiscono nella copia locale cifrata.
+    -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+  </ItemGroup>
+
+</Project>

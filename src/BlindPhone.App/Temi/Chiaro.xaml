@@ -1,0 +1,53 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!--
+        TEMA CHIARO.
+
+        I tre dizionari dei temi dichiarano LE STESSE CHIAVI, sempre. Una chiave
+        presente qui e assente nel tema scuro non produce nessun errore di
+        compilazione: produce un elemento invisibile, e solo per chi ha scelto il tema
+        scuro. E' il modo peggiore in cui un difetto puo' presentarsi, quindi c'e' una
+        prova che confronta i tre elenchi (RisorseXamlTests).
+
+        OGNI COPPIA TESTO-SFONDO STA SOPRA IL 7 A 1 richiesto da questo prodotto, che
+        e' il livello AAA delle WCAG e non il AA che basterebbe per legge. I rapporti
+        sono annotati riga per riga: senza il numero scritto, la prima modifica fatta
+        "a occhio" lo abbassa e nessuno se ne accorge.
+    -->
+
+    <!-- Superfici: tela leggermente grigia, schede bianche sopra. -->
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="CanvasBrush" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="CardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="HairlineBrush" Color="#C8C8C8" />
+
+    <!-- Testo: 16,9 a 1 sulla scheda bianca, 7,4 a 1 quello attenuato. -->
+    <SolidColorBrush x:Key="TextBrush" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="MutedTextBrush" Color="#555555" />
+    <SolidColorBrush x:Key="DisabledTextBrush" Color="#767676" />
+
+    <!-- Evidenziazione: 8,0 a 1 sulla tela. -->
+    <SolidColorBrush x:Key="AccentBrush" Color="#0A4A8F" />
+
+    <!-- Controlli: la faccia dei pulsanti si stacca dalla scheda bianca. -->
+    <SolidColorBrush x:Key="ControlBrush" Color="#EDEDED" />
+    <SolidColorBrush x:Key="ControlTextBrush" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="ControlBorderBrush" Color="#8A8A8A" />
+    <SolidColorBrush x:Key="ControlHoverBrush" Color="#DEDEDE" />
+    <SolidColorBrush x:Key="ControlPressedBrush" Color="#CFCFCF" />
+    <SolidColorBrush x:Key="ControlDisabledBrush" Color="#F0F0F0" />
+
+    <!-- Campi di immissione: fondo bianco, bordo piu' marcato del filo delle schede. -->
+    <SolidColorBrush x:Key="FieldBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="FieldBorderBrush" Color="#767676" />
+
+    <!-- Selezione negli elenchi: bianco su blu, 8,6 a 1. -->
+    <SolidColorBrush x:Key="SelectionBrush" Color="#0A4A8F" />
+    <SolidColorBrush x:Key="SelectionTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="HoverRowBrush" Color="#E8EFF7" />
+
+    <!-- Intestazioni di tabella. -->
+    <SolidColorBrush x:Key="HeaderBrush" Color="#E9E9E9" />
+
+</ResourceDictionary>

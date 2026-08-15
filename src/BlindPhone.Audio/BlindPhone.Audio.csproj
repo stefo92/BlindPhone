@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Audio: instradamento audio a quattro vie su WASAPI (NAudio).
+
+    Le quattro vie (microfono, conversazione, suoneria, annunci vocali) sono il
+    differenziale accessibile del prodotto: separare la voce degli annunci
+    dall'audio della conversazione risolve la sovrapposizione fra screen reader e
+    interlocutore. Vedi ANALISI-BLINDPHONE.md 8.1.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.Audio</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
+    <PackageReference Include="NAudio" Version="2.3.0" />
+    <PackageReference Include="SIPSorceryMedia.Abstractions" Version="10.0.15" />
+  </ItemGroup>
+
+</Project>

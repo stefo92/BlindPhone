@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Pbx.Yeastar: connettore per Yeastar P-Series Open API.
+
+    Implementa IQueueProvider e IContactSource sopra REST (/openapi/v1.0) e
+    WebSocket (/openapi/v1.0/subscribe). Progetto di dettaglio, mappature campo per
+    campo e checklist di verifica pre-vendita in YEASTAR-INTEGRAZIONE.md.
+
+    Non usa librerie HTTP di terze parti: HttpClient e ClientWebSocket sono in-box,
+    e System.Text.Json basta per il modello di trasporto. Meno dipendenze significa
+    meno superficie da giustificare in un collaudo della PA.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)</TargetFramework>
+    <RootNamespace>BlindPhone.Pbx.Yeastar</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
+  </ItemGroup>
+
+</Project>

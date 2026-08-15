@@ -1,0 +1,100 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.App: shell WPF.
+
+    Perche' WPF e non WinUI/Electron/Avalonia: e' l'unico stack UI Windows con
+    supporto UI Automation maturo e prevedibile con JAWS e NVDA insieme
+    (ANALISI-BLINDPHONE.md 6.1). La scelta non e' estetica ma di conformita':
+    EN 301 549 11.5 richiede l'esposizione corretta di nome, ruolo, stato e valore
+    ai servizi di accessibilita' della piattaforma, ed e' il criterio su cui i
+    collaudi della PA si fermano piu' spesso.
+
+    Regola vincolante per chi lavora su questo progetto: si usano i controlli
+    standard (ListView, DataGrid, TextBox), mai ItemsControl di Border travestiti da
+    liste. Un controllo custom richiede un AutomationPeer esplicito.
+    Vedi docs/CONTRIBUIRE-ACCESSIBILITA.md.
+  -->
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.App</RootNamespace>
+    <UseWPF>true</UseWPF>
+
+    <!--
+      Windows Forms serve a una cosa sola: NotifyIcon, l'icona nell'area di
+      notifica. WPF non ne ha una propria e l'alternativa sarebbe reimplementare
+      Shell_NotifyIcon a mano, cosa che significa gestire il riavvio della barra
+      delle applicazioni (messaggio TaskbarCreated, dopo il quale l'icona sparisce
+      se non viene registrata di nuovo), il posizionamento del menu contestuale e
+      le versioni del protocollo della shell. Su un posto operatore che resta
+      acceso tutto il giorno, un'icona che sparisce dopo un riavvio di Explorer e'
+      un guasto vero: il programma continua a squillare e l'operatore non ha piu'
+      modo di riaprirlo.
+
+      Il costo e' qualche megabyte nel pacchetto autonomo. L'uso e' confinato in
+      TrayIcon.cs, dove i tipi sono qualificati per intero.
+    -->
+    <UseWindowsForms>true</UseWindowsForms>
+
+    <!--
+      Icona dell'applicazione, generata da icona.png con tools\genera-icona.ps1.
+
+      Vale anche per le finestre: una finestra WPF che non dichiara la propria
+      Icon usa quella dell'eseguibile, quindi questa riga copre barra del titolo,
+      barra delle applicazioni, Alt Tab, Esplora risorse e i collegamenti creati
+      dall'installatore.
+    -->
+    <ApplicationIcon>blindphone.ico</ApplicationIcon>
+
+    <!--
+      Delle traduzioni delle librerie di sistema si tiene la sola italiana.
+
+      Le altre dodici pesano sedici megabyte nel pacchetto di installazione e non
+      servono mai: il prodotto e' per centralini italiani, e i messaggi delle
+      lingue rimosse ricadono sull'inglese contenuto negli assembly principali,
+      che e' esattamente cio' che si vedrebbe comunque su una postazione
+      configurata in una lingua che non traduciamo.
+    -->
+    <SatelliteResourceLanguages>it</SatelliteResourceLanguages>
+
+    <!-- Il codice generato da XAML non porta commenti XML: CS1591 qui e' rumore. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      LA USING IMPLICITA DI WINDOWS FORMS VA TOLTA.
+
+      Con UseWindowsForms e ImplicitUsings attivi, l'SDK aggiunge
+      "using System.Windows.Forms" a OGNI file del progetto. Il risultato e' che
+      meta' dei tipi di WPF diventano ambigui: Application, TextBox, ComboBox,
+      KeyEventArgs, MessageBox esistono con lo stesso nome nei due mondi, e il
+      compilatore non sceglie. Sono ventidue errori in file che non hanno nulla a
+      che vedere con l'area di notifica.
+
+      Togliendo la sola using implicita, il riferimento all'assembly resta e
+      TrayIcon.cs continua a funzionare qualificando i tipi per intero. Nessun
+      altro file vede Windows Forms, che e' esattamente l'intenzione.
+    -->
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
+    <ProjectReference Include="..\BlindPhone.Accessibility\BlindPhone.Accessibility.csproj" />
+    <ProjectReference Include="..\BlindPhone.Audio\BlindPhone.Audio.csproj" />
+    <ProjectReference Include="..\BlindPhone.Contacts\BlindPhone.Contacts.csproj" />
+    <ProjectReference Include="..\BlindPhone.Infrastructure\BlindPhone.Infrastructure.csproj" />
+    <ProjectReference Include="..\BlindPhone.Pbx.Yeastar\BlindPhone.Pbx.Yeastar.csproj" />
+    <ProjectReference Include="..\BlindPhone.Telephony\BlindPhone.Telephony.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="$(BandaPacchetti)" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="$(BandaPacchetti)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="$(BandaPacchetti)" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,1846 @@
+<Window x:Class="BlindPhone.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Impostazioni BlindPhone"
+        Height="720" Width="860"
+        MinHeight="520" MinWidth="640"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
+
+    <!--
+        ACCESSIBILITA' DI QUESTA FINESTRA
+
+        Un pannello impostazioni e' il punto in cui un operatore non vedente resta
+        piu' facilmente bloccato: molti campi, poche etichette lette correttamente,
+        errori di validazione che compaiono solo a schermo. Le regole applicate qui:
+
+        - ogni campo ha una Label con Target, quindi lo screen reader legge
+          l'etichetta quando il focus entra nel campo, e la lettera di accesso
+          (Alt+lettera) porta direttamente al campo;
+        - ogni campo ha HelpText che spiega cosa inserire, non ripete il nome;
+        - le password usano PasswordBox, con una casella "mostra" che consente la
+          verifica carattere per carattere: un utente non vedente non puo'
+          controllare a schermo cosa ha digitato;
+        - gli esiti delle verifiche e del salvataggio sono annunciati, non solo
+          scritti;
+        - il TabControl e' un controllo standard, quindi Control+Tab scorre le
+          schede e lo screen reader annuncia "scheda 2 di 5".
+    -->
+
+    <Window.Resources>
+        <!--
+            NOME ACCESSIBILE DELLE CELLE DELLE COMBINAZIONI
+
+            A schermo la forma compatta "Ctrl+Maiusc+F9" e' quella che si legge in un
+            colpo d'occhio; letta a voce diventa "control piu' maiusc piu' effe
+            nove", dove i segni piu' si sentono e le parole no. Il nome accessibile
+            porta la forma pronunciabile, che e' la stessa usata negli annunci: cosi'
+            quello che l'operatore sente qui e' identico a quello che sentira' quando
+            il sistema gli dira' quale tasto premere.
+        -->
+        <Style x:Key="SpokenLocalCell" TargetType="DataGridCell">
+            <Setter Property="AutomationProperties.Name" Value="{Binding LocalSpeech}" />
+        </Style>
+
+        <Style x:Key="SpokenGlobalCell" TargetType="DataGridCell">
+            <Setter Property="AutomationProperties.Name" Value="{Binding GlobalSpeech}" />
+        </Style>
+
+        <!--
+            GLI STESSI NOMI, DICHIARATI ANCHE SUL TESTO DENTRO LA CELLA.
+
+            Una cella di DataGrid contiene un TextBlock che espone a sua volta il
+            proprio testo come elemento di lettura a se'. Dichiarando il nome sulla
+            sola cella, i due nodi annidati dicono cose diverse e lo screen reader le
+            legge entrambe: e' il difetto per cui la combinazione veniva pronunciata
+            due volte, prima per esteso e poi in forma compatta. La spiegazione con le
+            misure sta in MainWindow.xaml.
+        -->
+        <Style x:Key="SpokenLocalText" TargetType="TextBlock">
+            <Setter Property="AutomationProperties.Name" Value="{Binding LocalSpeech}" />
+        </Style>
+
+        <Style x:Key="SpokenGlobalText" TargetType="TextBlock">
+            <Setter Property="AutomationProperties.Name" Value="{Binding GlobalSpeech}" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TabControl Grid.Row="0"
+                    x:Name="Tabs"
+                    AutomationProperties.Name="Sezioni delle impostazioni"
+                    SelectionChanged="OnTabsSelectionChanged">
+
+            <!-- ============================ ACCOUNT SIP ============================ -->
+            <TabItem x:Name="SipTab" Header="_Account SIP" AutomationProperties.Name="Account SIP">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <TextBlock Text="Dati forniti dall'amministratore del centralino."
+                                   Margin="0,0,0,12" Opacity="0.85" />
+
+                        <!--
+                            SELETTORE DELL'ACCOUNT
+
+                            Sta in cima perche' decide il significato di tutti i campi
+                            che seguono: cambiarlo senza accorgersene farebbe scrivere
+                            le credenziali di un ente su quelle di un altro.
+
+                            Il cambio di selezione salva da solo i campi dell'account
+                            che si lascia. L'alternativa — chiedere "vuoi salvare?" a
+                            ogni cambio — costringerebbe a rispondere a una domanda per
+                            fare la cosa piu' normale del pannello, cioe' confrontare
+                            due account.
+                        -->
+                        <Label Target="{Binding ElementName=SipAccountSelector}" Content="Acc_ount da modificare" />
+                        <ComboBox x:Name="SipAccountSelector" FontSize="16" MinHeight="36"
+                                  DisplayMemberPath="Label"
+                                  AutomationProperties.Name="Account SIP da modificare"
+                                  AutomationProperties.HelpText="I campi qui sotto si riferiscono all'account scelto. Cambiando scelta le modifiche in corso vengono conservate."
+                                  SelectionChanged="OnSipAccountSelectionChanged" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="AddSipAccountButton" Content="_Aggiungi account"
+                                    MinWidth="170" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Aggiungi un nuovo account SIP"
+                                    Click="OnAddSipAccountClick" />
+
+                            <Button x:Name="RemoveSipAccountButton" Content="_Elimina account"
+                                    MinWidth="160" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Elimina l'account selezionato"
+                                    Click="OnRemoveSipAccountClick" />
+
+                            <Button x:Name="DefaultSipAccountButton" Content="Usa all'a_vvio"
+                                    MinWidth="150"
+                                    AutomationProperties.Name="Rendi predefinito l'account selezionato"
+                                    Click="OnDefaultSipAccountClick" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="SipAccountHint"
+                                   Margin="0,8,0,12"
+                                   TextWrapping="Wrap"
+                                   Opacity="0.85"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Stato dell'account selezionato" />
+
+                        <Label Target="{Binding ElementName=SipAccountName}" Content="_Nome dell'account" />
+                        <TextBox x:Name="SipAccountName"
+                                 AutomationProperties.Name="Nome dell'account"
+                                 AutomationProperties.HelpText="Come chiamarlo nell'elenco, ad esempio Centralino sede oppure Ospedale. Serve a te per riconoscerlo." />
+
+                        <Label Target="{Binding ElementName=SipUsername}" Content="_Interno o utenza SIP" />
+                        <TextBox x:Name="SipUsername"
+                                 AutomationProperties.Name="Interno o utenza SIP"
+                                 AutomationProperties.HelpText="Il numero dell'interno assegnato al posto operatore, ad esempio 200." />
+
+                        <Label Target="{Binding ElementName=SipAuthId}" Content="ID di au_tenticazione (se diverso)" />
+                        <TextBox x:Name="SipAuthId"
+                                 AutomationProperties.Name="Identificativo di autenticazione"
+                                 AutomationProperties.HelpText="Da compilare solo se il centralino usa un identificativo diverso dall'interno. In caso di dubbio lasciare vuoto." />
+
+                        <Label Target="{Binding ElementName=SipPassword}" Content="_Password SIP" />
+                        <PasswordBox x:Name="SipPassword"
+                                     FontSize="20" Padding="8" MinHeight="40"
+                                     AutomationProperties.Name="Password SIP"
+                                     AutomationProperties.HelpText="Password dell'interno. Viene conservata cifrata e non compare mai nel file di configurazione." />
+                        <CheckBox x:Name="ShowSipPassword"
+                                  Content="_Mostra la password per verificarla"
+                                  Margin="0,6,0,0"
+                                  AutomationProperties.Name="Mostra la password SIP in chiaro per poterla verificare"
+                                  Checked="OnShowSipPasswordChanged"
+                                  Unchecked="OnShowSipPasswordChanged" />
+                        <TextBox x:Name="SipPasswordPlain"
+                                 Visibility="Collapsed"
+                                 Margin="0,6,0,0"
+                                 AutomationProperties.Name="Password SIP in chiaro"
+                                 AutomationProperties.HelpText="Leggibile carattere per carattere per la verifica." />
+
+                        <Label Target="{Binding ElementName=SipDomain}" Content="_Dominio o indirizzo del centralino" />
+                        <TextBox x:Name="SipDomain"
+                                 AutomationProperties.Name="Dominio SIP"
+                                 AutomationProperties.HelpText="Indirizzo IP o nome del centralino, ad esempio 192.168.1.10 oppure pbx.ente.it." />
+
+                        <Label Target="{Binding ElementName=SipRegistrar}" Content="Server di _registrazione (facoltativo)" />
+                        <TextBox x:Name="SipRegistrar"
+                                 AutomationProperties.Name="Server di registrazione"
+                                 AutomationProperties.HelpText="Da compilare solo se diverso dal dominio. In caso di dubbio lasciare vuoto." />
+
+                        <Label Target="{Binding ElementName=SipTransport}" Content="_Trasporto" />
+                        <ComboBox x:Name="SipTransport" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Trasporto della segnalazione SIP"
+                                  AutomationProperties.HelpText="UDP e' il piu' diffuso. TLS cifra la segnalazione ed e' raccomandato in produzione.">
+                            <ComboBoxItem Content="Udp" />
+                            <ComboBoxItem Content="Tcp" />
+                            <ComboBoxItem Content="Tls" />
+                        </ComboBox>
+
+                        <Label Target="{Binding ElementName=SipDisplayName}" Content="Nome _visualizzato" />
+                        <TextBox x:Name="SipDisplayName"
+                                 AutomationProperties.Name="Nome visualizzato"
+                                 AutomationProperties.HelpText="Nome mostrato a chi riceve le tue chiamate, ad esempio Centralino." />
+
+                        <!--
+                            NUMERO PRESENTATO IN USCITA
+
+                            Sta qui e non fra le impostazioni delle chiamate perche' e'
+                            una proprieta' dell'ACCOUNT: due account su due enti diversi
+                            presentano due numeri diversi, e legarlo all'account e'
+                            l'unico modo perche' il numero giusto segua il cambio.
+                        -->
+                        <Label Target="{Binding ElementName=SipOutboundCallerId}" Content="Numero presentato in _uscita" />
+                        <TextBox x:Name="SipOutboundCallerId"
+                                 AutomationProperties.Name="Numero presentato a chi ricevi le tue chiamate"
+                                 AutomationProperties.HelpText="Numero che vede chi chiami, al posto del tuo interno: serve a non farti richiamare direttamente sulla postazione. Indica un recapito dell'ente che sia davvero presidiato, tipicamente il centralino pubblico, perche' e' li' che andranno le richiamate. Lascialo vuoto per presentare il tuo interno come sempre. Attenzione: quasi tutti i centralini sostituiscono il numero dichiarato da un interno con quello configurato per quell'interno, quindi l'impostazione ha effetto solo se l'amministratore autorizza questo interno a presentarsi con un altro numero." />
+
+                        <Label Target="{Binding ElementName=SipSrtp}" Content="Cifratura della vo_ce" />
+                        <ComboBox x:Name="SipSrtp" FontSize="16" MinHeight="36"
+                                  SelectionChanged="OnSipSrtpChanged"
+                                  AutomationProperties.Name="Cifratura del contenuto della conversazione"
+                                  AutomationProperties.HelpText="Riguarda il contenuto della conversazione ed e' cosa diversa dal trasporto TLS, che protegge la segnalazione. Disabled: la voce viaggia in chiaro. Preferred: si cifra dove la controparte lo consente, e se rifiuta la chiamata riparte in chiaro con un avviso. Required: senza cifratura la chiamata non si fa, ne' in uscita ne' in entrata. Richiede che il centralino esponga SRTP: provalo con una chiamata prima di adottarlo su un turno.">
+                            <ComboBoxItem Content="Disabled" />
+                            <ComboBoxItem Content="Preferred" />
+                            <ComboBoxItem Content="Required" />
+                        </ComboBox>
+
+                        <TextBlock x:Name="SipSrtpHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto della cifratura della voce"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <TextBlock x:Name="SipCallerIdHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Opacity="0.85"
+                                   Text="Verifica sempre l'effetto con una chiamata di prova verso un telefono di cui vedi il display: e' il centralino ad avere l'ultima parola su quale numero viene mostrato."
+                                   AutomationProperties.Name="Come verificare il numero presentato in uscita" />
+
+                        <Button x:Name="TestSipButton"
+                                Content="_Verifica la registrazione"
+                                HorizontalAlignment="Left"
+                                Margin="0,16,0,0"
+                                AutomationProperties.Name="Verifica la registrazione SIP e annuncia l'esito"
+                                Click="OnTestSipClick" />
+
+
+                        <!--
+                            I CODEC STANNO QUI E NON FRA I DISPOSITIVI AUDIO.
+
+                            L'ordine dei codec e' una impostazione dell'account SIP -
+                            viene salvata in Sip.CodecPreference e finisce nell'offerta
+                            SDP - ma stava nella scheda Audio, insieme a microfono e
+                            altoparlanti. Finche' nessuno bloccava niente la differenza
+                            non si vedeva.
+
+                            Si e' vista il 9 agosto 2026, quando la postazione ha
+                            ricevuto un criterio che blocca la sezione "audio" e lascia
+                            aperta quella degli account: l'operatore poteva modificare
+                            l'account SIP ma non l'ordine dei codec, perche' quel
+                            comando viveva sotto il lucchetto sbagliato. E in WPF non
+                            bastava riabilitarlo: dentro un contenitore disattivato un
+                            figlio resta disattivato comunque.
+
+                            Sta con l'account perche' e' dell'account. Chi blocca i
+                            dispositivi audio vuole impedire che si cambi cuffia, non
+                            che si scelga come viaggia la voce.
+                        -->
+                        <!-- ==================== CODEC ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Codec audio della conversazione" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Il centralino sceglie il primo codec dell'elenco che sa gestire. Spunta quelli da offrire e mettili nell'ordine che preferisci: il primo e' quello che verra' usato quasi sempre." />
+
+                        <!--
+                            NIENTE ALTEZZA FISSA: l'elenco si dimensiona sul contenuto.
+
+                            Erano 150 pixel, scelti quando le righe erano piu' basse.
+                            Ridisegnando i controlli le righe sono cresciute di una
+                            dozzina di pixel l'una, la quarta voce non ci e' piu'
+                            entrata ed e' comparsa una barra di scorrimento: chi
+                            guardava vedeva il primo codec numerato «2» e concludeva,
+                            ragionevolmente, che il numero uno fosse sparito.
+
+                            Un elenco di quattro voci non deve scorrere. Il tetto
+                            massimo resta come rete di sicurezza per il giorno in cui
+                            i codec diventassero molti, e per chi ingrandisce il testo
+                            di sistema: li' la barra e' preferibile a una finestra che
+                            non ci sta nello schermo.
+                        -->
+                        <ListBox x:Name="CodecList"
+                                 MaxHeight="320"
+                                 FontSize="16"
+                                 SelectionMode="Single"
+                                 KeyDown="OnCodecListKeyDown"
+                                 SelectionChanged="OnCodecSelectionChanged"
+                                 AutomationProperties.Name="Elenco dei codec audio in ordine di preferenza"
+                                 AutomationProperties.HelpText="Barra spaziatrice per attivare o disattivare un codec. Alt freccia su e Alt freccia giu' per spostarlo nell'ordine.">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <!--
+                                        NESSUN NOME ACCESSIBILE SULLA CASELLA.
+
+                                        Il nome per esteso sta sulla voce dell'elenco,
+                                        che e' l'elemento su cui arriva il cursore.
+                                        Dichiararlo anche qui lo faceva pronunciare due
+                                        volte: prima la voce, poi la casella dentro.
+                                        Senza dichiarazione la casella prende il proprio
+                                        contenuto, cioe' quello che c'e' scritto a
+                                        schermo.
+                                    -->
+                                    <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                              Margin="0,2,0,2"
+                                              Content="{Binding Display}"
+                                              AutomationProperties.HelpText="{Binding Description}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="CodecUpButton" Content="Sposta s_u" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Sposta il codec selezionato piu' in alto nell'ordine di preferenza"
+                                    Click="OnCodecUpClick" />
+                            <Button x:Name="CodecDownButton" Content="Sposta gi_u" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Sposta il codec selezionato piu' in basso nell'ordine di preferenza"
+                                    Click="OnCodecDownClick" />
+                            <Button x:Name="CodecResetButton" Content="Ripristina l'ordine consi_gliato"
+                                    AutomationProperties.Name="Ripristina l'ordine consigliato per l'Europa: G.722, G.711 A-law, G.729"
+                                    Click="OnCodecResetClick" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="CodecWarningText"
+                                   TextWrapping="Wrap"
+                                   Margin="0,10,0,0"
+                                   FontWeight="Bold"
+                                   Text=""
+                                   AutomationProperties.Name="Avviso sulla configurazione dei codec"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ CENTRALINO ============================ -->
+            <TabItem x:Name="PbxTab" Header="_Centralino" AutomationProperties.Name="Collegamento al centralino Yeastar">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
+                                   Text="Questo collegamento serve a vedere le chiamate in coda, la presenza degli interni e la rubrica del centralino. Richiede un PBX Yeastar P-Series con piano Enterprise o Ultimate e la funzione API abilitata." />
+
+                        <CheckBox x:Name="PbxEnabled"
+                                  Content="Colle_ga BlindPhone all'API del centralino"
+                                  Margin="0,0,0,4"
+                                  FontWeight="Bold"
+                                  AutomationProperties.Name="Collega BlindPhone all'API del centralino Yeastar"
+                                  AutomationProperties.HelpText="Togli la spunta se il centralino non espone l'API. Telefonare, rispondere e trasferire continuano a funzionare: si perde solo la visibilita' sulle chiamate in coda, e il sistema smette di segnalare il collegamento come interrotto."
+                                  Checked="OnPbxEnabledChanged"
+                                  Unchecked="OnPbxEnabledChanged" />
+
+                        <TextBlock x:Name="PbxEnabledHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto dell'impostazione di collegamento al centralino"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Label Target="{Binding ElementName=PbxHost}" Content="_Indirizzo del centralino" />
+                        <TextBox x:Name="PbxHost"
+                                 AutomationProperties.Name="Indirizzo del centralino"
+                                 AutomationProperties.HelpText="Indirizzo IP o nome del PBX Yeastar, ad esempio 192.168.1.10." />
+
+                        <Label Target="{Binding ElementName=PbxPort}" Content="_Porta API" />
+                        <TextBox x:Name="PbxPort"
+                                 AutomationProperties.Name="Porta dell'API"
+                                 AutomationProperties.HelpText="Porta dell'interfaccia di programmazione. Il valore predefinito di Yeastar e' 8088." />
+
+                        <CheckBox x:Name="PbxUseTls"
+                                  Content="Usa collegamento ci_frato HTTPS"
+                                  Margin="0,10,0,0"
+                                  AutomationProperties.Name="Usa collegamento cifrato HTTPS verso il centralino" />
+
+                        <Label Target="{Binding ElementName=PbxClientId}" Content="_Client ID" />
+                        <TextBox x:Name="PbxClientId"
+                                 AutomationProperties.Name="Client ID dell'API"
+                                 AutomationProperties.HelpText="Generato nel portale web del centralino, sezione integrazioni API. Serve un Client ID diverso per ogni postazione BlindPhone." />
+
+                        <Label Target="{Binding ElementName=PbxClientSecret}" Content="Client _Secret" />
+                        <PasswordBox x:Name="PbxClientSecret"
+                                     FontSize="20" Padding="8" MinHeight="40"
+                                     AutomationProperties.Name="Client Secret dell'API"
+                                     AutomationProperties.HelpText="Generato insieme al Client ID. Viene conservato cifrato." />
+                        <CheckBox x:Name="ShowPbxSecret"
+                                  Content="Mostra il Client Secret per verificar_lo"
+                                  Margin="0,6,0,0"
+                                  AutomationProperties.Name="Mostra il Client Secret in chiaro per poterlo verificare"
+                                  Checked="OnShowPbxSecretChanged"
+                                  Unchecked="OnShowPbxSecretChanged" />
+                        <TextBox x:Name="PbxClientSecretPlain"
+                                 Visibility="Collapsed"
+                                 Margin="0,6,0,0"
+                                 AutomationProperties.Name="Client Secret in chiaro" />
+
+                        <Label Target="{Binding ElementName=PbxQueueIds}" Content="Numeri delle co_de da sorvegliare" />
+                        <TextBox x:Name="PbxQueueIds"
+                                 AutomationProperties.Name="Identificativi delle code"
+                                 AutomationProperties.HelpText="Numeri separati da virgola, ad esempio 1,2. Li fornisce l'amministratore del centralino." />
+
+                        <TextBlock Text="Opzioni da attivare solo dopo la verifica sul centralino"
+                                   FontWeight="Bold" Margin="0,18,0,6" />
+
+                        <CheckBox x:Name="PbxOrderedList"
+                                  Content="L'elenco di attesa rispetta l'ordine di ser_vizio"
+                                  AutomationProperties.Name="L'ordine dell'elenco di attesa corrisponde all'ordine di servizio della coda"
+                                  AutomationProperties.HelpText="Se attivo, viene annunciata la posizione in coda. Attivare solo dopo aver verificato sul centralino che l'ordine sia corretto: annunciare una posizione sbagliata e' peggio che non annunciarla." />
+
+                        <CheckBox x:Name="PbxQueuePick"
+                                  Content="Consenti di prelevare una chiamata s_pecifica dalla coda"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Consenti il prelievo selettivo di una chiamata dalla coda"
+                                  AutomationProperties.HelpText="Funzione sperimentale non ancora verificata su tutti i firmware. Se non funziona, la coda resta consultabile in sola lettura." />
+
+                        <Button x:Name="TestPbxButton"
+                                Content="Verifica il colle_gamento al centralino"
+                                HorizontalAlignment="Left"
+                                Margin="0,16,0,0"
+                                AutomationProperties.Name="Verifica il collegamento al centralino e annuncia l'esito"
+                                Click="OnTestPbxClick" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ AUDIO ============================ -->
+            <TabItem x:Name="AudioTab" Header="A_udio" AutomationProperties.Name="Dispositivi audio">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
+                                   Text="Assegnare dispositivi diversi alle quattro vie evita che la voce degli annunci si sovrapponga alla voce dell'interlocutore. E' la configurazione che fa piu' differenza nell'uso quotidiano." />
+
+                        <Label Target="{Binding ElementName=MicDevice}" Content="_Microfono" />
+                        <ComboBox x:Name="MicDevice" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Dispositivo del microfono" />
+
+                        <Label Target="{Binding ElementName=ConversationDevice}" Content="Audio della _conversazione" />
+                        <ComboBox x:Name="ConversationDevice" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Dispositivo per l'audio della conversazione"
+                                  AutomationProperties.HelpText="Tipicamente la cuffia." />
+
+                        <Label Target="{Binding ElementName=RingerDevice}" Content="_Suoneria e segnali di coda" />
+                        <ComboBox x:Name="RingerDevice" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Dispositivo per suoneria e segnali di coda"
+                                  AutomationProperties.HelpText="Tipicamente gli altoparlanti, cosi' i segnali di coda non suonano nell'orecchio mentre si parla." />
+
+                        <!-- ==================== SUONERIA ==================== -->
+                        <TextBlock Text="Suono della suoneria" FontWeight="Bold" Margin="0,16,0,4" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                   Text="Se non scegli nessun file, BlindPhone usa il proprio segnale sintetizzato. Puoi caricare un file WAV o MP3 al suo posto. Se il file viene spostato o cancellato si torna automaticamente al segnale predefinito, cosi' la suoneria non resta mai muta." />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Label Grid.Column="0" Target="{Binding ElementName=RingtonePath}"
+                                   Content="File della suo_neria" VerticalAlignment="Center" />
+
+                            <TextBox Grid.Column="1" x:Name="RingtonePath" Margin="8,0,0,0"
+                                     AutomationProperties.Name="Percorso del file della suoneria"
+                                     AutomationProperties.HelpText="Lascia vuoto per usare il segnale sintetizzato di BlindPhone. Puoi digitare il percorso oppure usare il pulsante Scegli." />
+
+                            <Button Grid.Column="2" x:Name="BrowseRingtoneButton" Content="Scegl_i..."
+                                    Margin="8,0,0,0"
+                                    AutomationProperties.Name="Scegli il file audio da usare come suoneria"
+                                    Click="OnBrowseRingtoneClick" />
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="TestRingtoneButton" Content="Ascolta la suoner_ia"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Riproduce la suoneria scelta sul dispositivo della conversazione"
+                                    Click="OnTestRingtoneClick" />
+                            <Button x:Name="ClearRingtoneButton" Content="Torna al segnale prede_finito"
+                                    AutomationProperties.Name="Rimuove il file scelto e torna al segnale sintetizzato"
+                                    Click="OnClearRingtoneClick" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="RingtoneHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Stato della suoneria scelta"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Label Target="{Binding ElementName=AnnouncementDevice}" Content="Voce degli _annunci" />
+                        <ComboBox x:Name="AnnouncementDevice" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Dispositivo per la voce degli annunci"
+                                  AutomationProperties.HelpText="Se diverso dal dispositivo della conversazione, la voce del sistema non si sovrappone a quella dell'interlocutore." />
+
+                        <Button x:Name="TestAudioButton"
+                                Content="Riproduci un suono di _prova sui dispositivi scelti"
+                                HorizontalAlignment="Left"
+                                Margin="0,16,0,0"
+                                AutomationProperties.Name="Riproduce un suono di prova su ciascun dispositivo scelto"
+                                Click="OnTestAudioClick" />
+
+                        <!-- ==================== BUFFER ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Regolazione del buffer audio" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Se la voce si interrompe a scatti, aumenta il cuscinetto. Se invece ti accorgi di sovrapporti all'interlocutore, riducilo. Dopo una chiamata di prova il comando di diagnostica riporta quante volte il buffer si e' svuotato: e' il numero su cui regolarsi." />
+
+                        <Label Target="{Binding ElementName=JitterBuffer}" Content="Cuscinetto audio in millisecondi (_jitter)" />
+                        <TextBox x:Name="JitterBuffer"
+                                 AutomationProperties.Name="Cuscinetto del buffer audio in millisecondi"
+                                 AutomationProperties.HelpText="Da 20 a 500. Circa 50 su rete locale cablata, 100 come valore prudente, 200 su reti disturbate. Piu' alto assorbe le irregolarita' della rete ma aggiunge ritardo alla voce." />
+
+                        <Label Target="{Binding ElementName=DeviceLatency}" Content="Latenza del dispositivo audio in millisecondi" />
+                        <TextBox x:Name="DeviceLatency"
+                                 AutomationProperties.Name="Latenza richiesta al dispositivo audio in millisecondi"
+                                 AutomationProperties.HelpText="Da 30 a 500. Sotto i 50 alcune cuffie USB producono scatti a prescindere dalla rete. Valore consigliato 100." />
+
+                        <Label Target="{Binding ElementName=MaxBuffer}" Content="Capienza massima del buffer in millisecondi" />
+                        <TextBox x:Name="MaxBuffer"
+                                 AutomationProperties.Name="Capienza massima del buffer di riproduzione in millisecondi"
+                                 AutomationProperties.HelpText="Da 100 a 2000. Oltre questa soglia i pacchetti in eccesso vengono scartati, per evitare che il ritardo cresca progressivamente. Valore consigliato 500." />
+
+                        <Label Target="{Binding ElementName=PacketSize}" Content="Durata dei pacchetti trasmessi in millisecondi" />
+                        <TextBox x:Name="PacketSize"
+                                 AutomationProperties.Name="Durata di pacchettizzazione dell'audio trasmesso in millisecondi"
+                                 AutomationProperties.HelpText="Da 10 a 60. Venti e' lo standard della telefonia IP: cambialo solo se il centralino lo richiede." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button x:Name="BufferLanButton" Content="Preimposta rete _locale"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Imposta i valori adatti a una rete locale cablata: cuscinetto 50 millisecondi"
+                                    Click="OnBufferPresetLanClick" />
+                            <Button x:Name="BufferSafeButton" Content="Preimposta pr_udente"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Imposta i valori prudenti: cuscinetto 100 millisecondi"
+                                    Click="OnBufferPresetSafeClick" />
+                            <Button x:Name="BufferSlowButton" Content="Preimposta rete _disturbata"
+                                    AutomationProperties.Name="Imposta i valori per reti disturbate o geografiche: cuscinetto 200 millisecondi"
+                                    Click="OnBufferPresetSlowClick" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="BufferHintText"
+                                   TextWrapping="Wrap"
+                                   Margin="0,10,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto previsto della configurazione del buffer"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ ACCESSIBILITA' ============================ -->
+            <TabItem x:Name="AccessibilityTab" Header="Access_ibilita" AutomationProperties.Name="Impostazioni di accessibilita">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <!--
+                            LA VOCE PROPRIA DI BLINDPHONE
+
+                            E' la prima impostazione della scheda perche' e' quella
+                            che si viene a cercare: con uno screen reader in
+                            esecuzione l'annuncio arriva gia' dalle notifiche di
+                            sistema, e la voce di BlindPhone lo ripete a mezzo secondo
+                            di distanza con un timbro diverso. Due voci sfasate sulla
+                            stessa frase sono meno comprensibili di una sola.
+
+                            La casella vince sulla scelta del canale qui sotto: e'
+                            l'unica cosa che l'operatore vuole poter cambiare quando
+                            si accorge della sovrapposizione, senza dover prima capire
+                            un instradamento a cinque voci.
+                        -->
+                        <CheckBox x:Name="InternalVoiceEnabled"
+                                  Content="Fai parlare BlindPhone con la sua _voce"
+                                  FontWeight="Bold"
+                                  Margin="0,0,0,4"
+                                  AutomationProperties.Name="Fai parlare BlindPhone con la sua voce sintetica"
+                                  AutomationProperties.HelpText="Togli la spunta se usi uno screen reader e senti gli annunci ripetuti due volte. Gli annunci continuano ad arrivare tramite lo screen reader. Lasciala se non usi uno screen reader: sarebbe l'unica voce disponibile."
+                                  Checked="OnSpeechRoutingChanged"
+                                  Unchecked="OnSpeechRoutingChanged" />
+
+                        <TextBlock x:Name="SpeechRoutingHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,12"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto della configurazione della voce"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <!--
+                            MODALITA' DI INTERAZIONE
+
+                            Sta in cima alla scheda perche' cambia i gesti e non gli
+                            annunci: chi la tocca sta decidendo come si lavora, non
+                            come si ascolta.
+
+                            La descrizione dice i tre tasti per intero. Un selettore
+                            che dicesse solo "semplificata" costringerebbe a provarla
+                            per sapere cosa fa, e a provarla su una postazione in
+                            servizio, con un chiamante in linea.
+                        -->
+                        <Label Target="{Binding ElementName=InteractionMode}" Content="_Modalità di interazione" />
+                        <ComboBox x:Name="InteractionMode" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Modalità di interazione con il posto operatore"
+                                  AutomationProperties.HelpText="La modalità semplificata aggiunge tre tasti del tastierino numerico e blocca la riassegnazione delle scorciatoie. Tutto il resto continua a funzionare."
+                                  SelectionChanged="OnInteractionModeChanged">
+                            <ComboBoxItem Tag="Standard"
+                                          Content="Standard: tutte le scorciatoie, riassegnabili dal pannello Tasti rapidi" />
+                            <ComboBoxItem Tag="Simplified"
+                                          Content="Semplificata: tastierino numerico — più risponde e mette in pausa, diviso riaggancia, Invio trasferisce" />
+                        </ComboBox>
+
+                        <TextBlock x:Name="InteractionModeHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,12"
+                                   Opacity="0.85"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Come si usa la modalità scelta" />
+
+                        <Label Target="{Binding ElementName=SpeechChannel}" Content="Da dove esce la v_oce" />
+                        <ComboBox x:Name="SpeechChannel" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Canale di uscita della voce"
+                                  AutomationProperties.HelpText="Automatica e' la scelta giusta quasi sempre: usa lo screen reader quando c'e' e la voce di BlindPhone quando non c'e'."
+                                  SelectionChanged="OnSpeechChannelChanged">
+                            <ComboBoxItem Tag="Automatic"
+                                          Content="Automatica: lo screen reader se c'e', altrimenti la voce di BlindPhone" />
+                            <ComboBoxItem Tag="UiaOnly"
+                                          Content="Solo screen reader, tramite le notifiche di sistema" />
+                            <ComboBoxItem Tag="ScreenReaderOnly"
+                                          Content="Solo screen reader, con collegamento diretto a NVDA o JAWS" />
+                            <ComboBoxItem Tag="InternalVoiceOnly"
+                                          Content="Solo la voce di BlindPhone, sul dispositivo scelto nella scheda Audio" />
+                            <ComboBoxItem Tag="Both"
+                                          Content="Entrambi: screen reader e voce di BlindPhone" />
+                        </ComboBox>
+
+                        <!--
+                            IL TEMA STA FRA LE IMPOSTAZIONI DI ACCESSIBILITA' e non
+                            fra quelle di aspetto, perche' e' li' che serve: il turno
+                            di notte si copre spesso in penombra, e per chi ha una
+                            ipovisione la scelta fra fondo chiaro e fondo scuro non e'
+                            un gusto ma la differenza fra leggere lo schermo e non
+                            leggerlo.
+                        -->
+                        <Label Target="{Binding ElementName=Theme}" Content="Colori dell'in_terfaccia" />
+                        <ComboBox x:Name="Theme" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Tema dei colori dell'interfaccia"
+                                  AutomationProperties.HelpText="Con il contrasto elevato di Windows attivo la scelta non viene applicata: comandano i colori di sistema, che sono quelli configurati per la propria vista."
+                                  SelectionChanged="OnThemeChanged">
+                            <ComboBoxItem Tag="FollowSystem" Content="Come Windows: segue il tema del sistema" />
+                            <ComboBoxItem Tag="Light" Content="Chiaro: fondo bianco, testo scuro" />
+                            <ComboBoxItem Tag="Dark" Content="Scuro: fondo scuro, testo chiaro" />
+                        </ComboBox>
+
+                        <TextBlock x:Name="ThemeHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,12"
+                                   Text=""
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   AutomationProperties.Name="Stato del tema"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Label Target="{Binding ElementName=Verbosity}" Content="Quanto _dettaglio negli annunci" />
+                        <ComboBox x:Name="Verbosity" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Livello di dettaglio degli annunci">
+                            <ComboBoxItem Content="Beginner" />
+                            <ComboBoxItem Content="Standard" />
+                            <ComboBoxItem Content="Expert" />
+                        </ComboBox>
+
+                        <Label Target="{Binding ElementName=QueueMode}" Content="Annunci automatici della co_da" />
+                        <ComboBox x:Name="QueueMode" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Quando annunciare automaticamente le variazioni di coda">
+                            <ComboBoxItem Content="All" />
+                            <ComboBoxItem Content="CountOnly" />
+                            <ComboBoxItem Content="ThresholdOnly" />
+                            <ComboBoxItem Content="Off" />
+                        </ComboBox>
+
+                        <Label Target="{Binding ElementName=DigitGrouping}" Content="Come leggere i _numeri" />
+                        <ComboBox x:Name="DigitGrouping" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Raggruppamento nella lettura dei numeri telefonici">
+                            <ComboBoxItem Content="Single" />
+                            <ComboBoxItem Content="Pairs" />
+                            <ComboBoxItem Content="Triples" />
+                            <ComboBoxItem Content="Natural" />
+                        </ComboBox>
+
+                        <CheckBox x:Name="SilenceDuringCall"
+                                  Content="_Taci durante la conversazione, usa solo i segnali acustici"
+                                  Margin="0,14,0,0"
+                                  AutomationProperties.Name="Sopprimi gli annunci non urgenti mentre e' in corso una conversazione" />
+
+                        <CheckBox x:Name="EarconsEnabled"
+                                  Content="Riproduci i s_egnali acustici"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Riproduci i segnali acustici degli eventi" />
+
+                        <CheckBox x:Name="SpatialPanning"
+                                  Content="Posiziona i segnali nello spazio stereo: coda a sinistra, chiamata al centro, linea a destra"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Posiziona i segnali acustici nello spazio stereo secondo la famiglia di evento" />
+
+                        <CheckBox x:Name="BrailleEnabled"
+                                  Content="Aggiorna la riga di stato sul display _braille"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Aggiorna la riga di stato sul display braille" />
+
+                        <Label Target="{Binding ElementName=DoubleTapWindow}" Content="Finestra della doppia pressione, in millisecondi" />
+                        <TextBox x:Name="DoubleTapWindow"
+                                 AutomationProperties.Name="Finestra della doppia pressione in millisecondi"
+                                 AutomationProperties.HelpText="Tempo entro cui due pressioni valgono come doppia. Valore consigliato 400. Piu' basso rende il trasferimento con annuncio piu' rapido ma la doppia pressione piu' difficile." />
+
+                        <Label Target="{Binding ElementName=HoldReminder}" Content="Promemoria di chiamata in attesa, ogni quanti secondi" />
+                        <TextBox x:Name="HoldReminder"
+                                 AutomationProperties.Name="Intervallo del promemoria di chiamata in attesa, in secondi"
+                                 AutomationProperties.HelpText="Ricorda periodicamente che c'e' qualcuno in attesa. Zero disattiva il promemoria." />
+
+                        <!-- ==================== FINESTRA E AREA DI NOTIFICA ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Finestra e area di notifica" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Chiudere la finestra di un softphone significa smettere di ricevere chiamate, e i chiamanti squillano a vuoto senza che nessuno lo sappia. Con l'icona nell'area di notifica la chiusura diventa un «metti via»: il telefono resta registrato al centralino." />
+
+                        <CheckBox x:Name="TrayEnabled"
+                                  Content="Mostra l'icona di BlindPhone nell'area di _notifica"
+                                  AutomationProperties.Name="Mostra l'icona di BlindPhone nell'area di notifica di Windows"
+                                  AutomationProperties.HelpText="L'icona si raggiunge da tastiera con Windows B. Il suo menu contiene Apri BlindPhone ed Esci."
+                                  Checked="OnTraySettingChanged"
+                                  Unchecked="OnTraySettingChanged" />
+
+                        <CheckBox x:Name="TrayMinimizeOnClose"
+                                  Content="Chiudendo la finestra _lascia BlindPhone in servizio nell'area di notifica"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Chiudendo la finestra lascia BlindPhone in esecuzione nell'area di notifica"
+                                  AutomationProperties.HelpText="Le chiamate continuano ad arrivare. Per uscire davvero si usa la voce Esci del menu dell'icona, oppure la combinazione assegnata al comando Esci da BlindPhone."
+                                  Checked="OnTraySettingChanged"
+                                  Unchecked="OnTraySettingChanged" />
+
+                        <CheckBox x:Name="TrayRestoreOnCall"
+                                  Content="All'arrivo di una chiamata riporta la finestra in _primo piano"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="All'arrivo di una chiamata entrante riporta la finestra in primo piano"
+                                  AutomationProperties.HelpText="Togli la spunta se lavori stabilmente in un altro programma e non vuoi che la finestra interrompa quello che stai scrivendo: per rispondere restano le scorciatoie globali."
+                                  Checked="OnTraySettingChanged"
+                                  Unchecked="OnTraySettingChanged" />
+
+                        <TextBlock x:Name="TrayHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto della configurazione della finestra"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ CHIAMATE ============================ -->
+            <TabItem x:Name="CallsTab" Header="C_hiamate" AutomationProperties.Name="Impostazioni delle chiamate e del trasferimento">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <Label Target="{Binding ElementName=TransferMode}" Content="Come funziona il tasto di _trasferimento" />
+                        <ComboBox x:Name="TransferMode" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Modalita' del tasto unico di trasferimento"
+                                  AutomationProperties.HelpText="Progressiva con doppia pressione: una pressione chiama l'interno, due pressioni rapide trasferiscono subito. Progressiva pura: elimina l'attesa ma toglie il trasferimento cieco.">
+                            <ComboBoxItem Content="ProgressiveDoubleTap" />
+                            <ComboBoxItem Content="ProgressiveOnly" />
+                            <ComboBoxItem Content="ExplicitChoice" />
+                        </ComboBox>
+
+                        <Label Target="{Binding ElementName=ConsultationTimeout}" Content="Dopo quanti _secondi rinunciare se l'interno non risponde" />
+                        <TextBox x:Name="ConsultationTimeout"
+                                 AutomationProperties.Name="Timeout della consultazione in secondi"
+                                 AutomationProperties.HelpText="Scaduto questo tempo il chiamante viene ripreso automaticamente in linea." />
+
+                        <CheckBox x:Name="ConfirmExternal"
+                                  Content="Chiedi _conferma prima di trasferire verso un numero esterno"
+                                  Margin="0,14,0,0"
+                                  AutomationProperties.Name="Chiedi conferma prima di trasferire verso un numero esterno" />
+
+                        <CheckBox x:Name="WarnUnavailable"
+                                  Content="_Avvisa se l'interno risulta occupato o non registrato"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Avvisa quando la destinazione del trasferimento non e' disponibile" />
+
+                        <Label Target="{Binding ElementName=MaxInternalLength}" Content="Un numero e' considerato interno fino a quante ci_fre" />
+                        <TextBox x:Name="MaxInternalLength"
+                                 AutomationProperties.Name="Lunghezza massima di un numero interno"
+                                 AutomationProperties.HelpText="Serve a distinguere gli interni dai numeri esterni per la richiesta di conferma." />
+
+                        <!-- ==================== REGISTRAZIONE ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Registrazione delle conversazioni" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="La registrazione si avvia e si ferma con la combinazione dedicata mentre si è in linea. I file finiscono nella cartella Documenti, sottocartella Registrazione Chiamate, e contengono entrambe le voci." />
+
+                        <CheckBox x:Name="AnnounceRecording"
+                                  Content="Avvisa l'interlocutore a _voce all'inizio e alla fine della registrazione"
+                                  Margin="0,8,0,0"
+                                  AutomationProperties.Name="Avvisa l'interlocutore a voce quando la registrazione comincia e quando finisce"
+                                  AutomationProperties.HelpText="Chi è in linea sente «avvio della registrazione» e, alla fine, «registrazione interrotta» con la durata. Informare l'interessato prima che la raccolta cominci è ciò che rende lecita la registrazione: toglilo solo se l'informativa viene già data altrove, per esempio da un messaggio all'ingresso della coda."
+                                  Checked="OnAnnounceRecordingChanged"
+                                  Unchecked="OnAnnounceRecordingChanged" />
+
+                        <TextBlock x:Name="AnnounceRecordingHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto dell'impostazione di avviso della registrazione"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <!-- ==================== ULTIME CHIAMATE ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Elenco delle ultime chiamate" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="L'elenco raccoglie chiamate perse, ricevute ed effettuate, e si apre con il tasto dedicato. Contiene numeri chiamati e chiamanti, cioè dati di traffico: il periodo di conservazione va allineato alla procedura dell'ente, non scelto per comodità." />
+
+                        <Label Target="{Binding ElementName=HistoryRetention}" Content="Dopo _quanto tempo le chiamate escono dall'elenco" />
+                        <ComboBox x:Name="HistoryRetention" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Periodo di conservazione delle chiamate nell'elenco"
+                                  AutomationProperties.HelpText="Le chiamate più vecchie vengono eliminate all'avvio di BlindPhone. La voce «mai» conserva tutto ed è la scelta giusta quando la conservazione è regolata dall'ente."
+                                  SelectionChanged="OnHistoryRetentionChanged">
+                            <ComboBoxItem Tag="1" Content="1 giorno" />
+                            <ComboBoxItem Tag="7" Content="1 settimana" />
+                            <ComboBoxItem Tag="30" Content="1 mese" />
+                            <ComboBoxItem Tag="0" Content="Mai: conserva tutto" />
+                        </ComboBox>
+
+                        <TextBlock x:Name="HistoryHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Stato dell'elenco delle chiamate"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Button x:Name="ClearHistoryButton" Content="Cancella l'elenco delle chiamate ad_esso"
+                                HorizontalAlignment="Left"
+                                MinWidth="330"
+                                Margin="0,12,0,0"
+                                AutomationProperties.Name="Elimina subito tutte le chiamate dall'elenco"
+                                AutomationProperties.HelpText="Elimina perse, ricevute ed effettuate. L'operazione non si può annullare."
+                                Click="OnClearHistoryClick" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ TASTI RAPIDI ============================ -->
+            <TabItem x:Name="HotkeyTab" Header="_Tasti rapidi"
+                     AutomationProperties.Name="Configurazione dei tasti rapidi">
+
+                <!--
+                    PANNELLO DEI TASTI RAPIDI
+
+                    E' l'unico pannello in cui la modifica NON passa da un campo di
+                    testo: la combinazione si assegna premendola, perche' scriverla a
+                    parole ("control maiusc effe nove") si presta a errori che poi si
+                    manifestano come un tasto che non risponde.
+
+                    L'elenco e' una tabella vera, come la rubrica e per la stessa
+                    ragione: le frecce verticali cambiano comando, quelle orizzontali
+                    percorrono comando, combinazione locale e combinazione globale, e
+                    ogni cella viene letta da sola. Sentire l'intera riga a ogni
+                    spostamento raddoppierebbe il tempo di ogni scorrimento su un
+                    elenco di trenta voci.
+
+                    La colonna su cui si trova il cursore decide su cosa si agisce:
+                    Invio sulla colonna Locale riassegna la combinazione locale, sulla
+                    colonna Globale quella globale. E' l'unico modo di avere due
+                    assegnazioni per riga senza raddoppiare le righe.
+                -->
+
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Profilo -->
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <Label Grid.Column="0" Target="{Binding ElementName=HotkeyProfileCombo}"
+                               Content="_Profilo" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                        <ComboBox Grid.Column="1" x:Name="HotkeyProfileCombo"
+                                  FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Profilo di tasti rapidi da modificare"
+                                  AutomationProperties.HelpText="Ogni profilo e' una mappa completa dei tasti. Cambiando voce si carica quel profilo nell'elenco sottostante."
+                                  SelectionChanged="OnHotkeyProfileSelectionChanged" />
+
+                        <Button Grid.Column="2" x:Name="HotkeyImportButton" Content="Impo_rta..."
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Importa un profilo di tasti rapidi da file"
+                                Click="OnHotkeyImportClick" />
+
+                        <Button Grid.Column="3" x:Name="HotkeyDeleteProfileButton" Content="Elimina profi_lo"
+                                Margin="8,0,0,0"
+                                AutomationProperties.Name="Elimina il profilo selezionato"
+                                Click="OnHotkeyDeleteProfileClick" />
+                    </Grid>
+
+                    <TextBlock Grid.Row="1"
+                               x:Name="HotkeyProfileHint"
+                               Margin="0,8,0,0"
+                               Text=""
+                               AutomationProperties.Name="Stato del profilo in modifica"
+                               AutomationProperties.LiveSetting="Polite" />
+
+                    <TextBlock Grid.Row="2"
+                               Margin="0,8,0,8"
+                               Opacity="0.85"
+                               Text="Frecce su e giu' per cambiare comando, destra e sinistra per passare fra combinazione locale e globale. Invio riassegna la combinazione della colonna su cui ti trovi, Canc la toglie. Le modifiche diventano attive solo quando premi Salva la configurazione dei tasti." />
+
+                    <!--
+                        AutoGenerateColumns="False" NON E' UNA RIFINITURA.
+
+                        Senza, WPF aggiunge alle quattro colonne dichiarate qui sotto
+                        UNA COLONNA PER OGNI PROPRIETA' PUBBLICA della riga: comparivano
+                        anche Info, Command, Description, LocalDisplay, LocalSpeech,
+                        GlobalDisplay, GlobalSpeech, con i nomi interni del codice come
+                        intestazione. Chi guarda vede colonne di troppo; chi si muove a
+                        tastiera deve attraversarle una per una, e la voce gli legge
+                        "LocalSpeech" e la combinazione gia' sentita nella colonna
+                        prima.
+                        E il codice che riassegna guarda la colonna corrente per capire
+                        se lavorare sulla combinazione locale o su quella globale: su
+                        una colonna generata quella domanda non ha risposta, e Invio
+                        finiva per riassegnare la locale ovunque ci si trovasse.
+
+                        Misurato con un client di accessibilita' - la stessa interfaccia
+                        che usano NVDA e JAWS - sull'albero della finestra: prima
+                        tredici colonne, dopo quattro.
+                    -->
+                    <DataGrid Grid.Row="3"
+                              x:Name="HotkeyGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              AutomationProperties.Name="Tabella dei comandi e delle combinazioni assegnate"
+                              AutomationProperties.HelpText="Invio riassegna la combinazione della colonna corrente. Canc la rimuove. Le colonne sono comando, combinazione locale, combinazione globale e gruppo."
+                              CanUserSortColumns="False"
+                              CanUserReorderColumns="False"
+                              CanUserResizeRows="False"
+                              CanUserDeleteRows="False"
+                              EnableRowVirtualization="False"
+                              SelectionChanged="OnHotkeySelectionChanged"
+                              PreviewKeyDown="OnHotkeyGridPreviewKeyDown"
+                              MouseDoubleClick="OnHotkeyGridDoubleClick">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Comando" Binding="{Binding CommandLabel}" Width="250" />
+                            <DataGridTextColumn Header="Locale" Binding="{Binding LocalDisplay}" Width="150"
+                                                CellStyle="{StaticResource SpokenLocalCell}"
+                                                ElementStyle="{StaticResource SpokenLocalText}" />
+                            <DataGridTextColumn Header="Globale" Binding="{Binding GlobalDisplay}" Width="180"
+                                                CellStyle="{StaticResource SpokenGlobalCell}"
+                                                ElementStyle="{StaticResource SpokenGlobalText}" />
+                            <DataGridTextColumn Header="Gruppo" Binding="{Binding CategoryLabel}" Width="180" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!--
+                        Spiegazione del comando su cui si trova il cursore.
+
+                        NON e' una regione dinamica: notificarla farebbe leggere la
+                        descrizione a ogni freccia, subito dopo la cella, che e'
+                        esattamente il rumore che la navigazione per celle serve a
+                        togliere. Resta a schermo e si rilegge con il cursore virtuale.
+                    -->
+                    <TextBlock Grid.Row="4"
+                               x:Name="HotkeyDescriptionText"
+                               Margin="0,10,0,0"
+                               Text=""
+                               AutomationProperties.Name="Descrizione del comando selezionato" />
+
+                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button x:Name="HotkeyEditButton" Content="Ri_assegna"
+                                Margin="0,0,8,0"
+                                AutomationProperties.Name="Riassegna la combinazione della colonna su cui si trova il cursore"
+                                Click="OnHotkeyEditClick" />
+
+                        <Button x:Name="HotkeyClearButton" Content="Ri_muovi"
+                                Margin="0,0,8,0"
+                                AutomationProperties.Name="Rimuove la combinazione della colonna su cui si trova il cursore"
+                                Click="OnHotkeyClearClick" />
+
+                        <Button x:Name="HotkeyResetButton" Content="Ripristina i pre_definiti"
+                                Margin="0,0,8,0"
+                                AutomationProperties.Name="Riporta tutte le combinazioni ai valori predefiniti di BlindPhone"
+                                Click="OnHotkeyResetClick" />
+
+                        <Button x:Name="HotkeySaveButton" Content="_Salva la configurazione dei tasti..."
+                                MinWidth="280"
+                                AutomationProperties.Name="Salva la configurazione dei tasti scegliendo fra aggiornare il profilo, crearne uno nuovo, esportarlo su file o produrre la scheda dei tasti"
+                                AutomationProperties.HelpText="Apre l'elenco delle quattro destinazioni possibili del salvataggio."
+                                Click="OnHotkeySaveClick" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ============================ DIAGNOSTICA ============================ -->
+            <TabItem x:Name="DiagnosticsTab" Header="_Diagnostica"
+                     AutomationProperties.Name="Diagnostica e registro">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <!--
+                            PANNELLO DI DIAGNOSTICA
+
+                            Serve a due momenti diversi. Il primo e' "sto indagando":
+                            si alza il dettaglio del registro, si riproduce il guasto,
+                            si guardano i contatori. Il secondo e' "non ci riesco, lo
+                            mando a qualcuno": e li' quello che serve e' un testo solo,
+                            completo, da incollare in un messaggio.
+
+                            La modalita' debug parte spenta e resta spenta finche' non
+                            serve: il registro dettagliato contiene i numeri chiamati
+                            riga per riga, quindi dati personali, e cresce di parecchi
+                            megabyte per turno.
+                        -->
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
+                                   Text="Da qui si alza il dettaglio del registro mentre si sta cercando di capire un guasto, si leggono i contatori del percorso audio e si prepara il riepilogo da mandare all'assistenza. Il registro si trova nella cartella dati di BlindPhone." />
+
+                        <CheckBox x:Name="DebugModeEnabled"
+                                  Content="Attiva la modalità de_bug"
+                                  FontWeight="Bold"
+                                  AutomationProperties.Name="Attiva la modalità debug"
+                                  AutomationProperties.HelpText="Alza il dettaglio del registro e, durante una chiamata, vi annota i contatori del percorso audio ogni dieci secondi. Da tenere accesa solo mentre si indaga un problema: il registro dettagliato contiene i numeri chiamati e cresce di parecchi megabyte per turno."
+                                  Checked="OnDebugModeChanged"
+                                  Unchecked="OnDebugModeChanged" />
+
+                        <TextBlock x:Name="DebugModeHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,12"
+                                   Text=""
+                                   AutomationProperties.Name="Effetto della modalità debug"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Label Target="{Binding ElementName=LogLevel}" Content="Dettaglio del re_gistro" />
+                        <ComboBox x:Name="LogLevel" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Livello di dettaglio del registro diagnostico"
+                                  AutomationProperties.HelpText="Vale da subito, senza riavviare. Normale e' il valore per l'uso quotidiano."
+                                  SelectionChanged="OnLogLevelChanged">
+                            <ComboBoxItem Tag="Trace" Content="Tutto, anche il dettaglio interno" />
+                            <ComboBoxItem Tag="Debug" Content="Dettagliato, per indagare un guasto" />
+                            <ComboBoxItem Tag="Information" Content="Normale: comandi, chiamate, stato" />
+                            <ComboBoxItem Tag="Warning" Content="Solo avvisi e problemi" />
+                            <ComboBoxItem Tag="Error" Content="Solo errori" />
+                        </ComboBox>
+
+                        <Label Target="{Binding ElementName=LogRetention}" Content="Giorni di conser_vazione dei registri" />
+                        <TextBox x:Name="LogRetention"
+                                 AutomationProperties.Name="Giorni di conservazione dei file di registro"
+                                 AutomationProperties.HelpText="Da 1 a 365. I registri contengono i numeri chiamati e chiamanti, quindi dati personali: il valore va allineato alla policy di conservazione dell'ente. Due settimane bastano a indagare una segnalazione." />
+
+                        <!-- ==================== RIEPILOGO ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Riepilogo diagnostico" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Fotografia dello stato: versione, configurazione, telefono, audio e contatori. Non contiene password né Client Secret. Con una chiamata in corso riporta anche i contatori del percorso audio, che sono il dato con cui si distingue un problema di questa postazione da un problema del centralino." />
+
+                        <TextBox x:Name="DiagnosticText"
+                                 Height="220"
+                                 IsReadOnly="True"
+                                 IsReadOnlyCaretVisible="True"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 FontSize="15"
+                                 FontFamily="Consolas"
+                                 Text=""
+                                 AutomationProperties.Name="Testo del riepilogo diagnostico"
+                                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button x:Name="RefreshDiagnosticsButton" Content="A_ggiorna"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Rileggi lo stato e aggiorna il riepilogo"
+                                    Click="OnRefreshDiagnosticsClick" />
+
+                            <Button x:Name="CopyDiagnosticsButton" Content="Cop_ia negli appunti"
+                                    MinWidth="180" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Copia il riepilogo negli appunti, per incollarlo in un messaggio"
+                                    Click="OnCopyDiagnosticsClick" />
+
+                            <Button x:Name="SaveDiagnosticsButton" Content="Salva su _file..."
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Salva il riepilogo in un file di testo"
+                                    Click="OnSaveDiagnosticsClick" />
+                        </StackPanel>
+
+                        <!-- ==================== REGISTRI ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="File di registro" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock x:Name="LogFolderText"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,10"
+                                   Text=""
+                                   AutomationProperties.Name="Posizione e dimensione dei registri"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="OpenLogFolderButton" Content="Apri la _cartella dei registri"
+                                    MinWidth="230" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Apri in Esplora risorse la cartella che contiene i registri"
+                                    Click="OnOpenLogFolderClick" />
+
+                            <Button x:Name="SupportPackageButton" Content="Crea un pacchetto per l'assistenza..."
+                                    MinWidth="300"
+                                    AutomationProperties.Name="Crea un file compresso con il riepilogo e i registri recenti, da allegare a una segnalazione"
+                                    AutomationProperties.HelpText="Il pacchetto contiene i registri, che riportano i numeri chiamati e chiamanti: viene chiesta conferma prima di crearlo."
+                                    Click="OnSupportPackageClick" />
+                        </StackPanel>
+
+                        <!-- ==================== SPAZIO SU DISCO ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <!--
+                            PULIZIA DEL DISCO
+
+                            Il registro in modalita' debug cresce di parecchi megabyte
+                            per turno, e nessuno se ne accorge finche' il disco non e'
+                            pieno: da quel momento il programma non riesce piu' a
+                            scrivere proprio quello che servirebbe a capire il guasto.
+
+                            L'elenco di cosa sparisce si legge PRIMA, nella finestra di
+                            conferma: chi non vede lo schermo non puo' aprire la cartella
+                            e controllare dopo.
+                        -->
+
+                        <TextBlock Text="Spazio su disco" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Elimina i file che BlindPhone produce e non gli servono piu': registri dei giorni scorsi, copie anonimizzate, rapporti di errore e pacchetti di aggiornamento gia' scaricati. Configurazione, rubrica, elenco delle chiamate e registrazioni non vengono toccati, e nemmeno il registro di oggi." />
+
+                        <TextBlock x:Name="CleanupText"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"
+                                   Text=""
+                                   AutomationProperties.Name="Spazio recuperabile"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="InspectCleanupButton" Content="Calcola lo spa_zio recuperabile"
+                                    MinWidth="270" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Calcola quanti file si possono eliminare e quanto spazio occupano, senza eliminare nulla"
+                                    Click="OnInspectCleanupClick" />
+
+                            <Button x:Name="CleanupButton" Content="Libera spazio su disco..."
+                                    MinWidth="230"
+                                    AutomationProperties.Name="Elimina i file temporanei e i registri dei giorni scorsi"
+                                    AutomationProperties.HelpText="Viene chiesta conferma, con l'elenco di quello che verra' eliminato. I registri eliminati non si recuperano: sono l'unica traccia di quello che e' successo nei giorni scorsi."
+                                    Click="OnCleanupClick" />
+                        </StackPanel>
+
+                        <!-- ==================== SEGNALAZIONE ALL'ASSISTENZA ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Segnalazione all'assistenza" FontWeight="Bold" FontSize="17" />
+
+                        <!--
+                            NESSUN RECAPITO E' FORNITO CON IL PRODOTTO, e non e' una
+                            dimenticanza: un softphone che spedisce da solo i registri
+                            di traffico a un indirizzo scelto dal fornitore e' un
+                            trasferimento di dati personali che nessuno ha autorizzato.
+                            Lo configura l'ente, oppure il pacchetto resta un file che
+                            l'operatore consegna come preferisce.
+                        -->
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Dove mandare il pacchetto diagnostico. Senza recapiti il pacchetto viene salvato sul desktop e la cartella si apre: e' il ripiego che funziona anche senza posta e senza rete." />
+
+                        <Label Target="{Binding ElementName=SupportEmail}" Content="Indirizzo di _posta dell'assistenza" />
+                        <TextBox x:Name="SupportEmail"
+                                 AutomationProperties.Name="Indirizzo di posta dell'assistenza"
+                                 AutomationProperties.HelpText="Il messaggio viene preparato con l'allegato gia' pronto, ma parte solo quando lo mandi tu." />
+
+                        <Label Target="{Binding ElementName=SupportUploadUrl}" Content="Indirizzo _HTTPS di caricamento (facoltativo)" />
+                        <TextBox x:Name="SupportUploadUrl"
+                                 AutomationProperties.Name="Indirizzo HTTPS su cui caricare il pacchetto"
+                                 AutomationProperties.HelpText="Solo HTTPS: su HTTP il pacchetto viaggerebbe in chiaro con dentro i numeri chiamati. Se compilato ha la precedenza sulla posta." />
+
+                        <CheckBox x:Name="CollectCrashReports"
+                                  Content="Registra automaticamente gli _errori gravi"
+                                  Margin="0,12,0,0"
+                                  AutomationProperties.Name="Registra automaticamente un rapporto quando si verifica un errore grave"
+                                  AutomationProperties.HelpText="Il rapporto contiene il tipo di errore e la traccia dello stack, non numeri di telefono. Resta sulla postazione finche' non lo invii." />
+
+                        <TextBlock x:Name="CrashReportsHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,10"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Errori registrati in attesa di essere inviati" />
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="SendSupportButton" Content="Segnala un problema _adesso..."
+                                    MinWidth="260" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Apri la segnalazione: descrivi il problema e manda il pacchetto"
+                                    Click="OnSendSupportClick" />
+
+                            <Button x:Name="ClearCrashReportsButton" Content="Elimina i rapporti registrati"
+                                    MinWidth="240"
+                                    AutomationProperties.Name="Elimina i rapporti di errore senza inviarli"
+                                    Click="OnClearCrashReportsClick" />
+                        </StackPanel>
+
+                        <!-- ==================== AGGIORNAMENTI ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Aggiornamenti" FontWeight="Bold" FontSize="17" />
+
+                        <!--
+                            L'indirizzo predefinito e' scritto nel codice
+                            (UpdateSettings.DefaultServerUrl) e vale per tutte le
+                            postazioni installate. Questi campi servono a correggerlo
+                            su una postazione sola, e soprattutto a inserire la
+                            password: quella non puo' stare in settings.json, che
+                            viaggia nel pacchetto di configurazione e nei backup.
+                        -->
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Da dove BlindPhone scarica i propri aggiornamenti. All'avvio legge l'elenco della cartella e, se trova una versione piu' recente, te lo dice: non scarica e non installa niente finche' non lo chiedi tu." />
+
+                        <Label Target="{Binding ElementName=UpdateServerUrl}" Content="Indirizzo della cartella degli a_ggiornamenti" />
+                        <TextBox x:Name="UpdateServerUrl"
+                                 AutomationProperties.Name="Indirizzo della cartella degli aggiornamenti"
+                                 AutomationProperties.HelpText="Per esempio ftps://aggiornamenti.esempio.it/blindphone/. Deve essere una cartella e finire con la barra. Usa ftps se il server lo consente: su ftp semplice la password e il pacchetto viaggiano in chiaro." />
+
+                        <Label Target="{Binding ElementName=UpdateUsername}" Content="_Utente del server (vuoto per accesso anonimo)" />
+                        <TextBox x:Name="UpdateUsername"
+                                 AutomationProperties.Name="Utente del server degli aggiornamenti"
+                                 AutomationProperties.HelpText="Lascia vuoto se il server consente l'accesso anonimo." />
+
+                        <Label Target="{Binding ElementName=UpdatePassword}" Content="Pass_word del server" />
+                        <PasswordBox x:Name="UpdatePassword"
+                                     AutomationProperties.Name="Password del server degli aggiornamenti"
+                                     AutomationProperties.HelpText="Conservata nel deposito protetto della postazione, non in settings.json." />
+
+                        <CheckBox x:Name="UpdateCheckOnStartup"
+                                  Content="Controlla la presenza di aggiornamenti all'a_vvio"
+                                  Margin="0,12,0,0"
+                                  AutomationProperties.Name="Controlla la presenza di aggiornamenti all'avvio"
+                                  AutomationProperties.HelpText="Il controllo legge poche centinaia di byte. Se il server non risponde la cosa resta nel registro e l'avvio prosegue." />
+
+                        <!-- ==================== CERTIFICATI ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Certificati del centralino" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Quando il centralino presenta un certificato che Windows non riesce a verificare, BlindPhone te lo mostra e ti chiede se fidarti. Confronta l'impronta con quella che ti detta chi amministra il centralino prima di approvarla per sempre." />
+
+                        <TextBlock x:Name="TrustedCertificatesHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,10"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Certificati approvati su questa postazione" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <Button x:Name="ForgetCertificatesButton" Content="Dimentica i certificati appro_vati"
+                                    MinWidth="280"
+                                    AutomationProperties.Name="Revoca tutte le approvazioni: la domanda tornera' al prossimo collegamento"
+                                    Click="OnForgetCertificatesClick" />
+                        </StackPanel>
+
+                        <CheckBox x:Name="AcceptAnyCertificate"
+                                  Content="Accetta _qualunque certificato senza chiedere (solo laboratorio)"
+                                  AutomationProperties.Name="Accetta qualunque certificato senza verificarlo ne' chiedere conferma"
+                                  AutomationProperties.HelpText="Toglie ogni verifica sull'identita' del centralino. In produzione presso una PA va lasciato spento: compare nel riepilogo diagnostico e in ogni riga di registro."
+                                  Checked="OnAcceptAnyCertificateChanged"
+                                  Unchecked="OnAcceptAnyCertificateChanged" />
+
+                        <TextBlock x:Name="AcceptAnyCertificateHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Conseguenza dell'impostazione sui certificati" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ RUBRICA ============================ -->
+            <TabItem x:Name="ContactsTab" Header="_Rubrica" AutomationProperties.Name="Rubrica e importazione contatti">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <TextBlock x:Name="ContactCountText"
+                                   FontWeight="Bold"
+                                   Margin="0,0,0,12"
+                                   Text="Conteggio contatti in corso..."
+                                   AutomationProperties.Name="Numero di contatti presenti in rubrica"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
+                                   Text="Importa una rubrica da file CSV. Le colonne vengono riconosciute automaticamente dai loro titoli, ma puoi correggere ogni abbinamento prima di importare." />
+
+                        <!-- ============ CAMPI MOSTRATI NELLA RICERCA RAPIDA ============ -->
+                        <Separator Margin="0,8,0,16" />
+
+                        <TextBlock Text="Campi mostrati nella ricerca dal campo di composizione"
+                                   FontWeight="Bold" FontSize="17" />
+
+                        <!--
+                            LA SCELTA DIPENDE DA COME E' FATTA LA RUBRICA DELL'ENTE.
+
+                            Dove i nominativi si assomigliano serve la descrizione, che
+                            in questa rubrica porta il nome dell'ambulatorio; dove al
+                            chiamante bisogna dire dove presentarsi serve la
+                            collocazione. Nessun valore predefinito accontenta due
+                            postazioni diverse.
+
+                            Ogni colonna in piu' e' anche una freccia destra in piu' per
+                            chi legge la riga con lo screen reader, moltiplicata per
+                            ogni contatto scorso in una giornata: chi non vede paga le
+                            colonne inutili piu' di chi guarda.
+                        -->
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Nominativo e interno ci sono sempre. Qui scegli che altro mostrare accanto a ogni contatto proposto sotto il campo di composizione, e in che ordine: il primo dell'elenco e' quello che si legge subito dopo l'interno." />
+
+                        <!--
+                            STESSI COMANDI DELL'ELENCO DEI CODEC.
+
+                            Barra spaziatrice per spuntare, Alt piu' frecce per
+                            spostare. Sono due elenchi che fanno cose diverse ma si
+                            usano allo stesso modo, e un operatore che ha imparato
+                            uno non deve reimparare l'altro.
+
+                            Il riordino da tastiera non e' un di piu': trascinare col
+                            mouse e' il gesto previsto dalla maggior parte dei
+                            softphone, ed e' esattamente quello che qui nessuno puo'
+                            fare.
+                        -->
+                        <ListBox x:Name="DialerFieldList"
+                                 MaxHeight="320"
+                                 FontSize="16"
+                                 SelectionMode="Single"
+                                 KeyDown="OnDialerFieldListKeyDown"
+                                 AutomationProperties.Name="Campi della rubrica mostrati nella ricerca rapida, in ordine di lettura"
+                                 AutomationProperties.HelpText="Barra spaziatrice per mostrare o nascondere un campo. Alt freccia su e Alt freccia giu' per spostarlo nell'ordine.">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- Il nome per esteso sta sulla voce dell'elenco: vedi l'elenco dei codec. -->
+                                    <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                              Margin="0,2,0,2"
+                                              Content="{Binding Display}"
+                                              AutomationProperties.HelpText="{Binding Field.Description}" />
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button x:Name="DialerFieldUpButton" Content="Sposta s_u" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Sposta il campo selezionato piu' in alto nell'ordine di lettura"
+                                    Click="OnDialerFieldUpClick" />
+                            <Button x:Name="DialerFieldDownButton" Content="Sposta gi_u" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Sposta il campo selezionato piu' in basso nell'ordine di lettura"
+                                    Click="OnDialerFieldDownClick" />
+                            <Button x:Name="DialerFieldResetButton" Content="Ri_pristina i campi consigliati"
+                                    AutomationProperties.Name="Ripristina i campi consigliati: solo lo stato dell'interno"
+                                    Click="OnDialerFieldResetClick" />
+                        </StackPanel>
+
+
+                        <!-- Passo 1: file -->
+                        <!--
+                            LA RUBRICA PUO' VIVERE NEL GESTIONALE DELL'ENTE.
+
+                            Il server e' la fonte, non l'archivio di lavoro: i contatti
+                            finiscono nella copia locale cifrata, che resta cio' che
+                            l'operatore interroga. Il nome del chiamante viene cercato
+                            mentre il telefono squilla, e un giro di rete in quel
+                            momento - o una rete che non c'e' - lascerebbe il
+                            centralinista senza sapere chi lo sta chiamando.
+
+                            Il collegamento si innesta sulla stessa procedura del file:
+                            ci si collega, si sceglie la tabella dallo stesso elenco, si
+                            abbinano le stesse colonne. Chi sa importare un file sa gia'
+                            collegare un server.
+                        -->
+                        <TextBlock Text="Provenienza della rubrica" FontWeight="Bold" FontSize="16" Margin="0,0,0,6" />
+
+                        <Label Target="{Binding ElementName=ContactsSourceMode}" Content="_Da dove arrivano i contatti" />
+                        <ComboBox x:Name="ContactsSourceMode" MinHeight="34" FontSize="15" Margin="0,0,0,10"
+                                  AutomationProperties.Name="Provenienza della rubrica"
+                                  AutomationProperties.HelpText="Da file importati a mano, oppure da una tabella di Microsoft SQL Server riallineata periodicamente."
+                                  SelectionChanged="OnContactsModeChanged">
+                            <ComboBoxItem Content="Solo file importati a mano" Tag="LocalFile" />
+                            <ComboBoxItem Content="Collegata a Microsoft SQL Server" Tag="SqlServer" />
+                        </ComboBox>
+
+                        <StackPanel x:Name="SqlServerPanel" Visibility="Collapsed" Margin="0,0,0,16">
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                       Text="I contatti vengono letti dal server e copiati nell'archivio cifrato della postazione. Il server non viene mai modificato, e a rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito." />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Label Grid.Row="0" Grid.Column="0" Content="_Server" Target="{Binding ElementName=SqlServerHost}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="SqlServerHost" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Nome o indirizzo del server SQL"
+                                         AutomationProperties.HelpText="Se l'istanza non e' quella predefinita, scrivila dopo una barra rovesciata." />
+
+                                <Label Grid.Row="1" Grid.Column="0" Content="_Banca dati" Target="{Binding ElementName=SqlServerDatabase}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="SqlServerDatabase" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Nome della banca dati che contiene la rubrica" />
+
+                                <Label Grid.Row="2" Grid.Column="0" Content="A_ccesso" Target="{Binding ElementName=SqlServerAuth}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" x:Name="SqlServerAuth" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Come autenticarsi al server"
+                                          SelectionChanged="OnSqlServerAuthChanged">
+                                    <ComboBoxItem Content="Utenza di Windows di questa postazione" Tag="Windows" />
+                                    <ComboBoxItem Content="Utenza di SQL Server, con password" Tag="SqlLogin" />
+                                </ComboBox>
+
+                                <Label Grid.Row="3" Grid.Column="0" Content="_Utenza" Target="{Binding ElementName=SqlServerUser}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="3" Grid.Column="1" x:Name="SqlServerUser" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Nome dell'utenza di SQL Server" />
+
+                                <Label Grid.Row="4" Grid.Column="0" Content="Pass_word" Target="{Binding ElementName=SqlServerPassword}" VerticalAlignment="Center" />
+                                <PasswordBox Grid.Row="4" Grid.Column="1" x:Name="SqlServerPassword" Margin="8,3" MinHeight="34" FontSize="15"
+                                             AutomationProperties.Name="Password dell'utenza di SQL Server"
+                                             AutomationProperties.HelpText="Viene conservata nel deposito protetto di Windows, mai nel file delle impostazioni." />
+
+                                <Label Grid.Row="5" Grid.Column="0" Content="Ria_llineamento" Target="{Binding ElementName=SqlServerInterval}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="5" Grid.Column="1" x:Name="SqlServerInterval" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Ogni quanto riallineare la copia locale">
+                                    <ComboBoxItem Content="Ogni 15 minuti" Tag="15" />
+                                    <ComboBoxItem Content="Ogni ora" Tag="60" />
+                                    <ComboBoxItem Content="Ogni 4 ore" Tag="240" />
+                                    <ComboBoxItem Content="Una volta al giorno" Tag="1440" />
+                                    <ComboBoxItem Content="Solo quando lo chiedo" Tag="0" />
+                                </ComboBox>
+                            </Grid>
+
+                            <CheckBox x:Name="SqlServerTrustCertificate" Margin="0,10,0,0"
+                                      Content="Accetta il ce_rtificato del server anche se non verificabile"
+                                      AutomationProperties.Name="Accetta il certificato del server anche se non verificabile"
+                                      AutomationProperties.HelpText="Serve con il certificato autofirmato che SQL Server genera da se'. Attivalo solo su una rete di cui ti fidi." />
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button x:Name="SqlServerConnectButton" Content="Colle_gati e leggi le tabelle"
+                                        AutomationProperties.Name="Collegati al server e leggi l'elenco delle tabelle"
+                                        Click="OnSqlServerConnectClick" />
+
+                                <Button x:Name="SqlServerSyncButton" Content="Riallinea a_desso" Margin="8,0,0,0"
+                                        AutomationProperties.Name="Riallinea adesso la copia locale della rubrica"
+                                        Click="OnSqlServerSyncClick" />
+                            </StackPanel>
+
+                            <TextBlock x:Name="SqlServerStatusText" Margin="0,10,0,0" TextWrapping="Wrap"
+                                       AutomationProperties.Name="Esito del collegamento al server"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+
+                        <TextBlock Text="1. File da importare" FontWeight="Bold" FontSize="16" Margin="0,8,0,6" />
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <TextBox Grid.Column="0" x:Name="CsvPath"
+                                     AutomationProperties.Name="Percorso del file CSV da importare"
+                                     AutomationProperties.HelpText="Puoi digitare il percorso oppure usare il pulsante Sfoglia." />
+
+                            <Button Grid.Column="1" x:Name="BrowseCsvButton" Content="S_foglia"
+                                    Margin="8,0,0,0"
+                                    AutomationProperties.Name="Scegli il file CSV da importare"
+                                    Click="OnBrowseCsvClick" />
+                        </Grid>
+
+                        <TextBlock x:Name="CsvFormatText"
+                                   Margin="0,8,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Formato rilevato del file"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Button x:Name="AnalyzeCsvButton" Content="_Analizza il file"
+                                HorizontalAlignment="Left" Margin="0,10,0,0"
+                                AutomationProperties.Name="Analizza il file e riconosci le colonne"
+                                Click="OnAnalyzeCsvClick" />
+
+                        <!--
+                            MOLTE ESPORTAZIONI NON HANNO LA RIGA DEI TITOLI.
+
+                            Il danno non e' solo che le colonne restano senza nome: la
+                            prima riga viene consumata come intestazione, cioe' un
+                            contatto sparisce dalla rubrica a ogni importazione.
+                            L'analisi propone da se' la risposta giusta, ma la lascia
+                            correggere: e' un'euristica, e sbagliarla in silenzio
+                            costerebbe una persona o tutti i titoli.
+                        -->
+                        <CheckBox x:Name="CsvNoHeader" Margin="0,12,0,0"
+                                  Content="Il file _non ha la riga dei titoli"
+                                  AutomationProperties.Name="Il file non ha la riga dei titoli delle colonne"
+                                  AutomationProperties.HelpText="Se attivo, la prima riga viene importata come contatto e le colonne si abbinano per posizione."
+                                  Checked="OnCsvHeaderModeChanged"
+                                  Unchecked="OnCsvHeaderModeChanged" />
+
+                        <!--
+                            SCELTA DELLA TABELLA, SOLO PER I BACKUP.
+
+                            Non porta un numero e resta nascosto per i file CSV: un
+                            passo numerato che compare e scompare farebbe saltare la
+                            sequenza da "1" a "3" per chi la ascolta, e il conteggio
+                            dei passi e' l'unico modo che ha per sapere a che punto e'.
+                        -->
+                        <StackPanel x:Name="BackupTablePanel" Visibility="Collapsed" Margin="0,16,0,0">
+                            <TextBlock Text="Tabella da importare" FontWeight="Bold" FontSize="16" Margin="0,0,0,6" />
+
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                       Text="Il backup contiene piu' tabelle. Scegli quella della rubrica: accanto al nome trovi quante colonne e quante righe contiene, che e' il modo piu' rapido per riconoscerla." />
+
+                            <ComboBox x:Name="BackupTable" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Tabella del backup da importare"
+                                      AutomationProperties.HelpText="Ogni voce riporta il nome della tabella, il numero di colonne e il numero di righe."
+                                      SelectionChanged="OnBackupTableChanged" />
+                        </StackPanel>
+
+                        <!-- Passo 2: mappatura -->
+                        <TextBlock Text="2. Abbinamento delle colonne" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                   Text="Per ogni informazione scegli da quale colonna del file prenderla. Le voci senza colonna abbinata restano vuote." />
+
+                        <Grid x:Name="MappingGrid">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <!--
+                                LE VOCI SONO QUELLE DICHIARATE DALLA RUBRICA DELL'ENTE,
+                                NELL'ORDINE IN CUI IL FILE LE ELENCA.
+
+                                L'ordine non e' un dettaglio estetico: chi abbina le
+                                colonne ascoltando tiene il file aperto accanto, e una
+                                sequenza diversa da quella del file lo costringerebbe a
+                                cercare ogni voce invece di scorrerle in parallelo.
+                            -->
+
+                            <Label Grid.Row="0" Grid.Column="0" Content="N_umero" Target="{Binding ElementName=MapNumber}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="MapNumber" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna del numero di telefono"
+                                      AutomationProperties.HelpText="Obbligatoria: le righe senza numero vengono ignorate." />
+
+                            <Label Grid.Row="1" Grid.Column="0" Content="Re_lativo" Target="{Binding ElementName=MapRelatedTo}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="MapRelatedTo" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna dell'interno di riferimento"
+                                      AutomationProperties.HelpText="L'interno a cui la voce fa capo, per sapere a chi rivolgersi quando questo non risponde." />
+
+                            <Label Grid.Row="2" Grid.Column="0" Content="_Descrizione" Target="{Binding ElementName=MapCategory}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="2" Grid.Column="1" x:Name="MapCategory" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna della descrizione della voce"
+                                      AutomationProperties.HelpText="Che cosa e' questa voce: viene letta subito dopo il nome, prima del reparto." />
+
+                            <Label Grid.Row="3" Grid.Column="0" Content="No_me" Target="{Binding ElementName=MapFirstName}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="3" Grid.Column="1" x:Name="MapFirstName" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna del nome"
+                                      AutomationProperties.HelpText="Nome e cognome vengono uniti in un solo nominativo." />
+
+                            <Label Grid.Row="4" Grid.Column="0" Content="_Cognome" Target="{Binding ElementName=MapLastName}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="4" Grid.Column="1" x:Name="MapLastName" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna del cognome"
+                                      AutomationProperties.HelpText="Nome e cognome vengono uniti in un solo nominativo." />
+
+                            <Label Grid.Row="5" Grid.Column="0" Content="Re_parto" Target="{Binding ElementName=MapDepartment}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="5" Grid.Column="1" x:Name="MapDepartment" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna del reparto" />
+
+                            <Label Grid.Row="6" Grid.Column="0" Content="_Padiglione" Target="{Binding ElementName=MapBuilding}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="6" Grid.Column="1" x:Name="MapBuilding" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna del padiglione"
+                                      AutomationProperties.HelpText="Padiglione e piano vengono uniti in una sola collocazione." />
+
+                            <Label Grid.Row="7" Grid.Column="0" Content="P_iano" Target="{Binding ElementName=MapFloor}" VerticalAlignment="Center" />
+                            <ComboBox Grid.Row="7" Grid.Column="1" x:Name="MapFloor" Margin="8,3" MinHeight="34" FontSize="15"
+                                      AutomationProperties.Name="Colonna del piano"
+                                      AutomationProperties.HelpText="Padiglione e piano vengono uniti in una sola collocazione." />
+                        </Grid>
+
+                        <!-- Passo 3: anteprima -->
+                        <TextBlock Text="3. Anteprima" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                   Text="Controlla che le informazioni siano finite nei campi giusti prima di importare tutto il file." />
+
+                        <TextBox x:Name="PreviewText"
+                                 Height="140"
+                                 IsReadOnly="True"
+                                 AcceptsReturn="True"
+                                 VerticalScrollBarVisibility="Auto"
+                                 FontSize="15"
+                                 Text=""
+                                 AutomationProperties.Name="Anteprima delle prime voci del file"
+                                 AutomationProperties.HelpText="Usa le frecce su e giu' per leggere riga per riga." />
+
+                        <!-- Passo 4: importazione -->
+                        <TextBlock Text="4. Importazione" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
+
+                        <CheckBox x:Name="ReplaceExisting"
+                                  Content="Sostituisci i contatti importati in _precedenza dallo stesso file"
+                                  IsChecked="True"
+                                  AutomationProperties.Name="Sostituisci i contatti gia' importati dallo stesso file invece di duplicarli"
+                                  AutomationProperties.HelpText="Le voci gia' presenti vengono aggiornate. Preferiti e numeri rapidi assegnati a mano non si perdono." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button x:Name="ImportCsvButton" Content="Impor_ta la rubrica"
+                                    Margin="0,0,8,0"
+                                    AutomationProperties.Name="Importa tutti i contatti dal file"
+                                    Click="OnImportCsvClick" />
+                            <Button x:Name="ClearContactsButton" Content="S_vuota la rubrica"
+                                    AutomationProperties.Name="Elimina tutti i contatti dall'archivio locale"
+                                    Click="OnClearContactsClick" />
+                        </StackPanel>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ CONFIGURAZIONE ============================ -->
+            <TabItem x:Name="ProvisioningTab" Header="Confi_gurazione"
+                     AutomationProperties.Name="Preconfigurazione e blocco delle impostazioni">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <!--
+                            PRECONFIGURAZIONE E BLOCCO
+
+                            Due funzioni che servono alla stessa persona — chi prepara
+                            le postazioni — e che si usano nello stesso momento: si
+                            costruisce la configurazione, si decide cosa l'operatore
+                            puo' cambiare, e si esporta il tutto in un file solo.
+
+                            La scheda e' l'ultima perche' un operatore non ci deve
+                            entrare mai; per lo stesso motivo e' la prima a essere
+                            bloccata da qualunque criterio.
+                        -->
+
+                        <TextBlock Text="Preparare una postazione" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Esporta questa configurazione in un file, mettilo in ProgramData BlindPhone sulle altre postazioni, e al primo avvio si configurano da sole. Le password non viaggiano nel file: restano da inserire su ciascuna." />
+
+                        <TextBlock Text="Sezioni da includere" FontWeight="Bold" Margin="0,8,0,4" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" Opacity="0.85"
+                                   Text="Lascia fuori l'account SIP se le postazioni hanno interni diversi: il pacchetto si potra' applicare anche a postazioni gia' configurate senza cancellarne l'interno." />
+
+                        <ItemsControl x:Name="BundleSections"
+                                      AutomationProperties.Name="Sezioni incluse nel pacchetto">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Label}"
+                                              IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                                              Margin="0,2"
+                                              AutomationProperties.Name="{Binding Label}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <CheckBox x:Name="BundleIncludeHotkeys"
+                                  Content="Includi i profili dei tasti _rapidi"
+                                  IsChecked="True"
+                                  Margin="0,10,0,0"
+                                  AutomationProperties.Name="Includi nel pacchetto i profili dei tasti rapidi" />
+
+                        <CheckBox x:Name="BundleIncludePolicy"
+                                  Content="Includi il _blocco delle impostazioni configurato qui sotto"
+                                  Margin="0,6,0,0"
+                                  AutomationProperties.Name="Includi nel pacchetto il criterio di blocco"
+                                  AutomationProperties.HelpText="Il blocco distribuito in questo modo vive nella configurazione dell'utente: protegge dall'errore, non dalla volonta'. Per un vincolo vero serve il criterio di postazione." />
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="120" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Label Grid.Column="0" Target="{Binding ElementName=BundleRevision}"
+                                   VerticalAlignment="Center" Content="Re_visione" />
+                            <TextBox Grid.Column="1" x:Name="BundleRevision" Text="1"
+                                     AutomationProperties.Name="Numero di revisione della configurazione"
+                                     AutomationProperties.HelpText="Le postazioni applicano un pacchetto solo se la revisione e' piu' alta di quella gia' applicata. Alzalo quando distribuisci un aggiornamento." />
+                        </Grid>
+
+                        <Label Target="{Binding ElementName=BundleDescription}" Content="_Nota per chi la riceve" />
+                        <TextBox x:Name="BundleDescription"
+                                 AutomationProperties.Name="Nota descrittiva del pacchetto"
+                                 AutomationProperties.HelpText="Per esempio: configurazione standard reparto accoglienza, marzo 2026." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button x:Name="ExportBundleButton" Content="_Esporta la configurazione..."
+                                    MinWidth="240" Margin="0,0,8,0"
+                                    AutomationProperties.Name="Esporta la configurazione in un pacchetto"
+                                    Click="OnExportBundleClick" />
+
+                            <Button x:Name="ImportBundleButton" Content="_Importa una configurazione..."
+                                    MinWidth="240"
+                                    AutomationProperties.Name="Applica un pacchetto di configurazione a questa postazione"
+                                    Click="OnImportBundleClick" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="BundleHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,10,0,0"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Stato della configurazione distribuita" />
+
+                        <!-- ==================== BLOCCO ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Bloccare le impostazioni" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock x:Name="PolicyOriginHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,10"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Criterio in vigore su questa postazione" />
+
+                        <Label Target="{Binding ElementName=PanelAccessBox}" Content="_Accesso al pannello" />
+                        <ComboBox x:Name="PanelAccessBox" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Accesso al pannello delle impostazioni"
+                                  SelectionChanged="OnPanelAccessChanged">
+                            <ComboBoxItem Tag="Open" Content="Aperto: l'operatore modifica quello che vuole" />
+                            <ComboBoxItem Tag="ReadOnly" Content="Consultabile: si legge ma non si modifica" />
+                            <ComboBoxItem Tag="Locked" Content="Chiuso: serve la password per aprirlo" />
+                        </ComboBox>
+
+                        <TextBlock Text="Sezioni bloccate" FontWeight="Bold" Margin="0,12,0,4" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,6" Opacity="0.85"
+                                   Text="Nessuna selezione significa tutte. Lascia libere voce, audio e tasti rapidi se non c'e' un motivo per bloccarli: sono la parte piu' personale del prodotto." />
+
+                        <ItemsControl x:Name="PolicySections"
+                                      AutomationProperties.Name="Sezioni bloccate all'operatore">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <CheckBox Content="{Binding Label}"
+                                              IsChecked="{Binding IsIncluded, Mode=TwoWay}"
+                                              Margin="0,2"
+                                              AutomationProperties.Name="{Binding Label}" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <Label Target="{Binding ElementName=PolicyNote}" Content="_Messaggio per l'operatore" />
+                        <TextBox x:Name="PolicyNote"
+                                 AutomationProperties.Name="Messaggio mostrato quando una impostazione e' bloccata"
+                                 AutomationProperties.HelpText="Scrivi a chi rivolgersi. Per esempio: configurazione gestita dall'ufficio IT, interno 4000. E' l'unica parte del blocco che l'operatore sente." />
+
+                        <Label Target="{Binding ElementName=PolicyPassword}" Content="Passwor_d di sblocco" />
+                        <PasswordBox x:Name="PolicyPassword"
+                                     FontSize="20" Padding="8" MinHeight="40"
+                                     AutomationProperties.Name="Password con cui sbloccare le impostazioni"
+                                     AutomationProperties.HelpText="Lascia vuoto per non cambiare quella gia' impostata. Non viene conservata: se ne scrive solo l'impronta." />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,10,0,0" Opacity="0.85"
+                                   Text="Il blocco impostato qui vive nella configurazione dell'utente, cartella su cui l'utente ha pieno controllo: protegge dalla modifica accidentale, non dalla volonta'. Per un vincolo che un utente senza privilegi amministrativi non possa aggirare serve il criterio di postazione, descritto in docs INSTALLAZIONE.md." />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <!-- Fascia del criterio: compare solo quando qualcosa e' bloccato -->
+        <Border Grid.Row="1" Margin="0,12,0,0" Padding="8,6"
+                x:Name="PolicyBannerBorder"
+                Visibility="Collapsed"
+                BorderThickness="2" BorderBrush="{DynamicResource TextBrush}">
+            <TextBlock x:Name="PolicyBanner"
+                       TextWrapping="Wrap"
+                       Text=""
+                       FontWeight="Bold"
+                       AutomationProperties.Name="Impostazioni bloccate dall'amministratore"
+                       AutomationProperties.LiveSetting="Polite" />
+        </Border>
+
+        <!-- Esito delle operazioni, regione dinamica -->
+        <Border Grid.Row="2" Margin="0,12,0,0" Padding="8,6"
+                BorderThickness="1" BorderBrush="{DynamicResource TextBrush}">
+            <TextBlock x:Name="ResultText"
+                       Text="Compila i campi e premi Salva. Control Tab per cambiare scheda."
+                       AutomationProperties.Name="Esito dell'ultima operazione"
+                       AutomationProperties.LiveSetting="Assertive" />
+        </Border>
+
+        <!-- Pulsanti -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="UnlockButton" Content="Sblocca o riblocc_a"
+                    Visibility="Collapsed" MinWidth="180" Margin="0,0,8,0"
+                    AutomationProperties.Name="Sblocca le impostazioni con la password dell'amministratore"
+                    Click="OnUnlockClick" />
+            <Button x:Name="SaveButton" Content="Sal_va" IsDefault="True" Margin="0,0,8,0"
+                    AutomationProperties.Name="Salva le impostazioni"
+                    Click="OnSaveClick" />
+            <Button x:Name="CancelButton" Content="Annu_lla" IsCancel="True"
+                    AutomationProperties.Name="Chiudi senza salvare"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </Grid>
+</Window>

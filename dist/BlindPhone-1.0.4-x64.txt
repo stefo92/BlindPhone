@@ -1,0 +1,51 @@
+# BlindPhone 1.0.4 beta - 10 agosto 2026
+# Elenco cumulativo: chi aggiorna da una versione qualsiasi trova qui tutto quello
+# che cambia per lui. Una novita' per riga; le righe con il cancelletto sono
+# commenti e non compaiono a schermo. La riga SHA256 serve a BlindPhone per
+# verificare il pacchetto scaricato.
+
+Novita' introdotte da questa versione, la 1.0.4:
+Corretto il guasto per cui il centralino smetteva di inoltrare le chiamate dopo la prima: il posto operatore non rispondeva al controllo di raggiungibilita' che il centralino manda ogni due minuti, e veniva classificato irraggiungibile pur restando registrato
+Il controllo di raggiungibilita' riceve risposta anche durante la pausa: la postazione in pausa risulta occupata, non sparita
+Control T legge il tempo giusto per la situazione: quanto sta squillando una chiamata entrante, da quanto sei in linea se stai parlando, da quanto sei in servizio se non c'e' nessuna chiamata
+Durante la pausa il tempo si sente premendo un tasto qualsiasi, senza combinazione
+Gli annunci restano udibili anche durante la conversazione: prima tacevano dal primo squillo fino alla chiusura della chiamata, proprio nei minuti in cui una seconda chiamata o un trasferimento fallito vanno saputi
+Chi aveva gia' usato BlindPhone si ritrova gli annunci riattivati: il silenzio in conversazione era il valore che il programma metteva da solo, non una scelta
+La suoneria si abbassa quando parte un annuncio, come gia' faceva la conversazione: condividendo lo stesso auricolare, lo copriva
+Il pulsante della pausa cambia icona quando cambia stato: la tazza mentre sei in pausa, la campanella per rientrare in servizio
+Il pulsante «Chiama» e' verde con la cornetta sollevata, e il testo e' nero perche' resti leggibile sul fondo chiaro
+Corretto il trattino basso che compariva dentro le etichette dei pulsanti: era un difetto del modello grafico, e toglieva anche le scorciatoie con il tasto Alt
+
+Gia' presenti dalla 1.0.3:
+Cronometro dello squillo nel riquadro della chiamata entrante: dice da quanto sta squillando, e Control T lo legge a voce
+Tono di occupato e tono di fuori servizio generati in locale, con le cadenze italiane: prima, quando il centralino rifiutava una chiamata senza mandare audio, in cuffia restava il silenzio
+Riquadro verde lampeggiante mentre parli, con nome e numero di chi hai in linea
+Il pulsante della pausa si e' spostato in alto, accanto all'orologio del servizio: riguarda il turno e non la chiamata in corso
+Nuovo pulsante «Elenco chiamate», disponibile anche durante una conversazione
+Mettendo in pausa si sente «chiamata in pausa» e riprendendo «chiamata ripresa», invece dei nomi delle righe di riepilogo che lo screen reader leggeva al posto loro
+La registrazione SIP non si annuncia piu' a ogni rinnovo: il segnale acustico arrivava ogni dieci minuti senza che fosse cambiato niente
+La riga della chiamata dice «chiamata in pausa» con chi e' in attesa, invece di «nessuna chiamata attiva»
+Guida in linea aggiornata: modalita' semplificata, barra dei comandi, aggiornamenti, suoneria e trasferimento con il mouse
+Registro diagnostico piu' preciso: ogni segnale acustico riprodotto e ogni riproduzione interrotta lasciano traccia
+
+Gia' presenti dalla 1.0.2:
+Modalita' semplificata: tre tasti del tastierino numerico governano l'intera chiamata, per chi non ha tempo di imparare le scorciatoie
+Il tasto PIU' risponde alla chiamata che squilla, e da li' in poi alterna fra linea e pausa
+Il tasto DIVISO riaggancia, e durante un trasferimento chiude la linea con l'interno riportando al chiamante
+Il tasto INVIO trasferisce: con il chiamante in linea lo manda subito all'interno composto, con il chiamante in pausa chiama prima l'interno per annunciare la chiamata e un secondo INVIO gliela passa
+Il trasferimento si completa anche se l'interno sta ancora squillando, senza aspettare che risponda
+Mentre una chiamata squilla il campo di composizione non accetta testo, cosi' il tasto con cui si risponde non ci finisce dentro
+La modalita' si sceglie in Impostazioni, scheda Accessibilita', e in modalita' semplificata la riassegnazione dei tasti si blocca perche' la disposizione resti identica su tutte le postazioni
+
+Gia' presenti dalla 1.0.1, per chi aggiorna dalla 1.0.0:
+Le chiamate entranti squillano finche' non si risponde: prima la suoneria suonava una volta sola e poi restava il silenzio
+Riquadro blu lampeggiante con il nome e il numero di chi chiama, per chi guarda lo schermo
+Barra dei comandi con il mouse: rispondi, attesa, trasferimento, conferenza, registrazione, toni, microfono, impostazioni e account SIP
+I pulsanti compaiono solo quando la funzione e' disponibile, e restano al loro posto per tutta la durata della chiamata
+Trasferimento cieco e trasferimento con annuncio su due pulsanti distinti, senza dover ricordare la doppia pressione
+Corretti i rapporti di errore grave che la suoneria generava a ogni chiamata entrante
+Registro diagnostico completo della segnalazione SIP: ogni messaggio scambiato con il centralino, con il motivo dichiarato da chi chiude la chiamata
+Il posto operatore non abbandona piu' da solo una chiamata che squilla da oltre tre minuti: quanto squillare lo decide il centralino
+Aggiornamenti scaricabili dal server dell'ente, con le novita' della versione mostrate prima di installarla
+
+SHA256: B10E53A4C31C8F358FC621A8282EA663DF8883C048E87BFA41A865E4AD7C4FED

@@ -1,0 +1,34 @@
+<Application x:Class="BlindPhone.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+
+            <!--
+                Regole vincolanti (vedi docs/CONTRIBUIRE-ACCESSIBILITA.md):
+                - contrasto del testo almeno 7 a 1 rispetto allo sfondo;
+                - contorno del focus di almeno 3 pixel e sempre visibile;
+                - nessuna informazione veicolata dal solo colore;
+                - dimensioni in unita' relative, perche' l'ingrandimento di sistema
+                  fino al 300 per cento non deve troncare nulla.
+
+                Questo file non dichiara piu' niente: mette insieme i due pezzi.
+
+                I COLORI stanno in Temi\Chiaro, Temi\Scuro e Temi\Sistema, che
+                dichiarano le stesse chiavi. Quello di partenza e' Sistema, l'unico
+                giusto prima che il servizio dei temi abbia letto le impostazioni e
+                l'unico ammesso quando il contrasto elevato e' attivo; da li' in poi
+                lo sostituisce ThemeService.
+
+                LE FORME stanno in Temi\Stili, separate proprio perche' si possano
+                caricare senza avviare il programma.
+            -->
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="Temi/Sistema.xaml" />
+                <ResourceDictionary Source="Temi/Stili.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

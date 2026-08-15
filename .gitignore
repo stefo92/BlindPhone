@@ -1,0 +1,49 @@
+# ---------------------------------------------------------------------------
+# Risultati della compilazione
+# ---------------------------------------------------------------------------
+bin/
+obj/
+artifacts/
+.vs/
+*.user
+
+# ---------------------------------------------------------------------------
+# Pacchetti di installazione
+#
+# Restano sul disco - sono la via di ritorno a una versione gia' provata - ma
+# fuori dalla cronologia: sono 63 MB l'uno, undici versioni, e un repository
+# che li porta dentro diventa impraticabile da clonare. Le note di versione
+# invece entrano: sono testo, e sono il documento che accompagna il pacchetto.
+# ---------------------------------------------------------------------------
+dist/*.msi
+
+# ---------------------------------------------------------------------------
+# DATI PERSONALI: QUESTA SEZIONE NON E' UNA COMODITA'
+#
+# Un file cancellato da una cartella sparisce; un file entrato in un commit
+# resta nella cronologia anche dopo essere stato cancellato, e toglierlo
+# richiede di riscrivere la cronologia. Per questo la verifica va fatta prima
+# del primo commit, non dopo.
+#
+# - i pacchetti per l'assistenza costruiti fino alla 1.0.8 contengono i
+#   registri IN CHIARO, con i numeri di chi ha chiamato e di chi e' stato
+#   chiamato;
+# - la rubrica dell'ente porta interni, reparti, padiglioni e piani di una
+#   struttura sanitaria reale;
+# - i registri diagnostici, ovunque compaiano, vanno anonimizzati prima di
+#   essere condivisi (vedi tools\anonimizza-registro.ps1).
+# ---------------------------------------------------------------------------
+BlindPhone-assistenza-*.zip
+*-assistenza-*.zip
+struttura rubrica*.csv
+*.log
+log/
+anonimo/
+secrets.dat
+settings.json
+contacts.db
+history.db
+
+# Pacchetti di configurazione: portano dentro la configurazione di una
+# postazione reale, compreso l'interno assegnato.
+*.bpcfg

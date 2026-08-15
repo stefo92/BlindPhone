@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Test dei componenti che richiedono Windows.
+
+    BlindPhone.Core.Tests non puo' coprirli: targetta la banda senza -windows di
+    proposito, cosi' che
+    una dipendenza da Win32 nel dominio diventi un errore di compilazione. Ma due
+    cose che vivono nell'infrastruttura decidono se il posto operatore funziona:
+
+      - la regola che instrada la voce degli annunci, i cui due modi di sbagliare
+        (parlare due volte, non parlare affatto) sono entrambi invisibili a schermo;
+      - il deposito dei profili di scorciatoie, che se legge male lascia l'operatore
+        senza tasti;
+      - l'archivio delle ultime chiamate, che decide cosa resta e cosa viene
+        cancellato allo scadere della conservazione.
+
+    Nessuno di questi test avvia una sintesi vocale o uno screen reader: il primo e'
+    una funzione pura, gli altri lavorano su una cartella temporanea.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.Windows.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlindPhone.Accessibility\BlindPhone.Accessibility.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Audio\BlindPhone.Audio.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Contacts\BlindPhone.Contacts.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Infrastructure\BlindPhone.Infrastructure.csproj" />
+
+    <!--
+      Il motore telefonico serve a collaudare la ripulitura delle risposte SDP
+      anomale: e' logica di protocollo, non di interfaccia, e senza prova
+      resterebbe verificabile solo con il centralino davanti.
+    -->
+    <ProjectReference Include="..\..\src\BlindPhone.Telephony\BlindPhone.Telephony.csproj" />
+
+    <!--
+      L'applicazione serve per collaudare il servizio di riallineamento della
+      rubrica, che vive li' perche' e' l'unico strato che vede sia le impostazioni
+      sia le sorgenti dei contatti.
+    -->
+    <ProjectReference Include="..\..\src\BlindPhone.App\BlindPhone.App.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
+  </ItemGroup>
+
+</Project>

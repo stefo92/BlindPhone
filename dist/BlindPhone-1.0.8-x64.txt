@@ -1,0 +1,34 @@
+﻿# BlindPhone 1.0.8 beta - 11 agosto 2026
+# Elenco cumulativo: chi aggiorna da una versione qualsiasi trova qui tutto quello
+# che cambia per lui. Una novita' per riga; le righe con il cancelletto sono
+# commenti e non compaiono a schermo. La riga SHA256 serve a BlindPhone per
+# verificare il pacchetto scaricato.
+
+Novita' introdotte da questa versione, la 1.0.8:
+Mettendo una chiamata in attesa l'operatore smette davvero di sentire chi ha messo in attesa: prima continuava a sentirlo mentre il chiamante ascoltava la musica di attesa
+Il promemoria della chiamata in attesa torna udibile, perche' non e' piu' coperto dalla voce del chiamante: e' un doppio bip ogni trenta secondi, e l'intervallo si regola in Impostazioni, scheda Accessibilita'
+Il promemoria conta dall'inizio dell'attesa: prima poteva arrivare dopo pochi secondi oppure farsi aspettare mezzo minuto, a seconda di quanto si era parlato prima
+Un trasferimento non chiude piu' la linea con il chiamante sulla base di una notifica del centralino: la chiude il BYE quando il trasferimento e' davvero compiuto, oppure l'operatore
+I registri allegati al pacchetto di assistenza escono anonimizzati: numeri e nominativi sostituiti da etichette stabili, il resto del registro intatto
+Vale anche per i rapporti di errore, che portano il testo completo delle eccezioni e quindi anche numeri e indirizzi SIP
+Un file che non si riesce ad anonimizzare non viene allegato: meglio un pacchetto incompleto che uno che esce dall'ente con dentro i dati di chi ha telefonato
+Nuovo strumento tools\anonimizza-registro.ps1 per anonimizzare i registri a mano, con la mappa delle etichette che resta sulla postazione
+
+Gia' presenti dalla 1.0.7:
+Annullando la linea di consultazione per completare un trasferimento non si sente piu' il tono di fuori servizio: la chiamata la chiudeva la postazione, e veniva riportata come se la destinazione avesse rifiutato
+Un trasferimento rifiutato dal centralino non viene piu' annunciato come riuscito: prima l'operatore sentiva Â«trasferimento riuscitoÂ» e il chiamante spariva in silenzio, mentre il centralino non aveva eseguito nulla
+Quando il trasferimento non va a buon fine il chiamante torna all'operatore invece di cadere, e nel registro resta scritto il motivo
+Il numero di chi chiama compare sempre, a schermo e a voce: prima, quando il centralino accompagnava la chiamata con un'etichetta come Â«Chiamate esterneÂ», restava solo quella e il numero non arrivava da nessuna parte
+Vale anche per il riquadro verde della conversazione in corso, che usa la stessa forma
+La rubrica si puo' collegare a Microsoft SQL Server, locale o remoto: si sceglie in Impostazioni fra rubrica da file e rubrica collegata al gestionale dell'ente
+Il collegamento legge una tabella o una vista e ne copia il contenuto nell'archivio cifrato della postazione, riallineandolo a intervalli configurabili
+Il server non viene mai modificato: si legge soltanto, e il collegamento si dichiara di sola lettura
+A rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito, e il nome di chi chiama continua a comparire senza attese: e' il motivo per cui la copia locale esiste
+Un riallineamento che non riesce non svuota la rubrica, e non parte mai durante una chiamata
+La procedura per collegare il server e' la stessa dei file: ci si collega, si sceglie la tabella dall'elenco, si abbinano le stesse colonne, si controlla l'anteprima
+Gli errori del server vengono detti in italiano: utenza rifiutata, permesso mancante, server irraggiungibile, certificato non verificabile
+La password del server sta nel deposito protetto di Windows, mai nel file delle impostazioni, e il traffico verso il server e' cifrato
+I backup con estensioni non previste - punto bkp, punto dmp, punto backup o nessuna estensione - vengono riconosciuti dal contenuto invece che dal nome
+Guida in linea aggiornata con la rubrica collegata al server
+
+SHA256: ADC6A7E4C91701715DEE07F085BE48708389AF8F2E45D0A78FD5EE356266AE79

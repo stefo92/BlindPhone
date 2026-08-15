@@ -1,0 +1,77 @@
+<Project>
+
+  <!--
+    Proprietà comuni a tutti i progetti della soluzione BlindPhone.
+
+    SCELTA DEL TARGET FRAMEWORK
+    La soluzione targetta .NET 10, che è LTS. La 9 era STS ed è uscita di supporto a
+    maggio 2026: su una postazione di un ente pubblico un motore di esecuzione fuori
+    supporto è una domanda che prima o poi arriva, e la risposta non può essere «lo
+    aggiorniamo quando serve».
+
+    IL RITORNO ALLA 9 RESTA A PORTATA DI UN INTERRUTTORE
+    La banda non è scritta dentro i progetti: la decide BandaDotNet qui sotto, e i
+    pacchetti che seguono il motore di esecuzione la seguono attraverso
+    BandaPacchetti. Per ricompilare tutto sulla 9:
+
+        dotnet build BlindPhone.sln -c Release -p:BandaDotNet=net9.0
+        dotnet test  BlindPhone.sln -c Release -p:BandaDotNet=net9.0
+
+    oppure si cambia la riga qui sotto. Le due bande restano installate una accanto
+    all'altra — gli SDK .NET convivono per costruzione — quindi il ritorno non
+    richiede di disinstallare niente.
+
+    Le due bande non si mescolano: i pacchetti Microsoft.Extensions e System.* sono
+    versionati insieme al motore di esecuzione, e montare i 10.0.x su un target net9.0
+    significherebbe spedire assembly di .NET 10 dentro un pacchetto che porta il
+    runtime 9. Per questo la versione è condizionata alla banda invece di essere
+    scritta a mano in ogni progetto.
+
+    DOCUMENTAZIONE
+    GenerateDocumentationFile è attivo su tutti i progetti: ogni tipo e membro
+    pubblico deve avere il commento XML. CS1591 (membro pubblico privo di commento)
+    resta un warning e non un errore, per non bloccare la build durante lo sviluppo,
+    ma va trattato come debito da azzerare prima del rilascio.
+  -->
+
+  <PropertyGroup>
+    <!-- Banda del motore di esecuzione: net10.0 oppure net9.0. -->
+    <BandaDotNet Condition="'$(BandaDotNet)' == ''">net10.0</BandaDotNet>
+
+    <!-- Pacchetti versionati insieme al motore di esecuzione: seguono la banda. -->
+    <BandaPacchetti Condition="'$(BandaPacchetti)' == '' and '$(BandaDotNet)' == 'net9.0'">9.0.19</BandaPacchetti>
+    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.11</BandaPacchetti>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <EnforceCodeStyleInBuild>false</EnforceCodeStyleInBuild>
+    <InvariantGlobalization>false</InvariantGlobalization>
+
+    <!-- Metadati di prodotto, riportati nelle proprietà dei binari. -->
+    <Product>BlindPhone</Product>
+    <Company>BlindPhone</Company>
+    <Authors>BlindPhone</Authors>
+
+    <!--
+      DUE VERSIONI, E SERVONO ENTRAMBE.
+
+      Version e' quella numerica, l'unica forma che l'installatore di Windows
+      accetta: tre numeri separati da punti, senza etichette. E' quella con cui il
+      pacchetto riconosce di essere piu' recente di quello installato.
+
+      InformationalVersion e' quella che legge una persona. La porta la finestra di
+      avvio, il riepilogo diagnostico e le proprieta' del file, ed e' li' che
+      compare la parola "beta": una versione dichiarata beta nei documenti e non
+      nel programma sarebbe una dichiarazione che nessuno vede.
+    -->
+    <Version>1.0.10</Version>
+    <InformationalVersion>1.0.10 beta</InformationalVersion>
+    <NeutralLanguage>it-IT</NeutralLanguage>
+    <Copyright>Copyright © 2026</Copyright>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,755 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime"
+                    xmlns:app="clr-namespace:BlindPhone.App">
+
+    <!--
+        FORME: spaziature, raggi, corpi del testo e modelli dei controlli.
+
+        Sta in un dizionario suo e non dentro App.xaml perche' cosi' si puo' caricare
+        da solo, senza avviare l'applicazione: e' quello che permette di disegnare i
+        controlli in tutti e tre i temi e guardarli, invece di scoprire da un
+        operatore che una casella e' diventata illeggibile.
+
+        I COLORI NON STANNO QUI. Vengono dai tre dizionari dei temi, richiamati per
+        nome con DynamicResource: con StaticResource il valore verrebbe fissato al
+        momento della lettura e cambiare tema a programma aperto non ridipingerebbe
+        nulla.
+    -->
+
+    <!--
+        ============================ LE TRE SCALE ============================
+
+        Spaziatura, raggio e corpo del testo dichiarati una volta sola. Non e'
+        pignoleria: prima gli stessi distacchi erano scritti 4, 6, 8 e 12 a
+        seconda del punto, e i corpi 14, 15, 16, 18, 20, 24 e 26. Nessuno di
+        quei valori era sbagliato da solo, ed e' proprio per questo che la
+        finestra sembrava assemblata invece che disegnata.
+
+        I CORPI NON SI RIMPICCIOLISCONO. Questa postazione deve reggere
+        l'ingrandimento di sistema fino al 300 per cento, e "snellire" il
+        testo per farlo sembrare piu' elegante andrebbe contro la ragione per
+        cui il prodotto esiste.
+    -->
+
+    <!-- Spaziatura: 8, 16, 24. Niente valori intermedi. -->
+    <Thickness x:Key="SpaceWindow">16</Thickness>
+    <Thickness x:Key="SpaceCard">16</Thickness>
+    <Thickness x:Key="SpaceStack">0,0,0,16</Thickness>
+    <Thickness x:Key="SpaceStackTight">0,0,0,8</Thickness>
+
+    <!-- Raggio: 8 per i contenitori, 6 per i controlli. -->
+    <CornerRadius x:Key="RadiusCard">8</CornerRadius>
+    <CornerRadius x:Key="RadiusControl">6</CornerRadius>
+
+    <!-- Corpo del testo. -->
+    <sys:Double x:Key="FontCaption">14</sys:Double>
+    <sys:Double x:Key="FontBody">16</sys:Double>
+    <sys:Double x:Key="FontSection">18</sys:Double>
+    <sys:Double x:Key="FontProminent">24</sys:Double>
+    <sys:Double x:Key="FontBanner">26</sys:Double>
+
+    <!-- Corpo della chiamata in corso: e' il dato che domina la finestra. -->
+    <sys:Double x:Key="FontHeadline">34</sys:Double>
+
+    <!--
+        Contorno del focus rinforzato. Il valore predefinito di WPF e' una
+        linea tratteggiata di un pixel, insufficiente per un ipovedente e
+        invisibile in modalita' contrasto elevato.
+
+        Ogni stile di controllo di questo file lo dichiara: prima lo faceva
+        solo la finestra principale, e negli altri pannelli chi si muoveva a
+        tastiera aveva il tratteggio di WPF.
+    -->
+    <Style x:Key="FocusVisual">
+        <Setter Property="Control.Template">
+            <Setter.Value>
+                <ControlTemplate>
+                    <Rectangle Margin="-3"
+                               StrokeThickness="3"
+                               Stroke="{DynamicResource AccentBrush}"
+                               SnapsToDevicePixels="True" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        La scheda: un fondo, un filo di bordo, un angolo arrotondato.
+        Sostituisce i riquadri col solo contorno spesso.
+    -->
+    <Style x:Key="Card" TargetType="Border">
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}" />
+        <Setter Property="Padding" Value="{StaticResource SpaceCard}" />
+        <Setter Property="Margin" Value="{StaticResource SpaceStack}" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+    </Style>
+
+    <!-- ==================== TESTO ==================== -->
+
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+
+    <Style TargetType="Label">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+    </Style>
+
+    <Style TargetType="Separator">
+        <Setter Property="Background" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="Height" Value="1" />
+    </Style>
+
+    <!-- ==================== SUGGERIMENTI ==================== -->
+
+    <!--
+        IL SUGGERIMENTO RESTAVA SENZA TESTO, E NON PERCHE' IL TESTO MANCASSE.
+
+        Nessuno dichiarava l'aspetto del ToolTip, quindi il fondo restava quello
+        predefinito di Windows - un grigio chiarissimo, #F1F2F7 - in tutti e tre i
+        temi. Il testo dentro, invece, e' un TextBlock come tutti gli altri e prende
+        lo stile implicito qui sopra, cioe' il colore del tema.
+
+        Misurato aprendo un suggerimento vero in ciascun tema e leggendo i colori
+        effettivi:
+
+            chiaro   testo #1A1A1A su fondo #F1F2F7   si legge
+            scuro    testo #F2F2F2 su fondo #F1F2F7   NON si legge
+            sistema  testo #000000 su fondo #F1F2F7   si legge
+
+        Nel tema scuro il rapporto di contrasto e' circa 1 a 1: il riquadro compare
+        vuoto. Non era un suggerimento senza testo, era testo bianco su bianco.
+
+        Da qui le due dichiarazioni che contano: il fondo viene dal tema come tutto
+        il resto, e il colore del testo viene ridichiarato DENTRO il modello. La
+        seconda non e' ridondante - uno stile implicito con un Foreground esplicito
+        vince sull'ereditarieta', quindi dichiarare il solo Foreground sul ToolTip
+        non arriverebbe al TextBlock che il contenuto genera.
+    -->
+    <Style TargetType="ToolTip">
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="HasDropShadow" Value="True" />
+
+        <!--
+            Il testo va a capo invece di allungare il riquadro fuori dallo schermo:
+            i suggerimenti dei sei comandi portano la spiegazione e la scorciatoia
+            su due righe, e chi ingrandisce il testo di sistema le vede crescere.
+        -->
+        <Setter Property="MaxWidth" Value="420" />
+
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource RadiusControl}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <Border.Resources>
+                            <!-- Vedi sopra: senza questo vince lo stile implicito globale. -->
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+                                <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+                                <Setter Property="TextWrapping" Value="Wrap" />
+                            </Style>
+                        </Border.Resources>
+
+                        <ContentPresenter />
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== PULSANTI ==================== -->
+
+    <!--
+        MODELLO ESPLICITO, e le tre cose che non si possono perdere
+        sostituendolo:
+
+        - RecognizesAccessKey sul contenuto, altrimenti WPF stampa il trattino
+          basso invece della lettera sottolineata e la combinazione Alt smette
+          di funzionare su tutti i pulsanti del prodotto;
+        - lo stato disabilitato deve VEDERSI, perche' un pulsante che non
+          risponde e non lo dichiara e' indistinguibile da un programma
+          bloccato;
+        - il contorno del focus, che con il modello predefinito arrivava
+          gratis.
+    -->
+    <Style TargetType="Button">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="MinWidth" Value="120" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Foreground" Value="{DynamicResource ControlTextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Sfondo"
+                            CornerRadius="{StaticResource RadiusControl}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource ControlHoverBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource ControlPressedBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource ControlDisabledBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== CAMPI DI IMMISSIONE ==================== -->
+
+    <!--
+        Il bordo si ispessisce e prende il colore di evidenziazione quando il
+        campo ha il cursore: e' il segnale che dice "quello che digiti finisce
+        qui", e su una finestra con nove caselle e' l'unico modo di saperlo
+        senza provare.
+
+        La sola lettura si dichiara con il fondo, perche' in questo prodotto le
+        caselle di sola lettura non sono campi disattivati ma riquadri di
+        informazione che si possono selezionare e copiare.
+    -->
+    <Style TargetType="TextBox">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Padding" Value="8" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource FieldBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+        <Setter Property="SelectionBrush" Value="{DynamicResource SelectionBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Sfondo"
+                            CornerRadius="{StaticResource RadiusControl}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Sfondo" Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Sfondo" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="IsReadOnly" Value="True">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource ControlDisabledBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="PasswordBox">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="Padding" Value="8" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource FieldBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="PasswordBox">
+                    <Border x:Name="Sfondo"
+                            CornerRadius="{StaticResource RadiusControl}"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                      Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Sfondo" Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Sfondo" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== ELENCO A DISCESA ==================== -->
+
+    <!--
+        Il modello serve soprattutto per il tema scuro: con quello predefinito
+        la tendina resta bianca anche a programma scuro, ed e' il difetto piu'
+        visibile di un tema fatto a meta'.
+
+        Non copre il caso IsEditable, che questo prodotto non usa da nessuna
+        parte: tutti gli elenchi a discesa scelgono fra voci fisse.
+    -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="Sfondo"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource SelectionBrush}" />
+                            <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="MinHeight" Value="40" />
+        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="PART_Toggle"
+                                      Focusable="False"
+                                      ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="Sfondo"
+                                            CornerRadius="{StaticResource RadiusControl}"
+                                            Background="{DynamicResource ControlBrush}"
+                                            BorderBrush="{DynamicResource ControlBorderBrush}"
+                                            BorderThickness="1"
+                                            SnapsToDevicePixels="True">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <!--
+                                                La freccia e' un glifo di Segoe
+                                                Fluent Icons, non un triangolo
+                                                disegnato a mano: segue il corpo
+                                                del testo e il colore del tema.
+                                            -->
+                                            <TextBlock Grid.Column="1"
+                                                       Margin="0,0,10,0"
+                                                       VerticalAlignment="Center"
+                                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                                       FontSize="12"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       Text="&#xE70D;" />
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Sfondo" Property="Background"
+                                                    Value="{DynamicResource ControlHoverBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Left"
+                                          VerticalAlignment="Center"
+                                          IsHitTestVisible="False"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}" />
+
+                        <Popup x:Name="PART_Popup"
+                               AllowsTransparency="True"
+                               Placement="Bottom"
+                               Focusable="False"
+                               PopupAnimation="None"
+                               IsOpen="{TemplateBinding IsDropDownOpen}">
+                            <Border MinWidth="{TemplateBinding ActualWidth}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    Margin="0,2,0,0"
+                                    CornerRadius="{StaticResource RadiusControl}"
+                                    Background="{DynamicResource CardBrush}"
+                                    BorderBrush="{DynamicResource ControlBorderBrush}"
+                                    BorderThickness="1"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer>
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="PART_Toggle" Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== CASELLE E SCELTE ==================== -->
+
+    <!--
+        Il segno di spunta e' un glifo di Segoe Fluent Icons e NON porta
+        l'informazione da solo: la casella cambia anche fondo e bordo, cosi'
+        chi non distingue i colori vede comunque la differenza fra spuntata e
+        non spuntata.
+    -->
+    <Style TargetType="CheckBox">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Margin" Value="0,6,0,6" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Casella"
+                                Width="22" Height="22"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                CornerRadius="4"
+                                Background="{DynamicResource FieldBrush}"
+                                BorderBrush="{DynamicResource ControlBorderBrush}"
+                                BorderThickness="2"
+                                SnapsToDevicePixels="True">
+                            <TextBlock x:Name="Spunta"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                       FontSize="13"
+                                       Foreground="{DynamicResource SelectionTextBrush}"
+                                       Text="&#xE73E;"
+                                       Visibility="Collapsed" />
+                        </Border>
+                        <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Casella" Property="Background"
+                                    Value="{DynamicResource SelectionBrush}" />
+                            <Setter TargetName="Casella" Property="BorderBrush"
+                                    Value="{DynamicResource SelectionBrush}" />
+                            <Setter TargetName="Spunta" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Casella" Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                            <Setter TargetName="Casella" Property="BorderBrush"
+                                    Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="RadioButton">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Margin" Value="0,6,0,6" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Border x:Name="Cerchio"
+                                Width="22" Height="22"
+                                Margin="0,0,10,0"
+                                VerticalAlignment="Center"
+                                CornerRadius="11"
+                                Background="{DynamicResource FieldBrush}"
+                                BorderBrush="{DynamicResource ControlBorderBrush}"
+                                BorderThickness="2"
+                                SnapsToDevicePixels="True">
+                            <Ellipse x:Name="Punto"
+                                     Width="10" Height="10"
+                                     Fill="{DynamicResource SelectionBrush}"
+                                     Visibility="Collapsed" />
+                        </Border>
+                        <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Cerchio" Property="BorderBrush"
+                                    Value="{DynamicResource SelectionBrush}" />
+                            <Setter TargetName="Punto" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ==================== TABELLE ED ELENCHI ==================== -->
+
+    <!--
+        LA DataGrid NON VIENE RIMODELLATA, e la ragione non e' pigrizia.
+
+        Dentro ci sono i nomi accessibili sulle celle, la navigazione con le
+        frecce e la regola per cui Tab esce dalla tabella invece di percorrerne
+        tutte le celle: sono cose che vivono nel modello predefinito e nel
+        comportamento della classe. Qui si cambiano soltanto i colori e le
+        intestazioni — cioe' quello che il tema deve poter cambiare — e non una
+        riga di struttura.
+    -->
+    <Style TargetType="DataGrid">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="RowHeight" Value="32" />
+        <Setter Property="HeadersVisibility" Value="Column" />
+        <Setter Property="AutoGenerateColumns" Value="False" />
+        <Setter Property="IsReadOnly" Value="True" />
+        <Setter Property="SelectionMode" Value="Single" />
+        <Setter Property="SelectionUnit" Value="FullRow" />
+        <Setter Property="CanUserAddRows" Value="False" />
+        <Setter Property="GridLinesVisibility" Value="Horizontal" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="RowBackground" Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="VerticalGridLinesBrush" Value="{DynamicResource HairlineBrush}" />
+
+        <!--
+            DENTRO UNA TABELLA CI SI MUOVE CON LE FRECCE, NON CON TAB.
+
+            Il comportamento predefinito di WPF fa percorrere a Tab tutte le
+            celle di tutte le righe prima di lasciare la tabella. Su sei
+            colonne e cinque righe sono trenta pressioni per raggiungere il
+            pulsante che sta sotto, e siccome la selezione segue il cursore,
+            all'uscita risulta scelta sempre l'ultima riga: sull'elenco degli
+            account il primo non si poteva attivare in alcun modo.
+
+            "Once" dichiara la tabella una tappa sola del giro di tabulazione;
+            TabLeavesTable fa il resto, intercettando Tab prima che la DataGrid
+            lo interpreti a modo suo. Vedi GridNavigation.
+        -->
+        <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
+        <Setter Property="app:GridNavigation.TabLeavesTable" Value="True" />
+    </Style>
+
+    <Style TargetType="DataGridColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource HeaderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="0,0,1,1" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+
+    <Style TargetType="DataGridCell">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,0" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="DataGridRow">
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource HoverRowBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="ListBox">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+    </Style>
+
+    <Style TargetType="ListView">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+    </Style>
+
+    <Style TargetType="ListViewItem">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Padding" Value="4,2" />
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+            </Trigger>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource HoverRowBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style TargetType="GridViewColumnHeader">
+        <Setter Property="Background" Value="{DynamicResource HeaderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+    </Style>
+
+    <!-- ==================== SCHEDE DEL PANNELLO ==================== -->
+
+    <Style TargetType="TabControl">
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <!--
+        La scheda selezionata si riconosce da TRE segnali insieme — fondo,
+        grassetto e barra sotto — e non dal solo colore: e' la stessa regola
+        che vale per gli avvisi della finestra principale.
+    -->
+    <Style TargetType="TabItem">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="Padding" Value="14,8" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Sfondo"
+                            Margin="0,0,2,0"
+                            CornerRadius="6,6,0,0"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            BorderThickness="0,0,0,3"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter x:Name="Titolo"
+                                          ContentSource="Header"
+                                          Margin="{TemplateBinding Padding}"
+                                          RecognizesAccessKey="True" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource CardBrush}" />
+                            <Setter TargetName="Sfondo" Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter Property="FontWeight" Value="Bold" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="False" />
+                                <Condition Property="IsMouseOver" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource ControlHoverBrush}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="GroupBox">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+    </Style>
+
+    <Style TargetType="ProgressBar">
+        <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="Height" Value="8" />
+    </Style>
+
+
+</ResourceDictionary>

@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Diagnostics: strumento a riga di comando per capire, davanti a una
+    chiamata che non funziona, se il problema e' nel softphone o nel centralino.
+
+    Legge la configurazione e le credenziali gia' salvate dall'applicazione: le
+    credenziali sono protette con DPAPI e sono leggibili solo dallo stesso utente
+    Windows sulla stessa macchina, quindi non vanno mai digitate qui ne' passate
+    sulla riga di comando, dove finirebbero nella cronologia della shell.
+  -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.Diagnostics</RootNamespace>
+    <AssemblyName>blindphone-diag</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BlindPhone.Core\BlindPhone.Core.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Audio\BlindPhone.Audio.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Contacts\BlindPhone.Contacts.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Infrastructure\BlindPhone.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Pbx.Yeastar\BlindPhone.Pbx.Yeastar.csproj" />
+    <ProjectReference Include="..\..\src\BlindPhone.Telephony\BlindPhone.Telephony.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="$(BandaPacchetti)" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="$(BandaPacchetti)" />
+  </ItemGroup>
+
+</Project>

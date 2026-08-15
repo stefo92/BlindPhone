@@ -1,0 +1,87 @@
+<Window x:Class="BlindPhone.App.HelpWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Guida di BlindPhone"
+        Height="700" Width="980"
+        MinHeight="480" MinWidth="700"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        GUIDA IN LINEA
+
+        Due riquadri e nient'altro: a sinistra gli argomenti, a destra il testo.
+        Niente ipertesto, niente pagine da navigare avanti e indietro. Chi legge con
+        la sintesi non salta con lo sguardo al punto che gli serve: percorre, e un
+        elenco di argomenti percorribile con le frecce e' il modo piu' rapido di
+        arrivare al punto giusto.
+
+        Il testo sta in una casella di sola lettura e non in un TextBlock, ed e' una
+        scelta di accessibilita' precisa: dentro una casella di testo il cursore si
+        muove riga per riga con le frecce, parola per parola con Control frecce, e lo
+        screen reader legge quello su cui passa. Un TextBlock lo si puo' solo sentire
+        tutto intero o esplorare con il cursore virtuale, che e' piu' lento e non
+        funziona allo stesso modo fra NVDA e JAWS.
+
+        Le combinazioni citate nel testo sono quelle assegnate adesso, non quelle
+        predefinite: la guida si costruisce dal profilo attivo a ogni apertura.
+    -->
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Margin="0,0,0,10"
+                   Text="Frecce su e giu' per scegliere l'argomento, Tab per passare al testo. Nel testo, frecce per leggere riga per riga. Esc chiude." />
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0" Margin="0,0,12,0">
+                <Label DockPanel.Dock="Top" Target="{Binding ElementName=TopicList}" Content="_Argomenti" />
+
+                <ListBox x:Name="TopicList"
+                         FontSize="16"
+                         SelectionMode="Single"
+                         AutomationProperties.Name="Elenco degli argomenti della guida"
+                         AutomationProperties.HelpText="Frecce su e giu' per cambiare argomento. Il testo a destra cambia di conseguenza. Tab porta al testo."
+                         SelectionChanged="OnTopicSelectionChanged" />
+            </DockPanel>
+
+            <DockPanel Grid.Column="1">
+                <Label DockPanel.Dock="Top" Target="{Binding ElementName=TopicText}" Content="_Testo dell'argomento" />
+
+                <TextBox x:Name="TopicText"
+                         IsReadOnly="True"
+                         IsReadOnlyCaretVisible="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         FontSize="16"
+                         Text=""
+                         AutomationProperties.Name="Testo dell'argomento"
+                         AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga, Control frecce per parola. Control Home torna all'inizio." />
+            </DockPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="ExportButton" Content="_Esporta in un file di testo..."
+                    MinWidth="240" Margin="0,0,8,0"
+                    AutomationProperties.Name="Esporta l'intera guida in un file di testo"
+                    AutomationProperties.HelpText="Produce un documento in righe corte, adatto alla lettura continua e alla stampa braille."
+                    Click="OnExportClick" />
+
+            <Button x:Name="CloseButton" Content="_Chiudi" IsCancel="True" IsDefault="True"
+                    AutomationProperties.Name="Chiudi la guida"
+                    Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>

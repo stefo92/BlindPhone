@@ -1,0 +1,95 @@
+<Window x:Class="BlindPhone.App.CertificateTrustWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BlindPhone - certificato non verificato"
+        Width="720"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        Topmost="True"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        RICHIESTA DI FIDUCIA SU UN CERTIFICATO
+
+        Compare quando il centralino presenta un certificato che Windows non riesce
+        a verificare: autofirmato, emesso da una CA interna all'ente, scaduto, o
+        intestato a un nome diverso da quello configurato. Nella PA italiana e' il
+        caso normale e non l'eccezione, quindi rifiutare senza appello significa
+        rendere TLS inutilizzabile; accettare senza chiedere significa togliere a
+        TLS la parte che lo rende utile.
+
+        TRE SCELTE, E L'ORDINE NON E' CASUALE. La piu' prudente e' la prima ed e'
+        quella predefinita: su una domanda di sicurezza posta a chi sta lavorando,
+        il predefinito e' la risposta che si ottiene nella maggioranza dei casi.
+
+        Topmost, e questo va motivato: la finestra puo' aprirsi mentre l'operatore
+        sta lavorando in un altro programma, perche' nasce da un tentativo di
+        collegamento che avviene per conto suo. Restare dietro significherebbe un
+        collegamento fermo in attesa di una risposta a una domanda che nessuno vede.
+
+        L'impronta sta in una casella di sola lettura e non in un'etichetta: e'
+        l'unica verifica che l'operatore puo' davvero fare — farsela dettare da chi
+        amministra il centralino e confrontarla — e dentro una casella si legge a
+        gruppi con le frecce, e si copia.
+    -->
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="TitleText"
+                   FontWeight="Bold"
+                   FontSize="19"
+                   Margin="0,0,0,12"
+                   TextWrapping="Wrap"
+                   Text=""
+                   AutomationProperties.Name="Certificato non verificato" />
+
+        <TextBox Grid.Row="1"
+                 x:Name="DetailText"
+                 Height="230"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 FontFamily="Consolas"
+                 FontSize="15"
+                 Text=""
+                 AutomationProperties.Name="Dettagli del certificato presentato dal server"
+                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga. L'impronta va confrontata con quella che ti detta chi amministra il centralino." />
+
+        <TextBlock Grid.Row="2"
+                   x:Name="ChoicesText"
+                   Margin="0,12,0,0"
+                   TextWrapping="Wrap"
+                   Text=""
+                   AutomationProperties.Name="Cosa significano le tre scelte" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="RejectButton" Content="_Non fidarti"
+                    MinWidth="150" Margin="0,0,8,0"
+                    IsDefault="True"
+                    IsCancel="True"
+                    AutomationProperties.Name="Non fidarti: il collegamento non verra' stabilito"
+                    Click="OnRejectClick" />
+
+            <Button x:Name="SessionButton" Content="Fidati solo _adesso"
+                    MinWidth="190" Margin="0,0,8,0"
+                    AutomationProperties.Name="Fidati solo per questa sessione: la domanda tornera' al prossimo avvio"
+                    Click="OnSessionClick" />
+
+            <Button x:Name="AlwaysButton" Content="Fidati _sempre"
+                    MinWidth="170"
+                    AutomationProperties.Name="Fidati sempre: l'impronta viene ricordata su questa postazione"
+                    Click="OnAlwaysClick" />
+        </StackPanel>
+    </Grid>
+</Window>

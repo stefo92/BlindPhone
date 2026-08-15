@@ -1,0 +1,103 @@
+<Window x:Class="BlindPhone.App.SupportReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BlindPhone - segnala un problema"
+        Width="740"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        SEGNALAZIONE ALL'ASSISTENZA
+
+        Un'operazione sola, raggiungibile da una combinazione di tasti, perche'
+        serve proprio quando le cose vanno male: in quel momento chiedere di
+        navigare fino a una scheda delle impostazioni, premere un pulsante,
+        scegliere una cartella in una finestra di sistema e poi ritrovare il file
+        per allegarlo a una mail e' una sequenza che non regge.
+
+        IL CAMPO DELLA DESCRIZIONE HA IL FUOCO ALL'APERTURA, e non e' un dettaglio:
+        "succede quando trasferisco durante una seconda chiamata" indirizza la
+        ricerca in un modo che nessun contatore puo' fare. E' la parte piu' utile
+        del pacchetto ed e' l'unica che solo l'operatore puo' scrivere.
+
+        L'AVVISO SUI DATI PERSONALI STA PRIMA DEL PULSANTE E NON DOPO. I registri
+        riportano i numeri chiamati e chiamanti: chi invia deve saperlo prima di
+        premere, non leggerlo in una conferma che ha gia' deciso di accettare.
+    -->
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="HeaderText"
+                   FontWeight="Bold"
+                   FontSize="18"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10"
+                   Text=""
+                   AutomationProperties.Name="Segnalazione all'assistenza" />
+
+        <Label Grid.Row="1"
+               Target="{Binding ElementName=NoteBox}"
+               Content="_Che cosa è successo? Scrivilo con parole tue:" />
+
+        <TextBox Grid.Row="2"
+                 x:Name="NoteBox"
+                 Height="120"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 FontSize="15"
+                 AutomationProperties.Name="Descrizione del problema"
+                 AutomationProperties.HelpText="Anche una riga basta. Per esempio: succede quando trasferisco mentre ho una seconda chiamata in attesa." />
+
+        <TextBox Grid.Row="3"
+                 x:Name="ContentsText"
+                 Height="150"
+                 Margin="0,12,0,0"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 FontSize="15"
+                 Text=""
+                 AutomationProperties.Name="Che cosa contiene il pacchetto e dove verrà mandato"
+                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga." />
+
+        <TextBlock Grid.Row="4"
+                   x:Name="StatusText"
+                   Margin="0,10,0,0"
+                   TextWrapping="Wrap"
+                   Text=""
+                   AutomationProperties.LiveSetting="Assertive"
+                   AutomationProperties.Name="Esito dell'invio" />
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="SendButton" Content="_Prepara e invia"
+                    MinWidth="180" Margin="0,0,8,0"
+                    IsDefault="True"
+                    AutomationProperties.Name="Crea il pacchetto e invialo all'assistenza"
+                    Click="OnSendClick" />
+
+            <Button x:Name="SaveButton" Content="_Salva soltanto"
+                    MinWidth="160" Margin="0,0,8,0"
+                    AutomationProperties.Name="Crea il pacchetto e salvalo senza inviarlo"
+                    Click="OnSaveClick" />
+
+            <Button x:Name="CancelButton" Content="_Annulla" IsCancel="True"
+                    MinWidth="110"
+                    AutomationProperties.Name="Chiudi senza creare nulla"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </Grid>
+</Window>

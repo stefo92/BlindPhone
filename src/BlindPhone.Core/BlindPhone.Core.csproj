@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Core: dominio e astrazioni.
+
+    Regola architetturale vincolante: questo progetto NON deve avere dipendenze
+    verso WPF, Win32, lo stack SIP, l'audio o il PBX. Contiene solo il modello di
+    dominio, le macchine a stati e le interfacce che l'infrastruttura implementa.
+
+    Il motivo non e' purismo: le macchine a stati della chiamata e del trasferimento
+    devono essere testabili headless su migliaia di scenari senza avviare
+    l'interfaccia ne' un centralino. Il TFM e' quello della banda senza -windows, proprio per
+    rendere la violazione di questa regola un errore di compilazione.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)</TargetFramework>
+    <RootNamespace>BlindPhone.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
+  </ItemGroup>
+
+</Project>

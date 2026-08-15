@@ -1,0 +1,28 @@
+# BlindPhone 1.0.2 beta - 9 agosto 2026
+# Elenco cumulativo: chi aggiorna da una versione qualsiasi trova qui tutto quello
+# che cambia per lui. Una novita' per riga; le righe con il cancelletto sono
+# commenti e non compaiono a schermo. La riga SHA256 serve a BlindPhone per
+# verificare il pacchetto scaricato.
+
+Novita' introdotte da questa versione, la 1.0.2:
+Modalita' semplificata: tre tasti del tastierino numerico governano l'intera chiamata, per chi non ha tempo di imparare le scorciatoie
+Il tasto PIU' risponde alla chiamata che squilla, e da li' in poi alterna fra linea e pausa
+Il tasto DIVISO riaggancia, e durante un trasferimento chiude la linea con l'interno riportando al chiamante
+Il tasto INVIO trasferisce: con il chiamante in linea lo manda subito all'interno composto, con il chiamante in pausa chiama prima l'interno per annunciare la chiamata e un secondo INVIO gliela passa
+Il trasferimento si completa anche se l'interno sta ancora squillando, senza aspettare che risponda
+Mentre una chiamata squilla il campo di composizione non accetta testo, cosi' il tasto con cui si risponde non ci finisce dentro
+La modalita' si sceglie in Impostazioni, scheda Accessibilita', e in modalita' semplificata la riassegnazione dei tasti si blocca perche' la disposizione resti identica su tutte le postazioni
+Tutto il resto continua a funzionare: la modalita' semplificata aggiunge una via breve e non ne toglie nessuna
+
+Gia' presenti dalla 1.0.1, per chi aggiorna dalla 1.0.0:
+Le chiamate entranti squillano finche' non si risponde: prima la suoneria suonava una volta sola e poi restava il silenzio
+Riquadro blu lampeggiante con il nome e il numero di chi chiama, per chi guarda lo schermo
+Barra dei comandi con il mouse: rispondi, attesa, trasferimento, conferenza, registrazione, toni, microfono, pausa, impostazioni e account SIP
+I pulsanti compaiono solo quando la funzione e' disponibile, e restano al loro posto per tutta la durata della chiamata
+Trasferimento cieco e trasferimento con annuncio su due pulsanti distinti, senza dover ricordare la doppia pressione
+Corretti i rapporti di errore grave che la suoneria generava a ogni chiamata entrante
+Registro diagnostico completo della segnalazione SIP: ogni messaggio scambiato con il centralino, con il motivo dichiarato da chi chiude la chiamata
+Il posto operatore non abbandona piu' da solo una chiamata che squilla da oltre tre minuti: quanto squillare lo decide il centralino
+Aggiornamenti scaricabili dal server dell'ente, con le novita' della versione mostrate prima di installarla
+
+SHA256: AD3BFA40C76080E3DCF5700E29AE8CA2A0FD5DD97C6D3C059F56CF480A2D70DC

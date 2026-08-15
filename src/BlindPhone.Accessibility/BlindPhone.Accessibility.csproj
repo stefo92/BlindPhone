@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Accessibility: pipeline di annuncio, bridge verso gli screen reader,
+    earcon e riga di stato braille.
+
+    Richiede Windows: i bridge diretti usano P/Invoke (client controller NVDA) e COM
+    (API JAWS). Il livello UIA vive invece nel progetto App, perche' dipende dagli
+    AutomationPeer di WPF.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.Accessibility</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
+    <PackageReference Include="System.Speech" Version="$(BandaPacchetti)" />
+  </ItemGroup>
+
+</Project>

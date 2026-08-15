@@ -1,0 +1,80 @@
+<Window x:Class="BlindPhone.App.HotkeyCaptureWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Assegna una combinazione"
+        Width="620"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        CATTURA DI UNA COMBINAZIONE
+
+        Il problema da risolvere e' che l'area di cattura deve intercettare TUTTI i
+        tasti, compresi Invio ed Esc, perche' sono combinazioni legittime da
+        assegnare. Ma se li intercetta tutti, non resta alcun tasto per confermare o
+        annullare, e chi non vede resta chiuso nella finestra.
+
+        La soluzione e' lasciare fuori un solo tasto: Tab. Dentro l'area si preme la
+        combinazione, con Tab si esce e si arriva ai pulsanti, dove Invio conferma ed
+        Esc annulla perche' l'area non li vede piu'. Il prezzo e' che Tab non e'
+        assegnabile, ed e' detto sia nell'istruzione a schermo sia nell'annuncio.
+
+        Ogni pressione viene riletta subito: e' l'unico modo per sapere che la
+        combinazione registrata e' quella che si intendeva premere. Senza rilettura,
+        una dita scivolata su Maiusc si scopre solo settimane dopo, quando il tasto
+        non risponde.
+    -->
+
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="CommandText"
+                   FontWeight="Bold"
+                   FontSize="18"
+                   Text=""
+                   AutomationProperties.Name="Comando da riassegnare" />
+
+        <TextBlock Grid.Row="1"
+                   Margin="0,10,0,10"
+                   Text="Premi la combinazione che vuoi assegnare. Puoi tenere premuti Control, Alt, Maiusc e Windows. Poi premi Tab per uscire dall'area di cattura e raggiungere i pulsanti: Invio conferma, Esc annulla. Tab e' l'unico tasto che non si puo' assegnare." />
+
+        <Label Grid.Row="2" Target="{Binding ElementName=CaptureBox}" Content="_Combinazione rilevata" />
+
+        <TextBox Grid.Row="3"
+                 x:Name="CaptureBox"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="False"
+                 FontSize="22"
+                 Text=""
+                 AutomationProperties.Name="Area di cattura della combinazione"
+                 AutomationProperties.HelpText="Premi qui la combinazione da assegnare. Ogni pressione viene riletta. Tab per uscire e confermare."
+                 PreviewKeyDown="OnCapturePreviewKeyDown" />
+
+        <TextBlock Grid.Row="4"
+                   x:Name="HintText"
+                   Margin="0,10,0,0"
+                   Text=""
+                   AutomationProperties.Name="Avviso sulla combinazione rilevata"
+                   AutomationProperties.LiveSetting="Assertive" />
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="ConfirmButton" Content="_Conferma" IsDefault="True" Margin="0,0,8,0"
+                    AutomationProperties.Name="Conferma l'assegnazione della combinazione rilevata"
+                    Click="OnConfirmClick" />
+            <Button x:Name="CancelButton" Content="Annu_lla" IsCancel="True"
+                    AutomationProperties.Name="Chiudi senza assegnare nulla"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </Grid>
+</Window>

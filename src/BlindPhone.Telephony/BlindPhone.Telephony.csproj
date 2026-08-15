@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    BlindPhone.Telephony: implementazione di ITelephonyEngine su SIPSorcery.
+
+    SIPSorcery e' stato scelto per la licenza MIT (ANALISI-BLINDPHONE.md 6.2): non
+    comporta costi ricorrenti e non vincola il modello di distribuzione, decisione
+    ancora aperta e rilevante per il mercato PA (art. 68 CAD).
+
+    PERCHE' LA 10.0.13 E NON LA 8.0.14
+    La linea 8.0.x sarebbe stata comoda, perche' il pacchetto companion
+    SIPSorceryMedia.Windows 8.0.14 fornisce gia' l'endpoint audio WASAPI mentre la
+    versione 10.x dello stesso pacchetto targetta esclusivamente net10.0-windows,
+    non utilizzabile con l'SDK 9 installato.
+
+    E' stata scartata comunque: SIPSorcery 8.0.14 ha una vulnerabilita' nota di
+    gravita' alta (GHSA-28gm-jrmw-xx93). Su un prodotto destinato alla Pubblica
+    Amministrazione una dipendenza vulnerabile e' un rilievo di collaudo certo, e
+    nessuna comodita' di sviluppo la giustifica.
+
+    Conseguenza operativa: l'endpoint audio del percorso media e' fornito da
+    BlindPhone.Audio (vedi SipMediaEndPoint) invece che dal pacchetto companion.
+    Al passaggio a .NET 10 si potra' valutare SIPSorceryMedia.Windows 10.x, ma
+    l'endpoint proprio resta comunque preferibile: serve l'instradamento su
+    dispositivi distinti per conversazione, suoneria e annunci, che il pacchetto
+    standard non offre.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>$(BandaDotNet)-windows</TargetFramework>
+    <RootNamespace>BlindPhone.Telephony</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\BlindPhone.Core\BlindPhone.Core.csproj" />
+    <!--
+      Dipendenza verso l'infrastruttura audio: serve il percorso RTP reale
+      (SipAudioEndPoint). La direzione e' Telephony -> Audio -> Core, senza cicli.
+      In alternativa si sarebbe potuto duplicare la logica dei dispositivi qui, ma
+      l'instradamento a quattro vie deve restare in un unico punto.
+    -->
+    <ProjectReference Include="..\BlindPhone.Audio\BlindPhone.Audio.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
+    <PackageReference Include="SIPSorcery" Version="10.0.15" />
+  </ItemGroup>
+
+</Project>

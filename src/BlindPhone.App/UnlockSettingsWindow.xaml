@@ -1,0 +1,94 @@
+<Window x:Class="BlindPhone.App.UnlockSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BlindPhone - impostazioni bloccate"
+        Width="660"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        SBLOCCO DELLE IMPOSTAZIONI
+
+        Compare quando l'operatore prova ad aprire un pannello che l'amministratore
+        ha chiuso.
+
+        IL MESSAGGIO DELL'AMMINISTRATORE STA IN CIMA, prima del campo della
+        password, e non e' una scelta grafica: nel caso normale chi arriva qui non
+        ha la password e non la avra' mai. Quello che gli serve e' sapere a chi
+        rivolgersi, e se lo trovasse in fondo — dopo un campo che non puo'
+        compilare — sarebbe come non averlo scritto.
+
+        Il campo della password ha comunque il fuoco: chi la password ce l'ha e'
+        l'amministratore, che qui ci arriva di proposito e non vuole ascoltare la
+        spiegazione ogni volta.
+    -->
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="TitleText"
+                   FontWeight="Bold"
+                   FontSize="18"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10"
+                   Text=""
+                   AutomationProperties.Name="Stato del blocco delle impostazioni" />
+
+        <TextBox Grid.Row="1"
+                 x:Name="NoticeText"
+                 Height="120"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 FontSize="15"
+                 Text=""
+                 AutomationProperties.Name="Messaggio dell'amministratore"
+                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga." />
+
+        <Label Grid.Row="2"
+               x:Name="PasswordLabel"
+               Target="{Binding ElementName=PasswordBox}"
+               Margin="0,12,0,0"
+               Content="_Password dell'amministratore" />
+
+        <PasswordBox Grid.Row="3"
+                     x:Name="PasswordBox"
+                     FontSize="20" Padding="8" MinHeight="40"
+                     AutomationProperties.Name="Password dell'amministratore"
+                     AutomationProperties.HelpText="Sblocca le impostazioni per questa sessione soltanto. Alla chiusura di BlindPhone tornano bloccate."
+                     KeyDown="OnPasswordKeyDown" />
+
+        <TextBlock Grid.Row="4"
+                   x:Name="StatusText"
+                   Margin="0,10,0,0"
+                   TextWrapping="Wrap"
+                   Text=""
+                   AutomationProperties.LiveSetting="Assertive"
+                   AutomationProperties.Name="Esito del tentativo di sblocco" />
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="UnlockButton" Content="_Sblocca"
+                    MinWidth="140" Margin="0,0,8,0"
+                    IsDefault="True"
+                    AutomationProperties.Name="Sblocca le impostazioni per questa sessione"
+                    Click="OnUnlockClick" />
+
+            <Button x:Name="CancelButton" Content="_Annulla" IsCancel="True"
+                    MinWidth="120"
+                    AutomationProperties.Name="Chiudi senza sbloccare"
+                    Click="OnCancelClick" />
+        </StackPanel>
+    </Grid>
+</Window>

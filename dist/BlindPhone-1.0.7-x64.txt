@@ -1,0 +1,99 @@
+# BlindPhone 1.0.7 beta - 10 agosto 2026
+# Elenco cumulativo: chi aggiorna da una versione qualsiasi trova qui tutto quello
+# che cambia per lui. Una novita' per riga; le righe con il cancelletto sono
+# commenti e non compaiono a schermo. La riga SHA256 serve a BlindPhone per
+# verificare il pacchetto scaricato.
+
+Novita' introdotte da questa versione, la 1.0.7:
+Annullando la linea di consultazione per completare un trasferimento non si sente piu' il tono di fuori servizio: la chiamata la chiudeva la postazione, e veniva riportata come se la destinazione avesse rifiutato
+Un trasferimento rifiutato dal centralino non viene piu' annunciato come riuscito: prima l'operatore sentiva «trasferimento riuscito» e il chiamante spariva in silenzio, mentre il centralino non aveva eseguito nulla
+Quando il trasferimento non va a buon fine il chiamante torna all'operatore invece di cadere, e nel registro resta scritto il motivo
+Il segnale con cui il centralino chiude la richiesta di trasferimento viene ora letto per intero: senza, un rifiuto era indistinguibile da una riuscita
+Il numero di chi chiama compare sempre, a schermo e a voce: prima, quando il centralino accompagnava la chiamata con un'etichetta come «Chiamate esterne», restava solo quella e il numero non arrivava da nessuna parte
+Vale anche per il riquadro verde della conversazione in corso, che usa la stessa forma
+La rubrica si puo' collegare a Microsoft SQL Server, locale o remoto: si sceglie in Impostazioni fra rubrica da file e rubrica collegata al gestionale dell'ente
+Il collegamento legge una tabella o una vista e ne copia il contenuto nell'archivio cifrato della postazione, riallineandolo a intervalli configurabili
+Il server non viene mai modificato: si legge soltanto, e il collegamento si dichiara di sola lettura
+A rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito, e il nome di chi chiama continua a comparire senza attese: e' il motivo per cui la copia locale esiste
+Un riallineamento che non riesce non svuota la rubrica, e non parte mai durante una chiamata
+La procedura per collegare il server e' la stessa dei file: ci si collega, si sceglie la tabella dall'elenco, si abbinano le stesse colonne, si controlla l'anteprima
+Gli errori del server vengono detti in italiano: utenza rifiutata, permesso mancante, server irraggiungibile, certificato non verificabile
+La password del server sta nel deposito protetto di Windows, mai nel file delle impostazioni, e il traffico verso il server e' cifrato
+I backup con estensioni non previste - punto bkp, punto dmp, punto backup o nessuna estensione - vengono riconosciuti dal contenuto invece che dal nome
+Guida in linea aggiornata con la rubrica collegata al server
+
+Gia' presenti dalla 1.0.6:
+Le colonne della rubrica seguono ora la rubrica dell'ente: nominativo, numero, descrizione, reparto, collocazione, interno di riferimento e stato. Sparita «struttura», che l'importazione da file non riempie piu'
+La ricerca guarda tutte le colonne e non il solo nominativo: gli ambulatori, le sale e le guardiole si trovano per descrizione, che e' l'unico modo per cercare una voce che non ha un nome
+Le parole della ricerca possono stare in qualunque ordine e in campi diversi: «ambulatorio cardiologia» trova «Ambulatorio di Cardiologia» e anche un ambulatorio che sta nel reparto di Cardiologia. Prima le parole dovevano essere contigue e nell'ordine esatto
+Le esportazioni senza la riga dei titoli vengono riconosciute da sole: prima la prima riga veniva presa per un'intestazione e quel contatto spariva dalla rubrica a ogni importazione
+Con un file senza titoli le colonne si abbinano per posizione e ognuna porta un esempio preso dal file, per esempio «Colonna 6, esempio: ALESSIA»: si riconosce quale sia senza vedere il file
+La casella «il file non ha la riga dei titoli» resta correggibile a mano, perche' il riconoscimento e' una proposta e non una decisione presa da sola
+Un file che non si lascia leggere dice il vero motivo: aperto in Excel, inesistente, permessi negati, su una risorsa di rete. Prima diceva sempre che mancava la riga dei titoli, e mandava a cercare un problema di formato inesistente
+Importazione della rubrica da backup di banca dati, oltre che da file CSV: file SQLite ed esportazioni SQL in formato testo prodotte da MySQL, MariaDB, PostgreSQL e SQL Server
+Un backup contiene tutte le tabelle del gestionale: compare un passo in piu' per scegliere quella della rubrica, con il numero di colonne e di righe accanto a ogni nome per riconoscerla ascoltando
+La tabella che ha piu' l'aria di essere la rubrica viene proposta, ma va sempre confermata: una tabella sbagliata produce una rubrica in cui i numeri appartengono alle persone sbagliate
+Il formato del backup si riconosce dal contenuto e non dall'estensione, cosi' un'esportazione rinominata viene letta lo stesso
+Il file di backup viene solo letto, mai eseguito, e non viene modificato: la copia resta identica all'originale
+Un backup nativo di SQL Server non si puo' leggere ed e' l'unico caso rifiutato, spiegando cosa chiedere a chi l'ha prodotto invece di dire soltanto che il formato non va bene
+Corretta l'importazione dei file con colonne ripetute o senza titolo: si interrompeva con un errore tecnico prima ancora di mostrare l'abbinamento delle colonne
+Le colonne senza titolo non vengono piu' abbinate per somiglianza a un campo qualsiasi
+Le voci dell'abbinamento sono ora quelle dichiarate dalla rubrica dell'ente, nell'ordine in cui il file le elenca: numero, relativo, descrizione, nome, cognome, reparto, padiglione, piano
+Nome e cognome si possono correggere a mano nell'abbinamento: prima venivano riconosciuti ma non erano modificabili
+La colonna «descrizione» viene riconosciuta da sola e si sente subito dopo il nome, prima del reparto
+Padiglione e piano non ripetono piu' la parola quando il dato la porta gia': «Padiglione Barbieri, Piano Secondo» invece di «padiglione Padiglione Barbieri, piano Piano Secondo»
+Guida in linea aggiornata con l'importazione da backup e la scelta della tabella
+
+Gia' presenti dalla 1.0.5:
+Corretto il guasto per cui durante un trasferimento il chiamante restava appeso e nessun tasto lo raggiungeva piu': per liberare la linea bisognava chiudere il programma con il chiamante ancora collegato
+Il trasferimento si completa davvero anche con l'interno che sta ancora squillando, come la modalita' semplificata prometteva: prima, in quel caso, non veniva inviato niente al centralino
+La linea di consultazione si chiude da sola quando il trasferimento parte con l'interno che squilla, cosi' il telefono del collega non squilla due volte per la stessa chiamata
+Un trasferimento che non riesce a partire lo dichiara, e il chiamante torna sotto il controllo dell'operatore invece di restare dentro una procedura che non finisce
+Mentre il trasferimento e' in corso i comandi restano disponibili: il tasto di chiusura funziona sempre, in qualunque fase
+Con il trasferimento gia' inviato il tasto Invio non apre piu' una terza linea usando il numero rimasto nel campo di composizione
+
+Gia' presenti dalla 1.0.4:
+Corretto il guasto per cui il centralino smetteva di inoltrare le chiamate dopo la prima: il posto operatore non rispondeva al controllo di raggiungibilita' che il centralino manda ogni due minuti, e veniva classificato irraggiungibile pur restando registrato
+Il controllo di raggiungibilita' riceve risposta anche durante la pausa: la postazione in pausa risulta occupata, non sparita
+Control T legge il tempo giusto per la situazione: quanto sta squillando una chiamata entrante, da quanto sei in linea se stai parlando, da quanto sei in servizio se non c'e' nessuna chiamata
+Durante la pausa il tempo si sente premendo un tasto qualsiasi, senza combinazione
+Gli annunci restano udibili anche durante la conversazione: prima tacevano dal primo squillo fino alla chiusura della chiamata, proprio nei minuti in cui una seconda chiamata o un trasferimento fallito vanno saputi
+Chi aveva gia' usato BlindPhone si ritrova gli annunci riattivati: il silenzio in conversazione era il valore che il programma metteva da solo, non una scelta
+La suoneria si abbassa quando parte un annuncio, come gia' faceva la conversazione: condividendo lo stesso auricolare, lo copriva
+Il pulsante della pausa cambia icona quando cambia stato: la tazza mentre sei in pausa, la campanella per rientrare in servizio
+Il pulsante «Chiama» e' verde con la cornetta sollevata, e il testo e' nero perche' resti leggibile sul fondo chiaro
+Corretto il trattino basso che compariva dentro le etichette dei pulsanti: era un difetto del modello grafico, e toglieva anche le scorciatoie con il tasto Alt
+
+Gia' presenti dalla 1.0.3:
+Cronometro dello squillo nel riquadro della chiamata entrante: dice da quanto sta squillando, e Control T lo legge a voce
+Tono di occupato e tono di fuori servizio generati in locale, con le cadenze italiane: prima, quando il centralino rifiutava una chiamata senza mandare audio, in cuffia restava il silenzio
+Riquadro verde lampeggiante mentre parli, con nome e numero di chi hai in linea
+Il pulsante della pausa si e' spostato in alto, accanto all'orologio del servizio: riguarda il turno e non la chiamata in corso
+Nuovo pulsante «Elenco chiamate», disponibile anche durante una conversazione
+Mettendo in pausa si sente «chiamata in pausa» e riprendendo «chiamata ripresa», invece dei nomi delle righe di riepilogo che lo screen reader leggeva al posto loro
+La registrazione SIP non si annuncia piu' a ogni rinnovo: il segnale acustico arrivava ogni dieci minuti senza che fosse cambiato niente
+La riga della chiamata dice «chiamata in pausa» con chi e' in attesa, invece di «nessuna chiamata attiva»
+Guida in linea aggiornata: modalita' semplificata, barra dei comandi, aggiornamenti, suoneria e trasferimento con il mouse
+Registro diagnostico piu' preciso: ogni segnale acustico riprodotto e ogni riproduzione interrotta lasciano traccia
+
+Gia' presenti dalla 1.0.2:
+Modalita' semplificata: tre tasti del tastierino numerico governano l'intera chiamata, per chi non ha tempo di imparare le scorciatoie
+Il tasto PIU' risponde alla chiamata che squilla, e da li' in poi alterna fra linea e pausa
+Il tasto DIVISO riaggancia, e durante un trasferimento chiude la linea con l'interno riportando al chiamante
+Il tasto INVIO trasferisce: con il chiamante in linea lo manda subito all'interno composto, con il chiamante in pausa chiama prima l'interno per annunciare la chiamata e un secondo INVIO gliela passa
+Il trasferimento si completa anche se l'interno sta ancora squillando, senza aspettare che risponda
+Mentre una chiamata squilla il campo di composizione non accetta testo, cosi' il tasto con cui si risponde non ci finisce dentro
+La modalita' si sceglie in Impostazioni, scheda Accessibilita', e in modalita' semplificata la riassegnazione dei tasti si blocca perche' la disposizione resti identica su tutte le postazioni
+
+Gia' presenti dalla 1.0.1, per chi aggiorna dalla 1.0.0:
+Le chiamate entranti squillano finche' non si risponde: prima la suoneria suonava una volta sola e poi restava il silenzio
+Riquadro blu lampeggiante con il nome e il numero di chi chiama, per chi guarda lo schermo
+Barra dei comandi con il mouse: rispondi, attesa, trasferimento, conferenza, registrazione, toni, microfono, impostazioni e account SIP
+I pulsanti compaiono solo quando la funzione e' disponibile, e restano al loro posto per tutta la durata della chiamata
+Trasferimento cieco e trasferimento con annuncio su due pulsanti distinti, senza dover ricordare la doppia pressione
+Corretti i rapporti di errore grave che la suoneria generava a ogni chiamata entrante
+Registro diagnostico completo della segnalazione SIP: ogni messaggio scambiato con il centralino, con il motivo dichiarato da chi chiude la chiamata
+Il posto operatore non abbandona piu' da solo una chiamata che squilla da oltre tre minuti: quanto squillare lo decide il centralino
+Aggiornamenti scaricabili dal server dell'ente, con le novita' della versione mostrate prima di installarla
+
+SHA256: 426BC8FE6F3A8318987359C46E329ECF08BE78F4C983AB32ADD965FD4E17B7C6
