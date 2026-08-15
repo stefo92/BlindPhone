@@ -133,7 +133,7 @@ public sealed class SqliteCallHistoryRepository : ICallHistoryRepository, IDispo
                 """;
 
             command.Parameters.AddWithValue("$kind", (int)kind);
-            command.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 1000));
+            command.Parameters.AddWithValue("$limit", Math.Clamp(limit, 1, 100_000));
 
             var results = new List<CallHistoryEntry>();
 
@@ -158,14 +158,23 @@ public sealed class SqliteCallHistoryRepository : ICallHistoryRepository, IDispo
     }
 
     /// <inheritdoc />
-    public async Task<int> CountAsync(CancellationToken cancellationToken)
+    public async Task<int> CountAsync(CallHistoryKind? kind, CancellationToken cancellationToken)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
             await using var command = _connection.CreateCommand();
-            command.CommandText = "SELECT COUNT(*) FROM call_history;";
+
+            if (kind is { } tipo)
+            {
+                command.CommandText = "SELECT COUNT(*) FROM call_history WHERE kind = $kind;";
+                command.Parameters.AddWithValue("$kind", (int)tipo);
+            }
+            else
+            {
+                command.CommandText = "SELECT COUNT(*) FROM call_history;";
+            }
 
             var result = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
             return Convert.ToInt32(result);

@@ -94,7 +94,7 @@ public sealed class CallHistoryRepositoryTests : IDisposable
         // "Mai" e' una scelta legittima quando la conservazione e' regolata dall'ente:
         // cancellare lo stesso sarebbe disobbedire a una decisione presa altrove.
         Assert.Equal(0, await _archivio.PurgeAsync(TimeSpan.Zero, Now, CancellationToken.None));
-        Assert.Equal(1, await _archivio.CountAsync(CancellationToken.None));
+        Assert.Equal(1, await _archivio.CountAsync(null, CancellationToken.None));
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class CallHistoryRepositoryTests : IDisposable
         var rimosse = await _archivio.ClearAsync(CallHistoryKind.Missed, CancellationToken.None);
 
         Assert.Equal(1, rimosse);
-        Assert.Equal(2, await _archivio.CountAsync(CancellationToken.None));
+        Assert.Equal(2, await _archivio.CountAsync(null, CancellationToken.None));
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class CallHistoryRepositoryTests : IDisposable
         await _archivio.AddAsync(Voce(CallHistoryKind.Outgoing, "2", Now), CancellationToken.None);
 
         Assert.Equal(2, await _archivio.ClearAsync(null, CancellationToken.None));
-        Assert.Equal(0, await _archivio.CountAsync(CancellationToken.None));
+        Assert.Equal(0, await _archivio.CountAsync(null, CancellationToken.None));
     }
 
     [Fact]
@@ -159,6 +159,85 @@ public sealed class CallHistoryRepositoryTests : IDisposable
         Assert.Equal(TimeSpan.FromSeconds(95), voce.Duration);
         Assert.Equal(CallEndReason.Busy, voce.EndReason);
         Assert.Null(voce.DisplayName);
+    }
+
+    // -----------------------------------------------------------------------
+    // Il registro non ha un tetto
+    // -----------------------------------------------------------------------
+    //
+    // Segnalato dal campo: «il registro chiamate si riempie dopo 50 chiamate». Non
+    // era l'archivio a fermarsi - queste prove lo dimostrano - ma la finestra, che ne
+    // chiedeva cinquanta e non diceva che ce n'erano altre. L'archivio si svuota solo
+    // in due modi: allo scadere della conservazione o su richiesta dell'operatore.
+
+    [Fact]
+    public async Task OltreCinquantaChiamate_VengonoRegistrateTutte()
+    {
+        for (var i = 0; i < 120; i++)
+        {
+            await _archivio.AddAsync(
+                Voce(CallHistoryKind.Missed, $"02123456{i:00}", Now.AddMinutes(-i)), CancellationToken.None);
+        }
+
+        Assert.Equal(120, await _archivio.CountAsync(CallHistoryKind.Missed, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task OltreCinquantaChiamate_SiPossonoRileggereTutte()
+    {
+        for (var i = 0; i < 120; i++)
+        {
+            await _archivio.AddAsync(
+                Voce(CallHistoryKind.Missed, $"02123456{i:00}", Now.AddMinutes(-i)), CancellationToken.None);
+        }
+
+        // Il tetto della lettura non deve fermarsi a una pagina: chi chiede tutto
+        // deve poter ottenere tutto.
+        var tutte = await _archivio.GetAsync(CallHistoryKind.Missed, 500, CancellationToken.None);
+
+        Assert.Equal(120, tutte.Count);
+
+        // E la prima pagina resta la piu' recente, non una qualunque.
+        var pagina = await _archivio.GetAsync(CallHistoryKind.Missed, 50, CancellationToken.None);
+
+        Assert.Equal(50, pagina.Count);
+        Assert.Equal(tutte[0].Number, pagina[0].Number);
+    }
+
+    [Fact]
+    public async Task IlConteggioSiPuoChiedereSoloPerUnElenco()
+    {
+        // Serve alla finestra per dire «cinquanta di trecentododici» invece di
+        // fermarsi in silenzio.
+        await _archivio.AddAsync(Voce(CallHistoryKind.Missed, "021", Now), CancellationToken.None);
+        await _archivio.AddAsync(Voce(CallHistoryKind.Missed, "022", Now), CancellationToken.None);
+        await _archivio.AddAsync(Voce(CallHistoryKind.Incoming, "023", Now), CancellationToken.None);
+
+        Assert.Equal(2, await _archivio.CountAsync(CallHistoryKind.Missed, CancellationToken.None));
+        Assert.Equal(1, await _archivio.CountAsync(CallHistoryKind.Incoming, CancellationToken.None));
+        Assert.Equal(0, await _archivio.CountAsync(CallHistoryKind.Outgoing, CancellationToken.None));
+        Assert.Equal(3, await _archivio.CountAsync(null, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task NienteSiPerdeFinoAllaScadenzaDellaConservazione()
+    {
+        // Le due sole vie di uscita dall'archivio: la conservazione e la mano
+        // dell'operatore. Nessun tetto sul numero di voci.
+        for (var i = 0; i < 80; i++)
+        {
+            await _archivio.AddAsync(
+                Voce(CallHistoryKind.Outgoing, $"333000{i:00}", Now.AddDays(-i)), CancellationToken.None);
+        }
+
+        Assert.Equal(80, await _archivio.CountAsync(CallHistoryKind.Outgoing, CancellationToken.None));
+
+        var rimosse = await _archivio.PurgeAsync(TimeSpan.FromDays(30), Now, CancellationToken.None);
+
+        // Le voci vanno da oggi a settantanove giorni fa: restano quelle dei trenta
+        // giorni conservati, oggi compreso, cioe' trentuno.
+        Assert.Equal(49, rimosse);
+        Assert.Equal(31, await _archivio.CountAsync(CallHistoryKind.Outgoing, CancellationToken.None));
     }
 
     private static CallHistoryEntry Voce(CallHistoryKind kind, string numero, DateTimeOffset quando)

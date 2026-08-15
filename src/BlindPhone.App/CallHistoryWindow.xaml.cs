@@ -55,12 +55,46 @@ public sealed record CallHistoryRow(
 /// </remarks>
 public partial class CallHistoryWindow : Window
 {
-    /// <summary>Quante voci si mostrano per pannello.</summary>
+    /// <summary>Quante voci si caricano per volta in un pannello.</summary>
     /// <remarks>
-    /// Cinquanta: oltre, scorrere un elenco a voce costa più che richiamare a memoria,
-    /// e le chiamate più vecchie di così si cercano per nome in rubrica.
+    /// <para>
+    /// <b>Era un tetto, adesso è una pagina.</b> Cinquanta voci restano quante se ne
+    /// mostrano all'apertura — oltre, scorrere un elenco a voce costa più che
+    /// richiamare a memoria — ma le altre non sono più irraggiungibili: il pulsante
+    /// «Mostra le precedenti» ne aggiunge altrettante, e il riepilogo dice sempre
+    /// quante se ne stanno vedendo su quante ce ne sono.
+    /// </para>
+    /// <para>
+    /// Il difetto che questo corregge non era nell'archivio, che ha sempre registrato
+    /// tutto: era che l'elenco si fermava a cinquanta <b>senza dirlo</b>. Per chi non
+    /// vede non c'è una barra di scorrimento che suggerisca che sotto c'è dell'altro,
+    /// e un registro che smette di crescere sembra un registro che ha smesso di
+    /// registrare. È esattamente la conclusione a cui si arriva, ed è sbagliata.
+    /// </para>
+    /// <para>
+    /// Si carica a pagine e non tutto insieme perché queste tabelle non virtualizzano
+    /// le righe, scelta presa per la stabilità con lo screen reader: con novanta
+    /// giorni di conservazione su un centralino ospedaliero le voci sono migliaia, e
+    /// costruirle tutte a ogni apertura si pagherebbe in attesa a ogni apertura.
+    /// </para>
     /// </remarks>
-    private const int MaxRows = 50;
+    private const int PageSize = 50;
+
+    /// <summary>Quante voci sono caricate adesso, per pannello.</summary>
+    private readonly Dictionary<CallHistoryKind, int> _caricate = new()
+    {
+        [CallHistoryKind.Missed] = 0,
+        [CallHistoryKind.Incoming] = 0,
+        [CallHistoryKind.Outgoing] = 0,
+    };
+
+    /// <summary>Quante ce ne sono in archivio, per pannello.</summary>
+    private readonly Dictionary<CallHistoryKind, int> _totali = new()
+    {
+        [CallHistoryKind.Missed] = 0,
+        [CallHistoryKind.Incoming] = 0,
+        [CallHistoryKind.Outgoing] = 0,
+    };
 
     private readonly ICallHistoryRepository _history;
     private readonly CallSessionManager _calls;
@@ -115,17 +149,22 @@ public partial class CallHistoryWindow : Window
         await FillAsync(CallHistoryKind.Outgoing, _outgoing).ConfigureAwait(true);
 
         UpdateSummary();
+        UpdateShowMore();
 
         // Il pannello delle perse ha il fuoco all'apertura: e' quello per cui la
         // finestra si apre.
         MissedGrid.Focus();
         if (_missed.Count > 0) GridNavigation.FocusCell(MissedGrid, 0);
 
-        var perse = _missed.Count switch
+        var totale = _totali[CallHistoryKind.Missed];
+
+        var perse = totale switch
         {
             0 => "nessuna chiamata persa",
             1 => "una chiamata persa",
-            _ => $"{_missed.Count} chiamate perse",
+            _ when totale > _missed.Count
+                => $"{_missed.Count} chiamate perse mostrate su {totale}",
+            _ => $"{totale} chiamate perse",
         };
 
         _announcer.Announce(Announcement.CommandResponse(
@@ -133,21 +172,93 @@ public partial class CallHistoryWindow : Window
             DateTimeOffset.Now));
     }
 
-    private async Task FillAsync(CallHistoryKind kind, ObservableCollection<CallHistoryRow> target)
-    {
-        target.Clear();
+    private Task FillAsync(CallHistoryKind kind, ObservableCollection<CallHistoryRow> target)
+        => FillAsync(kind, target, PageSize);
 
+    /// <summary>
+    /// Ricarica un pannello con il numero di voci indicato, dalla più recente.
+    /// </summary>
+    /// <remarks>
+    /// Si rilegge dall'inizio invece di chiedere solo il blocco successivo: nel
+    /// frattempo possono essere arrivate altre chiamate, e un blocco chiesto a partire
+    /// da una posizione salterebbe proprio quelle appena registrate.
+    /// </remarks>
+    private async Task FillAsync(CallHistoryKind kind, ObservableCollection<CallHistoryRow> target, int quante)
+    {
         try
         {
-            var entries = await _history.GetAsync(kind, MaxRows, CancellationToken.None).ConfigureAwait(true);
+            var entries = await _history.GetAsync(kind, quante, CancellationToken.None).ConfigureAwait(true);
+            var totale = await _history.CountAsync(kind, CancellationToken.None).ConfigureAwait(true);
 
+            target.Clear();
             foreach (var entry in entries) target.Add(ToRow(entry));
+
+            _caricate[kind] = target.Count;
+            _totali[kind] = totale;
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Lettura dell'elenco {Kind} non riuscita", kind);
         }
     }
+
+    /// <summary>Elenco che alimenta un pannello.</summary>
+    private ObservableCollection<CallHistoryRow> RowsFor(CallHistoryKind kind) => kind switch
+    {
+        CallHistoryKind.Incoming => _incoming,
+        CallHistoryKind.Outgoing => _outgoing,
+        _ => _missed,
+    };
+
+    /// <summary>Indica se nel pannello aperto ci sono voci non ancora caricate.</summary>
+    private bool CeNeSonoAltre => _totali[CurrentKind] > _caricate[CurrentKind];
+
+    private async void OnShowMoreClick(object sender, RoutedEventArgs e)
+    {
+        var kind = CurrentKind;
+
+        if (!CeNeSonoAltre)
+        {
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            Report("Sono gia' mostrate tutte");
+            return;
+        }
+
+        var griglia = CurrentGrid;
+        var posizione = griglia.SelectedIndex;
+
+        await FillAsync(kind, RowsFor(kind), _caricate[kind] + PageSize).ConfigureAwait(true);
+
+        UpdateSummary();
+        UpdateShowMore();
+
+        // Il cursore resta dov'era: le voci si aggiungono in fondo, e riportarlo in
+        // cima costringerebbe a riscendere ogni volta.
+        if (posizione >= 0 && posizione < griglia.Items.Count)
+        {
+            GridNavigation.FocusCell(griglia, posizione);
+        }
+
+        Report(_caricate[kind] >= _totali[kind]
+            ? $"Mostrate tutte: {_caricate[kind]}"
+            : $"Adesso {_caricate[kind]} di {_totali[kind]}");
+    }
+
+    private void UpdateShowMore()
+    {
+        if (ShowMoreButton is null) return;
+
+        ShowMoreButton.IsEnabled = CeNeSonoAltre;
+
+        System.Windows.Automation.AutomationProperties.SetHelpText(
+            ShowMoreButton,
+            CeNeSonoAltre
+                ? $"Ne restano {_totali[CurrentKind] - _caricate[CurrentKind]} da mostrare in questo pannello."
+                : "In questo pannello sono gia' mostrate tutte.");
+    }
+
+    private void Report(string testo)
+        => _announcer.Announce(Announcement.CommandResponse(testo, DateTimeOffset.Now));
 
     private static CallHistoryRow ToRow(CallHistoryEntry entry) => new(
         FormatWhen(entry.StartedAt),
@@ -222,10 +333,24 @@ public partial class CallHistoryWindow : Window
         };
     }
 
+    /// <summary>
+    /// Riepilogo dei tre pannelli, con quante se ne vedono su quante ce ne sono.
+    /// </summary>
+    /// <remarks>
+    /// La forma «50 di 312» esiste per una ragione sola: senza, un pannello fermo a
+    /// cinquanta non si distingue da un registro che ha smesso di registrare.
+    /// </remarks>
     private void UpdateSummary()
         => LiveRegion.Update(
             SummaryText,
-            $"Perse: {_missed.Count}. Ricevute: {_incoming.Count}. Effettuate: {_outgoing.Count}.");
+            $"Perse: {Quante(CallHistoryKind.Missed)}. "
+            + $"Ricevute: {Quante(CallHistoryKind.Incoming)}. "
+            + $"Effettuate: {Quante(CallHistoryKind.Outgoing)}.");
+
+    private string Quante(CallHistoryKind kind)
+        => _caricate[kind] >= _totali[kind]
+            ? _totali[kind].ToString(CultureInfo.InvariantCulture)
+            : $"{_caricate[kind]} di {_totali[kind]}";
 
     // -----------------------------------------------------------------------
     // Navigazione e azioni
@@ -254,10 +379,15 @@ public partial class CallHistoryWindow : Window
     /// </remarks>
     private void OnTabChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!IsLoaded) return;
+        // Il cambio di selezione risale anche dalle tabelle contenute nelle schede:
+        // senza questo controllo il pulsante verrebbe ricalcolato a ogni riga scorsa.
+        if (!IsLoaded || !ReferenceEquals(e.OriginalSource, Tabs)) return;
 
         var grid = CurrentGrid;
         if (grid.Items.Count > 0 && grid.SelectedIndex < 0) grid.SelectedIndex = 0;
+
+        // Quante ne restano dipende dal pannello aperto.
+        UpdateShowMore();
     }
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)

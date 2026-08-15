@@ -33,8 +33,15 @@ public interface ICallHistoryRepository
         CancellationToken cancellationToken);
 
     /// <summary>Conta le voci presenti.</summary>
+    /// <param name="kind">Tipo da contare, oppure <c>null</c> per contarli tutti.</param>
     /// <param name="cancellationToken">Token di annullamento.</param>
-    Task<int> CountAsync(CancellationToken cancellationToken);
+    /// <remarks>
+    /// Il conteggio per tipo serve a dire all'operatore <b>quante ce ne sono</b>
+    /// rispetto a quante ne sta vedendo. Un elenco che si ferma senza dire di essersi
+    /// fermato è indistinguibile da un registro che ha smesso di registrare, e per chi
+    /// non vede non c'è nemmeno una barra di scorrimento a suggerire il contrario.
+    /// </remarks>
+    Task<int> CountAsync(CallHistoryKind? kind, CancellationToken cancellationToken);
 
     /// <summary>Svuota l'elenco.</summary>
     /// <param name="kind">Tipo da eliminare, oppure <c>null</c> per tutti.</param>

@@ -417,6 +417,10 @@ public static class HelpBook
         - Invio richiama il numero
         - F9 lo usa come destinazione del trasferimento in corso: serve quando il chiamante chiede di essere passato alla persona che lo aveva cercato poco prima
 
+        Quante ne vedi. All'apertura ogni pannello mostra le cinquanta piu' recenti, e la riga di riepilogo in fondo dice quante sono in tutto: per esempio «Perse: 50 di 312». Il pulsante «Mostra le precedenti» ne aggiunge altre cinquanta al pannello aperto, e il cursore resta dov'era.
+
+        Il registro non si riempie e non smette mai di registrare: le chiamate escono solo allo scadere della conservazione oppure quando le elimini tu.
+
         Il momento della chiamata viene detto in forma discorsiva — «oggi alle 9 e 40», «ieri alle 15» — perché un orario in cifre viene letto in modi diversi da voci diverse.
 
         Quanto a lungo si conservano. Da Impostazioni, scheda Chiamate, si sceglie fra un giorno, una settimana, un mese, oppure mai: «mai» conserva tutto ed è la scelta giusta quando la conservazione è regolata dall'ente. L'elenco contiene numeri chiamati e chiamanti, cioè dati di traffico: il periodo va allineato alla procedura in vigore, non scelto per comodità.

@@ -167,6 +167,16 @@
                    AutomationProperties.LiveSetting="Polite" />
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <!--
+                Il pulsante c'e' anche per chi usa il mouse, ma la ragione per cui
+                esiste e' un'altra: senza, un pannello fermo a cinquanta voci non
+                dichiara da nessuna parte che sotto ce ne sono altre.
+            -->
+            <Button x:Name="ShowMoreButton" Content="Mostra le precedenti"
+                    MinWidth="200" Margin="0,0,8,0"
+                    AutomationProperties.Name="Mostra altre cinquanta chiamate in questo pannello"
+                    Click="OnShowMoreClick" />
+
             <Button x:Name="CallBackButton" Content="Ric_hiama"
                     Margin="0,0,8,0"
                     AutomationProperties.Name="Richiama il numero della chiamata selezionata"

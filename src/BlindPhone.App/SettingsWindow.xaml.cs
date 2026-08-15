@@ -1015,7 +1015,7 @@ public partial class SettingsWindow : Window
 
         try
         {
-            var totale = await _history.CountAsync(CancellationToken.None).ConfigureAwait(true);
+            var totale = await _history.CountAsync(null, CancellationToken.None).ConfigureAwait(true);
 
             LiveRegion.Update(
                 HistoryHint,
@@ -1032,7 +1032,7 @@ public partial class SettingsWindow : Window
 
     private async void OnClearHistoryClick(object sender, RoutedEventArgs e)
     {
-        var totale = await _history.CountAsync(CancellationToken.None).ConfigureAwait(true);
+        var totale = await _history.CountAsync(null, CancellationToken.None).ConfigureAwait(true);
 
         if (totale == 0)
         {
