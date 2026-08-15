@@ -312,7 +312,11 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
     /// <summary>
     /// Espone una sequenza di campioni monofonici come flusso stereo posizionato.
     /// </summary>
-    private sealed class StereoToneProvider(IReadOnlyList<float> samples, float pan) : ISampleProvider
+    /// <remarks>
+    /// <b>internal e non private</b>: e' il punto in cui un indice sbagliato non
+    /// produce un errore ma uno schiocco, e serve poterlo collaudare da fuori.
+    /// </remarks>
+    internal sealed class StereoToneProvider(IReadOnlyList<float> samples, float pan) : ISampleProvider
     {
         private readonly float _leftGain = (float)Math.Sqrt((1 - Math.Clamp(pan, -1f, 1f)) / 2);
         private readonly float _rightGain = (float)Math.Sqrt((1 + Math.Clamp(pan, -1f, 1f)) / 2);
