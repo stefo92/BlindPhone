@@ -53,9 +53,9 @@ public sealed class PacchettoAssistenzaTests : IDisposable
         File.WriteAllLines(
             Path.Combine(Registri, $"blindphone-{DateTime.Now:yyyyMMdd}.log"),
             [
-                $"2026-08-11 09:12:03.100 INF SipTelephonyEngine  Chiamata entrante call-1: da +39{RecapitoEsterno} a sip:aopr.ras.uccpbx.com",
-                $"From: \"Mario Rossi\" <sip:+39{RecapitoEsterno}@aopr.ras.uccpbx.com>;tag=ABC",
-                $"Refer-To: sip:{Interno}@aopr.ras.uccpbx.com",
+                $"2026-08-11 09:12:03.100 INF SipTelephonyEngine  Chiamata entrante call-1: da +39{RecapitoEsterno} a sip:centralino.example.com",
+                $"From: \"Mario Rossi\" <sip:+39{RecapitoEsterno}@centralino.example.com>;tag=ABC",
+                $"Refer-To: sip:{Interno}@centralino.example.com",
                 "2026-08-11 09:12:41.900 INF SipTelephonyEngine  CSeq: 3351 INVITE, in ascolto sulla porta 5061",
             ],
             Encoding.UTF8);
@@ -104,7 +104,7 @@ public sealed class PacchettoAssistenzaTests : IDisposable
         var registro = Leggi(archivio, $"log/blindphone-{DateTime.Now:yyyyMMdd}.log");
 
         Assert.Contains("Chiamata entrante call-1", registro, StringComparison.Ordinal);
-        Assert.Contains("aopr.ras.uccpbx.com", registro, StringComparison.Ordinal);
+        Assert.Contains("centralino.example.com", registro, StringComparison.Ordinal);
         Assert.Contains("2026-08-11 09:12:03.100", registro, StringComparison.Ordinal);
 
         // Il contatore di transazione e la porta non sono recapiti e devono restare

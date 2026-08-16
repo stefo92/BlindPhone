@@ -26,7 +26,7 @@ public sealed class SottoscrizioniBlfTests
     private static SipAccountOptions Account(SipTransportKind trasporto) => new()
     {
         Username = "4001",
-        Domain = "aopr.ras.uccpbx.com",
+        Domain = "centralino.example.com",
         Transport = trasporto,
     };
 
@@ -57,6 +57,6 @@ public sealed class SottoscrizioniBlfTests
         var account = Account(SipTransportKind.Tls);
         var risorsa = $"4021@{account.Domain}{account.TransportParameter}";
 
-        Assert.Equal("4021@aopr.ras.uccpbx.com;transport=tls", risorsa);
+        Assert.Equal("4021@centralino.example.com;transport=tls", risorsa);
     }
 }

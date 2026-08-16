@@ -38,7 +38,7 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
     private const string EsportazioneComeQuellaDellEnte =
         "0000,3381234567,Area amministrativa supporto ai processi,False,True,GIULIA,BIANCHI,"
         + "Formazione e Sviluppo delle Competenze,Padiglione Clinica Medica,Piano Primo,0,\n"
-        + "033002,,Segreteria Medicina Legale,False,False,,,Enti e associazioni - AOPR,,,0,\n"
+        + "033002,,Segreteria Medicina Legale,False,False,,,Enti e associazioni - Ente,,,0,\n"
         + "033096,033075,Laboratorio Presso Biblioteca,False,False,,,Medicina del Lavoro,,,0,\n";
 
     private string Scrivi(string contenuto)

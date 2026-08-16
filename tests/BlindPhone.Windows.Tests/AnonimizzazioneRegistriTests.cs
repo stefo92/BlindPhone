@@ -35,13 +35,13 @@ public sealed class AnonimizzazioneRegistriTests
     [Fact]
     public void IlRecapitoDentroUnUriSipSparisce()
     {
-        var righe = Anonimizza("From: <sip:+393331234567@aopr.ras.uccpbx.com>;tag=ABC");
+        var righe = Anonimizza("From: <sip:+393331234567@centralino.example.com>;tag=ABC");
 
         Assert.DoesNotContain("393331234567", righe[0]);
         Assert.Contains("ESTERNO-01", righe[0]);
 
         // Il dominio resta: serve a riconoscere di quale centralino si parla.
-        Assert.Contains("@aopr.ras.uccpbx.com", righe[0]);
+        Assert.Contains("@centralino.example.com", righe[0]);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public sealed class AnonimizzazioneRegistriTests
         // INTERNO-247, ricevuti 1639», perche' quel giorno esisteva davvero un interno
         // 247. La diagnosi si e' dovuta appoggiare all'altro numero.
         var righe = Anonimizza(
-            "From: <sip:247@aopr.ras.uccpbx.com>;tag=ABC",
+            "From: <sip:247@centralino.example.com>;tag=ABC",
             "Percorso audio chiuso. Inviati 247, ricevuti 1639, scartati 247, "
             + "svuotamenti buffer 0, silenzio inserito 247 ms");
 
