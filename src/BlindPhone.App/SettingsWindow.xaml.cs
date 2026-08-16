@@ -2065,7 +2065,18 @@ public partial class SettingsWindow : Window
     private void OnCodecResetClick(object sender, RoutedEventArgs e)
     {
         LoadCodecs([.. AudioCodecCatalog.DefaultPreference.Select(c => AudioCodecCatalog.Describe(c).ShortName)]);
-        Report("Ordine consigliato ripristinato: G.722 banda larga, G.711 A-law, G.729 compresso");
+        // L'ELENCO SI COMPONE DAL CATALOGO, NON SI SCRIVE A MANO.
+        //
+        // Scritto a mano diceva "G.722 banda larga, G.711 A-law, G.729 compresso"
+        // mentre l'ordine caricato era ed e' G.729, G.722, G.711: il pulsante
+        // dichiarava una cosa e ne faceva un'altra. Per un operatore che non vede
+        // lo schermo quell'annuncio e' l'unico riscontro che riceve, quindi era la
+        // meta' peggiore da sbagliare. Componendolo dalla stessa fonte che il
+        // pulsante carica, le due cose non possono piu' divergere.
+        var ordine = string.Join(", ", AudioCodecCatalog.DefaultPreference
+            .Select(c => AudioCodecCatalog.Describe(c).Label));
+
+        Report($"Ordine consigliato ripristinato: {ordine}");
     }
 
     /// <summary>

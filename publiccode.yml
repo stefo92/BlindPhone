@@ -1,0 +1,125 @@
+# Metadati per il catalogo del riuso di Developers Italia / AgID.
+#
+# Servono a rendere il software rintracciabile e riusabile ai sensi degli
+# articoli 68 e 69 del Codice dell'Amministrazione Digitale: senza questo file
+# il repository esiste ma non entra nel catalogo, e la pubblicazione del
+# sorgente non produce l'effetto per cui e' stata fatta.
+#
+# Il formato e' descritto in https://yml.publiccode.tools
+# Prima di annunciare il software al catalogo conviene passarlo dal validatore
+# ufficiale: https://publiccode-editor.developers.italia.it
+
+publiccodeYmlVersion: "0.4"
+
+name: BlindPhone
+url: "https://github.com/stefo92/BlindPhone"
+landingURL: "https://github.com/stefo92/BlindPhone"
+
+softwareVersion: "1.0.11"
+releaseDate: 2026-08-15
+
+developmentStatus: beta
+softwareType: "standalone/desktop"
+
+platforms:
+  - windows
+
+categories:
+  - communications
+
+intendedAudience:
+  countries:
+    - it
+  scope:
+    - employment
+    - welfare
+
+description:
+  it:
+    localisedName: BlindPhone
+
+    shortDescription: >
+      Posto operatore di centralino per centralinisti non vedenti: si usa
+      interamente da tastiera e dice a voce tutto quello che succede.
+
+    longDescription: >
+      BlindPhone e' un posto operatore di centralino telefonico pensato per
+      essere usato senza guardare lo schermo, destinato ai centralinisti non
+      vedenti e ipovedenti che le amministrazioni assumono ai sensi della
+      Legge 113/1985 e ai quali devono fornire strumenti adeguati alla mansione
+      ai sensi dell'articolo 4 comma 4 della Legge 4/2004.
+
+      Non e' un softphone a cui e' stata aggiunta l'accessibilita': l'ascolto e'
+      l'interfaccia principale e la tastiera e' l'unico dispositivo di comando
+      necessario. Ogni comando produce un riscontro parlato, nessuna funzione
+      richiede il mouse, e il cursore non si sposta da solo mentre l'operatore
+      sta scrivendo.
+
+      Funzioni principali: risposta e chiusura con un tasto singolo,
+      trasferimento con annuncio o cieco con la stessa combinazione, conferenza
+      a tre, inclusione su interno occupato secondo la RFC 3911, rubrica
+      collegabile a file o a Microsoft SQL Server con ricerca mentre il telefono
+      squilla, stato degli interni tramite sottoscrizioni SIP, elenco delle
+      ultime chiamate con periodo di conservazione configurabile, e registro
+      diagnostico anonimizzabile prima di essere condiviso con l'assistenza.
+
+      Si collega a centralini SIP; l'integrazione estesa e' sviluppata e provata
+      su Yeastar P-Series. Funziona interamente sulla postazione e parla solo con
+      il centralino dell'ente: non ha componenti cloud.
+
+      Sul piano normativo il riferimento tecnico e' la norma europea
+      EN 301 549, capitoli 5, 6, 11 e 12. Lo stato di conformita' dichiarato,
+      compresi gli scostamenti, e' nel documento
+      docs/CONFORMITA-EN-301-549.md.
+
+    features:
+      - Uso completo da tastiera, senza mouse
+      - Riscontro parlato per ogni comando
+      - Interoperabilita' con NVDA e JAWS, e voce interna autonoma
+      - Segnali acustici distinti per gli eventi di chiamata
+      - Trasferimento con annuncio e trasferimento cieco
+      - Conferenza a tre e inclusione su interno occupato
+      - Rubrica da file o collegata a Microsoft SQL Server
+      - Stato degli interni e coda di attesa
+      - Tema chiaro, tema scuro e contrasto elevato di sistema
+      - Scorciatoie riassegnabili, con scheda dei tasti in formato braille
+      - Registri anonimizzabili prima della condivisione
+
+legal:
+  license: GPL-3.0-only
+  mainCopyrightOwner: stefo92
+  repoOwner: stefo92
+
+maintenance:
+  # "internal" perche' il software e' mantenuto da chi lo ha scritto, non da un
+  # fornitore sotto contratto ne' da una comunita'.
+  type: internal
+  contacts:
+    - name: stefo92
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - it
+
+dependsOn:
+  open:
+    - name: .NET Desktop Runtime
+      versionMin: "10.0"
+      optional: false
+  proprietary:
+    - name: Microsoft Windows
+      versionMin: "10"
+      optional: false
+    - name: Yeastar P-Series
+      optional: true
+
+it:
+  countryExtensionVersion: "0.2"
+
+  piattaforme:
+    spid: false
+    cie: false
+    anpr: false
+    pagopa: false
+    io: false
