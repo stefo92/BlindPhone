@@ -47,9 +47,9 @@ public sealed class CallRecordingTests
     [Fact]
     public void SenzaNomeRestaIlNumero()
     {
-        var nome = CallRecordingPaths.FileName(new CallParty("3494251406"), Quando);
+        var nome = CallRecordingPaths.FileName(new CallParty("3491234567"), Quando);
 
-        Assert.Equal("2026-08-08 09-14-32 3494251406.mp3", nome);
+        Assert.Equal("2026-08-08 09-14-32 3491234567.mp3", nome);
     }
 
     [Fact]

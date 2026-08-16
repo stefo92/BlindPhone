@@ -40,7 +40,7 @@ public sealed class SrtpFallbackTests
     public void LAnnuncioDiChiusuraDiceCosaFareEDove()
     {
         var testo = AnnouncementTexts.CallEnded(
-            new CallParty("3498234041"), CallEndReason.EncryptionUnavailable, TimeSpan.Zero);
+            new CallParty("3499876543"), CallEndReason.EncryptionUnavailable, TimeSpan.Zero);
 
         Assert.Contains("voce cifrata", testo, StringComparison.Ordinal);
         Assert.Contains("Impostazioni", testo, StringComparison.Ordinal);
@@ -53,7 +53,7 @@ public sealed class SrtpFallbackTests
         // "Non consentita" o "ha rifiutato" manderebbero l'operatore a cercare il
         // problema sul numero chiamato invece che nelle proprie impostazioni.
         var testo = AnnouncementTexts.CallEnded(
-            new CallParty("3498234041"), CallEndReason.EncryptionUnavailable, TimeSpan.Zero);
+            new CallParty("3499876543"), CallEndReason.EncryptionUnavailable, TimeSpan.Zero);
 
         Assert.DoesNotContain("rifiutata", testo, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("occupato", testo, StringComparison.OrdinalIgnoreCase);
@@ -72,7 +72,7 @@ public sealed class SrtpFallbackTests
 
         Assert.NotNull(calls);
 
-        engine.SimulateSrtpDowngrade("3498234041");
+        engine.SimulateSrtpDowngrade("3499876543");
         await Task.Delay(20);
 
         Assert.True(announcer.Said("in chiaro"));
@@ -93,7 +93,7 @@ public sealed class SrtpFallbackTests
 
         Assert.NotNull(calls);
 
-        engine.SimulateSrtpDowngrade("3498234041");
+        engine.SimulateSrtpDowngrade("3499876543");
         await Task.Delay(20);
 
         var annuncio = announcer.Announcements.Single();

@@ -27,8 +27,16 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
         try { Directory.Delete(_cartella, recursive: true); } catch (IOException) { }
     }
 
-    private const string EsportazioneReale =
-        "0000,3381112380,Area amministrativa supporto ai processi,False,True,ALESSIA,FERRARA,"
+    /// <summary>
+    /// Un campione con la stessa forma dell'esportazione del gestionale dell'ente:
+    /// nessuna intestazione, colonne in quell'ordine, campi vuoti dove mancano.
+    /// </summary>
+    /// <remarks>
+    /// Nominativi e recapiti sono inventati. La forma no: e' quella che il prodotto
+    /// deve saper leggere, ed e' l'unica cosa che questo collaudo misura.
+    /// </remarks>
+    private const string EsportazioneComeQuellaDellEnte =
+        "0000,3381234567,Area amministrativa supporto ai processi,False,True,GIULIA,BIANCHI,"
         + "Formazione e Sviluppo delle Competenze,Padiglione Clinica Medica,Piano Primo,0,\n"
         + "033002,,Segreteria Medicina Legale,False,False,,,Enti e associazioni - AOPR,,,0,\n"
         + "033096,033075,Laboratorio Presso Biblioteca,False,False,,,Medicina del Lavoro,,,0,\n";
@@ -43,7 +51,7 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
     [Fact]
     public void UnaPrimaRigaDiDatiVieneRiconosciutaComeTale()
     {
-        var layout = CsvContactSource.Inspect(Scrivi(EsportazioneReale));
+        var layout = CsvContactSource.Inspect(Scrivi(EsportazioneComeQuellaDellEnte));
 
         Assert.True(layout.LooksHeaderless);
         Assert.Equal(12, layout.Columns.Count);
@@ -64,17 +72,17 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
     {
         // "Colonna 6" da sola non dice niente a chi ascolta; con l'esempio si
         // riconosce la colonna senza vedere il file.
-        var layout = CsvContactSource.Inspect(Scrivi(EsportazioneReale));
+        var layout = CsvContactSource.Inspect(Scrivi(EsportazioneComeQuellaDellEnte));
 
         Assert.Equal("1", layout.Columns[0]);
-        Assert.Equal("Colonna 6, esempio: ALESSIA", layout.Labels[5]);
-        Assert.Equal("Colonna 7, esempio: FERRARA", layout.Labels[6]);
+        Assert.Equal("Colonna 6, esempio: GIULIA", layout.Labels[5]);
+        Assert.Equal("Colonna 7, esempio: BIANCHI", layout.Labels[6]);
     }
 
     [Fact]
     public async Task NessunContattoVienePerdutoComeIntestazione()
     {
-        var percorso = Scrivi(EsportazioneReale);
+        var percorso = Scrivi(EsportazioneComeQuellaDellEnte);
 
         var perPosizione = new CsvColumnMapping
         {
@@ -89,19 +97,19 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
         // Tre righe nel file, tre contatti in rubrica: prima erano due.
         Assert.Equal(3, contatti.Count);
 
-        var alessia = contatti[0];
-        Assert.Equal("0000", alessia.PrimaryNumber);
-        Assert.Equal("ALESSIA FERRARA", alessia.EffectiveDisplayName);
-        Assert.Equal("3381112380", alessia.RelatedTo);
-        Assert.Equal("Area amministrativa supporto ai processi", alessia.Category);
-        Assert.Equal("Formazione e Sviluppo delle Competenze", alessia.Department);
-        Assert.Equal("Padiglione Clinica Medica, Piano Primo", alessia.LocationSpeech);
+        var giulia = contatti[0];
+        Assert.Equal("0000", giulia.PrimaryNumber);
+        Assert.Equal("GIULIA BIANCHI", giulia.EffectiveDisplayName);
+        Assert.Equal("3381234567", giulia.RelatedTo);
+        Assert.Equal("Area amministrativa supporto ai processi", giulia.Category);
+        Assert.Equal("Formazione e Sviluppo delle Competenze", giulia.Department);
+        Assert.Equal("Padiglione Clinica Medica, Piano Primo", giulia.LocationSpeech);
     }
 
     [Fact]
     public async Task LeVociSenzaNomeRestanoImportabili()
     {
-        var percorso = Scrivi(EsportazioneReale);
+        var percorso = Scrivi(EsportazioneComeQuellaDellEnte);
 
         var perPosizione = new CsvColumnMapping
         {
@@ -124,13 +132,13 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
     [Fact]
     public async Task LAnteprimaMostraLaPrimaRigaCheAltrimentiSarebbePersa()
     {
-        var percorso = Scrivi(EsportazioneReale);
+        var percorso = Scrivi(EsportazioneComeQuellaDellEnte);
 
         var perPosizione = new CsvColumnMapping { Extension = "1", FirstName = "6", LastName = "7" };
 
         var anteprima = await new CsvContactSource(percorso, perPosizione, hasHeaderRecord: false)
             .PreviewAsync(1, CancellationToken.None);
 
-        Assert.Equal("ALESSIA FERRARA", Assert.Single(anteprima).EffectiveDisplayName);
+        Assert.Equal("GIULIA BIANCHI", Assert.Single(anteprima).EffectiveDisplayName);
     }
 }

@@ -31,7 +31,7 @@ public sealed class ToniDiEsitoTests
     /// <summary>Porta una chiamata uscente fino al rifiuto, e restituisce l'annuncio.</summary>
     private static Announcement AnnuncioDelRifiuto(CallEndReason reason)
     {
-        var call = new Call("c-1", CallDirection.Outbound, new CallParty("3494251406"), Now);
+        var call = new Call("c-1", CallDirection.Outbound, new CallParty("3491234567"), Now);
 
         call.TryApply(CallTrigger.OutgoingCall, Now, out _);
         call.SetEndReason(reason);

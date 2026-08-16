@@ -39,9 +39,9 @@ public sealed class CallBoardTests
     [Fact]
     public void ANumeroSconosciutoRestaIlNumero()
     {
-        var call = Chiamata("3494251406", null, CallState.Active);
+        var call = Chiamata("3491234567", null, CallState.Active);
 
-        Assert.Equal("Collegato a: 3494251406", CallBoardTexts.Connected(call));
+        Assert.Equal("Collegato a: 3491234567", CallBoardTexts.Connected(call));
     }
 
     [Fact]
@@ -229,8 +229,8 @@ public sealed class CallBoardTests
     public void ChiNonEInRubricaCompareConIlSoloNumero()
     {
         Assert.Equal(
-            "Chiamata da: 3494251406",
-            CallBoardTexts.IncomingCall(new CallParty("3494251406")));
+            "Chiamata da: 3491234567",
+            CallBoardTexts.IncomingCall(new CallParty("3491234567")));
     }
 
     /// <summary>
@@ -246,9 +246,9 @@ public sealed class CallBoardTests
     [Fact]
     public void UnNomeDichiaratoDallaReteCompareInsiemeAlNumero()
     {
-        var party = new CallParty("3494251406", "AGENZIA VIAGGI");
+        var party = new CallParty("3491234567", "AGENZIA VIAGGI");
 
-        Assert.Equal("Chiamata da: AGENZIA VIAGGI (3494251406)", CallBoardTexts.IncomingCall(party));
+        Assert.Equal("Chiamata da: AGENZIA VIAGGI (3491234567)", CallBoardTexts.IncomingCall(party));
     }
 
     [Fact]
@@ -303,9 +303,9 @@ public sealed class CallBoardTests
     {
         // Stessa regola dell'avviso di chiamata entrante: il numero accanto al nome
         // vale solo per chi la rubrica conferma.
-        var call = Chiamata("3494251406", null, CallState.Active);
+        var call = Chiamata("3491234567", null, CallState.Active);
 
-        Assert.Equal("In linea con: 3494251406", CallBoardTexts.InCall(call));
+        Assert.Equal("In linea con: 3491234567", CallBoardTexts.InCall(call));
     }
 
     [Fact]

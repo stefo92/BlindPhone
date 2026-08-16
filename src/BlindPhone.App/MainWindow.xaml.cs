@@ -2037,7 +2037,7 @@ public partial class MainWindow : Window
         // DA QUALUNQUE FASE.
         //
         // Senza dirlo il campo resta pieno, la soppressione degli annunci durante la
-        // digitazione continua a valere e si perde "chiamata a 3494251406, in corso",
+        // digitazione continua a valere e si perde "chiamata a 3491234567, in corso",
         // cioe' il solo modo di sapere che l'interno sta squillando.
         //
         // Stava dentro il ramo della fase di inserimento, dove bastava finche' la

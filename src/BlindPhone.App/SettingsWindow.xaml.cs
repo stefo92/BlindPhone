@@ -4431,7 +4431,7 @@ public partial class SettingsWindow : Window
     /// <param name="labels">Come le colonne vanno mostrate e pronunciate.</param>
     /// <remarks>
     /// I due elenchi coincidono quando il file ha i titoli. Senza titoli il valore e'
-    /// la posizione e l'etichetta porta un esempio: "Colonna 6, esempio ALESSIA" dice
+    /// la posizione e l'etichetta porta un esempio: "Colonna 6, esempio GIULIA" dice
     /// a chi ascolta che cosa contiene quella colonna, cosa che "Colonna 6" da sola
     /// non farebbe.
     /// </remarks>

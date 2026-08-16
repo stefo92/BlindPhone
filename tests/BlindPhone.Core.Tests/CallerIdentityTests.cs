@@ -96,12 +96,12 @@ public sealed class CallerIdentityTests
         // nome manca, e passato come nome faceva pronunciare "tre miliardi
         // quattrocentonovantaquattro milioni...", cioe' un numero che non si puo'
         // trascrivere ne' richiamare.
-        var party = new CallParty("3494251406");
+        var party = new CallParty("3491234567");
 
         var text = AnnouncementTexts.IncomingCall(party, null, DigitGrouping.Single);
 
         Assert.Equal(
-            "Chiamata da tre, quattro, nove, quattro, due, cinque, uno, quattro, zero, sei",
+            "Chiamata da tre, quattro, nove, uno, due, tre, quattro, cinque, sei, sette",
             text);
 
         Assert.DoesNotContain("interno", text, StringComparison.OrdinalIgnoreCase);
@@ -113,7 +113,7 @@ public sealed class CallerIdentityTests
         // Ha un interno sulla scrivania, ma sta chiamando da fuori: annunciarlo come
         // interno direbbe all'operatore una cosa falsa sul come rispondere, e non
         // avrebbe modo di verificarla.
-        var party = new CallParty("3494251406", "Mario Rossi")
+        var party = new CallParty("3491234567", "Mario Rossi")
         {
             IsKnownContact = true,
             Extension = "4021",
@@ -159,7 +159,7 @@ public sealed class CallerIdentityTests
     [Fact]
     public void UnNomeDichiaratoDallaSegnalazioneNonFaSparireIlNumero()
     {
-        var party = new CallParty("3494251406", "Reception Hotel");
+        var party = new CallParty("3491234567", "Reception Hotel");
 
         var detto = AnnouncementTexts.CallerIdentity(party, DigitGrouping.Single);
 
@@ -247,7 +247,7 @@ public sealed class CallerIdentityTests
         var rubrica = new FakeContactRepository().Add("Mario Rossi", ("4021", PhoneNumberKind.Extension));
         var (engine, announcer) = Avvia(rubrica);
 
-        engine.SimulateIncoming("3494251406");
+        engine.SimulateIncoming("3491234567");
         await Task.Delay(50);
 
         Assert.True(announcer.Said("tre, quattro, nove"));

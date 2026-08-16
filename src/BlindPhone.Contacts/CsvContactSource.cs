@@ -237,7 +237,7 @@ public sealed class CsvContactSource : IContactSource
     /// <param name="Labels">
     /// Come la colonna va mostrata e pronunciata. Senza intestazioni porta un esempio
     /// preso dalla prima riga, perché «Colonna 6» da sola non dice niente mentre
-    /// «Colonna 6, esempio ALESSIA» dice tutto.
+    /// «Colonna 6, esempio GIULIA» dice tutto.
     /// </param>
     /// <param name="LooksHeaderless">
     /// La prima riga sembra un contatto e non una riga di titoli.
