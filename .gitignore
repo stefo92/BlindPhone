@@ -17,6 +17,11 @@ artifacts/
 # ---------------------------------------------------------------------------
 dist/*.msi
 
+# La banca dati di debug prodotta da WiX accanto al pacchetto: e' un risultato
+# della compilazione, non una fonte, e porta dentro i percorsi della macchina su
+# cui e' stato costruito. Dodici file da 580 KB erano entrati nel primo commit.
+dist/*.wixpdb
+
 # ---------------------------------------------------------------------------
 # DATI PERSONALI: QUESTA SEZIONE NON E' UNA COMODITA'
 #
