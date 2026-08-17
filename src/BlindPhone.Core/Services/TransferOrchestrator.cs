@@ -325,12 +325,31 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         // di avanzare. E' il modo per chiedere "sei sicuro?" senza introdurre una
         // finestra modale, che ruberebbe il focus e costringerebbe l'operatore a
         // ritrovarlo dopo.
+        //
+        // Ma vale per il numero su cui era stata chiesta. Se nel frattempo l'operatore
+        // ne ha corretto una cifra — e dopo un "interno occupato" e' quello che fa — la
+        // conferma decade e i controlli si rifanno sul numero nuovo: il via libera dato
+        // per il 4021 non e' un via libera per il 4022.
         PendingConfirmation? confirmation;
-        lock (_gate) confirmation = _pendingConfirmation;
+
+        lock (_gate)
+        {
+            confirmation = _pendingConfirmation;
+
+            if (confirmation is not null
+                && !string.Equals(
+                    confirmation.Destination.Trim(),
+                    _session?.Destination.Trim(),
+                    StringComparison.Ordinal))
+            {
+                confirmation = null;
+            }
+
+            _pendingConfirmation = null;
+        }
 
         if (confirmation is not null)
         {
-            lock (_gate) _pendingConfirmation = null;
             return await ExecuteConfirmedActionAsync(confirmation, cancellationToken).ConfigureAwait(false);
         }
 
@@ -481,15 +500,53 @@ public sealed class TransferOrchestrator : IAsyncDisposable
 
         // Una pressione del tasto rimasta in sospeso verrebbe risolta da Pump come una
         // seconda consultazione verso lo stesso interno, che squillerebbe due volte.
+        //
+        // LA CONFERMA IN SOSPESO INVECE NON SI BUTTA: E' UNA DOMANDA, E QUESTA
+        // PRESSIONE E' LA RISPOSTA.
+        //
+        // Buttarla era il difetto piu' visibile del trasferimento, e si presentava
+        // cosi': l'avviso preventivo diceva "Attenzione, interno tal dei tali fuori
+        // servizio, premi X per procedere comunque", l'operatore premeva, e questo
+        // metodo azzerava la conferma per poi rifare il medesimo controllo, che
+        // riproduceva il medesimo avviso. Da Invio non si usciva piu': nel registro del
+        // 17 agosto 2026, alle 10:22:02, sei pressioni in un secondo e mezzo, nessun
+        // INVITE, e il trasferimento partito solo alle 10:22:05 con il tasto rapido —
+        // che quella strada non ce l'aveva, perche' passa da HandleTransferKeyAsync,
+        // dove la conferma viene consumata.
+        PendingConfirmation? conferma;
+
         lock (_gate)
         {
+            conferma = _pendingConfirmation;
             _pendingKeyPressAt = null;
             _pendingConfirmation = null;
         }
 
         var trimmed = destination.Trim();
+
+        // La conferma vale per il numero su cui era stata chiesta. Se nel frattempo
+        // l'operatore ne ha corretto una cifra — ed e' proprio quello che fa chi si
+        // sente dire che l'interno e' fuori servizio — il controllo va rifatto sul
+        // numero nuovo, altrimenti il "si', procedi" di prima varrebbe per una
+        // destinazione che nessuno ha verificato.
+        var confermaValida = conferma is not null
+            && string.Equals(conferma.Destination.Trim(), trimmed, StringComparison.Ordinal);
+
         var resolved = await ResolveDestinationAsync(trimmed, cancellationToken).ConfigureAwait(false);
         session.SetDestination(trimmed, resolved);
+
+        if (confermaValida)
+        {
+            _log.LogInformation(
+                "Trasferimento verso {Destination}: l'avviso preventivo ({Genere}) e' stato confermato",
+                trimmed, conferma!.Kind);
+
+            // La variante la decide il gesto di adesso, non quella per cui l'avviso era
+            // stato chiesto: l'operatore ha premuto il tasto che chiama l'interno per
+            // annunciargli la chiamata, e quello si fa.
+            await StartConsultationConfirmedAsync(cancellationToken).ConfigureAwait(false);
+            return true;
+        }
 
         await StartConsultationAsync(cancellationToken).ConfigureAwait(false);
         return true;
@@ -1045,7 +1102,8 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         //    contro l'uso improprio del centralino.
         if (Options.ConfirmExternalDestinations && !IsInternalNumber(destination))
         {
-            lock (_gate) _pendingConfirmation = new PendingConfirmation(isBlind, ConfirmationKind.ExternalDestination);
+            lock (_gate) _pendingConfirmation =
+                new PendingConfirmation(isBlind, ConfirmationKind.ExternalDestination, destination);
 
             _announcer.Announce(Announcement.CommandResponse(
                 AnnouncementTexts.ExternalTransferConfirmation(
@@ -1068,7 +1126,8 @@ public sealed class TransferOrchestrator : IAsyncDisposable
 
             if (contact.DoNotTransfer)
             {
-                lock (_gate) _pendingConfirmation = new PendingConfirmation(isBlind, ConfirmationKind.DoNotTransfer);
+                lock (_gate) _pendingConfirmation =
+                    new PendingConfirmation(isBlind, ConfirmationKind.DoNotTransfer, destination);
 
                 _announcer.Announce(Announcement.CommandResponse(
                     $"Attenzione: {contact.SpeechName} non riceve trasferimenti diretti. "
@@ -1088,7 +1147,8 @@ public sealed class TransferOrchestrator : IAsyncDisposable
 
             if (PresenceMonitorService.DiscouragesTransfer(presence))
             {
-                lock (_gate) _pendingConfirmation = new PendingConfirmation(isBlind, ConfirmationKind.PresenceWarning);
+                lock (_gate) _pendingConfirmation =
+                    new PendingConfirmation(isBlind, ConfirmationKind.PresenceWarning, destination);
 
                 _announcer.Announce(Announcement.CommandResponse(
                     AnnouncementTexts.TransferDestinationWarning(
@@ -1595,5 +1655,19 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         DoNotTransfer,
     }
 
-    private sealed record PendingConfirmation(bool IsBlind, ConfirmationKind Kind);
+    /// <summary>Conferma chiesta all'operatore e non ancora data.</summary>
+    /// <param name="IsBlind">Se la procedura in corso era un trasferimento cieco.</param>
+    /// <param name="Kind">Quale controllo l'ha prodotta.</param>
+    /// <param name="Destination">
+    /// Numero per cui è stata chiesta.
+    /// <para>
+    /// <b>Vale per quel numero e non per la procedura</b>, ed è la parte che serve
+    /// davvero: chi si sente dire che l'interno è occupato o fuori servizio spesso ha
+    /// sbagliato una cifra e la corregge. Senza ricordare su cosa era stata chiesta, il
+    /// «sì, procedi» dell'operatore verrebbe applicato a una destinazione diversa, che
+    /// nessun controllo ha guardato — e la destinazione la sessione la aggiorna a ogni
+    /// battitura, quindi confrontarsi con quella non servirebbe a niente.
+    /// </para>
+    /// </param>
+    private sealed record PendingConfirmation(bool IsBlind, ConfirmationKind Kind, string Destination);
 }

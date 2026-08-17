@@ -73,22 +73,63 @@ public sealed class SipDialogPresenceTests
     public void UnDialogoSenzaStatoNonCambiaNulla()
         => Assert.Equal(PresenceState.Available, SipDialogPresence.FromDialogStates([null, string.Empty]));
 
+    // -----------------------------------------------------------------------
+    // Che cosa dice, e che cosa non dice, il rifiuto di una sottoscrizione
+    // -----------------------------------------------------------------------
+    //
+    // QUESTE PROVE SOSTITUISCONO LA REGOLA SBAGLIATA CHE C'ERA PRIMA.
+    //
+    // Il rifiuto veniva tradotto in uno stato del telefono: un 404 diventava "fuori
+    // servizio", e l'avviso che sconsiglia un trasferimento si fondava su quello. Nel
+    // registro del 17 agosto 2026 quella traduzione ha marcato fuori servizio 81
+    // interni che rispondevano al primo squillo, perche' su quel centralino ogni
+    // sottoscrizione riceve 404: 81 rifiuti, zero accettazioni.
+    //
+    // Adesso lo stato di un telefono si impara solo da un NOTIFY, e dal codice di
+    // rifiuto si ricava una cosa diversa: se e su che scala valga la pena insistere.
+
     [Theory]
-    [InlineData(404)]
-    [InlineData(480)]
-    [InlineData(604)]
-    public void UnInternoInesistenteOIrraggiungibileEFuoriServizio(int codice)
-        => Assert.Equal(PresenceState.Offline, SipDialogPresence.FromSubscriptionFailure(codice));
+    [InlineData(405)]
+    [InlineData(489)]
+    [InlineData(501)]
+    public void IlPacchettoDiEventiNonServitoRiguardaTuttoLImpianto(int codice)
+    {
+        // "Metodo non ammesso", "evento sconosciuto", "non implementato": sono
+        // affermazioni sul centralino, e non c'e' nessun interno per cui riprovare.
+        Assert.Equal(SubscriptionRefusal.EventPackage, SipDialogPresence.Classify(codice));
+    }
 
     [Theory]
     [InlineData(401)]
     [InlineData(403)]
-    [InlineData(500)]
-    [InlineData(503)]
+    [InlineData(407)]
     public void UnRifiutoDiAutorizzazioneNonEUnoStatoDelTelefono(int codice)
     {
         // Spacciarlo per "fuori servizio" farebbe evitare all'operatore un interno che
         // funziona benissimo: e' un limite di configurazione, non del telefono.
-        Assert.Null(SipDialogPresence.FromSubscriptionFailure(codice));
+        Assert.Equal(SubscriptionRefusal.Authorisation, SipDialogPresence.Classify(codice));
     }
+
+    [Theory]
+    [InlineData(404)]
+    [InlineData(410)]
+    [InlineData(484)]
+    [InlineData(604)]
+    [InlineData(400)]
+    public void DiQuellaRisorsaIlCentralinoNonRiportaLoStato(int codice)
+    {
+        // E' il codice che il difetto interpretava come "telefono spento". Dice invece
+        // che di quella risorsa non si riporta lo stato dei dialoghi, e lo rispondono
+        // le code, i gruppi di squillo e i risponditori automatici: numeri a cui una
+        // chiamata si passa benissimo.
+        Assert.Equal(SubscriptionRefusal.Resource, SipDialogPresence.Classify(codice));
+    }
+
+    [Theory]
+    [InlineData(480)]
+    [InlineData(500)]
+    [InlineData(503)]
+    [InlineData(408)]
+    public void UnErrorePasseggeroPuoAndareMeglioFraUnMinuto(int codice)
+        => Assert.Equal(SubscriptionRefusal.Transient, SipDialogPresence.Classify(codice));
 }

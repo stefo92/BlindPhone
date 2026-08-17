@@ -710,7 +710,28 @@ public partial class MainWindow : Window
             ApplyTraySettings(settings);
             ApplyQueueVisibility(settings);
             BuildSuggestionColumns(settings);
+
+            // La modalita' di interazione si applica subito, e con essa il nome del
+            // tasto che gli annunci del trasferimento pronunciano: chi passa al
+            // tastierino semplificato deve sentirsi nominare Invio dalla prima
+            // chiamata, non dal riavvio successivo.
+            ApplyTransferKeyName(settings, _hotkeys);
         });
+
+    /// <summary>
+    /// Allinea il nome del tasto pronunciato dagli annunci del trasferimento.
+    /// </summary>
+    /// <param name="settings">Configurazione corrente, per la modalità di interazione.</param>
+    /// <param name="profile">Profilo dei tasti attivo.</param>
+    /// <remarks>
+    /// Dipende da due cose che cambiano a caldo e in momenti diversi — il profilo dei
+    /// tasti e la modalità di interazione — e per questo sta in un metodo solo invece
+    /// che ripetuto nei due gestori.
+    /// </remarks>
+    private void ApplyTransferKeyName(AppSettings settings, HotkeyProfile profile)
+        => _transferOptions.TransferKeyName = SimplifiedKeypad.TransferKeyName(
+            settings.Interaction == InteractionMode.Simplified,
+            profile.Get(HotkeyCommand.Transfer, HotkeyScope.Local)?.SpeechText ?? "F9");
 
     /// <summary>
     /// Costruisce le colonne dei contatti proposti secondo la scelta dell'operatore.
@@ -1166,9 +1187,10 @@ public partial class MainWindow : Window
             var refused = RegisterGlobalHotkeys();
 
             // Gli annunci del trasferimento nominano il tasto configurato: senza
-            // questo aggiornamento manderebbero a premerne uno non piu' assegnato.
-            _transferOptions.TransferKeyName =
-                profile.Get(HotkeyCommand.Transfer, HotkeyScope.Local)?.SpeechText ?? "F9";
+            // questo aggiornamento manderebbero a premerne uno non piu' assegnato. In
+            // modalita' semplificata nominano Invio, che e' il tasto di quella
+            // modalita', qualunque combinazione porti il profilo.
+            ApplyTransferKeyName(_settingsService.Current, profile);
 
             // Stessa cosa per la conferenza, che nomina tre tasti: quello che la apre
             // e la scioglie, e i due che servono a procurarsi la seconda chiamata

@@ -914,8 +914,11 @@ public partial class App : Application
         WarnOnUnavailableDestination = settings.Calls.WarnOnUnavailableDestination,
         MaxInternalNumberLength = settings.Calls.MaxInternalNumberLength,
         DigitGrouping = settings.Accessibility.DigitGrouping,
-        TransferKeyName = hotkeys
-            .Get(Core.Domain.HotkeyCommand.Transfer, Core.Domain.HotkeyScope.Local)?.SpeechText ?? "F9",
+        // In modalita' semplificata gli annunci nominano Invio, che e' il tasto che
+        // quella modalita' insegna: vedi SimplifiedKeypad.TransferKeyName.
+        TransferKeyName = SimplifiedKeypad.TransferKeyName(
+            settings.Interaction == Core.Domain.InteractionMode.Simplified,
+            hotkeys.Get(Core.Domain.HotkeyCommand.Transfer, Core.Domain.HotkeyScope.Local)?.SpeechText ?? "F9"),
     };
 
     private static ConferenceOptions BuildConferenceOptions(HotkeyProfile hotkeys) => new()

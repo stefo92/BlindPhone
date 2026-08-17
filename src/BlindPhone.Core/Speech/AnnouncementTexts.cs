@@ -491,13 +491,28 @@ public static class AnnouncementTexts
     /// <param name="destination">Destinazione.</param>
     /// <param name="presence">Stato di presenza rilevato.</param>
     /// <param name="transferKeyName">Tasto per procedere comunque.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>«Fuori servizio» e non «non registrato»</b>, ed è una correzione nata da una
+    /// segnalazione. «Telefono non registrato» è la frase con cui la postazione annuncia
+    /// di <i>aver perso lei</i> la registrazione al centralino, cioè un guasto che
+    /// impedisce di telefonare: sentirsi dire «non registrato» durante un trasferimento
+    /// la faceva leggere come quella, e la segnalazione arrivava come «il software dice
+    /// che il telefono non è registrato mentre invece funziona».
+    /// </para>
+    /// <para>
+    /// La parola è anche la stessa che la colonna dello stato usa nell'elenco dei
+    /// contatti, <see cref="Services.PresenceMonitorService.Describe"/>: uno stato solo
+    /// deve avere un nome solo, altrimenti chi ascolta crede che siano due.
+    /// </para>
+    /// </remarks>
     public static string TransferDestinationWarning(string destination, PresenceState presence, string transferKeyName)
     {
         var state = presence switch
         {
             PresenceState.Busy => "occupato",
             PresenceState.DoNotDisturb => "in non disturbare",
-            PresenceState.Offline => "non registrato",
+            PresenceState.Offline => "fuori servizio",
             PresenceState.Away => "assente",
             _ => "non disponibile",
         };

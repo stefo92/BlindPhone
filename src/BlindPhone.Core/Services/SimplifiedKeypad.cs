@@ -80,6 +80,30 @@ public enum KeypadAction
 /// </remarks>
 public static class SimplifiedKeypad
 {
+    /// <summary>Come si chiama, a voce, il tasto che manda avanti il trasferimento.</summary>
+    public const string ConfirmKeyName = "Invio";
+
+    /// <summary>
+    /// Nome del tasto da pronunciare negli annunci del trasferimento.
+    /// </summary>
+    /// <param name="simplified">Se la modalità semplificata è attiva.</param>
+    /// <param name="configuredKeyName">Combinazione assegnata al comando nel profilo.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Un annuncio che nomina il tasto sbagliato è peggio del silenzio</b>: manda a
+    /// premere qualcosa e, quando non succede niente, la conclusione è che il programma
+    /// non funzioni. In modalità semplificata l'operatore ha imparato tre tasti e il
+    /// trasferimento è Invio: dirgli «F9 per procedere comunque» gli nomina un tasto
+    /// che quella modalità non gli ha mai insegnato.
+    /// </para>
+    /// <para>
+    /// La combinazione del profilo continua a funzionare — le due strade convivono — ma
+    /// negli annunci si nomina quella che la modalità attiva insegna.
+    /// </para>
+    /// </remarks>
+    public static string TransferKeyName(bool simplified, string configuredKeyName)
+        => simplified ? ConfirmKeyName : configuredKeyName;
+
     /// <summary>
     /// Decide cosa fa un tasto, dato lo stato della postazione.
     /// </summary>

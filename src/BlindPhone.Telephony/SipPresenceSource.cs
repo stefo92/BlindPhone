@@ -36,12 +36,21 @@ namespace BlindPhone.Telephony;
 /// la conferma che il compito non spetta a chi la usa.
 /// </para>
 /// <para>
-/// <b>Limite noto e dichiarato.</b> Questo percorso non è stato verificato su un
-/// centralino reale: i nomi degli stati e la forma del documento seguono la norma
-/// RFC 4235, e la traduzione in stato per l'operatore è coperta da test, ma il
-/// comportamento del singolo firmware può differire. Ogni errore qui degrada verso
-/// «stato sconosciuto», mai verso un'informazione sbagliata, e non tocca la
-/// possibilità di telefonare.
+/// <b>Ogni errore degrada verso «stato sconosciuto», mai verso un'informazione
+/// sbagliata.</b> Era scritto qui anche prima e non era vero: il rifiuto di una
+/// sottoscrizione veniva tradotto in «fuori servizio», e su quel dato falso l'avviso
+/// preventivo sconsigliava trasferimenti verso interni che rispondevano al primo
+/// squillo. Adesso lo stato di un telefono arriva soltanto da un NOTIFY, e un rifiuto
+/// decide un'altra cosa: se valga la pena insistere.
+/// </para>
+/// <para>
+/// <b>Limite noto e dichiarato.</b> I nomi degli stati e la forma del documento seguono
+/// la norma RFC 4235 e la loro traduzione è coperta da test, ma il comportamento del
+/// singolo firmware differisce: sul centralino su cui il prodotto è in esercizio le
+/// sottoscrizioni al pacchetto <c>dialog</c> ricevono tutte <c>404</c>, e la
+/// sorveglianza non produce nulla. Per questo esiste
+/// <see cref="PresenceSubscriptionPolicy"/>: una funzione che l'impianto non serve va
+/// dichiarata assente, non tentata a ogni ricerca.
 /// </para>
 /// </remarks>
 public sealed class SipPresenceSource : IPresenceSource
@@ -64,6 +73,7 @@ public sealed class SipPresenceSource : IPresenceSource
     /// </remarks>
     private const int SubscriptionExpirySeconds = 180;
 
+
     private readonly SIPTransport _transport;
     private readonly SipAccountOptions _account;
     private readonly ILogger<SipPresenceSource> _log;
@@ -82,8 +92,26 @@ public sealed class SipPresenceSource : IPresenceSource
     /// </remarks>
     private readonly ConcurrentDictionary<string, DialogReference> _dialogs = new(StringComparer.Ordinal);
 
+    /// <summary>
+    /// Quanto insistere con un centralino che rifiuta: la regola sta nel core.
+    /// </summary>
+    /// <remarks>
+    /// Vale per la sessione: si riprova al riavvio della postazione, che è anche il
+    /// momento in cui un amministratore ha appena cambiato la configurazione del
+    /// centralino e vuole vedere se ha funzionato.
+    /// </remarks>
+    private readonly PresenceSubscriptionPolicy _policy = new();
+
     private bool _started;
     private bool _disposed;
+
+    /// <summary>Se la rinuncia è già stata scritta nel registro.</summary>
+    /// <remarks>
+    /// I rifiuti arrivano a raffica e più d'uno può riguardare lo stesso interno: la
+    /// riga che spiega perché la funzione si è spenta va scritta una volta, e va scritta
+    /// sempre — anche se in quel momento non restava nessuna sottoscrizione da chiudere.
+    /// </remarks>
+    private bool _gaveUpLogged;
 
     /// <summary>Crea la sorgente.</summary>
     /// <param name="transport">Trasporto SIP già avviato dal motore telefonico.</param>
@@ -103,7 +131,12 @@ public sealed class SipPresenceSource : IPresenceSource
     public string Name => "sottoscrizioni SIP";
 
     /// <inheritdoc />
-    public bool IsAvailable => !_disposed;
+    /// <remarks>
+    /// Diventa falso quando il centralino ha dimostrato di non servire la funzione: da
+    /// quel momento «lo stato degli interni non è disponibile» è la verità, e dirla è
+    /// meglio che continuare a mostrare una colonna sempre vuota.
+    /// </remarks>
+    public bool IsAvailable => !_disposed && !_policy.GaveUp;
 
     /// <inheritdoc />
     /// <remarks>
@@ -127,7 +160,7 @@ public sealed class SipPresenceSource : IPresenceSource
     /// <inheritdoc />
     public Task WatchAsync(IReadOnlyCollection<string> extensions, CancellationToken cancellationToken)
     {
-        if (_disposed || !_started) return Task.CompletedTask;
+        if (_disposed || !_started || _policy.GaveUp) return Task.CompletedTask;
 
         var voluti = extensions
             .Select(Normalize)
@@ -192,8 +225,7 @@ public sealed class SipPresenceSource : IPresenceSource
             // ordinario: davanti a "lo stato degli interni non compare" la prima cosa
             // da sapere e' se le sottoscrizioni partono, e chiederlo all'operatore
             // significherebbe fargli accendere la modalita' debug e riprodurre il caso.
-            client.SubscriptionSuccessful += _ =>
-                _log.LogInformation("Sorveglianza dell'interno {Extension} accettata dal centralino", extension);
+            client.SubscriptionSuccessful += _ => OnSubscriptionSucceeded(extension);
 
             client.Start();
 
@@ -345,37 +377,97 @@ public sealed class SipPresenceSource : IPresenceSource
             extension, (int)status);
     }
 
-    /// <summary>Rifiuti su cui non ha senso insistere.</summary>
-    /// <remarks>
-    /// <c>404</c> e <c>410</c>: quella risorsa non c'è. <c>403</c> e <c>401</c>: non ci
-    /// è concessa. <c>489</c>: il centralino non conosce il pacchetto di eventi, quindi
-    /// non lo conoscerà nemmeno al prossimo tentativo. <c>400</c>: la richiesta è
-    /// malformata per quell'apparato, e ripeterla identica darà lo stesso esito.
-    /// </remarks>
-    private static bool IsPermanent(SIPResponseStatusCodesEnum status) => (int)status switch
+    private void OnSubscriptionSucceeded(string extension)
     {
-        400 or 401 or 403 or 404 or 405 or 410 or 489 => true,
-        _ => false,
-    };
+        // Un'accettazione azzera il conto dei rifiuti: da qui in poi si sa che su
+        // questo centralino la funzione c'e', e i rifiuti tornano a essere quello che
+        // sono davvero, cioe' notizie sul singolo numero.
+        _policy.Accept();
 
+        _log.LogInformation("Sorveglianza dell'interno {Extension} accettata dal centralino", extension);
+    }
+
+    /// <summary>
+    /// Interpreta un rifiuto del centralino.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Da qui non esce nessuno stato di telefono</b>, e prima ne usciva: un
+    /// <c>404</c> diventava «fuori servizio», e l'avviso che sconsiglia un
+    /// trasferimento si fondava su quello. La ragione per cui è sbagliato sta nelle
+    /// note di <see cref="SipDialogPresence"/>, insieme al conto del registro che l'ha
+    /// mostrato: 81 interni funzionanti dichiarati fuori servizio in una mattina.
+    /// </para>
+    /// <para>
+    /// Quello che il rifiuto dice davvero è se riprovare abbia senso, e su quale scala:
+    /// per quel numero o per l'intero impianto.
+    /// </para>
+    /// </remarks>
     private void OnSubscriptionFailed(string extension, SIPResponseStatusCodesEnum status, string reason)
     {
-        var stato = SipDialogPresence.FromSubscriptionFailure((int)status);
+        var natura = SipDialogPresence.Classify((int)status);
 
         _log.LogInformation(
-            "Sorveglianza dell'interno {Extension} rifiutata dal centralino: {Codice} {Motivo}",
-            extension, (int)status, reason);
+            "Sorveglianza dell'interno {Extension} rifiutata dal centralino: {Codice} {Motivo}. "
+            + "Natura del rifiuto: {Natura}. Lo stato del telefono resta sconosciuto, "
+            + "perche' un rifiuto della sottoscrizione non lo dice",
+            extension, (int)status, reason, natura);
 
-        // Un rifiuto che dice "quell'interno non esiste" e' esso stesso
-        // un'informazione per l'operatore; un rifiuto per mancanza di autorizzazione
-        // non lo e', e non va spacciato per stato del telefono.
-        if (stato is { } presenza)
+        switch (_policy.Refuse(natura))
         {
-            PresenceChanged?.Invoke(
-                this, new PresenceChangedEventArgs(extension, presenza, DateTimeOffset.Now));
+            case PresenceSubscriptionAction.KeepTrying:
+                break;
+
+            case PresenceSubscriptionAction.StopThisExtension:
+                StopWatching(extension, status);
+                break;
+
+            case PresenceSubscriptionAction.GiveUp:
+                GiveUp(natura == SubscriptionRefusal.EventPackage
+                    ? $"il centralino non serve il pacchetto di eventi dialog ({(int)status} {reason})"
+                    : $"{_policy.ConsecutiveRefusals} sottoscrizioni rifiutate di fila e nessuna "
+                      + $"accettata, l'ultima con {(int)status}");
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Smette di sorvegliare gli interni su questo centralino, per questa sessione.
+    /// </summary>
+    /// <param name="motivo">Perché si rinuncia, come finisce nel registro.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Rinunciare è la cosa giusta da fare, e va detto in chiaro.</b> Un centralino
+    /// che rifiuta ogni sottoscrizione non cambierà idea per insistenza: continuare
+    /// significa mandargli una richiesta per ogni nome cercato per tutto il turno.
+    /// Oltre a non servire a niente, una raffica del genere verso un apparato di
+    /// frontiera somiglia a un attacco, e la difesa tipica è mettere in lista nera
+    /// l'indirizzo che la produce — cioè la postazione, che da quel momento non
+    /// telefonerebbe più.
+    /// </para>
+    /// <para>
+    /// Il livello è quello dell'avviso e non dell'informazione: è una funzione
+    /// dichiarata in offerta che su questo impianto non c'è, e chi legge il registro
+    /// per capire perché la colonna dello stato è vuota deve trovare la risposta senza
+    /// cercarla.
+    /// </para>
+    /// </remarks>
+    private void GiveUp(string motivo)
+    {
+        lock (_gate)
+        {
+            if (_gaveUpLogged) return;
+            _gaveUpLogged = true;
+
+            foreach (var client in _watched.Values) Stop(client);
+            _watched.Clear();
         }
 
-        if (IsPermanent(status)) StopWatching(extension, status);
+        _log.LogWarning(
+            "Sorveglianza dello stato degli interni disattivata su questo centralino: {Motivo}. "
+            + "Lo stato degli interni non sara' disponibile fino al prossimo avvio della postazione. "
+            + "Il trasferimento delle chiamate non ne dipende e continua a funzionare",
+            motivo);
     }
 
     private void Stop(SIPNotifierClient client)

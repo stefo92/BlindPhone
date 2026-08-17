@@ -33,6 +33,31 @@ internal sealed class FakeContactRepository : IContactRepository
         return this;
     }
 
+    /// <summary>
+    /// Aggiunge un interno con uno stato di presenza noto.
+    /// </summary>
+    /// <remarks>
+    /// Serve alle prove sull'avviso preventivo del trasferimento, dove quello che conta
+    /// non è il numero ma lo stato che la rubrica gli attribuisce.
+    /// </remarks>
+    public FakeContactRepository AddExtension(
+        string name,
+        string extension,
+        PresenceState presence = PresenceState.Unknown,
+        bool doNotTransfer = false)
+    {
+        _contacts.Add(new Contact
+        {
+            Id = Guid.NewGuid(),
+            DisplayName = name,
+            Numbers = [new PhoneNumber(extension, PhoneNumberKind.Extension)],
+            Presence = presence,
+            DoNotTransfer = doNotTransfer,
+        });
+
+        return this;
+    }
+
     public Task<Contact?> ResolveByNumberAsync(string number, CancellationToken cancellationToken)
     {
         ResolveCount++;
