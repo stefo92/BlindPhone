@@ -1448,6 +1448,43 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             session.MarkSucceeded();
             _calls.ApplyTrigger(session.OriginalCall.Id, CallTrigger.TransferCompleted, suppressAnnouncement: true);
 
+            // ANCHE LA LINEA CON LA DESTINAZIONE E' FINITA CON IL TRASFERIMENTO,
+            // E VA CHIUSA QUI.
+            //
+            // Sul trasferimento con annuncio vero — la destinazione aveva gia'
+            // risposto — quella linea non la chiudiamo noi: la chiude il centralino
+            // con un BYE quando sostituisce il dialogo. Quel BYE arriva DOPO questo
+            // punto, quando la sessione di trasferimento e' gia' stata azzerata,
+            // quindi nessuno sapeva piu' che quella chiusura era la conclusione di un
+            // trasferimento riuscito. Veniva percio' trattata come una chiusura
+            // qualunque della controparte, e l'operatore sentiva:
+            //
+            //     "l'interno 5000 ha chiuso, durata 4 secondi"
+            //
+            // subito dopo aver sentito che il trasferimento era riuscito. Due
+            // affermazioni che si contraddicono, di cui la seconda falsa.
+            //
+            // Si vedeva quasi sempre trasferendo a un risponditore automatico, e non
+            // e' un caso: un IVR risponde all'istante, quindi il trasferimento e'
+            // sempre di quelli "con annuncio" e la linea viene sempre chiusa dal
+            // centralino. Verso un interno umano capitava di meno solo perche' spesso
+            // si completa mentre squilla ancora, e quel percorso era gia' corretto.
+            //
+            // Chiudendola qui, con il motivo giusto e senza annuncio, il BYE che
+            // arriva dopo trova una chiamata gia' conclusa e viene ignorato. Il
+            // motivo "trasferita" finisce anche nell'elenco delle ultime chiamate,
+            // dove prima quella riga risultava una normale uscente chiusa dall'altra
+            // parte.
+            if (session.ConsultationCall is { } consultation
+                && !CallStateMachine.IsTerminal(consultation.State))
+            {
+                _calls.ApplyTrigger(
+                    consultation.Id,
+                    CallTrigger.HangUp,
+                    CallEndReason.Transferred,
+                    suppressAnnouncement: true);
+            }
+
             _announcer.Announce(Announcement.High(
                 AnnouncementTexts.TransferCompleted(
                     session.OriginalCall.RemoteParty.SpeechName,

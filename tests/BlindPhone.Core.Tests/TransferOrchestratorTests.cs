@@ -677,6 +677,84 @@ public sealed class TransferOrchestratorTests
     }
 
     // -----------------------------------------------------------------------
+    // La chiusura della linea con la destinazione, a trasferimento riuscito
+    // -----------------------------------------------------------------------
+    //
+    // Segnalato dal campo trasferendo verso un risponditore automatico: subito dopo
+    // "trasferimento riuscito" la voce diceva "l'interno ... ha chiuso la chiamata".
+    // Due affermazioni che si contraddicono, di cui la seconda falsa.
+
+    private static async Task<(Harness H, string Chiamante, Call Consultazione)> TrasferimentoConAnnuncioAsync()
+    {
+        var h = new Harness(new TransferOptions { ConfirmExternalDestinations = false });
+        var callId = await h.ConChiamataAttivaAsync();
+
+        await h.Transfer.HandleTransferKeyAsync("4021");
+        h.Clock.AdvanceMilliseconds(500);
+        h.Transfer.Pump(h.Clock.Now);
+        await Task.Delay(50);
+
+        var consultazione = h.Transfer.CurrentSession!.ConsultationCall!;
+
+        // La destinazione risponde: e' quello che fa sempre un risponditore
+        // automatico, e rende il trasferimento "con annuncio" invece che semi-cieco.
+        h.Engine.SimulateProgress(consultazione.Id, CallTrigger.RemoteAnswered);
+        await Task.Delay(20);
+
+        await h.Transfer.HandleTransferKeyAsync();
+        await Task.Delay(50);
+
+        return (h, callId, consultazione);
+    }
+
+    [Fact]
+    public async Task TrasferimentoRiuscito_NonDiceCheLaDestinazioneHaChiuso()
+    {
+        var (h, callId, _) = await TrasferimentoConAnnuncioAsync();
+
+        h.Announcer.Clear();
+
+        // Il centralino conferma il trasferimento con il suo NOTIFY.
+        h.Engine.SimulateTransferOutcome(callId, TransferOutcome.Succeeded);
+        await Task.Delay(50);
+
+        Assert.True(h.Announcer.Said("trasferito a"));
+        Assert.False(h.Announcer.Said("ha chiuso"));
+    }
+
+    [Fact]
+    public async Task TrasferimentoRiuscito_ChiudeLaLineaConLaDestinazione()
+    {
+        var (h, callId, consultazione) = await TrasferimentoConAnnuncioAsync();
+
+        h.Engine.SimulateTransferOutcome(callId, TransferOutcome.Succeeded);
+        await Task.Delay(50);
+
+        // Restare aperta significherebbe una linea a schermo che nessun tasto chiude.
+        Assert.Equal(CallState.Terminated, consultazione.State);
+        Assert.Equal(CallEndReason.Transferred, consultazione.EndReason);
+    }
+
+    [Fact]
+    public async Task TrasferimentoRiuscito_IlByeSuccessivoNonAnnunciaNulla()
+    {
+        // Il BYE del centralino arriva dopo, quando la sessione di trasferimento e'
+        // gia' stata azzerata: e' il momento in cui nasceva l'annuncio falso.
+        var (h, callId, consultazione) = await TrasferimentoConAnnuncioAsync();
+
+        h.Engine.SimulateTransferOutcome(callId, TransferOutcome.Succeeded);
+        await Task.Delay(50);
+
+        h.Announcer.Clear();
+
+        h.Engine.SimulateProgress(consultazione.Id, CallTrigger.RemoteHangUp);
+        await Task.Delay(50);
+
+        Assert.False(h.Announcer.Said("ha chiuso"));
+        Assert.Equal(CallEndReason.Transferred, consultazione.EndReason);
+    }
+
+    // -----------------------------------------------------------------------
     // L'interno rifiuta il trasferimento
     // -----------------------------------------------------------------------
     //
