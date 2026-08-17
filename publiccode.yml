@@ -15,8 +15,8 @@ name: BlindPhone
 url: "https://github.com/stefo92/BlindPhone"
 landingURL: "https://github.com/stefo92/BlindPhone"
 
-softwareVersion: "1.0.11"
-releaseDate: 2026-08-15
+softwareVersion: "1.0.12"
+releaseDate: 2026-08-17
 
 developmentStatus: beta
 softwareType: "standalone/desktop"
@@ -107,6 +107,12 @@ dependsOn:
     - name: .NET Desktop Runtime
       versionMin: "10.0"
       optional: false
+    # Libreria di NV Access distribuita insieme al prodotto: consente di parlare e
+    # scrivere in braille attraverso NVDA per via diretta. E' facoltativa perche'
+    # senza di essa gli annunci raggiungono comunque lo screen reader come notifiche
+    # UI Automation; quello che si perde e' il controllo dell'interruzione.
+    - name: NVDA Controller Client
+      optional: true
   proprietary:
     - name: Microsoft Windows
       versionMin: "10"

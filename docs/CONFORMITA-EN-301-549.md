@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Prodotto** | BlindPhone, posto operatore di centralino |
-| **Versione** | 1.0.11 beta |
-| **Data** | 15 agosto 2026 |
+| **Versione** | 1.0.12 beta |
+| **Data** | 17 agosto 2026 |
 | **Norma di riferimento** | EN 301 549 — capitoli 5, 6, 11, 12 |
 | **Redatto da** | Il fornitore, sulla base di verifiche interne |
 | **Verifica di terza parte** | **Non ancora effettuata** |
@@ -88,7 +88,7 @@ compromette la fiducia su tutto il resto del documento.
 | Ridimensionamento del testo | Soddisfatto | Ingrandimento di sistema fino al 300% senza perdita di funzioni |
 | Focus visibile | Soddisfatto | Contorno da 3 pixel in tutte le finestre |
 | Nome, ruolo, valore | Soddisfatto | Vedi §11.5 |
-| **11.5 Interoperabilità con la tecnologia assistiva** | **Soddisfatto** | Controlli standard con proprietà di accessibilità dichiarate. Verificato ispezionando l'albero di accessibilità con un client UI Automation, la stessa interfaccia usata da NVDA e JAWS. Collaudi automatici impediscono il ritorno dei difetti trovati: voci che pronunciavano il nome interno della classe, celle esposte come campi da compilare, colonne generate automaticamente |
+| **11.5 Interoperabilità con la tecnologia assistiva** | **Soddisfatto** | Controlli standard con proprietà di accessibilità dichiarate. Verificato ispezionando l'albero di accessibilità con un client UI Automation, la stessa interfaccia usata da NVDA e JAWS. Collaudi automatici impediscono il ritorno dei difetti trovati: voci che pronunciavano il nome interno della classe, celle esposte come campi da compilare, colonne generate automaticamente. Oltre alle notifiche UIA, che restano la via conforme e valida per qualunque tecnologia assistiva, il prodotto include il client controller di NVDA: consente di **interrompere** il parlato, cioè di far annunciare una chiamata entrante senza attendere la fine di ciò che lo screen reader sta leggendo |
 | **11.6 Documentazione delle funzioni di accessibilità** | Parzialmente soddisfatto | La guida in linea è completa, navigabile da tastiera e costruita sulle combinazioni effettivamente assegnate. Manca la documentazione **esterna** nei formati previsti: vedi sezione 6 |
 | **11.7 Preferenze utente** | **Soddisfatto** | Il contrasto elevato di Windows ha la precedenza sulla scelta del tema; dimensione del testo e colori di sistema sono rispettati |
 | 11.8 Strumenti di authoring | Non applicabile | |
@@ -135,7 +135,7 @@ Perché chi legge possa giudicare quanto valgono.
   cioè la stessa interfaccia che usano gli screen reader; calcolo del rapporto di
   contrasto secondo le formule WCAG sui colori dichiarati nei temi; misura del
   percorso del cursore fra i controlli.
-- **Automatiche**: la suite di collaudo del prodotto — 956 prove — comprende
+- **Automatiche**: la suite di collaudo del prodotto — 991 prove — comprende
   verifiche di accessibilità che impediscono il ritorno di difetti già trovati.
 - **Non ancora fatte**: prove d'uso con operatori non vedenti su compiti reali e
   cronometrati, che sono le uniche che dicono se il prodotto è **usabile** e non solo

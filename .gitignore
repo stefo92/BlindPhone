@@ -52,13 +52,3 @@ history.db
 # Pacchetti di configurazione: portano dentro la configurazione di una
 # postazione reale, compreso l'interno assegnato.
 *.bpcfg
-
-# Client controller di NVDA: binario di terze parti, con licenza propria.
-#
-# Resta fuori dal repository finche' la licenza non e' stata letta e dichiarata
-# fra le dipendenze in publiccode.yml. Un software che entra nel catalogo del
-# riuso non porta dentro binari altrui a scatola chiusa, e un "git add ."
-# distratto e' esattamente il modo in cui succede.
-#
-# La cartella e le sue istruzioni restano versionate: vedi lib/nvda/LEGGIMI.md.
-lib/nvda/*.dll

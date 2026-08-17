@@ -1,11 +1,22 @@
 # Client controller di NVDA
 
-In questa cartella va **`nvdaControllerClient.dll` a 64 bit**, la libreria con cui
+In questa cartella sta **`nvdaControllerClient.dll` a 64 bit**, la libreria con cui
 un'applicazione parla e scrive in braille attraverso NVDA.
 
-Non è software di questo progetto e **non sta nel repository**: è un binario di terze
-parti con una propria licenza, e va procurato a parte. Chi compila senza averlo ottiene
-comunque un prodotto funzionante — vedi «Cosa cambia se manca» qui sotto.
+Non è software di questo progetto: è un binario di terze parti, prodotto da NV Access.
+Viene distribuito insieme a BlindPhone e la compilazione lo copia nella cartella di
+uscita.
+
+| | |
+|---|---|
+| **Architettura** | x64 (PE32+) |
+| **SHA-256** | `2FE60CF00BE929AAE32E95C1E1507A20ADA4902C8FEC273B3CC2D3BF5472932A` |
+| **Funzioni esportate** | `testIfRunning`, `speakText`, `speakSsml`, `brailleMessage`, `cancelSpeech`, `getProcessId`, `setOnSsmlMarkReachedCallback` |
+
+**Il file non porta risorsa di versione**: non dichiara né produttore né numero di
+versione, quindi la sua provenienza non è verificabile leggendolo. L'impronta qui sopra
+serve a questo — va confrontata con quella del pacchetto ufficiale di NV Access prima di
+sostituirlo, e va rifatta se lo si aggiorna.
 
 ## Dove prenderla
 
@@ -54,11 +65,18 @@ sovrapporsi — dando per scontato che lo screen reader legga la notifica. Se qu
 notifica non viene letta, non parla nessuno. Il bridge diretto toglie di mezzo
 l'assunzione, perché dice se il testo è stato accettato.
 
-## Prima di metterla nell'installer
+## Licenza: cosa manca ancora
 
-Serve il **file di licenza** che accompagna il pacchetto, da conservare accanto alla
-libreria e da citare fra le dipendenze in `publiccode.yml`.
+La libreria è dichiarata fra le dipendenze in `publiccode.yml`, ed è inclusa nel pacchetto
+di installazione per decisione del titolare del progetto.
 
-BlindPhone è distribuito come **GPL-3.0-only**: la compatibilità con i termini di questa
-libreria va verificata leggendo la licenza, non data per scontata. È una verifica che va
-fatta prima della pubblicazione nel catalogo del riuso, non dopo.
+**Il file di licenza che accompagna il pacchetto di NV Access non è ancora stato
+depositato qui**, e finché manca la verifica di compatibilità non è fatta: BlindPhone è
+distribuito come **GPL-3.0-only**, e i termini di questa libreria vanno letti, non dati
+per scontati. Fra le licenze libere ci sono combinazioni che non stanno insieme — la
+GPL v2 *only* e la GPL v3 sono il caso tipico.
+
+È una verifica che va chiusa **prima della pubblicazione nel catalogo del riuso**, dove
+il software viene offerto ad altre amministrazioni che lo ridistribuiranno a loro volta.
+Depositare qui il file `license` o `copying` del pacchetto originale, e citarne i termini
+in questa pagina, è tutto ciò che serve.
