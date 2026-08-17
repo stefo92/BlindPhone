@@ -175,7 +175,7 @@ public sealed class AnnouncementServiceTests
     public void DuranteLaDigitazioneGliAnnunciNonCriticiSonoSoppressi()
     {
         var (service, speech, _, context, clock) = Build();
-        context.IsOperatorTyping = true;
+        context.NoteTyping(clock.Now);
 
         service.Announce(Announcement.Normal("Nuova chiamata in coda", clock.Now, coalesceKey: "queue:count"));
         clock.AdvanceMilliseconds(900);
@@ -187,6 +187,90 @@ public sealed class AnnouncementServiceTests
         // compone un numero.
         service.Announce(Announcement.Critical("Chiamata da Bianchi", clock.Now));
         Assert.Single(speech.Spoken);
+    }
+
+    // -----------------------------------------------------------------------
+    // La digitazione scade
+    // -----------------------------------------------------------------------
+    //
+    // QUESTE PROVE NASCONO DA UNA POSTAZIONE RIMASTA MUTA.
+    //
+    // "Sta digitando" era un interruttore che la finestra teneva acceso finche' il
+    // campo di composizione conteneva del testo. Un numero rimasto li' dal
+    // trasferimento precedente lo teneva acceso a tempo indeterminato, e con esso la
+    // soppressione di tutto cio' che non fosse critico. Nel registro del 17 agosto
+    // 2026, alle 12:09:55, "In linea con ..." viene scartato subito dopo il tasto di
+    // risposta: l'operatore risponde e non gli viene detto con chi sta parlando.
+    //
+    // Il silenzio di un annuncio soppresso e' identico a quello di un annuncio che non
+    // c'era: e' un difetto che l'operatore non puo' diagnosticare, e per questo la
+    // scadenza si verifica qui in tutte le sue condizioni.
+
+    [Fact]
+    public void PassataLaFinestraLaVoceTorna()
+    {
+        var (service, speech, _, context, clock) = Build();
+        context.NoteTyping(clock.Now);
+
+        clock.AdvanceMilliseconds(3500);
+
+        service.Announce(Announcement.Normal("In linea con Mario Rossi", clock.Now));
+        service.Pump(clock.Now);
+
+        Assert.Single(speech.Spoken);
+    }
+
+    [Fact]
+    public void OgniBattituraFaRipartireIlConto()
+    {
+        // Chi compone lentamente non deve sentire la voce riaccendersi in mezzo a un
+        // numero: e' il difetto opposto, e sarebbe altrettanto grave.
+        var (service, speech, _, context, clock) = Build();
+
+        for (var i = 0; i < 6; i++)
+        {
+            context.NoteTyping(clock.Now);
+            clock.AdvanceMilliseconds(1500);
+        }
+
+        service.Announce(Announcement.Normal("Nuova chiamata in coda", clock.Now));
+        service.Pump(clock.Now);
+
+        Assert.Empty(speech.Spoken);
+    }
+
+    [Fact]
+    public void IlCampoSvuotatoRestituisceLaVoceSubito()
+    {
+        // Non c'e' nessuna cifra da proteggere: aspettare la scadenza ritarderebbe il
+        // primo annuncio senza motivo.
+        var (service, speech, _, context, clock) = Build();
+        context.NoteTyping(clock.Now);
+
+        context.StopTyping();
+
+        service.Announce(Announcement.Normal("Chiamata terminata, durata 1 minuto", clock.Now));
+        service.Pump(clock.Now);
+
+        Assert.Single(speech.Spoken);
+    }
+
+    [Fact]
+    public void UnCampoRimastoPienoNonZittisceLaPostazione()
+    {
+        // E' il caso del registro, riprodotto: si compone, si trasferisce, il numero
+        // resta nella casella e nessuno la svuota. Un minuto dopo arriva la chiamata
+        // successiva, l'operatore risponde, e deve sentirsi dire con chi e' in linea.
+        var (service, speech, _, context, clock) = Build();
+
+        context.NoteTyping(clock.Now);
+        clock.AdvanceMilliseconds(60_000);
+
+        service.Announce(Announcement.Normal("In linea con Chiamate esterne", clock.Now));
+        service.Pump(clock.Now);
+
+        Assert.Single(speech.Spoken);
+        Assert.Contains("In linea con", speech.Spoken[0].Text);
     }
 
     [Fact]

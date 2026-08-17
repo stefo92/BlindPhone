@@ -205,12 +205,31 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
         // finestra principale solleva per ogni annuncio e che uno screen reader in
         // esecuzione legge: in quel caso non c'e' alcun riscontro da attendere, e
         // l'unico indizio disponibile e' il contrassegno di sistema.
-        var alreadySpokenByAssistiveTech = usedScreenReader || IsScreenReaderRunning;
+        //
+        // <b>E' un'assunzione, non una verifica</b>, e quando cade il guasto e' totale:
+        // il bridge diretto non c'e', il contrassegno di sistema dice che uno screen
+        // reader e' in esecuzione, la voce interna tace per non sovrapporsi, e se quello
+        // screen reader la notifica non la legge — perche' la finestra non ha il fuoco,
+        // perche' e' configurato per ignorarle — l'operatore non sente niente da nessun
+        // canale. Per questo la riga di registro qui sotto non e' facoltativa: e' l'unico
+        // modo di distinguere "non l'ha detto" da "l'ha detto e non l'hai sentito".
+        var screenReaderDiSistema = IsScreenReaderRunning;
+        var alreadySpokenByAssistiveTech = usedScreenReader || screenReaderDiSistema;
 
-        if (ShouldSpeakInternally(Mode, InternalVoiceEnabled, alreadySpokenByAssistiveTech))
-        {
-            SpeakInternally(text, interrupt);
-        }
+        var voceInterna = ShouldSpeakInternally(Mode, InternalVoiceEnabled, alreadySpokenByAssistiveTech);
+
+        if (voceInterna) SpeakInternally(text, interrupt);
+
+        // CHI HA PARLATO SI SCRIVE, non solo chi e' stato zittito.
+        //
+        // Il registro sapeva dire perche' un annuncio veniva scartato ma non attraverso
+        // quale canale uscisse quando non lo era: davanti a "non parla piu'" mancava
+        // proprio il dato che serve, e la diagnosi doveva ricostruirlo dalle
+        // impostazioni. Livello di debug: e' una riga per annuncio.
+        _log.LogDebug(
+            "Annuncio instradato ({Modo}): bridge diretto {Bridge}, voce interna {Interna}, "
+            + "screen reader di sistema in esecuzione {Sistema}",
+            Mode, usedScreenReader, voceInterna, screenReaderDiSistema);
     }
 
     /// <summary>

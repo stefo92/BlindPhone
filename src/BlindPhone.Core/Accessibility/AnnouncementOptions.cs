@@ -104,6 +104,27 @@ public sealed record AnnouncementOptions
     /// </remarks>
     public bool SilenceWhileTyping { get; init; } = true;
 
+    /// <summary>
+    /// Per quanto tempo una battitura tiene fermi gli annunci non critici.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>La soppressione dura quanto la digitazione, non quanto il testo resta nel
+    /// campo.</b> È la differenza fra proteggere l'eco delle cifre e togliere la voce
+    /// alla postazione: un numero rimasto nel campo dal trasferimento precedente non è
+    /// una persona che sta digitando, ma prima bastava a far scartare ogni annuncio
+    /// fino a quando qualcuno non svuotava la casella.
+    /// </para>
+    /// <para>
+    /// Tre secondi. Deve coprire l'intervallo fra due tasti di chi compone lentamente —
+    /// altrimenti la voce si riaccende in mezzo a un numero, che è il difetto opposto —
+    /// e deve essere abbastanza breve da non mangiarsi il riscontro del gesto
+    /// successivo. Ogni battitura fa ripartire il conto, quindi vale l'intervallo fra
+    /// un tasto e l'altro, non la durata della composizione.
+    /// </para>
+    /// </remarks>
+    public TimeSpan TypingSilenceWindow { get; init; } = TimeSpan.FromSeconds(3);
+
     /// <summary>Livello di dettaglio.</summary>
     public VerbosityLevel Verbosity { get; init; } = VerbosityLevel.Standard;
 

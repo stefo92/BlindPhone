@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Automation;
@@ -507,7 +507,7 @@ public partial class MainWindow : Window
         // La digitazione e' finita nell'istante in cui si preme Invio: dichiararlo
         // prima di trasferire e' cio' che permette alla conferma di essere pronunciata
         // invece di finire scartata come annuncio durante la composizione.
-        _context.IsOperatorTyping = false;
+        _context.StopTyping();
 
         if (_transfer.Phase == TransferPhase.Idle)
         {
@@ -2007,7 +2007,7 @@ public partial class MainWindow : Window
         await FlushPendingSuggestionSearchAsync().ConfigureAwait(true);
 
         var destination = CurrentDestination();
-        _context.IsOperatorTyping = false;
+        _context.StopTyping();
 
         if (blind)
         {
@@ -2066,7 +2066,7 @@ public partial class MainWindow : Window
         // consultazione partiva dalla seconda pressione. Adesso parte dalla prima,
         // che avviene a trasferimento fermo: li' quel ramo non passa, e l'annuncio
         // sarebbe stato scartato proprio nel caso piu' frequente.
-        _context.IsOperatorTyping = false;
+        _context.StopTyping();
 
         if (!string.IsNullOrWhiteSpace(alreadyTyped))
         {
@@ -3375,7 +3375,7 @@ public partial class MainWindow : Window
             // sono tolte tutte le conferme preventive per guadagnare velocita', e
             // perdere anche quella lascia l'operatore senza sapere se e dove la
             // chiamata sia andata.
-            _context.IsOperatorTyping = false;
+            _context.StopTyping();
 
             await _transfer.BlindTransferNowAsync(destination).ConfigureAwait(true);
             DialerBox.Clear();
@@ -3387,7 +3387,7 @@ public partial class MainWindow : Window
         // PRIMA di comporre. Il campo contiene ancora il testo mentre la chiamata
         // parte, quindi "chiamata a ..." — che e' il solo riscontro dell'avvio —
         // finirebbe scartato per OperatorTyping insieme a tutto il resto.
-        _context.IsOperatorTyping = false;
+        _context.StopTyping();
 
         _lastDialedNumber = destination;
         await _calls.DialAsync(destination).ConfigureAwait(true);
@@ -3409,13 +3409,26 @@ public partial class MainWindow : Window
     /// annunci non critici.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Durante la composizione l'eco delle cifre ha la precedenza: un annuncio di
     /// coda che si sovrappone alla lettura delle cifre fa perdere il filo e produce
     /// numeri sbagliati.
+    /// </para>
+    /// <para>
+    /// <b>Si dichiara la battitura, non il contenuto del campo.</b> Prima qui si
+    /// accendeva un interruttore quando la casella conteneva del testo, e restava
+    /// acceso finché qualcuno non la svuotava: il numero rimasto dal trasferimento
+    /// precedente zittiva la postazione per minuti interi. La battitura scade da sé,
+    /// il contenuto no.
+    /// </para>
     /// </remarks>
     private void OnDialerTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
-        _context.IsOperatorTyping = !string.IsNullOrEmpty(DialerBox.Text);
+        // Il campo svuotato e' un gesto esplicito e vale come fine della composizione:
+        // non c'e' nessuna cifra da proteggere, e aspettare la scadenza ritarderebbe
+        // il primo annuncio senza motivo.
+        if (string.IsNullOrEmpty(DialerBox.Text)) _context.StopTyping();
+        else _context.NoteTyping(DateTimeOffset.Now);
 
         if (_transfer.Phase == TransferPhase.EnteringDestination)
         {

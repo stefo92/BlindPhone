@@ -323,8 +323,13 @@ public sealed class AnnouncementService : IAnnouncer
         // 3. Silenzio durante la digitazione: l'eco delle cifre ha la precedenza.
         //    Solo i critici passano, perche' una chiamata entrante va annunciata
         //    anche mentre si compone un numero.
+        //
+        //    "STA DIGITANDO" E' UNO STATO CHE SCADE, e prima non lo era: valeva finche'
+        //    il campo di composizione conteneva del testo, quindi il numero rimasto li'
+        //    dal trasferimento precedente zittiva la postazione a tempo indeterminato.
+        //    Vedi AnnouncementContext.NoteTyping per il conto degli annunci persi.
         if (Options.SilenceWhileTyping
-            && _context.IsOperatorTyping
+            && _context.IsTyping(_clock.Now, Options.TypingSilenceWindow)
             && announcement.Priority < AnnouncementPriority.Critical
             && !announcement.BypassConversationSilence)
         {

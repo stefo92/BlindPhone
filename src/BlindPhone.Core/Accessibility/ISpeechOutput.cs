@@ -40,8 +40,54 @@ public sealed class AnnouncementContext
     /// </summary>
     public bool IsConversationActive { get; set; }
 
+    /// <summary>Istante dell'ultima battitura, se l'operatore sta componendo.</summary>
+    private DateTimeOffset? _lastKeystrokeAt;
+
     /// <summary>
-    /// <c>true</c> mentre l'operatore sta digitando un numero o un testo di ricerca.
+    /// Registra una battitura nel campo di composizione.
     /// </summary>
-    public bool IsOperatorTyping { get; set; }
+    /// <param name="now">Istante della battitura.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Si registra l'istante e non uno stato acceso, ed è la correzione di un
+    /// difetto che ha tolto la voce alla postazione.</b> Prima esisteva un interruttore
+    /// che valeva «l'operatore sta digitando», e la finestra lo teneva acceso finché il
+    /// campo di composizione conteneva del testo. Ma un campo pieno non è una persona
+    /// che digita: il numero rimasto lì dal trasferimento di un minuto prima teneva
+    /// l'interruttore acceso a tempo indeterminato, e con esso la soppressione di tutti
+    /// gli annunci sotto la priorità critica.
+    /// </para>
+    /// <para>
+    /// Nel registro del 17 agosto 2026 si vede l'effetto: alle 12:09:55, subito dopo il
+    /// tasto di risposta, «In linea con ...» viene scartato. L'operatore risponde e non
+    /// gli viene detto con chi sta parlando — e non se ne può accorgere, perché il
+    /// silenzio di un annuncio soppresso è identico a quello di un annuncio che non
+    /// c'era. Trentasette annunci scartati così in una giornata.
+    /// </para>
+    /// <para>
+    /// Con l'istante, la soppressione dura quanto la digitazione più una breve coda, e
+    /// si spegne da sé. Nessuno deve più ricordarsi di dichiarare la fine su ogni
+    /// percorso che porta fuori dal campo — che è la ragione per cui il difetto è
+    /// tornato più volte da punti diversi.
+    /// </para>
+    /// </remarks>
+    public void NoteTyping(DateTimeOffset now) => _lastKeystrokeAt = now;
+
+    /// <summary>
+    /// Dichiara conclusa la digitazione, senza attendere la scadenza.
+    /// </summary>
+    /// <remarks>
+    /// Serve dove il gesto stesso dice che la composizione è finita — si compone, si
+    /// trasferisce, si svuota il campo — e l'annuncio che segue è il riscontro di quel
+    /// gesto, quindi non può aspettare.
+    /// </remarks>
+    public void StopTyping() => _lastKeystrokeAt = null;
+
+    /// <summary>
+    /// Indica se l'operatore sta componendo in questo momento.
+    /// </summary>
+    /// <param name="now">Istante corrente.</param>
+    /// <param name="window">Quanto una battitura tiene fermi gli annunci.</param>
+    public bool IsTyping(DateTimeOffset now, TimeSpan window)
+        => _lastKeystrokeAt is { } ultima && now - ultima < window;
 }
