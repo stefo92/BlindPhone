@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Runtime.InteropServices;
 using BlindPhone.Core.Accessibility;
 using Microsoft.Extensions.Logging;
@@ -25,22 +26,124 @@ namespace BlindPhone.Accessibility;
 /// </remarks>
 public sealed class NvdaScreenReaderBridge : IScreenReaderBridge
 {
+    /// <summary>Nome dichiarato nelle importazioni, risolto da <see cref="Risolvi"/>.</summary>
+    private const string LibreriaDichiarata = "nvdaControllerClient64.dll";
+
+    /// <summary>
+    /// I nomi con cui NV Access ha distribuito la stessa libreria, in ordine di prova.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Sono due perché il pacchetto ha cambiato forma.</b> Le versioni storiche
+    /// mettevano l'architettura nel nome del file — <c>nvdaControllerClient32.dll</c> e
+    /// <c>nvdaControllerClient64.dll</c> nella stessa cartella. Quelle recenti la
+    /// mettono nella cartella e il file si chiama <c>nvdaControllerClient.dll</c> per
+    /// tutte e tre le architetture.
+    /// </para>
+    /// <para>
+    /// La ricerca predefinita del runtime non copre il caso: prova il nome dichiarato
+    /// con e senza estensione, ma non toglie il <c>64</c>. Chi scarica il pacchetto
+    /// odierno e lo copia accanto all'eseguibile si vedrebbe dire che la libreria non
+    /// c'è, mentre è lì. Provare entrambi i nomi costa una riga e toglie di mezzo un
+    /// errore di installazione che nessuno saprebbe diagnosticare.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] NomiCandidati =
+    [
+        "nvdaControllerClient.dll",
+        "nvdaControllerClient64.dll",
+    ];
+
+    /// <summary>Nome del file effettivamente caricato, per il registro.</summary>
+    private static string? _fileCaricato;
+
+    /// <remarks>
+    /// La registrazione vale per l'intero assembly e si può fare una volta sola: se un
+    /// giorno servisse risolvere un'altra libreria nativa da qui, va aggiunta a questo
+    /// risolutore e non registrata a parte.
+    /// </remarks>
+    static NvdaScreenReaderBridge()
+        => NativeLibrary.SetDllImportResolver(typeof(NvdaScreenReaderBridge).Assembly, Risolvi);
+
+    private static IntPtr Risolvi(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+    {
+        if (!string.Equals(libraryName, LibreriaDichiarata, StringComparison.OrdinalIgnoreCase))
+        {
+            // Non è roba nostra: se ne occupi la ricerca predefinita.
+            return IntPtr.Zero;
+        }
+
+        foreach (var candidato in NomiCandidati)
+        {
+            if (!NativeLibrary.TryLoad(candidato, assembly, searchPath, out var handle)) continue;
+
+            _fileCaricato = candidato;
+            return handle;
+        }
+
+        return IntPtr.Zero;
+    }
+
     private readonly ILogger<NvdaScreenReaderBridge> _log;
     private readonly bool _libraryPresent;
 
     /// <summary>Crea il bridge e verifica la presenza della libreria.</summary>
     /// <param name="logger">Log diagnostico.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Presente e in esecuzione sono due cose distinte</b>, e confonderle costava
+    /// l'intera sessione. Prima qui si teneva per buono solo l'esito zero, che vuol dire
+    /// «NVDA è in ascolto adesso»: se la postazione partiva prima dello screen reader —
+    /// e parte all'avvio di Windows, quindi succede spesso — il bridge si dichiarava
+    /// assente e restava assente fino al riavvio successivo, pur avendo la libreria
+    /// accanto all'eseguibile.
+    /// </para>
+    /// <para>
+    /// Quello che conta qui è che la chiamata sia <i>possibile</i>: se non solleva
+    /// eccezioni la libreria c'è, e da quel momento
+    /// <see cref="IsAvailable"/> chiede a ogni annuncio se NVDA sia in ascolto.
+    /// </para>
+    /// </remarks>
     public NvdaScreenReaderBridge(ILogger<NvdaScreenReaderBridge>? logger = null)
     {
         _log = logger ?? NullLogger<NvdaScreenReaderBridge>.Instance;
 
         try
         {
-            _libraryPresent = TestIfRunning() == 0;
+            var inAscolto = TestIfRunning() == 0;
+            _libraryPresent = true;
+
+            _log.LogInformation(
+                "Client controller NVDA disponibile ({File}). NVDA in ascolto adesso: {InAscolto}",
+                _fileCaricato ?? LibreriaDichiarata,
+                inAscolto);
         }
         catch (DllNotFoundException)
         {
-            _log.LogInformation("Client controller NVDA non presente: bridge diretto non disponibile");
+            _log.LogInformation(
+                "Client controller NVDA non presente: bridge diretto non disponibile. "
+                + "Cercata come {Nomi} accanto all'eseguibile",
+                string.Join(" oppure ", NomiCandidati));
+
+            _libraryPresent = false;
+        }
+        catch (BadImageFormatException)
+        {
+            // Il caso di chi scarica il pacchetto giusto e prende la cartella sbagliata.
+            // Senza questa riga l'errore e' un'eccezione generica che non dice cosa fare.
+            _log.LogWarning(
+                "Client controller NVDA di architettura sbagliata: serve la versione a 64 bit. "
+                + "Nel pacchetto di NV Access e' quella nella cartella x64");
+
+            _libraryPresent = false;
+        }
+        catch (EntryPointNotFoundException ex)
+        {
+            _log.LogWarning(
+                ex,
+                "Client controller NVDA presente ma senza le funzioni attese: "
+                + "il file non e' il client controller, oppure e' troncato");
+
             _libraryPresent = false;
         }
         catch (Exception ex)

@@ -97,4 +97,31 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="$(BandaPacchetti)" />
   </ItemGroup>
 
+  <!--
+    CLIENT CONTROLLER DI NVDA.
+
+    E' la libreria che NV Access distribuisce perche' un'applicazione possa parlare
+    e scrivere in braille attraverso NVDA. Non e' nostra e non si compila da qui:
+    va deposta in lib\nvda\, e lib\nvda\LEGGIMI.md spiega dove prenderla.
+
+    LA CONDIZIONE NON E' PRUDENZA ECCESSIVA. Il file non sta nel repository — e'
+    un binario di terze parti con una propria licenza — quindi su una copia appena
+    clonata non c'e'. Senza condizione la compilazione fallirebbe per tutti, e
+    fallirebbe su un file che non serve a compilare: il prodotto funziona anche
+    senza, ricadendo sulle notifiche UI Automation. Con la condizione, chi ce l'ha
+    se lo ritrova nella cartella di uscita a ogni compilazione, e chi non ce l'ha
+    compila lo stesso.
+
+    Il nome si conserva: il risolutore in ScreenReaderBridges.cs accetta sia
+    nvdaControllerClient.dll dei pacchetti recenti sia nvdaControllerClient64.dll
+    di quelli storici, quindi vale l'uno o l'altro senza rinominare niente.
+  -->
+  <ItemGroup>
+    <None Include="..\..\lib\nvda\nvdaControllerClient*.dll"
+          Condition="Exists('..\..\lib\nvda')">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
