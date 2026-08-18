@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -446,6 +446,22 @@ public partial class CallHistoryWindow : Window
         if (string.IsNullOrWhiteSpace(row.Number))
         {
             Announce("Questa chiamata non ha un numero da richiamare");
+            return;
+        }
+
+        // STESSA REGOLA DELLA RUBRICA: con qualcuno in linea non si compone.
+        //
+        // Qui la richiamata partiva mentre il chiamante era ancora in conversazione,
+        // aprendo una seconda linea in parallelo. Anche questo elenco ha il suo tasto
+        // per il trasferimento, quindi Invio non serve mentre si sta parlando.
+        //
+        // La regola sta in CallSessionManager.IsTalking.
+        if (_calls.IsTalking)
+        {
+            _log.LogDebug(
+                "Richiamata ignorata: c'e' una conversazione in corso. "
+                + "Per passare il chiamante si usa il tasto di trasferimento");
+
             return;
         }
 

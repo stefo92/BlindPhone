@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -538,6 +538,29 @@ public partial class ContactsWindow : Window
         if (_transfer.Phase == TransferPhase.EnteringDestination)
         {
             await UseAsTransferDestinationAsync().ConfigureAwait(true);
+            return;
+        }
+
+        // CON QUALCUNO IN LINEA INVIO NON FA NIENTE.
+        //
+        // Il controllo qui sopra copriva il trasferimento gia' avviato. Restava
+        // scoperto il caso piu' comune: il chiamante in linea e nessun trasferimento
+        // iniziato. Li' Invio componeva, e siccome comporre non mette in attesa
+        // nessuno partiva una seconda chiamata in parallelo mentre il chiamante
+        // restava in conversazione; per giunta questa finestra si chiudeva, quindi
+        // l'operatore perdeva anche il contatto che stava guardando.
+        //
+        // Su questo elenco il tasto del trasferimento c'e' gia' ed e' F9: Invio non
+        // serve a niente mentre si sta parlando con qualcuno, e non deve fare danni.
+        // Fuori da una conversazione resta quello di sempre e chiama il contatto.
+        //
+        // La regola sta in CallSessionManager.IsTalking.
+        if (_calls.IsTalking)
+        {
+            _log.LogDebug(
+                "Chiamata dalla rubrica ignorata: c'e' una conversazione in corso. "
+                + "Per passare il chiamante si usa F9");
+
             return;
         }
 

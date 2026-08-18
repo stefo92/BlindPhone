@@ -1,4 +1,4 @@
-using BlindPhone.Core.Abstractions;
+﻿using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Domain;
 using BlindPhone.Core.Speech;
@@ -302,6 +302,31 @@ public sealed class CallSessionManager : IAsyncDisposable
 
     /// <summary><c>true</c> se una conferenza a tre è in corso in questo momento.</summary>
     public bool IsConferenceActive => ConferencedCalls.Count > 0;
+
+    /// <summary>
+    /// <c>true</c> se c'è qualcuno in linea che sente l'operatore.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>È la condizione che vieta di comporre un numero nuovo.</b> Comporre non mette
+    /// in attesa nessuno: la conversazione in corso resta aperta e ne parte una seconda
+    /// in parallelo, e l'operatore si ritrova con due linee che solo lui può districare.
+    /// Chi vuole passare il chiamante a qualcuno usa il trasferimento; chi vuole
+    /// telefonare a un collega mette prima in attesa, ed è anche il modo in cui si
+    /// procura la seconda chiamata di una conferenza a tre.
+    /// </para>
+    /// <para>
+    /// Una chiamata <b>in attesa</b> non conta, ed è tutta la differenza: chi ha premuto
+    /// il tasto dell'attesa ha già dichiarato cosa vuole. Non conta nemmeno una chiamata
+    /// che squilla e a cui non si è ancora risposto.
+    /// </para>
+    /// <para>
+    /// È la versione dal vivo di <see cref="CallActionContext.IsTalking"/>, che è una
+    /// fotografia: la usano le finestre che devono decidere adesso e non hanno una
+    /// fotografia sotto mano — rubrica ed elenco delle ultime chiamate.
+    /// </para>
+    /// </remarks>
+    public bool IsTalking => ActiveCall is not null || IsConferenceActive;
 
     /// <summary>Gambe della conferenza che si trovano nello stato richiesto.</summary>
     /// <remarks>

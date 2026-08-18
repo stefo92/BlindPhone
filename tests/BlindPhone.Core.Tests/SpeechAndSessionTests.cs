@@ -1,4 +1,4 @@
-using BlindPhone.Core.Accessibility;
+﻿using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Domain;
 using BlindPhone.Core.Services;
 using BlindPhone.Core.Speech;
@@ -289,4 +289,55 @@ public sealed class CallSessionManagerTests
         // raggiungibile: il silenzio e' indistinguibile da un momento di calma.
         Assert.True(h.Announcer.Said("non registrato"));
     }
+
+    // -----------------------------------------------------------------------
+    // Quando c'e' qualcuno in linea
+    // -----------------------------------------------------------------------
+    //
+    // E' la condizione che vieta di comporre un numero nuovo, ed e' letta dal vivo
+    // dalle finestre che devono decidere in quel momento: rubrica ed elenco delle
+    // ultime chiamate. Su quegli elenchi Invio chiamava il contatto selezionato, e con
+    // un chiamante in conversazione apriva una seconda linea in parallelo chiudendo per
+    // giunta la finestra. Il tasto per passargli la chiamata su quegli elenchi esiste
+    // gia' ed e' F9.
+
+    [Fact]
+    public async Task ConIlChiamanteInConversazioneSiRisultaInLinea()
+    {
+        var h = new Harness();
+        h.Engine.SimulateIncoming("0212345678", "Mario Rossi");
+        await Task.Delay(20);
+        await h.Calls.AnswerAsync();
+
+        Assert.True(h.Calls.IsTalking);
+    }
+
+    [Fact]
+    public async Task MettendoInAttesaNonSiRisultaPiuInLinea()
+    {
+        // E' la meta' della regola che permette di procurarsi la seconda chiamata di
+        // una conferenza a tre: si mette in attesa, poi si compone.
+        var h = new Harness();
+        h.Engine.SimulateIncoming("0212345678", "Mario Rossi");
+        await Task.Delay(20);
+        await h.Calls.AnswerAsync();
+        await h.Calls.ToggleHoldAsync();
+
+        Assert.False(h.Calls.IsTalking);
+    }
+
+    [Fact]
+    public async Task UnaChiamataCheSquillaNonEUnaConversazione()
+    {
+        // Confine dichiarato: finche' non le si e' risposto nessuno sente l'operatore.
+        var h = new Harness();
+        h.Engine.SimulateIncoming("0212345678", "Mario Rossi");
+        await Task.Delay(20);
+
+        Assert.False(h.Calls.IsTalking);
+    }
+
+    [Fact]
+    public void SenzaChiamateNonSiRisultaInLinea()
+        => Assert.False(new Harness().Calls.IsTalking);
 }
