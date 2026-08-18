@@ -1,4 +1,4 @@
-# Client controller di NVDA
+﻿# Client controller di NVDA
 
 In questa cartella sta **`nvdaControllerClient.dll` a 64 bit**, la libreria con cui
 un'applicazione parla e scrive in braille attraverso NVDA.
@@ -10,13 +10,18 @@ uscita.
 | | |
 |---|---|
 | **Architettura** | x64 (PE32+) |
+| **Versione** | 2026.1.1.55980 |
 | **SHA-256** | `2FE60CF00BE929AAE32E95C1E1507A20ADA4902C8FEC273B3CC2D3BF5472932A` |
 | **Funzioni esportate** | `testIfRunning`, `speakText`, `speakSsml`, `brailleMessage`, `cancelSpeech`, `getProcessId`, `setOnSsmlMarkReachedCallback` |
 
-**Il file non porta risorsa di versione**: non dichiara né produttore né numero di
-versione, quindi la sua provenienza non è verificabile leggendolo. L'impronta qui sopra
-serve a questo — va confrontata con quella del pacchetto ufficiale di NV Access prima di
-sostituirlo, e va rifatta se lo si aggiorna.
+Il numero di versione segue la numerazione delle release di NVDA, quindi la libreria
+proviene dalla **2026.1.1**: è il dato con cui verificare di avere il client abbinato
+alla versione di NVDA installata sulle postazioni.
+
+**Manca però il blocco testuale della risorsa di versione**: né produttore, né nome del
+prodotto, né copyright. Sono i campi che avrebbero aiutato sulla licenza, e non ci sono.
+L'impronta qui sopra serve a questo — va confrontata con quella del pacchetto ufficiale
+di NV Access prima di sostituire il file, e va rifatta se lo si aggiorna.
 
 ## Dove prenderla
 

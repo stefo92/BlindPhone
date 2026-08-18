@@ -1,4 +1,4 @@
-# Metadati per il catalogo del riuso di Developers Italia / AgID.
+﻿# Metadati per il catalogo del riuso di Developers Italia / AgID.
 #
 # Servono a rendere il software rintracciabile e riusabile ai sensi degli
 # articoli 68 e 69 del Codice dell'Amministrazione Digitale: senza questo file
@@ -15,8 +15,8 @@ name: BlindPhone
 url: "https://github.com/stefo92/BlindPhone"
 landingURL: "https://github.com/stefo92/BlindPhone"
 
-softwareVersion: "1.0.12"
-releaseDate: 2026-08-17
+softwareVersion: "1.0.13"
+releaseDate: 2026-08-18
 
 developmentStatus: beta
 softwareType: "standalone/desktop"

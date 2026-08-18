@@ -1,12 +1,12 @@
-# Dichiarazione di conformità EN 301 549
+﻿# Dichiarazione di conformità EN 301 549
 
 **Bozza da completare prima dell'uso in offerta.** Vedi la sezione 6 per cosa manca.
 
 | | |
 |---|---|
 | **Prodotto** | BlindPhone, posto operatore di centralino |
-| **Versione** | 1.0.12 beta |
-| **Data** | 17 agosto 2026 |
+| **Versione** | 1.0.13 beta |
+| **Data** | 18 agosto 2026 |
 | **Norma di riferimento** | EN 301 549 — capitoli 5, 6, 11, 12 |
 | **Redatto da** | Il fornitore, sulla base di verifiche interne |
 | **Verifica di terza parte** | **Non ancora effettuata** |
@@ -135,7 +135,7 @@ Perché chi legge possa giudicare quanto valgono.
   cioè la stessa interfaccia che usano gli screen reader; calcolo del rapporto di
   contrasto secondo le formule WCAG sui colori dichiarati nei temi; misura del
   percorso del cursore fra i controlli.
-- **Automatiche**: la suite di collaudo del prodotto — 991 prove — comprende
+- **Automatiche**: la suite di collaudo del prodotto — 1.011 prove — comprende
   verifiche di accessibilità che impediscono il ritorno di difetti già trovati.
 - **Non ancora fatte**: prove d'uso con operatori non vedenti su compiti reali e
   cronometrati, che sono le uniche che dicono se il prodotto è **usabile** e non solo

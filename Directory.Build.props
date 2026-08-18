@@ -1,4 +1,4 @@
-<Project>
+﻿<Project>
 
   <!--
     Proprietà comuni a tutti i progetti della soluzione BlindPhone.
@@ -68,8 +68,8 @@
       compare la parola "beta": una versione dichiarata beta nei documenti e non
       nel programma sarebbe una dichiarazione che nessuno vede.
     -->
-    <Version>1.0.12</Version>
-    <InformationalVersion>1.0.12 beta</InformationalVersion>
+    <Version>1.0.13</Version>
+    <InformationalVersion>1.0.13 beta</InformationalVersion>
     <NeutralLanguage>it-IT</NeutralLanguage>
     <Copyright>Copyright © 2026</Copyright>
   </PropertyGroup>
