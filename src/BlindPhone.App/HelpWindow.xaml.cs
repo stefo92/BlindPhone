@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text;
 using System.Windows;
 using System.Windows.Automation;
@@ -62,6 +62,23 @@ public partial class HelpWindow : Window
                 + $"Sei su {current?.Title}. Frecce per cambiare argomento, Tab per leggerlo, Esc per chiudere",
                 DateTimeOffset.Now));
         };
+    }
+
+    /// <summary>
+    /// Porta la guida su un argomento, anche se era già aperta.
+    /// </summary>
+    /// <param name="topicId">Argomento richiesto.</param>
+    /// <remarks>
+    /// Serve da quando la guida non è più modale e ne resta una sola: il tasto di aiuto
+    /// premuto da un'altra parte del programma deve portare all'argomento di quella
+    /// parte, non limitarsi a riportare avanti la pagina che era rimasta aperta. Il
+    /// cursore va sull'elenco degli argomenti perché è da lì che ci si muove, ed è dove
+    /// lo troverebbe chi apre la guida adesso.
+    /// </remarks>
+    public void ShowTopic(string? topicId)
+    {
+        SelectTopic(topicId ?? HelpBook.DefaultTopicId);
+        TopicList.Focus();
     }
 
     private HelpTopic? CurrentTopic()

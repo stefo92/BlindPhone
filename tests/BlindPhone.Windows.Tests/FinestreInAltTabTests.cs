@@ -1,3 +1,4 @@
+﻿using System.Text.RegularExpressions;
 using Xunit;
 
 namespace BlindPhone.Windows.Tests;
@@ -87,5 +88,79 @@ public sealed class FinestreInAltTabTests
         // Se comparisse in ALT+TAB, ALT+TAB diventerebbe una delle combinazioni che
         // sta cercando di catturare.
         Assert.Contains("ShowInTaskbar=\"False\"", Xaml("HotkeyCaptureWindow"));
+    }
+
+    // -----------------------------------------------------------------------
+    // Modali e non modali
+    // -----------------------------------------------------------------------
+    //
+    // Comparire in ALT+TAB non basta: finche' una finestra e' modale, la principale
+    // resta disabilitata e passare all'una o all'altra non serve a niente. Guida,
+    // rubrica ed elenco delle ultime chiamate sono finestre in cui si consulta
+    // qualcosa MENTRE si lavora, e da modali alcuni dei loro comandi non erano
+    // nemmeno raggiungibili: il trasferimento non si puo' avviare mentre un dialogo
+    // modale tiene disabilitata la finestra principale.
+
+    private static string Sorgente(string file)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+
+        while (directory is not null)
+        {
+            var candidato = Path.Combine(directory.FullName, "src", "BlindPhone.App", file);
+            if (File.Exists(candidato)) return File.ReadAllText(candidato);
+
+            directory = directory.Parent;
+        }
+
+        throw new FileNotFoundException($"Sorgente {file} non trovato");
+    }
+
+    [Theory]
+    [InlineData("ContactsWindow.xaml.cs")]
+    [InlineData("CallHistoryWindow.xaml.cs")]
+    public void RubricaEUltimeChiamateNonAproneNienteDiModale(string file)
+    {
+        // Queste due finestre aprivano solo la guida, e la aprivano modale. Adesso non
+        // devono aprire piu' niente che blocchi il resto: qualunque ShowDialog che
+        // ricompaia qui e' una regressione.
+        var codice = Sorgente(file);
+
+        Assert.DoesNotContain("ShowDialog", codice);
+        Assert.Contains("FinestreNonModali.MostraOAttiva", codice);
+    }
+
+    [Fact]
+    public void LaFinestraPrincipaleApreLeTreFinestreDiLavoroSenzaBloccarsi()
+    {
+        // Tre, e sono guida, rubrica ed elenco delle ultime chiamate. Il conteggio e'
+        // li' apposta: se qualcuno ne riporta una a ShowDialog il numero cala, e la
+        // prova lo dice invece di lasciar passare la modifica.
+        var codice = Sorgente("MainWindow.xaml.cs");
+        var aperture = Regex.Matches(codice, @"FinestreNonModali\.MostraOAttiva").Count;
+
+        Assert.Equal(3, aperture);
+    }
+
+    [Fact]
+    public void LeImpostazioniRestanoModali()
+    {
+        // E' l'unica in cui il rischio e' concreto: modificare la configurazione mentre
+        // l'applicazione la sta usando apre casi che oggi non esistono. Se un giorno si
+        // decidera' diversamente, questa prova va cambiata di proposito e non per
+        // sbaglio.
+        var codice = Sorgente("MainWindow.xaml.cs");
+        var apertura = codice.IndexOf("GetRequiredService<SettingsWindow>", StringComparison.Ordinal);
+
+        Assert.True(apertura > 0, "Le impostazioni non vengono piu' aperte da MainWindow");
+
+        // Si guarda solo il tratto di codice che segue l'ottenimento della finestra:
+        // cercare "ShowDialog" nell'intero file non direbbe niente, perche' altri
+        // dialoghi - aggiornamento, sblocco, segnalazione - restano modali per conto
+        // loro.
+        var seguito = codice[apertura..Math.Min(codice.Length, apertura + 600)];
+
+        Assert.Contains("ShowDialog", seguito);
+        Assert.DoesNotContain("MostraOAttiva", seguito);
     }
 }

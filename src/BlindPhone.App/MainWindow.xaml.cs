@@ -2598,12 +2598,13 @@ public partial class MainWindow : Window
 
         try
         {
-            var window = new HelpWindow(HelpBook.Build(_hotkeys, DateTimeOffset.Now), _announcer, topic)
-            {
-                Owner = this,
-            };
-
-            window.ShowDialog();
+            // Una guida che impedisce di usare il programma di cui spiega l'uso serve
+            // a poco: resta aperta accanto alla postazione, e il tasto di aiuto premuto
+            // di nuovo la porta sull'argomento del punto in cui ci si trova.
+            FinestreNonModali.MostraOAttiva(
+                () => new HelpWindow(HelpBook.Build(_hotkeys, DateTimeOffset.Now), _announcer, topic),
+                this,
+                finestra => finestra.ShowTopic(topic));
         }
         catch (Exception ex)
         {
@@ -2625,9 +2626,11 @@ public partial class MainWindow : Window
     {
         try
         {
-            var window = _serviceProvider.GetRequiredService<CallHistoryWindow>();
-            window.Owner = this;
-            window.ShowDialog();
+            // Non modale: i comandi di questo elenco - richiama, usa per il
+            // trasferimento - hanno senso proprio con una chiamata in corso, e da
+            // finestra modale non erano nemmeno raggiungibili.
+            FinestreNonModali.MostraOAttiva(
+                _serviceProvider.GetRequiredService<CallHistoryWindow>, this);
         }
         catch (Exception ex)
         {
@@ -2797,13 +2800,19 @@ public partial class MainWindow : Window
     {
         try
         {
-            var window = _serviceProvider.GetRequiredService<ContactsWindow>();
-            window.Owner = this;
-
             var typed = DialerBox.Text.Trim();
-            if (typed.Length >= 2) window.SetInitialQuery(typed);
 
-            window.ShowDialog();
+            // La ricerca digitata arriva alla rubrica anche quando era gia' aperta: chi
+            // scrive un nome e preme il tasto della rubrica sta chiedendo quel nome, e
+            // trovarsi davanti la ricerca di prima sarebbe una risposta a un'altra
+            // domanda.
+            FinestreNonModali.MostraOAttiva(
+                _serviceProvider.GetRequiredService<ContactsWindow>,
+                this,
+                finestra =>
+                {
+                    if (typed.Length >= 2) finestra.SetInitialQuery(typed);
+                });
         }
         catch (Exception ex)
         {

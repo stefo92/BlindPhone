@@ -398,10 +398,15 @@ public partial class CallHistoryWindow : Window
 
         try
         {
-            new HelpWindow(HelpBook.Build(_hotkeys, DateTimeOffset.Now), _announcer, HelpBook.CallHistoryTopicId)
-            {
-                Owner = this,
-            }.ShowDialog();
+            // La guida e' una sola in tutto il programma e non e' modale: se e' gia'
+            // aperta si porta avanti sull'argomento di questa finestra. La proprietaria
+            // e' la finestra principale e non questa, cosi' chiudendo questa la guida
+            // resta dov'e' invece di sparire con lei.
+            FinestreNonModali.MostraOAttiva(
+                () => new HelpWindow(
+                    HelpBook.Build(_hotkeys, DateTimeOffset.Now), _announcer, HelpBook.CallHistoryTopicId),
+                Owner ?? this,
+                finestra => finestra.ShowTopic(HelpBook.CallHistoryTopicId));
         }
         catch (Exception ex)
         {
