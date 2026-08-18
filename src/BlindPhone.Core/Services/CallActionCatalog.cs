@@ -1,4 +1,4 @@
-using BlindPhone.Core.Domain;
+﻿using BlindPhone.Core.Domain;
 
 namespace BlindPhone.Core.Services;
 
@@ -182,6 +182,32 @@ public readonly record struct CallActionContext(
            || TransferPhase is TransferPhase.EnteringDestination
                             or TransferPhase.Consulting
                             or TransferPhase.Completing;
+
+    /// <summary>
+    /// Se comporre un numero nuovo abbia senso adesso.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Con qualcuno in linea, no.</b> Comporre non mette in attesa nessuno: la
+    /// chiamata in corso resta aperta e ne parte una seconda in parallelo, e
+    /// l'operatore si ritrova con due linee che solo lui può districare. Non è
+    /// un'ipotesi: è quello che succedeva premendo Invio in modalità standard dopo aver
+    /// digitato l'interno a cui si voleva passare il chiamante.
+    /// </para>
+    /// <para>
+    /// <b>Con la chiamata in attesa, sì</b>, e la distinzione è tutta qui. Mettere in
+    /// attesa e poi comporre è la strada dichiarata per procurarsi la seconda chiamata
+    /// di una conferenza a tre, ed è anche il modo normale di telefonare a un collega
+    /// mentre un chiamante aspetta. Chi ha premuto il tasto dell'attesa ha già detto
+    /// cosa vuole; chi non l'ha premuto sta parlando con qualcuno.
+    /// </para>
+    /// <para>
+    /// La regola non riguarda il trasferimento, che passa da un'altra strada: durante
+    /// la procedura il chiamante è già parcheggiato, quindi qui non c'è nessuno in
+    /// linea e la composizione della destinazione resta possibile.
+    /// </para>
+    /// </remarks>
+    public bool CanDial => !IsTalking;
 
     /// <summary>Il trasferimento è in una delle sue fasi operative.</summary>
     /// <remarks>

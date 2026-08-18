@@ -3382,6 +3382,35 @@ public partial class MainWindow : Window
             return;
         }
 
+        // CON QUALCUNO IN LINEA NON SI COMPONE, E INVIO NON FA NIENTE.
+        //
+        // E' il caso dell'operatore che ha il chiamante in linea, digita l'interno a
+        // cui vuole passarlo e preme Invio invece del tasto di trasferimento. In
+        // modalita' standard Invio non e' il tasto del trasferimento — lo e' in
+        // modalita' semplificata — quindi finiva qui, e qui si componeva: partiva una
+        // seconda chiamata in parallelo mentre il chiamante restava in linea, perche'
+        // comporre non mette in attesa nessuno.
+        //
+        // Il danno non e' la seconda linea, e' che non si sente. L'unico riscontro
+        // era "Chiamata a 4021", che a chi si aspettava un trasferimento verso il 4021
+        // suona come una conferma: l'operatore lo scopriva dal chiamante che
+        // protestava, non dal programma.
+        //
+        // Il tasto viene consumato dal gestore che porta qui, quindi la pressione non
+        // prosegue altrove: si ferma, in silenzio, come chiesto. La riga di registro
+        // resta perche' "ho premuto e non e' successo niente" dev'essere una domanda
+        // con risposta.
+        //
+        // Con la chiamata IN ATTESA si compone eccome: e' la strada per procurarsi la
+        // seconda chiamata di una conferenza. La regola sta in CallActionContext.CanDial.
+        if (!CurrentActionContext().CanDial)
+        {
+            _log.LogDebug(
+                "Composizione ignorata: c'e' una conversazione in corso. "
+                + "Per passare il chiamante si usa il tasto di trasferimento");
+            return;
+        }
+
         // Stessa ragione del ramo del trasferimento, che sta poche righe sopra: la
         // digitazione e' finita nell'istante in cui si preme Invio, e va dichiarato
         // PRIMA di comporre. Il campo contiene ancora il testo mentre la chiamata

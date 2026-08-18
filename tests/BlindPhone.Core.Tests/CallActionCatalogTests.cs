@@ -1,4 +1,4 @@
-using BlindPhone.Core.Domain;
+﻿using BlindPhone.Core.Domain;
 using BlindPhone.Core.Services;
 using Xunit;
 
@@ -511,5 +511,81 @@ public sealed class CallActionCatalogTests
             .ToList();
 
         Assert.Contains(CallAction.HangUp, azioni);
+    }
+
+    // -----------------------------------------------------------------------
+    // Comporre mentre qualcuno e' in linea
+    // -----------------------------------------------------------------------
+    //
+    // NASCE DA UN INVIO PREMUTO AL POSTO DEL TASTO DI TRASFERIMENTO.
+    //
+    // In modalita' standard Invio non e' il tasto del trasferimento — lo e' in
+    // modalita' semplificata — quindi con il chiamante in linea e l'interno gia'
+    // digitato finiva sulla composizione: partiva una seconda chiamata in parallelo,
+    // il chiamante restava in linea senza essere messo in attesa da nessuno, e
+    // l'operatore si ritrovava due linee aperte.
+    //
+    // Il danno peggiore era che non si sentiva: l'unico riscontro era "Chiamata a
+    // 4021", che a chi si aspettava un trasferimento verso il 4021 suona come una
+    // conferma.
+
+    [Fact]
+    public void SenzaChiamateSiCompone()
+        => Assert.True(new CallActionContext().CanDial);
+
+    [Fact]
+    public void ConQualcunoInLineaNonSiCompone()
+        => Assert.False(InConversazione.CanDial);
+
+    [Fact]
+    public void InConferenzaNonSiCompone()
+    {
+        // Stessa ragione moltiplicata per due: i presenti che sentono l'operatore
+        // sono due, e nessuno dei due va lasciato dentro una linea che si sdoppia.
+        Assert.False(new CallActionContext(IsConferenceActive: true).CanDial);
+    }
+
+    [Fact]
+    public void ConLaChiamataInAttesaSiComponeEccome()
+    {
+        // E' LA META' DELLA REGOLA CHE NON DEVE REGREDIRE.
+        //
+        // Mettere in attesa e poi comporre e' la strada dichiarata per procurarsi la
+        // seconda chiamata di una conferenza a tre, ed e' anche il modo normale di
+        // telefonare a un collega mentre un chiamante aspetta. Chi ha premuto il tasto
+        // dell'attesa ha gia' dichiarato cosa vuole.
+        Assert.True(new CallActionContext(HeldCount: 1).CanDial);
+    }
+
+    [Fact]
+    public void DigitandoLaDestinazioneDelTrasferimentoSiCompone()
+    {
+        // Durante la procedura il chiamante e' parcheggiato, quindi in linea non c'e'
+        // nessuno: la destinazione si digita e la si manda. Il trasferimento passa
+        // comunque da un'altra strada, ma la regola non deve ostacolarlo.
+        var stato = new CallActionContext(
+            HeldCount: 1, TransferPhase: TransferPhase.EnteringDestination);
+
+        Assert.True(stato.CanDial);
+    }
+
+    [Fact]
+    public void DuranteLaConsultazioneNonSiCompone()
+    {
+        // Qui in linea c'e' l'interno a cui si sta annunciando la chiamata: una terza
+        // linea non la vuole nessuno.
+        var stato = new CallActionContext(
+            HasActiveCall: true, HeldCount: 1, TransferPhase: TransferPhase.Consulting);
+
+        Assert.False(stato.CanDial);
+    }
+
+    [Fact]
+    public void UnaChiamataCheSquillaNonImpedisceDiComporre()
+    {
+        // Confine dichiarato: "in linea" vuol dire conversazione in corso. Una
+        // chiamata che squilla e a cui non si e' ancora risposto non lo e', e chi
+        // compone in quel momento sta facendo una cosa che ha scelto.
+        Assert.True(new CallActionContext(HasRingingCall: true).CanDial);
     }
 }
