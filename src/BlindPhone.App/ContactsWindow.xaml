@@ -1,3 +1,19 @@
+﻿<!--
+    ShowInTaskbar="True" NON E' UN DETTAGLIO ESTETICO: DECIDE ALT+TAB.
+
+    Una finestra di proprieta' di un'altra compare nell'elenco di ALT+TAB solo se
+    porta lo stile esteso WS_EX_APPWINDOW, e WPF glielo mette quando ShowInTaskbar
+    e' vero. Con il valore predefinito dei dialoghi - falso - questa finestra
+    spariva da ALT+TAB e dalla barra delle applicazioni: chi la lasciava, anche solo
+    perche' una chiamata entrante ha portato avanti la finestra principale, non
+    aveva piu' modo di tornarci se non chiudendo e riaprendo.
+
+    Per chi non vede lo schermo e' un vicolo cieco: la finestra c'e', ha il fuoco
+    da qualche parte, ma nessun gesto di sistema la raggiunge.
+
+    Misurato: senza, TOOLWINDOW=False e APPWINDOW=False, quindi fuori da ALT+TAB.
+    Vedi FinestreInAltTabTests.
+-->
 <Window x:Class="BlindPhone.App.ContactsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -5,7 +21,7 @@
         Height="620" Width="920"
         MinHeight="420" MinWidth="640"
         WindowStartupLocation="CenterOwner"
-        ShowInTaskbar="False"
+        ShowInTaskbar="True"
         Background="{DynamicResource SurfaceBrush}"
         PreviewKeyDown="OnWindowPreviewKeyDown">
 
