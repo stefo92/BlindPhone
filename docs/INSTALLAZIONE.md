@@ -25,9 +25,9 @@ wix extension add -g WixToolset.UI.wixext/5.0.2
 wix extension add -g WixToolset.Util.wixext/5.0.2
 ```
 
-Lo script pubblica l'applicazione in `artifacts\pubblicazione` e scrive il
-pacchetto in `dist\BlindPhone-<versione>-x64.msi`. Circa **62 MB**, per **170 MB**
-installati.
+Lo script pubblica l'applicazione in `artifacts\pubblicazione-<architettura>` e
+scrive il pacchetto in `dist\BlindPhone-<versione>-<architettura>.msi`. Circa
+**62 MB**, per **170 MB** installati.
 
 Prima di costruire il pacchetto lo script verifica che nella cartella di
 pubblicazione non sia finito nulla di personale, e **si ferma** se ne trova. Il
@@ -47,7 +47,41 @@ powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1 -Versione 1
 ```
 
 Con `-SaltaPubblicazione` si riusa la pubblicazione esistente: serve per provare
-modifiche al solo `installer\BlindPhone.wxs` senza ricompilare tutto.
+modifiche al solo `installer\BlindPhone.wxs` senza ricompilare tutto. La
+pubblicazione riusata è quella dell'architettura richiesta, che sta in una cartella
+propria: così non può capitare di impacchettare binari x64 dentro un pacchetto
+dichiarato arm64.
+
+### Due architetture, due pacchetti
+
+Senza `-Architettura` si costruisce per **x64**, che è la postazione normale. Per
+Windows on ARM — i portatili con processore Snapdragon, e le macchine virtuali ARM
+su Mac Apple Silicon:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1 -Architettura arm64
+```
+
+I due pacchetti si distinguono dal nome e **non sono intercambiabili**. Il
+pacchetto x64 si installa anche su Windows on ARM, dove l'emulazione lo fa
+funzionare: è la via di ripiego, e costa emulazione su un programma che deve stare
+dietro all'audio in tempo reale. Il contrario non vale — un pacchetto arm64 su una
+postazione x64 viene rifiutato da Windows Installer.
+
+**Attenzione alla cartella degli aggiornamenti**, se la si usa per distribuire. Chi
+cerca un aggiornamento guarda il numero di versione e non l'architettura: due
+pacchetti della stessa versione nella stessa cartella remota si escludono a
+vicenda, e una postazione può ritrovarsi proposto il pacchetto dell'architettura
+sbagliata. Le due architetture vanno in **due cartelle distinte**, ognuna con il
+proprio file delle novità, e ogni postazione punta alla sua.
+
+Il collegamento diretto a NVDA c'è su entrambe le architetture, e non per caso: il
+client controller di NV Access è codice nativo, e un processo arm64 non carica la
+copia x64. Le due copie stanno in `lib\nvda\x64\` e `lib\nvda\arm64\`, e la
+compilazione ne porta accanto all'eseguibile **una sola**, quella
+dell'architettura in costruzione. Chi aggiorna la libreria le aggiorni entrambe:
+`lib\nvda\LEGGIMI.md` riporta impronte e versioni, e spiega perché la variante
+`arm64ec` del pacchetto di NV Access non è quella che serve.
 
 ### Il pacchetto include il motore di esecuzione .NET
 
@@ -63,8 +97,8 @@ gruppo) conviene il pacchetto leggero:
 powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1 -Autonomo $false
 ```
 
-Il file prodotto si chiama `BlindPhone-<versione>-x64-richiede-dotnet.msi`, e il
-nome è esplicito apposta: i due pacchetti non vanno confusi in distribuzione.
+Il file prodotto si chiama `BlindPhone-<versione>-<architettura>-richiede-dotnet.msi`,
+e il nome è esplicito apposta: i due pacchetti non vanno confusi in distribuzione.
 
 ---
 

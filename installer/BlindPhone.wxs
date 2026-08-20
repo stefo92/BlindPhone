@@ -287,9 +287,20 @@
         Impersonate: il programma parte con l'utenza dell'operatore, non con
         quella amministrativa usata per installare. Senza, BlindPhone leggerebbe e
         scriverebbe la configurazione nel profilo sbagliato.
+
+        IL SUFFISSO DELL'ARCHITETTURA NON SI SCRIVE A MANO.
+
+        La libreria di azioni ausiliarie di WiX esiste in una copia per piattaforma
+        (Wix4UtilCA_X64 per i pacchetti x64, Wix4UtilCA_A64 per quelli arm64) e il
+        nome giusto arriva da sys.BUILDARCHSHORT, cioe' dalla stessa -arch
+        passata al compilatore. Scritto a mano resterebbe indietro al primo
+        pacchetto costruito per un'altra architettura, e resterebbe indietro in
+        silenzio: la casella "Avvia BlindPhone" dell'ultima pagina e' l'unica cosa
+        che dipende da questa azione, quindi un pacchetto sbagliato si installa
+        benissimo e non parte solo alla fine.
     -->
     <CustomAction Id="AvviaApplicazione"
-                  BinaryRef="Wix4UtilCA_X64"
+                  BinaryRef="Wix4UtilCA_$(sys.BUILDARCHSHORT)"
                   DllEntry="WixShellExec"
                   Impersonate="yes" />
 

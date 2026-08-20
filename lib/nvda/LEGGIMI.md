@@ -1,43 +1,73 @@
 ﻿# Client controller di NVDA
 
-In questa cartella sta **`nvdaControllerClient.dll` a 64 bit**, la libreria con cui
-un'applicazione parla e scrive in braille attraverso NVDA.
+In questa cartella sta **`nvdaControllerClient.dll`**, la libreria con cui
+un'applicazione parla e scrive in braille attraverso NVDA. Ce n'è **una copia per
+architettura**, con lo stesso nome di file, in due sottocartelle:
 
-Non è software di questo progetto: è un binario di terze parti, prodotto da NV Access.
-Viene distribuito insieme a BlindPhone e la compilazione lo copia nella cartella di
-uscita.
+```
+lib\nvda\x64\nvdaControllerClient.dll
+lib\nvda\arm64\nvdaControllerClient.dll
+```
 
-| | |
-|---|---|
-| **Architettura** | x64 (PE32+) |
-| **Versione** | 2026.1.1.55980 |
-| **SHA-256** | `2FE60CF00BE929AAE32E95C1E1507A20ADA4902C8FEC273B3CC2D3BF5472932A` |
-| **Funzioni esportate** | `testIfRunning`, `speakText`, `speakSsml`, `brailleMessage`, `cancelSpeech`, `getProcessId`, `setOnSsmlMarkReachedCallback` |
+È codice nativo, e non basta che sia a 64 bit: un processo arm64 non carica la copia
+x64, e viceversa. `src\BlindPhone.App\BlindPhone.App.csproj` sceglie la cartella in base
+all'architettura per cui si pubblica e ne copia **una sola** accanto all'eseguibile.
 
-Il numero di versione segue la numerazione delle release di NVDA, quindi la libreria
-proviene dalla **2026.1.1**: è il dato con cui verificare di avere il client abbinato
-alla versione di NVDA installata sulle postazioni.
+Non è software di questo progetto: sono binari di terze parti, prodotti da NV Access.
+Vengono distribuiti insieme a BlindPhone e la compilazione copia nella cartella di
+uscita quello che serve.
+
+| | x64 | arm64 |
+|---|---|---|
+| **Machine (PE)** | `0x8664` AMD64 | `0xAA64` ARM64 |
+| **Metadati ibridi** | nessuno | nessuno |
+| **Versione** | 2026.1.1.55980 | 2026.1.1.55980 |
+| **Dimensione** | 262.808 byte | 239.256 byte |
+| **SHA-256** | `2FE60CF00BE929AAE32E95C1E1507A20ADA4902C8FEC273B3CC2D3BF5472932A` | `1A2755C7864701E0EA6805499F1955B45758BA53DEA46A3FA83311F8589D2AF5` |
+
+Le funzioni esportate sono le stesse nelle due copie, e sono quelle che il bridge
+chiama: `nvdaController_testIfRunning`, `nvdaController_speakText`,
+`nvdaController_speakSsml`, `nvdaController_brailleMessage`,
+`nvdaController_cancelSpeech`, `nvdaController_getProcessId`,
+`nvdaController_setOnSsmlMarkReachedCallback`.
+
+Il numero di versione segue la numerazione delle release di NVDA, quindi le librerie
+provengono dalla **2026.1.1**: è il dato con cui verificare di avere il client abbinato
+alla versione di NVDA installata sulle postazioni. Le due copie vanno tenute alla stessa
+versione — sono la stessa libreria compilata due volte, e una postazione arm64 con un
+client più vecchio di quello x64 diventerebbe un caso da spiegare.
 
 **Manca però il blocco testuale della risorsa di versione**: né produttore, né nome del
 prodotto, né copyright. Sono i campi che avrebbero aiutato sulla licenza, e non ci sono.
-L'impronta qui sopra serve a questo — va confrontata con quella del pacchetto ufficiale
-di NV Access prima di sostituire il file, e va rifatta se lo si aggiorna.
+Le impronte qui sopra servono a questo — vanno confrontate con quelle del pacchetto
+ufficiale di NV Access prima di sostituire un file, e vanno rifatte se si aggiorna.
 
 ## Dove prenderla
 
 Nel pacchetto *NVDA Controller Client* che NV Access pubblica insieme a ogni versione di
-NVDA. Serve la variante **a 64 bit**: nei pacchetti recenti è quella nella cartella
-`x64`, in quelli storici è il file già chiamato `nvdaControllerClient64.dll`.
+NVDA. Le copie che servono stanno nelle cartelle `x64` e `arm64` del pacchetto; in quelli
+storici la x64 è il file già chiamato `nvdaControllerClient64.dll`.
 
 Vanno bene entrambe le forme. Il risolutore in
 `src/BlindPhone.Accessibility/ScreenReaderBridges.cs` prova tutti e due i nomi, perché il
 pacchetto ha cambiato convenzione: prima l'architettura stava nel nome del file, adesso
 sta nella cartella. Non rinominare niente.
 
+**La cartella `arm64ec` del pacchetto non si usa, ed è la scelta meno ovvia di questa
+pagina.** ARM64EC è l'ABI di compatibilità con x64 di Windows on ARM: quella libreria si
+dichiara `0x8664` (AMD64) nell'intestazione e porta i metadati ibridi CHPE, e viene
+caricata dai processi x64 emulati e da quelli ARM64EC. BlindPhone per arm64 è pubblicato
+come processo **arm64 puro**, e in un processo arm64 puro quella copia non entra: serve
+la `arm64`. Avrebbe senso solo se un domani BlindPhone dovesse ospitare nel proprio
+processo componenti x64 di terze parti, cioè il motivo per cui ARM64EC esiste.
+
 **Attenzione all'architettura**, che è l'errore facile: il pacchetto contiene anche la
-versione a 32 bit, con lo stesso nome, in un'altra cartella. Se finisce qui quella
-sbagliata il registro lo dice a chiare lettere — «architettura sbagliata: serve la
-versione a 64 bit» — invece di lasciare un'eccezione da interpretare.
+versione a 32 bit, con lo stesso nome, in un'altra cartella, oltre alla `arm64ec` di cui
+sopra. Se in una delle due sottocartelle finisce la copia sbagliata il registro lo dice —
+«architettura sbagliata» — invece di lasciare un'eccezione da interpretare. Il modo
+rapido per riconoscerle è il campo *machine* dell'intestazione PE, riportato nella
+tabella qui sopra: `0xAA64` è arm64, `0x8664` senza metadati CHPE è x64, `0x8664` con
+metadati CHPE è arm64ec.
 
 ## Come verificare che sia entrata in servizio
 
@@ -73,7 +103,10 @@ l'assunzione, perché dice se il testo è stato accettato.
 ## Licenza: cosa manca ancora
 
 La libreria è dichiarata fra le dipendenze in `publiccode.yml`, ed è inclusa nel pacchetto
-di installazione per decisione del titolare del progetto.
+di installazione per decisione del titolare del progetto. Con la copia arm64 i binari di
+terze parti nel repository sono **due**: stessa libreria, stessa versione, stesso
+pacchetto di origine, quindi la verifica di licenza resta una sola — ma va chiusa per
+entrambe le architetture distribuite.
 
 **Il file di licenza che accompagna il pacchetto di NV Access non è ancora stato
 depositato qui**, e finché manca la verifica di compatibilità non è fatta: BlindPhone è

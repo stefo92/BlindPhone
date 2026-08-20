@@ -19,6 +19,16 @@
     Directory.Build.props, cosi' che i binari e il pacchetto non possano
     divergere.
 
+.PARAMETER Architettura
+    Architettura del processore della postazione: x64 (predefinita) oppure arm64.
+
+    Sono due pacchetti distinti e non intercambiabili, e vanno distribuiti come
+    tali: il nome del file porta l'architettura apposta. Un pacchetto x64 si
+    installa anche su Windows on ARM, dove l'emulazione lo fa funzionare, ma paga
+    l'emulazione su un programma che deve stare dietro all'audio in tempo reale.
+    Il contrario non vale affatto: un pacchetto arm64 su una postazione x64 non
+    parte.
+
 .PARAMETER Autonomo
     Se vero (predefinito) il pacchetto porta dentro di se' il motore di
     esecuzione .NET e non ha prerequisiti. Se falso produce un pacchetto molto
@@ -28,18 +38,25 @@
 
 .PARAMETER SaltaPubblicazione
     Riusa la cartella di pubblicazione esistente. Utile per provare modifiche al
-    solo file .wxs senza ricompilare l'applicazione.
+    solo file .wxs senza ricompilare l'applicazione. La cartella riusata e' quella
+    dell'architettura richiesta, non l'ultima costruita: le due stanno in cartelle
+    separate proprio perche' non si possano scambiare.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1 -Versione 1.0.0
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1 -Architettura arm64
 #>
 
 [CmdletBinding()]
 param(
     [string] $Versione,
+    [ValidateSet('x64', 'arm64')]
+    [string] $Architettura = 'x64',
     [bool] $Autonomo = $true,
     [switch] $SaltaPubblicazione
 )
@@ -55,8 +72,14 @@ $progetto = Join-Path $radice 'src\BlindPhone.App\BlindPhone.App.csproj'
 $sorgenteWix = Join-Path $radice 'installer\BlindPhone.wxs'
 $cartellaGrafica = Join-Path $radice 'installer'
 $fileIcona = Join-Path $radice 'src\BlindPhone.App\blindphone.ico'
-$cartellaPubblicazione = Join-Path $radice 'artifacts\pubblicazione'
 $cartellaDist = Join-Path $radice 'dist'
+
+# Una cartella di pubblicazione per architettura, e non una sola riusata a turno.
+# Con una cartella unica, -SaltaPubblicazione dopo una compilazione x64 avrebbe
+# infilato binari x64 dentro un pacchetto dichiarato arm64: un pacchetto che si
+# installa senza un errore e poi non parte, cioe' il guasto piu' costoso da capire
+# fra quelli possibili qui.
+$cartellaPubblicazione = Join-Path $radice "artifacts\pubblicazione-$Architettura"
 
 # ---------------------------------------------------------------------------
 # Versione
@@ -83,6 +106,7 @@ if ($Versione -notmatch '^\d+\.\d+\.\d+$') {
 }
 
 Write-Host "BlindPhone $etichetta (versione del pacchetto $Versione)" -ForegroundColor Cyan
+Write-Host "Architettura $Architettura"
 Write-Host ("Pacchetto {0}" -f $(if ($Autonomo) { 'autonomo (include .NET)' } else { 'dipendente da .NET Desktop Runtime 9' }))
 
 # ---------------------------------------------------------------------------
@@ -132,7 +156,7 @@ else {
     $argomenti = @(
         'publish', $progetto,
         '-c', 'Release',
-        '-r', 'win-x64',
+        '-r', "win-$Architettura",
         "--self-contained=$($Autonomo.ToString().ToLower())",
         '-o', $cartellaPubblicazione,
         '--nologo', '-v', 'q'
@@ -242,13 +266,13 @@ Write-Host "  nessun dato personale nella pubblicazione (verificati nomi, estens
 if (-not (Test-Path $cartellaDist)) { New-Item -ItemType Directory -Path $cartellaDist -Force | Out-Null }
 
 $suffisso = if ($Autonomo) { '' } else { '-richiede-dotnet' }
-$pacchetto = Join-Path $cartellaDist "BlindPhone-$Versione-x64$suffisso.msi"
+$pacchetto = Join-Path $cartellaDist "BlindPhone-$Versione-$Architettura$suffisso.msi"
 
 Write-Host "`nCostruzione del pacchetto..."
 
 $argomentiWix = @(
     'build', $sorgenteWix,
-    '-arch', 'x64',
+    '-arch', $Architettura,
     '-culture', 'it-IT',
     '-ext', 'WixToolset.UI.wixext',
     '-ext', 'WixToolset.Util.wixext',

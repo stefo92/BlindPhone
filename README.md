@@ -54,6 +54,11 @@ perché include il motore di esecuzione .NET. Installa in `C:\Program Files\Blin
 per tutti gli utenti, crea i collegamenti nel menu Start e sul desktop, e si
 aggiorna installando la versione nuova sopra la vecchia.
 
+Con `-Architettura arm64` produce il pacchetto per Windows on ARM, che è un
+pacchetto distinto e non intercambiabile con quello x64. I dettagli, comprese le
+due cartelle di aggiornamento che servono per distribuirli entrambi, stanno in
+[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md).
+
 La cartella dei dati dell'operatore (`%APPDATA%\BlindPhone`: configurazione,
 rubrica, registri) non viene toccata né dall'aggiornamento né dalla
 disinstallazione.

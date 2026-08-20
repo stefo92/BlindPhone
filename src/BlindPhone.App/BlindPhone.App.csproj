@@ -102,7 +102,8 @@
 
     E' la libreria che NV Access distribuisce perche' un'applicazione possa parlare
     e scrivere in braille attraverso NVDA. Non e' nostra e non si compila da qui:
-    va deposta in lib\nvda\, e lib\nvda\LEGGIMI.md spiega dove prenderla.
+    va deposta in lib\nvda\<architettura>\, e lib\nvda\LEGGIMI.md spiega dove
+    prenderla.
 
     LA CONDIZIONE NON E' PRUDENZA ECCESSIVA. Il file non sta nel repository — e'
     un binario di terze parti con una propria licenza — quindi su una copia appena
@@ -115,10 +116,31 @@
     Il nome si conserva: il risolutore in ScreenReaderBridges.cs accetta sia
     nvdaControllerClient.dll dei pacchetti recenti sia nvdaControllerClient64.dll
     di quelli storici, quindi vale l'uno o l'altro senza rinominare niente.
+
+    UNA COPIA PER ARCHITETTURA, E NE VIENE COPIATA UNA SOLA.
+
+    La libreria e' codice nativo, quindi non basta che sia a 64 bit: un processo
+    arm64 non carica la copia x64, e viceversa. Le due stanno in lib\nvda\x64\ e
+    lib\nvda\arm64\, con lo stesso nome di file, e qui si sceglie la cartella in base
+    all'architettura per cui si sta pubblicando. Copiarle entrambe non sarebbe
+    un'alternativa: hanno lo stesso nome e finirebbero nello stesso posto.
   -->
+  <PropertyGroup>
+    <!--
+      Con -r la scelta e' dichiarata dalla pubblicazione. Senza, siamo in una
+      compilazione di sviluppo che gira sulla macchina di chi la lancia, e la copia
+      giusta e' quella della macchina: e' l'unico caso in cui l'architettura non
+      viene detta da nessuno e va indovinata.
+    -->
+    <ArchitetturaClientNvda Condition="'$(RuntimeIdentifier)' == 'win-arm64'">arm64</ArchitetturaClientNvda>
+    <ArchitetturaClientNvda Condition="'$(RuntimeIdentifier)' == 'win-x64'">x64</ArchitetturaClientNvda>
+    <ArchitetturaClientNvda Condition="'$(ArchitetturaClientNvda)' == '' and '$(RuntimeIdentifier)' == '' and '$(PROCESSOR_ARCHITECTURE)' == 'ARM64'">arm64</ArchitetturaClientNvda>
+    <ArchitetturaClientNvda Condition="'$(ArchitetturaClientNvda)' == ''">x64</ArchitetturaClientNvda>
+  </PropertyGroup>
+
   <ItemGroup>
-    <None Include="..\..\lib\nvda\nvdaControllerClient*.dll"
-          Condition="Exists('..\..\lib\nvda')">
+    <None Include="..\..\lib\nvda\$(ArchitetturaClientNvda)\nvdaControllerClient*.dll"
+          Condition="Exists('..\..\lib\nvda\$(ArchitetturaClientNvda)')">
       <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
