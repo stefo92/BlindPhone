@@ -68,6 +68,13 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
     public IPresenceSource? PresenceSource => null;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// In modalita' simulata non c'e' nessun centralino a cui chiedere: il quadro dei
+    /// turni resta vuoto invece di mostrare colleghi inventati.
+    /// </remarks>
+    public IReachabilityProbe? ReachabilityProbe => null;
+
+    /// <inheritdoc />
     public IReadOnlyList<DiagnosticCounter> DiagnosticCounters =>
     [
         new("Motore telefonico", "SIMULATO - nessuna telefonata reale"),

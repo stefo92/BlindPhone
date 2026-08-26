@@ -70,11 +70,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private readonly ILogger<SipTelephonyEngine> _log;
     private readonly ILogger<SipAudioEndPoint> _audioEndPointLogger;
     private readonly ILogger<SipPresenceSource> _presenceLogger;
+    private readonly ILogger<SipOptionsProbe> _probeLogger;
 
     private readonly ConcurrentDictionary<string, CallContext> _calls = new();
 
     private SIPTransport? _transport;
     private SipPresenceSource? _presenceSource;
+    private SipOptionsProbe? _optionsProbe;
     private SIPRegistrationUserAgent? _registration;
     private SipRegistrationState _registrationState;
     private int _callCounter;
@@ -157,6 +159,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// <param name="logger">Log diagnostico.</param>
     /// <param name="audioEndPointLogger">Log del percorso audio.</param>
     /// <param name="presenceLogger">Log della sorveglianza degli interni per via SIP.</param>
+    /// <param name="probeLogger">Log del sondaggio di raggiungibilita sugli interni.</param>
     /// <param name="certificateTrust">
     /// Politica di fiducia sui certificati, usata solo con trasporto TLS. Se omessa
     /// vale la verifica di sistema e basta: un certificato autofirmato viene
@@ -170,6 +173,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         ILogger<SipTelephonyEngine>? logger = null,
         ILogger<SipAudioEndPoint>? audioEndPointLogger = null,
         ILogger<SipPresenceSource>? presenceLogger = null,
+        ILogger<SipOptionsProbe>? probeLogger = null,
         CertificateTrustService? certificateTrust = null)
     {
         _account = account;
@@ -180,6 +184,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _log = logger ?? NullLogger<SipTelephonyEngine>.Instance;
         _audioEndPointLogger = audioEndPointLogger ?? NullLogger<SipAudioEndPoint>.Instance;
         _presenceLogger = presenceLogger ?? NullLogger<SipPresenceSource>.Instance;
+        _probeLogger = probeLogger ?? NullLogger<SipOptionsProbe>.Instance;
         _registrationState = new SipRegistrationState(RegistrationStatus.Unregistered, account.Name);
     }
 
@@ -210,6 +215,9 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public IPresenceSource? PresenceSource => _presenceSource;
+
+    /// <inheritdoc />
+    public IReachabilityProbe? ReachabilityProbe => _optionsProbe;
 
     /// <inheritdoc />
     /// <remarks>
@@ -379,6 +387,11 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // La sorveglianza degli interni per via SIP nasce con il trasporto: prima non
         // c'e' nulla su cui sottoscrivere. E' il ripiego per i centralini senza API.
         _presenceSource = new SipPresenceSource(_transport, _account, _presenceLogger);
+
+        // Il sondaggio nasce con il trasporto per la stessa ragione: prima non c'e' nulla
+        // a cui chiedere. E' la strada che resta quando le sottoscrizioni vengono
+        // rifiutate, ed e' l'unica che il quadro dei turni possa usare su questo impianto.
+        _optionsProbe = new SipOptionsProbe(_transport, _account, _probeLogger);
 
         StartRegistration();
         return Task.CompletedTask;

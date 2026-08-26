@@ -68,6 +68,7 @@ public partial class SettingsWindow : Window
     private readonly ITelephonyEngine _telephony;
     private readonly IQueueProvider _queueProvider;
     private readonly PresenceMonitorService _presence;
+    private readonly ShiftBoardService _shift;
     private readonly FileLoggerProvider _logProvider;
     private readonly LogLevelSwitch _logSwitch;
     private readonly HotkeyProfileStore _hotkeyStore;
@@ -96,6 +97,7 @@ public partial class SettingsWindow : Window
     /// <param name="telephony">Motore telefonico, per lo stato e i contatori diagnostici.</param>
     /// <param name="queueProvider">Connettore di coda, per lo stato dell'agente.</param>
     /// <param name="presence">Stato degli interni, per il riepilogo diagnostico.</param>
+    /// <param name="shift">Quadro dei colleghi in turno, per dire da dove arriva lo stato.</param>
     /// <param name="logProvider">Registro su file, per posizione e rotazione.</param>
     /// <param name="logSwitch">Livello del registro, modificabile a caldo.</param>
     /// <param name="hotkeyStore">Deposito dei profili di scorciatoie.</param>
@@ -119,6 +121,7 @@ public partial class SettingsWindow : Window
         ITelephonyEngine telephony,
         IQueueProvider queueProvider,
         PresenceMonitorService presence,
+        ShiftBoardService shift,
         FileLoggerProvider logProvider,
         LogLevelSwitch logSwitch,
         HotkeyProfileStore hotkeyStore,
@@ -139,6 +142,7 @@ public partial class SettingsWindow : Window
         _telephony = telephony;
         _queueProvider = queueProvider;
         _presence = presence;
+        _shift = shift;
         _logProvider = logProvider;
         _logSwitch = logSwitch;
         _hotkeyStore = hotkeyStore;
@@ -801,6 +805,11 @@ public partial class SettingsWindow : Window
 
         AnnounceRecording.IsChecked = settings.Calls.AnnounceRecording;
         UpdateAnnounceRecordingHint();
+
+        // Colleghi in turno
+        ColleaguesMonitored.Text = settings.Colleagues.Monitored;
+        ColleaguesRefresh.Text = settings.Colleagues.RefreshSeconds.ToString(CultureInfo.InvariantCulture);
+        UpdateColleaguesSourceText();
     }
 
     /// <summary>
@@ -831,6 +840,37 @@ public partial class SettingsWindow : Window
         => UpdateSrtpHint();
 
     private void OnAnnounceRecordingChanged(object sender, RoutedEventArgs e) => UpdateAnnounceRecordingHint();
+
+
+    /// <summary>
+    /// Dice da dove sta arrivando lo stato dei colleghi, adesso.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Serve a chiudere la domanda «perché la colonna è vuota».</b> Le strade sono
+    /// tre e non tutte sono disponibili su tutti gli impianti: senza questa riga
+    /// l'operatore vedrebbe una tabella che non si popola e non avrebbe modo di sapere
+    /// se il problema sia l'elenco che ha scritto, il centralino, o BlindPhone.
+    /// </para>
+    /// <para>
+    /// I due casi negativi si dicono per esteso perché si risolvono in modo diverso: un
+    /// centralino che rifiuta il metodo non si convince insistendo, mentre uno che
+    /// risponde per chiunque si aggira collegando l'API.
+    /// </para>
+    /// </remarks>
+    private void UpdateColleaguesSourceText()
+    {
+        var elenco = ColleagueRoster.Parse(ColleaguesMonitored.Text);
+
+        ColleaguesSourceText.Text = elenco.Count switch
+        {
+            0 => "Nessun interno dichiarato: la sezione non compare nella finestra principale.",
+            _ when _shift.MethodRefused => ShiftBoardTexts.ProbeRefused,
+            _ when _shift.AnswersForAnyone => ShiftBoardTexts.CannotDistinguish,
+            1 => $"Un interno sorvegliato. Lo stato arriva da: {_shift.SourceName}.",
+            _ => $"{elenco.Count} interni sorvegliati. Lo stato arriva da: {_shift.SourceName}.",
+        };
+    }
 
     /// <summary>
     /// Spiega che cosa comporta togliere l'avviso di registrazione.
@@ -2704,6 +2744,11 @@ public partial class SettingsWindow : Window
                 WarnOnUnavailableDestination = WarnUnavailable.IsChecked == true,
                 MaxInternalNumberLength = ParseInt(MaxInternalLength.Text, 5),
                 AnnounceRecording = AnnounceRecording.IsChecked == true,
+            },
+            Colleagues = current.Colleagues with
+            {
+                Monitored = ColleagueRoster.Format(ColleagueRoster.Parse(ColleaguesMonitored.Text)),
+                RefreshSeconds = ParseInt(ColleaguesRefresh.Text, 60),
             },
             CallHistoryRetentionDays = ParseInt(SelectedTag(HistoryRetention), CallHistoryRetention.Default),
             Interaction = ParseEnum(SelectedTag(InteractionMode), BlindPhone.Core.Domain.InteractionMode.Standard),

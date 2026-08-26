@@ -245,6 +245,9 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
     public IPresenceSource? PresenceSource => _inner.PresenceSource;
 
     /// <inheritdoc />
+    public IReachabilityProbe? ReachabilityProbe => _inner.ReachabilityProbe;
+
+    /// <inheritdoc />
     public bool IsMuted => _inner.IsMuted;
 
     /// <inheritdoc />

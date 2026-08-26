@@ -85,6 +85,9 @@ public enum HotkeyCommand
     /// <summary>Sposta il focus sull'elenco delle chiamate in coda.</summary>
     FocusQueue,
 
+    /// <summary>Sposta il focus sull'elenco dei colleghi in turno.</summary>
+    FocusColleagues,
+
     /// <summary>Apre la rubrica.</summary>
     OpenContacts,
 

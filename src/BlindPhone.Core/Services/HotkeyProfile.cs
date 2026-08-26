@@ -277,6 +277,16 @@ public sealed class HotkeyProfile
             HotkeyScope.Global));
         AddPair(profile, HotkeyCommand.AnnounceQueueCount, "F12");
 
+        // COLLEGHI IN TURNO SU CONTROL ALT C.
+        //
+        // "C" come colleghi, accanto alle altre combinazioni Control Alt che riguardano
+        // la postazione e non la chiamata in corso. Non e' un comando da usare di
+        // fretta: si preme quando si sta decidendo a chi passare una chiamata, cioe'
+        // con il chiamante gia' in attesa.
+        profile.Set(new HotkeyBinding(
+            HotkeyCommand.FocusColleagues, "C", HotkeyModifiers.Control | HotkeyModifiers.Alt,
+            HotkeyScope.Local));
+
         // Doppia pressione dello stesso tasto: gestita dal servizio, non da un
         // binding separato, perche' l'operatore la percepisce come un unico comando.
         profile.Set(new HotkeyBinding(

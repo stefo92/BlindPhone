@@ -871,6 +871,82 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ============================ COLLEGHI ============================ -->
+            <TabItem x:Name="ColleaguesTab" Header="Co_lleghi"
+                     AutomationProperties.Name="Colleghi da sorvegliare per sapere chi e' in turno">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+
+                        <TextBlock TextWrapping="Wrap"
+                                   Text="Qui si dichiara di quali colleghi si vuole sapere se sono alla postazione. L'elenco compare nella finestra principale e si richiama con il tasto rapido dedicato. Lasciandolo vuoto la sezione non compare e non parte nessuna verifica."
+                                   AutomationProperties.Name="A cosa serve questa scheda" />
+
+                        <Label Target="{Binding ElementName=ColleaguesMonitored}"
+                               Margin="0,14,0,0"
+                               Content="_Interni da sorvegliare, uno per riga" />
+
+                        <!--
+                            UNA CASELLA DI TESTO E NON UNA TABELLA CON I PULSANTI.
+
+                            L'elenco si compila una volta e poi non si tocca per mesi. Una
+                            tabella con «aggiungi» e «rimuovi» costa a chi non vede un giro
+                            di tabulazioni per riga; una casella si compila, si rilegge e
+                            si corregge con i gesti che l'operatore gia' conosce, e ci si
+                            incolla dentro l'elenco che l'ente ha gia' su un foglio.
+                        -->
+                        <TextBox x:Name="ColleaguesMonitored"
+                                 AcceptsReturn="True"
+                                 TextWrapping="NoWrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 MinHeight="220"
+                                 FontFamily="Consolas, Courier New"
+                                 AutomationProperties.Name="Elenco degli interni da sorvegliare"
+                                 AutomationProperties.HelpText="Una riga per collega. Scrivi l'interno e, se vuoi, il nominativo dopo uno spazio: per esempio 4021 Mario Rossi. Senza nominativo il nome viene cercato in rubrica. Le righe che cominciano con il cancelletto vengono ignorate, cosi' si puo' mettere da parte un collega senza cancellarlo." />
+
+                        <TextBlock Margin="0,6,0,0"
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource MutedTextBrush}"
+                                   Text="Esempio: 4021 Mario Rossi, oppure solo 4021 per prendere il nome dalla rubrica. Massimo cinquanta interni."
+                                   AutomationProperties.Name="Esempio di compilazione" />
+
+                        <Label Target="{Binding ElementName=ColleaguesRefresh}"
+                               Margin="0,14,0,0"
+                               Content="Ogni quanti se_condi verificare" />
+                        <TextBox x:Name="ColleaguesRefresh"
+                                 AutomationProperties.Name="Intervallo fra due verifiche, in secondi"
+                                 AutomationProperties.HelpText="Un minuto e' il valore consigliato. Sotto i quindici secondi il valore viene riportato a quindici: un collega non si siede e non si alza ogni cinque secondi, e chiedere piu' spesso peserebbe sul centralino senza cambiare la risposta." />
+
+                        <!--
+                            DA DOVE ARRIVA LO STATO, scritto per esteso.
+
+                            Non e' un dettaglio tecnico: e' la differenza fra una colonna
+                            che dice «occupato» e una che dice soltanto «in turno», e
+                            l'operatore deve poter capire perche' vede l'una o l'altra
+                            senza aprire il registro.
+                        -->
+                        <TextBlock Margin="0,18,0,0"
+                                   FontWeight="Bold"
+                                   Text="Come BlindPhone lo viene a sapere"
+                                   AutomationProperties.Name="Come viene rilevato lo stato" />
+
+                        <TextBlock Margin="0,6,0,0"
+                                   TextWrapping="Wrap"
+                                   Text="Con il collegamento all'API del centralino attivo, lo stato arriva da li' ed e' completo: dice anche se il collega sta parlando. Senza API, BlindPhone chiede al centralino se l'interno risponde, con la stessa domanda che il centralino gira a questa postazione ogni due minuti: si sa se il telefono c'e', non se e' libero. Se il centralino risponde di si' a qualunque interno, anche a uno inesistente, l'elenco lo dichiara invece di mostrare presenze inventate."
+                                   AutomationProperties.Name="Spiegazione delle strade con cui si ottiene lo stato" />
+
+                        <TextBlock x:Name="ColleaguesSourceText"
+                                   Margin="0,12,0,0"
+                                   TextWrapping="Wrap"
+                                   FontWeight="Bold"
+                                   Text=""
+                                   AutomationProperties.Name="Stato attuale della rilevazione"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ============================ TASTI RAPIDI ============================ -->
             <TabItem x:Name="HotkeyTab" Header="_Tasti rapidi"
                      AutomationProperties.Name="Configurazione dei tasti rapidi">

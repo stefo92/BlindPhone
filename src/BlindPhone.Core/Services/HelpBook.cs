@@ -52,6 +52,9 @@ public static class HelpBook
     /// <summary>Argomento della coda.</summary>
     public const string QueueTopicId = "coda";
 
+    /// <summary>Argomento dei colleghi in turno.</summary>
+    public const string ColleaguesTopicId = "colleghi";
+
     /// <summary>Argomento dei tasti rapidi.</summary>
     public const string HotkeysTopicId = "tasti-rapidi";
 
@@ -81,6 +84,7 @@ public static class HelpBook
         Topic(ConferenceTopicId, "Parlare in tre: la conferenza", Conferenza(profile)),
         Topic(DialerTopicId, "Comporre un numero o cercare un nome", Composizione(profile)),
         Topic(QueueTopicId, "La coda e lo stato agente", Coda(profile)),
+        Topic(ColleaguesTopicId, "Sapere chi e' in turno", Colleghi(profile)),
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
         Topic("stato", "Sapere come sta andando", Stato(profile)),
@@ -353,6 +357,25 @@ public static class HelpBook
         Mentre sei fuori servizio il campo di composizione è bloccato e un avviso rosso lampeggia nella finestra. Se provi a digitare, la voce ti ricorda da quanto sei in pausa e con quale tasto rientrare. Le chiamate che avevi già in corso non vengono toccate: mettersi in pausa significa non prenderne di nuove, non far cadere quella che hai in mano.
 
         Oltre una certa attesa scatta un avviso, per non lasciare che qualcuno resti in linea dimenticato. La soglia si regola da Impostazioni, scheda Accessibilità.
+        """;
+
+    private static string Colleghi(HotkeyProfile profile) =>
+        $"""
+        L'elenco dei colleghi dice chi e' alla propria postazione in questo momento. Si consulta con {K(profile, HotkeyCommand.FocusColleagues)}: la voce dice subito quanti sono in turno e nomina chi non c'e', poi con le frecce scorri l'elenco riga per riga. Invio chiama il collega su cui ti trovi; se hai un trasferimento in corso, Invio lo sceglie come destinazione invece di comporre una seconda chiamata.
+
+        Ogni riga dice prima lo stato e poi chi e': e' l'ordine giusto per chi sta scorrendo l'elenco a cercare qualcuno, perche' evita di ascoltare il nome di dieci persone per sapere che non ci sono.
+
+        Quali interni sorvegliare lo decidi tu, in Impostazioni, scheda Colleghi: una riga per collega, prima l'interno e poi il nominativo se vuoi scriverlo a mano. Senza nominativo il nome viene cercato in rubrica. Una riga che comincia con il cancelletto viene ignorata, cosi' puoi mettere da parte chi e' in ferie senza cancellarlo. Finche' l'elenco e' vuoto la sezione non compare nella finestra e non parte nessuna verifica.
+
+        Da dove arriva l'informazione, e perche' conta saperlo.
+
+        Con il collegamento all'API del centralino attivo lo stato e' completo: dice anche se il collega sta parlando, ed e' la strada migliore.
+
+        Senza API, BlindPhone chiede al centralino se l'interno risponde. E' la stessa domanda che il centralino gira a questa postazione ogni due minuti per sapere se e' viva, e funziona su qualunque impianto. Sa una cosa sola pero': se il telefono c'e' o non c'e'. Per questo la colonna dice "in turno" e non "disponibile" — un collega in turno puo' benissimo essere gia' al telefono.
+
+        Se il centralino risponde di si' a qualunque interno, anche a uno che non esiste, BlindPhone se ne accorge e lo dichiara invece di mostrare tutti presenti. Un elenco che dice il falso e' peggio di un elenco che dice di non sapere, perche' ci si agisce sopra: si passerebbe una chiamata a una scrivania vuota.
+
+        La verifica si ripete da sola a intervalli, un minuto per impostazione predefinita, e riparte anche ogni volta che apri l'elenco con il tasto rapido. L'intestazione dice l'ora dell'ultima verifica riuscita: se resta indietro, il centralino non sta rispondendo.
         """;
 
     private static string Rubrica(HotkeyProfile profile) =>

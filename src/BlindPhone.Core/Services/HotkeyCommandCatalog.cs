@@ -89,6 +89,10 @@ public static class HotkeyCommandCatalog
         new(HotkeyCommand.FocusQueue, HotkeyCategory.Navigation, "Vai all'elenco della coda",
             "Porta il cursore sull'elenco delle chiamate in attesa."),
 
+        new(HotkeyCommand.FocusColleagues, HotkeyCategory.Navigation, "Colleghi in turno",
+            "Porta il cursore sull'elenco dei colleghi e dice quanti sono alla postazione. "
+            + "Gli interni da sorvegliare si scrivono in Impostazioni, scheda Colleghi."),
+
         new(HotkeyCommand.OpenContacts, HotkeyCategory.Navigation, "Apri la rubrica",
             "Apre la rubrica con la ricerca gia' attiva. Il testo eventualmente digitato nel campo di "
             + "composizione viene portato dentro come ricerca iniziale."),

@@ -64,6 +64,22 @@ public sealed record QueueRow(
     }
 }
 
+/// <summary>Riga dell'elenco dei colleghi in turno.</summary>
+/// <param name="Status">Stato in parole, per la colonna.</param>
+/// <param name="Name">Nominativo, oppure stringa vuota se non se ne conosce nessuno.</param>
+/// <param name="Number">Interno, in cifre.</param>
+/// <param name="Since">Ora in cui lo stato è diventato quello, oppure stringa vuota.</param>
+/// <param name="AccessibleText">
+/// Quello che lo screen reader legge arrivando sulla riga: lo stato per primo, poi chi
+/// è, con il numero letto cifra per cifra.
+/// </param>
+public sealed record ColleagueRow(
+    string Status,
+    string Name,
+    string Number,
+    string Since,
+    string AccessibleText);
+
 /// <summary>Contatto proposto sotto il campo di composizione.</summary>
 /// <param name="Name">Nominativo.</param>
 /// <param name="Number">Interno da comporre.</param>
@@ -150,6 +166,7 @@ public partial class MainWindow : Window
     private readonly DutyStatusService _duty;
     private readonly CallRecordingController _recording;
     private readonly PresenceMonitorService _presence;
+    private readonly ShiftBoardService _shift;
     private readonly CallHistoryService _history;
     private readonly ITelephonyEngine _telephony;
     private readonly IAnnouncer _announcer;
@@ -169,6 +186,7 @@ public partial class MainWindow : Window
     private readonly AppSettings _settings;
 
     private readonly ObservableCollection<QueueRow> _queueRows = [];
+    private readonly ObservableCollection<ColleagueRow> _colleagueRows = [];
     private readonly ObservableCollection<DialerSuggestion> _suggestions = [];
     private readonly DispatcherTimer _suggestionTimer;
 
@@ -206,6 +224,26 @@ public partial class MainWindow : Window
     /// "applicata e risultata nascosta", e serve a non annunciare all'avvio una
     /// configurazione che l'operatore non ha appena cambiato.
     /// </remarks>
+
+    /// <summary>
+    /// Altezza minima di una sezione a elenco, in pixel indipendenti dal dispositivo.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Misurata, non scelta a occhio.</b> Serve a contenere il titolo della scheda,
+    /// la riga delle intestazioni di colonna e almeno tre voci: sotto, la sezione mostra
+    /// i nomi delle colonne e nient'altro, cioè occupa spazio nella finestra e sul
+    /// percorso di navigazione senza dire niente. A centoventi pixel, provato sul banco
+    /// del layout, si vedeva esattamente questo.
+    /// </para>
+    /// <para>
+    /// Le righe elastiche sono le prime a cedere spazio quando qualcosa sopra cresce.
+    /// Con un minimo dichiarato lo spazio non si prende più da qui: il contenuto sfonda
+    /// la finestra e <see cref="GrowToFitContent"/> la allarga.
+    /// </para>
+    /// </remarks>
+    private const double MinimumListHeight = 180;
+
     private bool? _queueSectionVisible;
 
     /// <summary>Icona nell'area di notifica, se attiva.</summary>
@@ -223,6 +261,7 @@ public partial class MainWindow : Window
     /// <param name="queueProvider">Connettore verso il centralino.</param>
     /// <param name="duty">Orologio del turno e stato di pausa della postazione.</param>
     /// <param name="recording">Registrazione della conversazione.</param>
+    /// <param name="shift">Quadro dei colleghi in turno.</param>
     /// <param name="presence">Stato degli interni: libero, occupato, fuori servizio.</param>
     /// <param name="history">Registrazione delle chiamate nell'elenco delle ultime.</param>
     /// <param name="telephony">Motore telefonico.</param>
@@ -256,6 +295,7 @@ public partial class MainWindow : Window
         DutyStatusService duty,
         CallRecordingController recording,
         PresenceMonitorService presence,
+        ShiftBoardService shift,
         CallHistoryService history,
         ITelephonyEngine telephony,
         IAnnouncer announcer,
@@ -281,6 +321,7 @@ public partial class MainWindow : Window
         _duty = duty;
         _recording = recording;
         _presence = presence;
+        _shift = shift;
         _history = history;
         _telephony = telephony;
         _announcer = announcer;
@@ -302,6 +343,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         QueueList.ItemsSource = _queueRows;
+        ColleaguesList.ItemsSource = _colleagueRows;
         SuggestionsGrid.ItemsSource = _suggestions;
 
         _dialerHelpText = AutomationProperties.GetHelpText(DialerBox);
@@ -322,6 +364,7 @@ public partial class MainWindow : Window
         _announcements.Spoken += OnAnnouncementSpoken;
         _queueProvider.SnapshotUpdated += OnQueueSnapshotUpdated;
         _calls.CallStateChanged += OnCallStateChanged;
+        _shift.Changed += OnShiftBoardChanged;
         _transfer.PhaseChanged += OnTransferPhaseChanged;
         _telephony.RegistrationStateChanged += OnRegistrationChanged;
         _globalHotkeys.HotkeyPressed += OnGlobalHotkeyPressed;
@@ -362,6 +405,14 @@ public partial class MainWindow : Window
         _clockTimer.Start();
 
         await StartServicesAsync().ConfigureAwait(true);
+
+        // L'ELENCO DEI COLLEGHI VIENE DOPO L'AVVIO DEI SERVIZI, e l'ordine conta.
+        //
+        // Il sondaggio di raggiungibilita' nasce con il trasporto SIP: prima non c'e'
+        // nulla a cui chiedere, e la riga di registro che dice da quale strada arriva
+        // lo stato riporterebbe «nessuna» a ogni avvio, cioe' l'informazione sbagliata
+        // proprio nel punto in cui la si va a cercare.
+        await ApplyColleaguesSettingsAsync(_settingsService.Current).ConfigureAwait(true);
 
         UpdateRegistrationText();
         UpdateStatus();
@@ -709,6 +760,11 @@ public partial class MainWindow : Window
         {
             ApplyTraySettings(settings);
             ApplyQueueVisibility(settings);
+
+            // L'elenco dei colleghi cambia piu' spesso di tutto il resto di questa
+            // funzione, perche' cambia quando cambia il personale: chiedere un riavvio
+            // per una riga aggiunta sarebbe sproporzionato.
+            _ = ApplyColleaguesSettingsAsync(settings);
             BuildSuggestionColumns(settings);
 
             // La modalita' di interazione si applica subito, e con essa il nome del
@@ -801,6 +857,231 @@ public partial class MainWindow : Window
             string.Join(", ", SuggestionsGrid.Columns.Select(c => c.Header)));
     }
 
+
+    // -----------------------------------------------------------------------
+    // Colleghi in turno
+    // -----------------------------------------------------------------------
+
+    /// <summary>Se la sezione dei colleghi è a schermo, oppure <c>null</c> prima del primo giro.</summary>
+    private bool? _colleaguesSectionVisible;
+
+
+    /// <summary>
+    /// Riscrive l'elenco dei colleghi quando il quadro cambia.
+    /// </summary>
+    /// <remarks>
+    /// L'evento arriva dal giro di verifica, che gira fuori dal filo dell'interfaccia:
+    /// il passaggio dal dispatcher non è una formalità, è ciò che evita di toccare la
+    /// tabella da un filo che non è il suo.
+    /// </remarks>
+    private void OnShiftBoardChanged(object? sender, EventArgs e)
+        => Dispatcher.Invoke(() =>
+        {
+            ApplyColleaguesVisibility();
+            RefreshColleagues();
+        });
+
+    /// <summary>
+    /// Mostra o toglie la sezione dei colleghi secondo quello che l'operatore ha
+    /// configurato.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Stessa regola della sezione della coda, e per la stessa ragione: senza interni
+    /// da sorvegliare l'elenco resterebbe vuoto per sempre, e un elenco permanentemente
+    /// vuoto sul percorso di navigazione costa una tabulazione e un annuncio a ogni
+    /// giro, tutti i giorni, per non dire mai nulla.
+    /// </para>
+    /// <para>
+    /// Il minimo di altezza c'è per lo stesso motivo per cui c'è su quella della coda:
+    /// è una riga elastica, quindi è la prima a cedere spazio quando qualcosa sopra
+    /// cresce, e ridotta a una fessura mostrerebbe una sezione che c'è e non si legge.
+    /// A zero quando è nascosta, altrimenti resterebbe una fascia vuota in mezzo alla
+    /// finestra.
+    /// </para>
+    /// </remarks>
+    private void ApplyColleaguesVisibility()
+    {
+        var visible = _shift.IsConfigured;
+
+        // Va guardato PRIMA di nascondere: quando un elemento diventa Collapsed WPF gli
+        // toglie il fuoco da se', e da quel momento la domanda "il cursore era li'
+        // dentro?" risponde sempre di no.
+        var hadFocus = ColleaguesSection.IsKeyboardFocusWithin;
+
+        ColleaguesSection.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        ColleaguesRow.Height = visible ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        ColleaguesRow.MinHeight = visible ? MinimumListHeight : 0;
+
+        var previous = _colleaguesSectionVisible;
+        _colleaguesSectionVisible = visible;
+
+        if (!visible && hadFocus) DialerBox.Focus();
+
+        if (previous is null || previous == visible) return;
+
+        _announcer.Announce(Announcement.CommandResponse(
+            visible
+                ? $"Elenco dei colleghi attivo. {LocalKeyName(_hotkeys, HotkeyCommand.FocusColleagues, "Control Alt C")} per consultarlo"
+                : "Elenco dei colleghi tolto dalla finestra: nessun interno da sorvegliare",
+            DateTimeOffset.Now));
+    }
+
+    /// <summary>Riscrive l'elenco dei colleghi con quello che si sa adesso.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>La riga selezionata si conserva.</b> L'elenco si riscrive a ogni giro di
+    /// verifica, e senza questo accorgimento il cursore dell'operatore tornerebbe in
+    /// cima ogni minuto — cioè proprio mentre sta scorrendo per trovare qualcuno.
+    /// </para>
+    /// <para>
+    /// <b>Non parla da sé.</b> Un collega che si alza dalla scrivania non è un fatto
+    /// che debba interrompere una conversazione in corso, e su una squadra di venti
+    /// persone gli annunci sarebbero decine al giorno. Chi vuole sapere come stanno le
+    /// cose lo chiede con il tasto rapido.
+    /// </para>
+    /// </remarks>
+    private void RefreshColleagues()
+    {
+        var selezionato = (ColleaguesList.SelectedItem as ColleagueRow)?.Number;
+        var quadro = _shift.Snapshot();
+        var raggruppamento = _settingsService.Current.Accessibility.DigitGrouping;
+
+        _colleagueRows.Clear();
+
+        foreach (var voce in quadro)
+        {
+            _colleagueRows.Add(new ColleagueRow(
+                ShiftBoardTexts.Status(voce),
+                voce.Name,
+                voce.Number,
+                voce.Since is { } da ? $"dalle {da:HH:mm}" : string.Empty,
+                ShiftBoardTexts.Accessible(voce, raggruppamento)));
+        }
+
+        ColleaguesHeaderText.Text = _shift.CanTrustResults
+            ? ShiftBoardTexts.Header(quadro, _shift.LastUpdatedAt)
+            : ShiftBoardTexts.Header(quadro, _shift.LastUpdatedAt, canTrust: false);
+
+        AutomationProperties.SetHelpText(ColleaguesList, DescribeColleaguesSource());
+
+        if (selezionato is null) return;
+
+        var riga = _colleagueRows.FirstOrDefault(r => r.Number == selezionato);
+        if (riga is not null) ColleaguesList.SelectedItem = riga;
+    }
+
+    /// <summary>Spiega da dove arriva lo stato, e quando non arriva perché.</summary>
+    private string DescribeColleaguesSource()
+    {
+        if (_shift.MethodRefused) return ShiftBoardTexts.ProbeRefused;
+        if (_shift.AnswersForAnyone) return ShiftBoardTexts.CannotDistinguish;
+
+        return "Usa le frecce per scorrere. Invio chiama il collega selezionato. "
+               + $"Lo stato arriva da: {_shift.SourceName}.";
+    }
+
+    /// <summary>
+    /// Porta il cursore sull'elenco dei colleghi e dice come sono messi.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Chiede una verifica prima di parlare.</b> Il quadro si aggiorna a intervalli,
+    /// e l'operatore preme questo tasto proprio quando sta decidendo a chi passare una
+    /// chiamata: un dato di cinquanta secondi fa è vecchio nel momento in cui conta di
+    /// più. La verifica non blocca — si annuncia quello che si sa adesso e l'elenco si
+    /// riscrive da sé quando le risposte arrivano.
+    /// </para>
+    /// <para>
+    /// <b>Con la sezione assente il comando parla lo stesso.</b> Un tasto muto è
+    /// indistinguibile da un tasto che non funziona, e porta a premerlo di nuovo: qui
+    /// dice dove si configurano gli interni da sorvegliare.
+    /// </para>
+    /// </remarks>
+    private void FocusColleaguesList()
+    {
+        if (!_shift.IsConfigured)
+        {
+            _announcer.Announce(Announcement.CommandResponse(
+                ShiftBoardTexts.NotConfigured, DateTimeOffset.Now));
+
+            return;
+        }
+
+        ColleaguesList.Focus();
+
+        if (_colleagueRows.Count > 0 && ColleaguesList.SelectedIndex < 0)
+        {
+            ColleaguesList.SelectedIndex = 0;
+        }
+
+        _announcer.Announce(Announcement.CommandResponse(
+            ShiftBoardTexts.Summary(_shift.Snapshot(), _shift.CanTrustResults),
+            DateTimeOffset.Now));
+
+        // La verifica parte adesso e finisce quando finisce: l'annuncio e' gia' andato
+        // con quello che si sapeva, e l'elenco si riallinea da se' all'arrivo delle
+        // risposte. Attenderla qui bloccherebbe il cursore per qualche secondo.
+        _ = _shift.RefreshAsync();
+    }
+
+    private async void OnColleaguesListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+
+        e.Handled = true;
+        await CallSelectedColleagueAsync().ConfigureAwait(true);
+    }
+
+    private async void OnColleaguesDoubleClick(object sender, MouseButtonEventArgs e)
+        => await CallSelectedColleagueAsync().ConfigureAwait(true);
+
+    /// <summary>
+    /// Chiama il collega selezionato, o lo usa come destinazione del trasferimento.
+    /// </summary>
+    /// <remarks>
+    /// <b>Durante un trasferimento Invio non compone: sceglie.</b> È il gesto per cui
+    /// questo elenco viene consultato più spesso — il chiamante è già in attesa e si sta
+    /// cercando chi c'è — e comporre una seconda chiamata da qui lascerebbe due linee
+    /// aperte al posto di una destinazione scelta.
+    /// </remarks>
+    private async Task CallSelectedColleagueAsync()
+    {
+        if (ColleaguesList.SelectedItem is not ColleagueRow riga) return;
+        if (string.IsNullOrWhiteSpace(riga.Number)) return;
+
+        if (_transfer.Phase == TransferPhase.EnteringDestination)
+        {
+            await _transfer.SetDestinationAsync(riga.Number).ConfigureAwait(true);
+            await _transfer.AttendedTransferNowAsync(riga.Number).ConfigureAwait(true);
+            return;
+        }
+
+        DialerBox.Text = riga.Number;
+        await DialAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Rilegge dalle impostazioni chi sorvegliare e ogni quanto.
+    /// </summary>
+    /// <param name="settings">Configurazione corrente.</param>
+    /// <remarks>
+    /// Va richiamato all'avvio e a ogni salvataggio delle impostazioni: l'elenco dei
+    /// colleghi è la cosa che si tocca più spesso di tutta questa funzione — cambia
+    /// quando cambia il personale — e chiedere un riavvio per una riga aggiunta sarebbe
+    /// sproporzionato.
+    /// </remarks>
+    private async Task ApplyColleaguesSettingsAsync(AppSettings settings)
+    {
+        var elenco = ColleagueRoster.Parse(settings.Colleagues.Monitored);
+        var intervallo = TimeSpan.FromSeconds(Math.Max(1, settings.Colleagues.RefreshSeconds));
+
+        await _shift.ConfigureAsync(elenco, intervallo).ConfigureAwait(true);
+
+        ApplyColleaguesVisibility();
+        RefreshColleagues();
+    }
+
     /// <summary>
     /// Mostra o nasconde la sezione della coda secondo il collegamento all'API del
     /// centralino.
@@ -857,7 +1138,7 @@ public partial class MainWindow : Window
         //
         // A zero quando la sezione e' nascosta, altrimenti resterebbe una fascia vuota
         // di centoventi pixel in mezzo alla finestra.
-        QueueRow.MinHeight = visible ? 120 : 0;
+        QueueRow.MinHeight = visible ? MinimumListHeight : 0;
 
         var previous = _queueSectionVisible;
         if (previous == visible) return;
@@ -1529,6 +1810,10 @@ public partial class MainWindow : Window
                     DialerBox.Focus();
                     DialerBox.SelectAll();
                     _announcer.Announce(Announcement.CommandResponse("Campo di composizione", DateTimeOffset.Now));
+                    break;
+
+                case HotkeyCommand.FocusColleagues:
+                    FocusColleaguesList();
                     break;
 
                 case HotkeyCommand.FocusQueue:

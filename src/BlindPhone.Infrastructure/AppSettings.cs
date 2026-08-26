@@ -602,6 +602,49 @@ public sealed record CallSettings
     public bool AnnounceRecording { get; init; } = true;
 }
 
+
+/// <summary>
+/// I colleghi di cui il centralinista vuole sapere se sono alla postazione.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>L'elenco lo scrive l'operatore</b>, e non si ricava dalla rubrica. Una rubrica di
+/// ente contiene centinaia di nomi fra cui uffici, code, risponditori e recapiti
+/// esterni: sorvegliarli tutti sarebbe un sondaggio al secondo per riempire una tabella
+/// che nessuno percorre. Chi sta al centralino sa quali sono i dieci o venti interni che
+/// gli servono davvero, e sono quelli.
+/// </para>
+/// <para>
+/// Il formato è una riga per collega: prima l'interno, poi il nominativo se si vuole
+/// scriverlo a mano. Vedi <see cref="Core.Domain.ColleagueRoster"/>.
+/// </para>
+/// </remarks>
+public sealed record ColleaguesSettings
+{
+    /// <summary>
+    /// Elenco degli interni da sorvegliare, una riga per collega.
+    /// </summary>
+    /// <remarks>
+    /// Vuoto significa funzione spenta: la sezione non compare nella finestra
+    /// principale e nessun sondaggio parte. È il comportamento predefinito, perché è
+    /// l'unico che non faccia partire traffico verso il centralino su una postazione
+    /// appena installata.
+    /// </remarks>
+    public string Monitored { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Ogni quanti secondi verificare, in secondi.
+    /// </summary>
+    /// <remarks>
+    /// Un minuto. Un collega non si siede e non si alza ogni cinque secondi, e la
+    /// risposta a questa domanda cambia poche volte in un turno: chiedere più spesso
+    /// peserebbe sul centralino per un dato che resta lo stesso. Valori sotto i quindici
+    /// secondi vengono riportati a quindici da
+    /// <see cref="Core.Services.ShiftBoardService"/>.
+    /// </remarks>
+    public int RefreshSeconds { get; init; } = 60;
+}
+
 /// <summary>Configurazione completa dell'applicazione.</summary>
 /// <remarks>
 /// Serializzata in <c>%APPDATA%\BlindPhone\settings.json</c>. Non contiene alcun
@@ -703,6 +746,9 @@ public sealed record AppSettings
 
     /// <summary>Impostazioni delle chiamate.</summary>
     public CallSettings Calls { get; init; } = new();
+
+    /// <summary>Colleghi di cui sapere se sono in turno.</summary>
+    public ColleaguesSettings Colleagues { get; init; } = new();
 
     /// <summary>Finestra e icona nell'area di notifica.</summary>
     public TraySettings Tray { get; init; } = new();

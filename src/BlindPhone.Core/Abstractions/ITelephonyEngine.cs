@@ -58,6 +58,23 @@ public interface ITelephonyEngine : IAsyncDisposable
     /// </remarks>
     IPresenceSource? PresenceSource { get; }
 
+    /// <summary>
+    /// Sondaggio di raggiungibilità sugli interni, quando il motore lo offre.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// È la terza strada per sapere come stanno i colleghi, e la sola che non chieda
+    /// all'impianto niente oltre il rispetto della norma: un <c>OPTIONS</c> per interno,
+    /// la stessa domanda che il centralino gira a noi ogni due minuti.
+    /// </para>
+    /// <para>
+    /// Vale <c>null</c> sui motori che non la implementano — quello simulato — e finché
+    /// il motore non è avviato, perché prima non esiste un trasporto SIP su cui
+    /// chiedere.
+    /// </para>
+    /// </remarks>
+    IReachabilityProbe? ReachabilityProbe { get; }
+
     /// <summary>Sollevato al cambio di stato della registrazione.</summary>
     event EventHandler<SipRegistrationState>? RegistrationStateChanged;
 

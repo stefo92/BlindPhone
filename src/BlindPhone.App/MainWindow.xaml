@@ -242,6 +242,13 @@
                 resterebbe a meta' schermo senza che nulla lo giustifichi.
             -->
             <RowDefinition x:Name="QueueRow" Height="*" />
+
+            <!--
+                Riga dei colleghi in turno. Come quella della coda: l'altezza si azzera
+                dal code-behind quando la sezione non serve, cioe' quando l'operatore non
+                ha dichiarato nessun interno da sorvegliare.
+            -->
+            <RowDefinition x:Name="ColleaguesRow" Height="*" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -687,8 +694,80 @@
         </DockPanel>
         </Border>
 
-        <!-- Riga 5: composizione -->
-        <Grid Grid.Row="5">
+
+        <!--
+            Riga 5: i colleghi in turno.
+
+            RISPONDE ALLA DOMANDA CHE IL CENTRALINISTA SI FA VENTI VOLTE AL GIORNO:
+            «c'e' qualcuno all'ufficio tecnico?». Chi vede lo ricava dal pannello dei
+            tasti luminosi di un centralino tradizionale; chi non vede, senza questa
+            sezione, lo scopre passando la chiamata e sentendola tornare indietro dopo
+            trenta squilli.
+
+            COMPARE SOLO SE SERVE, come la sezione della coda e per la stessa ragione:
+            finche' l'operatore non ha dichiarato nessun interno da sorvegliare non c'e'
+            niente da mostrare, e una tabella permanentemente vuota sul percorso di
+            navigazione costa una tabulazione a ogni giro per non dire mai nulla. Gli
+            interni si scrivono in Impostazioni, scheda Colleghi.
+
+            ListView e non DataGrid, per lo stesso motivo della coda e della rubrica: una
+            riga di DataGrid si legge cella per cella, una voce di ListView si legge come
+            una cosa sola. Su un elenco che si percorre per trovare un nome, la differenza
+            sono tre pressioni di tasto per collega.
+        -->
+        <Border Grid.Row="5" x:Name="ColleaguesSection" Style="{StaticResource Card}">
+        <DockPanel>
+            <!--
+                L'intestazione porta il conteggio e l'ora dell'ultima verifica, e
+                quest'ultima non e' un dettaglio tecnico: il quadro si aggiorna a
+                intervalli, quindi mostra sempre il passato. Senza dire di quanto, un
+                elenco fermo per un guasto di rete e' indistinguibile da un ufficio in cui
+                non si e' mosso nessuno.
+            -->
+            <TextBlock DockPanel.Dock="Top"
+                       x:Name="ColleaguesHeaderText"
+                       FontSize="{StaticResource FontBody}"
+                       FontWeight="Bold"
+                       Margin="{StaticResource SpaceStackTight}"
+                       Text="Colleghi in turno"
+                       AutomationProperties.Name="Intestazione dell'elenco dei colleghi in turno" />
+
+            <ListView x:Name="ColleaguesList"
+                      BorderThickness="0"
+                      AutomationProperties.Name="Elenco dei colleghi e del loro stato"
+                      AutomationProperties.HelpText="Usa le frecce per scorrere. Invio chiama il collega selezionato. La verifica si ripete da sola a intervalli."
+                      FontSize="{StaticResource FontBody}"
+                      SelectionMode="Single"
+                      KeyDown="OnColleaguesListKeyDown"
+                      MouseDoubleClick="OnColleaguesDoubleClick">
+
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="MinHeight" Value="32" />
+                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+
+                <ListView.View>
+                    <GridView>
+                        <!--
+                            LO STATO VIENE PRIMA DEL NOME, e l'ordine e' voluto. E'
+                            l'informazione per cui si sta guardando l'elenco: scorrendo
+                            dieci colleghi per trovare chi c'e', il nome prima dello stato
+                            costringe a leggere due volte tanto.
+                        -->
+                        <GridViewColumn Header="Stato" DisplayMemberBinding="{Binding Status}" Width="210" />
+                        <GridViewColumn Header="Nominativo" DisplayMemberBinding="{Binding Name}" Width="280" />
+                        <GridViewColumn Header="Interno" DisplayMemberBinding="{Binding Number}" Width="110" />
+                        <GridViewColumn Header="Dalle" DisplayMemberBinding="{Binding Since}" Width="110" />
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+        </Border>
+
+        <!-- Riga 6: composizione -->
+        <Grid Grid.Row="6">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -741,7 +820,7 @@
         </Grid>
 
         <!--
-            Riga 6: contatti che corrispondono al nome digitato.
+            Riga 7: contatti che corrispondono al nome digitato.
 
             Compare solo quando nel campo di composizione ci sono lettere, cioe'
             quando l'operatore sta cercando un nome e non componendo un numero.
@@ -753,7 +832,7 @@
             identico nelle due finestre. Due colonne bastano — a questo punto serve
             solo riconoscere il contatto giusto, la scheda completa e' in rubrica.
         -->
-        <DataGrid Grid.Row="6"
+        <DataGrid Grid.Row="7"
                   x:Name="SuggestionsGrid"
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
@@ -779,13 +858,13 @@
         </DataGrid>
 
         <!--
-            Riga 7: ultimo annuncio, per chi usa il cursore virtuale.
+            Riga 8: ultimo annuncio, per chi usa il cursore virtuale.
 
             E' una scheda come le altre ma piu' bassa e senza margine sotto: e' un
             dettaglio di servizio, non un'area di lavoro, e prima aveva lo stesso peso
             visivo di tutto il resto solo perche' aveva lo stesso contorno.
         -->
-        <Border Grid.Row="7"
+        <Border Grid.Row="8"
                 Style="{StaticResource Card}"
                 Padding="12,8"
                 Margin="0,16,0,0">

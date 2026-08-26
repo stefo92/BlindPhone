@@ -676,6 +676,23 @@ public partial class App : Application
             sp.GetRequiredService<ITelephonyEngine>(),
             sp.GetRequiredService<ILogger<PresenceMonitorService>>()));
 
+        // QUADRO DEI COLLEGHI IN TURNO.
+        //
+        // Prende lo stato dalla strada migliore che c'e': l'API del centralino o le
+        // sottoscrizioni SIP quando esistono, altrimenti il sondaggio di
+        // raggiungibilita', che e' l'unica strada che funzioni su un impianto che
+        // rifiuta le sottoscrizioni. Vedi ShiftBoardService.
+        //
+        // Il sondaggio si prende dal motore telefonico al momento dell'uso e non qui:
+        // prima dell'avvio del motore non esiste un trasporto SIP su cui chiedere, e
+        // catturarlo adesso significherebbe catturare null per sempre.
+        services.AddSingleton(sp => new ShiftBoardService(
+            () => sp.GetRequiredService<ITelephonyEngine>().ReachabilityProbe,
+            sp.GetRequiredService<PresenceMonitorService>(),
+            sp.GetRequiredService<IContactRepository>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<ILogger<ShiftBoardService>>()));
+
         // Orologio del turno e stato di pausa della postazione. Vive nel contenitore e
         // non nella finestra perche' e' stato di dominio, non di interfaccia: la
         // finestra lo mostra, ma chi decide se la postazione accetta chiamate e'
@@ -792,6 +809,7 @@ public partial class App : Application
             sp.GetRequiredService<ILogger<SipTelephonyEngine>>(),
             sp.GetRequiredService<ILogger<SipAudioEndPoint>>(),
             sp.GetRequiredService<ILogger<SipPresenceSource>>(),
+            sp.GetRequiredService<ILogger<SipOptionsProbe>>(),
 
             // La politica di fiducia sui certificati e' la stessa del connettore
             // dell'API: un certificato gia' approvato per il centralino non va
@@ -961,6 +979,7 @@ public partial class App : Application
         var transfer = Services.GetRequiredService<TransferOrchestrator>();
         var intrusion = Services.GetRequiredService<IntrusionMonitor>();
         var queue = Services.GetRequiredService<QueueMonitorService>();
+        var shift = Services.GetRequiredService<ShiftBoardService>();
         var telephony = Services.GetRequiredService<ITelephonyEngine>();
         var logSwitch = Services.GetRequiredService<LogLevelSwitch>();
 
@@ -989,6 +1008,11 @@ public partial class App : Application
             // tempo sola, e nessun timer che possa restare acceso per conto suo.
             intrusion.Pump(now);
             queue.Pump(now);
+
+            // Il giro di verifica sui colleghi in turno passa dallo stesso ciclo di
+            // tutto il resto: una sorgente di tempo sola, e nessun timer che possa
+            // restare acceso per conto suo. Decide da se' quando e' ora.
+            shift.Pump(now);
             announcements.Pump(now);
 
             DumpCountersIfDebugging(now);
