@@ -48,12 +48,15 @@
             Il numero va letto cifra per cifra: "4021" pronunciato
             "quattromilaventuno" e' inutilizzabile per richiamare o trascrivere.
         -->
-        <Style x:Key="SpokenNumberCell" TargetType="DataGridCell">
+        <!-- Con BasedOn: senza, la cella perde la selezione. Vedi MainWindow.xaml. -->
+        <Style x:Key="SpokenNumberCell" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="AutomationProperties.Name" Value="{Binding SpokenNumber}" />
         </Style>
 
         <!-- Il momento della chiamata, in forma discorsiva: "oggi alle 9 e 40". -->
-        <Style x:Key="SpokenWhenCell" TargetType="DataGridCell">
+        <Style x:Key="SpokenWhenCell" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="AutomationProperties.Name" Value="{Binding SpokenWhen}" />
         </Style>
 

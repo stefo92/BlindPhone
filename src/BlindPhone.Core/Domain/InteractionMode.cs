@@ -15,15 +15,15 @@ public enum InteractionMode
     Standard = 0,
 
     /// <summary>
-    /// Tre tasti del tastierino numerico governano l'intera chiamata.
+    /// Quattro tasti del tastierino numerico governano l'intera chiamata.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Nasce per chi sta al centralino senza avere il tempo — o la voglia — di
     /// imparare quattordici scorciatoie: <c>+</c> risponde e mette in pausa,
-    /// <c>/</c> riaggancia, <c>Invio</c> trasferisce. Tutto il resto continua a
-    /// funzionare come prima; questa modalità aggiunge una via breve, non ne toglie
-    /// nessuna.
+    /// <c>/</c> riaggancia, <c>Invio</c> chiama l'interno a cui passare il chiamante e
+    /// <c>-</c> glielo passa. Tutto il resto continua a funzionare come prima; questa
+    /// modalità aggiunge una via breve, non ne toglie nessuna.
     /// </para>
     /// <para>
     /// In questa modalità <b>la rimappatura dei tasti è bloccata</b>. La via breve ha

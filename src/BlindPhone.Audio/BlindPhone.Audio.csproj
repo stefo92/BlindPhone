@@ -55,9 +55,14 @@
       MMDevice, DataFlow, WasapiOut, WasapiCapture e la codifica delle
       registrazioni - trentaquattro errori di compilazione su trentotto.
     -->
-    <PackageReference Include="NAudio" Version="3.0.0" />
-    <PackageReference Include="NAudio.Wasapi" Version="3.0.0" />
-    <PackageReference Include="SIPSorceryMedia.Abstractions" Version="10.0.15" />
+    <PackageReference Include="NAudio" Version="3.1.0" />
+    <PackageReference Include="NAudio.Wasapi" Version="3.1.0" />
+
+    <!--
+      Va mossa insieme a SIPSorcery in BlindPhone.Telephony, dove sta la nota per
+      intero: i due pacchetti escono appaiati e si scambiano i tipi del percorso media.
+    -->
+    <PackageReference Include="SIPSorceryMedia.Abstractions" Version="10.0.17" />
   </ItemGroup>
 
 </Project>

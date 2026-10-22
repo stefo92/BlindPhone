@@ -63,7 +63,9 @@
             E' il difetto per cui il numero veniva pronunciato due volte. La
             spiegazione per esteso, con le misure, sta in MainWindow.xaml.
         -->
-        <Style x:Key="SpokenNumberCell" TargetType="DataGridCell">
+        <!-- Con BasedOn: senza, la cella perde la selezione. Vedi MainWindow.xaml. -->
+        <Style x:Key="SpokenNumberCell" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="AutomationProperties.Name" Value="{Binding SpokenNumber}" />
         </Style>
 

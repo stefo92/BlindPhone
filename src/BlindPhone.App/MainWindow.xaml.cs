@@ -80,7 +80,7 @@ public sealed record ColleagueRow(
     string Since,
     string AccessibleText);
 
-/// <summary>Contatto proposto sotto il campo di composizione.</summary>
+/// <summary>Contatto proposto sopra il campo di composizione.</summary>
 /// <param name="Name">Nominativo.</param>
 /// <param name="Number">Interno da comporre.</param>
 /// <param name="Presence">
@@ -151,7 +151,7 @@ public sealed record DialerSuggestion(string Name, string Number, string Presenc
 /// </remarks>
 public partial class MainWindow : Window
 {
-    /// <summary>Numero massimo di contatti proposti sotto il campo di composizione.</summary>
+    /// <summary>Numero massimo di contatti proposti sopra il campo di composizione.</summary>
     /// <remarks>
     /// Oltre questa soglia scegliere a orecchio costa più che restringere: si dice
     /// che sono troppi e si invita a digitare ancora, invece di far scorrere un
@@ -241,8 +241,15 @@ public partial class MainWindow : Window
     /// Con un minimo dichiarato lo spazio non si prende più da qui: il contenuto sfonda
     /// la finestra e <see cref="GrowToFitContent"/> la allarga.
     /// </para>
+    /// <para>
+    /// <b>È il valore preferito, non sempre quello in vigore.</b> Dove nemmeno
+    /// allargandosi fino al bordo dello schermo la finestra riesce a contenere le liste a
+    /// questa altezza, ciascuna cede quanto serve a lasciare in vista il campo di
+    /// composizione: vedi <see cref="MainWindowLayout.ListMinimum"/> e
+    /// <see cref="FitListMinimums"/>.
+    /// </para>
     /// </remarks>
-    private const double MinimumListHeight = 180;
+    private const double MinimumListHeight = MainWindowLayout.PreferredListHeight;
 
     private bool? _queueSectionVisible;
 
@@ -342,6 +349,8 @@ public partial class MainWindow : Window
 
         InitializeComponent();
 
+        FitToWorkArea();
+
         QueueList.ItemsSource = _queueRows;
         ColleaguesList.ItemsSource = _colleagueRows;
         SuggestionsGrid.ItemsSource = _suggestions;
@@ -433,7 +442,7 @@ public partial class MainWindow : Window
         => _settingsService.Current.Interaction == InteractionMode.Simplified;
 
     /// <summary>
-    /// Intercetta i tre tasti del tastierino, quando la modalità semplificata è attiva.
+    /// Intercetta i tasti del tastierino, quando la modalità semplificata è attiva.
     /// </summary>
     /// <returns><c>true</c> se il tasto è stato consumato qui.</returns>
     /// <remarks>
@@ -463,6 +472,7 @@ public partial class MainWindow : Window
             Key.Add => KeypadKey.Answer,
             Key.Divide => KeypadKey.HangUp,
             Key.Enter => KeypadKey.Confirm,
+            Key.Subtract => KeypadKey.Release,
             _ => (KeypadKey?)null,
         };
 
@@ -520,16 +530,24 @@ public partial class MainWindow : Window
                 await ExecuteCommandAsync(HotkeyCommand.ToggleHold).ConfigureAwait(true);
                 break;
 
-            case KeypadAction.BlindTransfer:
-                await KeypadTransferAsync(blind: true).ConfigureAwait(true);
-                break;
-
             case KeypadAction.StartConsultation:
-                await KeypadTransferAsync(blind: false).ConfigureAwait(true);
+                await KeypadStartConsultationAsync().ConfigureAwait(true);
                 break;
 
             case KeypadAction.CompleteTransfer:
                 await ExecuteCommandAsync(HotkeyCommand.Transfer).ConfigureAwait(true);
+                break;
+
+            // NON E' UN COMANDO RIFIUTATO, E' UNA RISPOSTA.
+            //
+            // L'operatore ha premuto Invio con l'interno gia' in linea, cioe' il gesto
+            // che fino a ieri completava il trasferimento. Il segnale di comando
+            // rifiutato lo lascerebbe a chiedersi se il programma funzioni ancora;
+            // dirgli quale tasto serve glielo insegna nel momento in cui gli serve.
+            case KeypadAction.AnnounceReleaseKey:
+                _announcer.Announce(Announcement.CommandResponse(
+                    AnnouncementTexts.ReleaseKeyReminder(SimplifiedKeypad.ReleaseKeyName),
+                    DateTimeOffset.Now));
                 break;
         }
 
@@ -537,18 +555,21 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Avvia il trasferimento verso il numero composto, nella modalità richiesta.
+    /// Chiama l'interno composto, perché l'operatore senta cosa risponde.
     /// </summary>
-    /// <param name="blind">
-    /// <c>true</c> manda il chiamante senza annunciarlo, <c>false</c> chiama prima
-    /// l'interno.
-    /// </param>
     /// <remarks>
-    /// La procedura va aperta prima di scegliere la variante: i due metodi che
-    /// eseguono il trasferimento pretendono una sessione già avviata, perché è lì che
-    /// il chiamante viene messo in attesa e la destinazione risolta sulla rubrica.
+    /// <para>
+    /// La procedura va aperta prima: <c>AttendedTransferNowAsync</c> pretende una
+    /// sessione già avviata, perché è lì che il chiamante viene messo in attesa e la
+    /// destinazione risolta sulla rubrica.
+    /// </para>
+    /// <para>
+    /// <b>Qui il trasferimento non si compie.</b> Si apre soltanto la linea con
+    /// l'interno; il chiamante resta in attesa finché l'operatore non preme il tasto
+    /// che lo svincola, o finché non chiude la consultazione per riprenderlo.
+    /// </para>
     /// </remarks>
-    private async Task KeypadTransferAsync(bool blind)
+    private async Task KeypadStartConsultationAsync()
     {
         await FlushPendingSuggestionSearchAsync().ConfigureAwait(true);
 
@@ -556,20 +577,13 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(destinazione)) return;
 
         // La digitazione e' finita nell'istante in cui si preme Invio: dichiararlo
-        // prima di trasferire e' cio' che permette alla conferma di essere pronunciata
+        // prima di chiamare e' cio' che permette alla conferma di essere pronunciata
         // invece di finire scartata come annuncio durante la composizione.
         _context.StopTyping();
 
         if (_transfer.Phase == TransferPhase.Idle)
         {
             await _transfer.HandleTransferKeyAsync(destinazione).ConfigureAwait(true);
-        }
-
-        if (blind)
-        {
-            await _transfer.BlindTransferNowAsync(destinazione).ConfigureAwait(true);
-            DialerBox.Clear();
-            return;
         }
 
         await _transfer.AttendedTransferNowAsync(destinazione).ConfigureAwait(true);
@@ -1191,6 +1205,12 @@ public partial class MainWindow : Window
     /// alcun modo di richiamarlo se non la scorciatoia globale, che un altro
     /// programma può avere occupato.
     /// </para>
+    /// <para>
+    /// <b>Alt+F4 non arriva qui.</b> Viene intercettato prima, in
+    /// <see cref="OnWindowPreviewKeyDown"/>, e chiude davvero. Quello che resta a
+    /// questo gestore è la X del titolo e la voce Chiudi del menu di sistema: gesti
+    /// da mouse, che è il modo in cui la chiusura viene chiesta per sbaglio.
+    /// </para>
     /// </remarks>
     private void OnClosing(object? sender, CancelEventArgs e)
     {
@@ -1533,6 +1553,30 @@ public partial class MainWindow : Window
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // ALT+F4 CHIUDE DAVVERO, E NON VIENE DEVIATO NELL'AREA DI NOTIFICA.
+        //
+        // E' il gesto con cui si chiude qualunque finestra di Windows, e per chi non
+        // vede e' l'unico: la X del titolo va cercata con il mouse. Finche' arrivava
+        // al gestore di chiusura veniva convertito in un "metti via" esattamente come
+        // il clic sulla X, e il risultato era il peggiore dei due possibili — il
+        // programma restava acceso e chi l'aveva premuto credeva di averlo chiuso.
+        //
+        // Da qui passa invece per la stessa via del comando Esci, conferma compresa:
+        // con una chiamata in corso viene chiesto prima di farla cadere.
+        //
+        // Sta davanti a tutto il resto perche' deve funzionare sempre — in modalita'
+        // toni, in modalita' semplificata, con la postazione in pausa e con il focus
+        // dentro qualunque campo.
+        if (IsCloseWindowCombination(e))
+        {
+            // Senza questa riga Windows chiude comunque per conto suo e la chiusura
+            // torna a finire nell'area di notifica, oltre a portarsi via anche il
+            // caso in cui la conferma viene annullata.
+            e.Handled = true;
+            QuitApplication();
+            return;
+        }
+
         // ESC con il focus dentro l'elenco dei contatti proposti chiude l'elenco e
         // basta. Se passasse al comando di annullamento svuoterebbe la
         // composizione, e il cursore resterebbe su una riga che non esiste piu':
@@ -1554,9 +1598,9 @@ public partial class MainWindow : Window
         if (_dtmfMode && TryHandleDtmfKey(e)) return;
 
         // IL TASTIERINO VIENE PRIMA DELLE SCORCIATOIE, e per una ragione sola: in
-        // modalita' semplificata "+" e "/" non devono poter essere rubati da un
+        // modalita' semplificata "+", "/" e "-" non devono poter essere rubati da un
         // comando che qualcuno ci ha assegnato sopra, ne' finire nel campo di
-        // composizione. Sono i due tasti su cui si regge l'intera modalita', e devono
+        // composizione. Sono i tasti su cui si regge l'intera modalita', e devono
         // fare sempre la stessa cosa.
         if (TryHandleSimplifiedKeypad(e)) return;
 
@@ -1686,6 +1730,28 @@ public partial class MainWindow : Window
     };
 
     /// <summary>
+    /// Riconosce Alt+F4, la combinazione con cui Windows chiude una finestra.
+    /// </summary>
+    /// <param name="e">Tasto premuto o rilasciato.</param>
+    /// <remarks>
+    /// <para>
+    /// Arriva sotto falso nome, come ogni combinazione con Alt: WPF mette il
+    /// segnaposto <c>System</c> in <c>e.Key</c> e il tasto vero in
+    /// <c>e.SystemKey</c>. Leggendo il solo <c>e.Key</c> non si troverebbe mai.
+    /// </para>
+    /// <para>
+    /// Il modificatore si legge da <see cref="Keyboard.Modifiers"/> e non si dà per
+    /// scontato: F4 può risultare di sistema anche senza Alt, e chiudere la
+    /// postazione per un F4 premuto da solo sarebbe il difetto peggiore di quello
+    /// che si sta correggendo.
+    /// </para>
+    /// </remarks>
+    private static bool IsCloseWindowCombination(KeyEventArgs e)
+        => e.Key == Key.System
+           && e.SystemKey == Key.F4
+           && (Keyboard.Modifiers & ModifierKeys.Alt) == ModifierKeys.Alt;
+
+    /// <summary>
     /// Impedisce che il rilascio di un tasto di sistema assegnato a un comando apra
     /// la modalità menu di Windows.
     /// </summary>
@@ -1705,6 +1771,16 @@ public partial class MainWindow : Window
     /// </remarks>
     private void OnWindowPreviewKeyUp(object sender, KeyEventArgs e)
     {
+        // Alt+F4 non passa dal profilo — non e' assegnabile — quindi il controllo qui
+        // sotto non la riconoscerebbe, e il suo rilascio e' esattamente il caso
+        // descritto: se la conferma di uscita viene annullata la finestra resta
+        // aperta, e senza questa riga il cursore finirebbe sulla barra dei menu.
+        if (IsCloseWindowCombination(e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key != Key.System) return;
 
         var keyName = HotkeyKeyNames.ResolveSystemKey(e.Key.ToString(), e.SystemKey.ToString());
@@ -1862,6 +1938,10 @@ public partial class MainWindow : Window
 
                 case HotkeyCommand.RedialLast:
                     await RedialAsync().ConfigureAwait(true);
+                    break;
+
+                case HotkeyCommand.JoinMeeting:
+                    await JoinMeetingAsync().ConfigureAwait(true);
                     break;
 
                 case HotkeyCommand.ToggleDtmfMode:
@@ -2219,6 +2299,7 @@ public partial class MainWindow : Window
         CallAction.DtmfOn or CallAction.DtmfOff => HotkeyCommand.ToggleDtmfMode,
         CallAction.MuteOn or CallAction.MuteOff => HotkeyCommand.ToggleMute,
         CallAction.ServicePauseOn or CallAction.ServicePauseOff => HotkeyCommand.ToggleServicePause,
+        CallAction.OpenContacts => HotkeyCommand.OpenContacts,
         CallAction.OpenCallHistory => HotkeyCommand.OpenCallHistory,
         CallAction.OpenSettings => HotkeyCommand.OpenSettings,
         CallAction.OpenSipAccounts => HotkeyCommand.OpenSipAccounts,
@@ -3118,6 +3199,91 @@ public partial class MainWindow : Window
         await _calls.DialAsync(_lastDialedNumber).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Entra in una riunione Zoom componendo quello che c'è nel campo di composizione.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Che cosa fa davvero, e perché vale la pena.</b> Alla stessa riunione si
+    /// arriva anche componendo il numero telefonico dell'invito: si chiama, si ascolta
+    /// un messaggio registrato, si digita l'identificativo, cancelletto, si aspetta, si
+    /// digita il codice, cancelletto. È un percorso a ostacoli <b>a tempo e tutto in
+    /// ascolto</b>, dove un tono premuto troppo presto si perde e non c'è modo di
+    /// sapere a che punto si è. Di qui si entra con una composizione sola.
+    /// </para>
+    /// <para>
+    /// <b>Non introduce una modalità.</b> Appena la riunione risponde è una chiamata
+    /// come le altre: attesa, conferenza, toni e riaggancio funzionano con i tasti che
+    /// l'operatore già conosce. È anche il motivo per cui il caso più utile — mettere
+    /// in conferenza un chiamante telefonico e la riunione, cioè fare da ponte fra la
+    /// rete telefonica e Zoom — non richiede niente di nuovo.
+    /// </para>
+    /// <para>
+    /// <b>Il codice d'accesso non resta qui.</b> Viene tolto da ciò che si pronuncia e
+    /// si conserva un passo più in basso, in <c>CallSessionManager.DialAsync</c>.
+    /// </para>
+    /// </remarks>
+    private async Task JoinMeetingAsync()
+    {
+        var digitato = DialerBox.Text.Trim();
+
+        if (digitato.Length == 0)
+        {
+            // Il comando non puo' indovinare la riunione: dire che cosa manca e in
+            // quale campo e' l'unica risposta utile.
+            _announcer.Announce(Announcement.CommandResponse(
+                "Scrivi prima l'identificativo della riunione nel campo di composizione, "
+                + "e se serve il codice dopo un punto",
+                DateTimeOffset.Now));
+            return;
+        }
+
+        string destinazione;
+
+        if (digitato.Contains('@', StringComparison.Ordinal))
+        {
+            // Indirizzo gia' intero: arriva cosi' quando la riunione e' un contatto in
+            // rubrica, che e' il modo piu' comodo di tenere quelle ricorrenti.
+            destinazione = digitato;
+        }
+        else
+        {
+            var (identificativo, codice) = ZoomRoomConnector.Split(digitato);
+
+            if (!ZoomRoomConnector.TryBuild(
+                    identificativo, codice, null, out var composizione, out var errore))
+            {
+                _announcer.Announce(Announcement.High(
+                    errore!, DateTimeOffset.Now, EarconKind.CommandRejected));
+                return;
+            }
+
+            destinazione = composizione.Dial;
+        }
+
+        // Stessa regola della composizione ordinaria: con qualcuno in linea non si
+        // compone. Qui pero' si dice, invece di fermarsi in silenzio: chi ha appena
+        // scritto un identificativo di undici cifre e preme il tasto ha bisogno di
+        // sapere perche' non e' successo niente.
+        if (!CurrentActionContext().CanDial)
+        {
+            _announcer.Announce(Announcement.High(
+                "C'e' una conversazione in corso: metti in attesa prima di entrare in riunione",
+                DateTimeOffset.Now,
+                EarconKind.CommandRejected));
+            return;
+        }
+
+        // La digitazione e' finita: va dichiarato PRIMA di comporre, altrimenti il
+        // riscontro dell'avvio viene scartato insieme all'eco delle cifre. Stessa
+        // ragione spiegata per esteso in DialAsync.
+        _context.StopTyping();
+
+        _lastDialedNumber = destinazione;
+        await _calls.DialAsync(destinazione).ConfigureAwait(true);
+        DialerBox.Clear();
+    }
+
     private async Task ToggleAgentLoginAsync()
     {
         var loggedIn = _queueProvider.AgentState.Status != AgentStatus.LoggedOut;
@@ -3638,6 +3804,29 @@ public partial class MainWindow : Window
         await RunSuggestionSearchAsync(announce: false).ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Annulla la ricerca del nominativo o dell'interno, in attesa o già avviata.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Serve nell'istante in cui si compone o si trasferisce: da quel momento la
+    /// risposta della ricerca non interessa più a nessuno, e l'annuncio «Mario Rossi»
+    /// arriverebbe sopra «Chiamata a…», che è il solo riscontro dell'avvio.
+    /// </para>
+    /// <para>
+    /// Con i nomi non c'era il problema, perché il campo si riempie a tasti e
+    /// Invio completa la ricerca prima di comporre. Con le cifre il campo può essere
+    /// riempito dal programma — la ricomposizione di un numero dalle ultime chiamate —
+    /// e comporre subito: il conto alla rovescia restava acceso mentre la chiamata
+    /// partiva, e allo scadere cercava e parlava.
+    /// </para>
+    /// </remarks>
+    private void CancelSuggestionSearch()
+    {
+        _suggestionTimer.Stop();
+        _suggestionSearch?.Cancel();
+    }
+
     private async Task DialAsync()
     {
         var destination = CurrentDestination();
@@ -3670,6 +3859,7 @@ public partial class MainWindow : Window
             // perdere anche quella lascia l'operatore senza sapere se e dove la
             // chiamata sia andata.
             _context.StopTyping();
+            CancelSuggestionSearch();
 
             await _transfer.BlindTransferNowAsync(destination).ConfigureAwait(true);
             DialerBox.Clear();
@@ -3711,6 +3901,7 @@ public partial class MainWindow : Window
         // parte, quindi "chiamata a ..." — che e' il solo riscontro dell'avvio —
         // finirebbe scartato per OperatorTyping insieme a tutto il resto.
         _context.StopTyping();
+        CancelSuggestionSearch();
 
         _lastDialedNumber = destination;
         await _calls.DialAsync(destination).ConfigureAwait(true);
@@ -3767,7 +3958,7 @@ public partial class MainWindow : Window
         // l'operatore smette di digitare, non mentre digita.
         _suggestionTimer.Stop();
 
-        if (!LooksLikeName(DialerBox.Text))
+        if (!LooksLikeName(DialerBox.Text) && !ExtensionSearch.IsExtensionQuery(DialerBox.Text))
         {
             HideSuggestions();
             return;
@@ -3785,10 +3976,18 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="text">Testo del campo di composizione.</param>
     /// <remarks>
+    /// <para>
     /// La regola è la più semplice che si possa tenere a mente senza guardare lo
-    /// schermo: se ci sono lettere è un nome, se ci sono solo cifre è un numero. Ed
-    /// è anche la regola che lascia intatto il percorso del trasferimento, dove si
-    /// digitano interni e dove un elenco che compare da solo sarebbe di intralcio.
+    /// schermo: se ci sono lettere è un nome, se ci sono solo cifre è un numero.
+    /// </para>
+    /// <para>
+    /// <b>Un numero si cerca comunque, ma per uguaglianza.</b> Un nome si cerca per
+    /// frammenti; un numero di sole cifre viene confrontato per intero con gli
+    /// interni in rubrica — vedi <see cref="ExtensionSearch"/> — e l'elenco compare
+    /// solo se qualcuno ha proprio quell'interno. Per questo non intralcia chi digita
+    /// una destinazione di trasferimento: finché le cifre non formano un interno
+    /// esistente il campo si comporta come sempre.
+    /// </para>
     /// </remarks>
     private static bool LooksLikeName(string text)
     {
@@ -3797,14 +3996,20 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Cerca in rubrica il nome digitato e aggiorna l'elenco dei contatti proposti.
+    /// Cerca in rubrica il nome o l'interno digitato e aggiorna l'elenco dei contatti proposti.
     /// </summary>
     /// <param name="announce">Se annunciare l'esito della ricerca.</param>
+    /// <remarks>
+    /// Le due ricerche hanno regole opposte e non vanno confuse: il nome si cerca per
+    /// frammenti, l'interno per uguaglianza esatta. Qui sta solo la scelta di quale
+    /// usare; la regola dell'interno è in <see cref="ExtensionSearch"/>.
+    /// </remarks>
     private async Task RunSuggestionSearchAsync(bool announce = true)
     {
         var query = DialerBox.Text.Trim();
+        var byExtension = ExtensionSearch.IsExtensionQuery(query);
 
-        if (!LooksLikeName(query))
+        if (!byExtension && !LooksLikeName(query))
         {
             HideSuggestions();
             return;
@@ -3819,11 +4024,30 @@ public partial class MainWindow : Window
         _suggestionSearch = new CancellationTokenSource();
         var token = _suggestionSearch.Token;
 
-        IReadOnlyList<Contact> found;
+        // Ogni voce porta il numero con cui verra' proposta. Per il nome e' quello
+        // scelto da DialableNumber; per l'interno e' l'interno digitato, e non un
+        // altro recapito della stessa voce: chi ha scritto 4021 e scende nell'elenco
+        // deve trovare 4021 sotto ogni riga, non il cellulare della persona.
+        List<(Contact Contact, string? Number)> found;
 
         try
         {
-            found = await _contacts.SearchAsync(query, MaxSuggestions + 1, token).ConfigureAwait(true);
+            if (byExtension)
+            {
+                var matches = await ExtensionSearch
+                    .FindAsync(_contacts, query, MaxSuggestions + 1, token)
+                    .ConfigureAwait(true);
+
+                found = [.. matches.Select(m => (m.Contact, (string?)m.Number))];
+            }
+            else
+            {
+                var contacts = await _contacts
+                    .SearchAsync(query, MaxSuggestions + 1, token)
+                    .ConfigureAwait(true);
+
+                found = [.. contacts.Select(c => (c, DialableNumber(c)))];
+            }
         }
         catch (OperationCanceledException)
         {
@@ -3831,7 +4055,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Ricerca del nominativo dal campo di composizione non riuscita");
+            _log.LogError(ex, "Ricerca in rubrica dal campo di composizione non riuscita");
             HideSuggestions();
             return;
         }
@@ -3843,11 +4067,11 @@ public partial class MainWindow : Window
 
         _suggestions.Clear();
 
-        foreach (var contact in found)
+        foreach (var (contact, dialable) in found)
         {
             // Un contatto senza recapito non e' chiamabile: proporlo costringerebbe
             // l'operatore a scoprirlo premendo Invio.
-            if (DialableNumber(contact) is not { Length: > 0 } number) continue;
+            if (dialable is not { Length: > 0 } number) continue;
             if (_suggestions.Count == MaxSuggestions) break;
 
             _suggestions.Add(new DialerSuggestion(
@@ -3895,15 +4119,32 @@ public partial class MainWindow : Window
     /// Si usa <see cref="Announcement.CommandResponse"/> e non un annuncio normale
     /// perché durante la digitazione la pipeline sopprime tutto il resto: qui la
     /// deroga è corretta, perché la ricerca parte solo quando l'operatore ha smesso
-    /// di digitare, e perché si annunciano lettere, non cifre da non coprire.
+    /// di digitare.
+    /// </para>
+    /// <para>
+    /// <b>Con le cifre la deroga costa di più, e si paga solo quando serve.</b> Sulle
+    /// lettere l'annuncio arriva dopo un nome che l'operatore ha finito di scrivere;
+    /// sulle cifre può arrivare a metà di un numero più lungo, sopra l'eco delle cifre
+    /// successive. Per questo con un interno si parla solo se c'è una voce che lo ha —
+    /// una conferma che vale la pena sentire, perché dice a chi si sta per passare la
+    /// chiamata — e si tace in tutti gli altri casi.
     /// </para>
     /// </remarks>
     private void AnnounceSuggestions(bool truncated, string query)
     {
         string message;
 
+        var byExtension = ExtensionSearch.IsExtensionQuery(query);
+
         if (_suggestions.Count == 0)
         {
+            // Digitando cifre il silenzio e' la risposta giusta. La maggior parte dei
+            // numeri che si compongono non e' un interno in rubrica, e a ogni pausa
+            // nel digitare — anche a meta' di un numero — si sentirebbe "nessun
+            // contatto" sopra l'eco delle cifre, per un'informazione che non serve:
+            // l'operatore voleva comporre, e puo' farlo.
+            if (byExtension) return;
+
             message = $"Nessun contatto per {query}";
         }
         else if (_suggestions.Count == 1)
@@ -3923,16 +4164,28 @@ public partial class MainWindow : Window
                 ? $", {PresenceMonitorService.Describe(state)}"
                 : string.Empty;
 
-            message = $"{only.Contact.SpeechName}, interno "
-                      + $"{SpeechFormatter.Digits(only.Number, _settings.Accessibility.DigitGrouping)}{warning}";
+            // Se l'interno l'ha appena digitato l'operatore, rileggerglielo e' tempo
+            // speso per niente: quello che non sa, e che il campo non dice, e' di chi
+            // sia. Con un nome cercato invece l'interno e' la risposta, e si dice.
+            message = byExtension
+                ? $"{only.Contact.SpeechName}{warning}"
+                : $"{only.Contact.SpeechName}, interno "
+                  + $"{SpeechFormatter.Digits(only.Number, _settings.Accessibility.DigitGrouping)}{warning}";
         }
         else if (truncated)
         {
-            message = $"Piu' di {MaxSuggestions} contatti, continua a digitare";
+            // Continuare a digitare non restringe un interno: o le cifre sono quelle
+            // o non lo sono. Qui non c'e' niente da affinare, c'e' solo da sapere che
+            // l'interno e' condiviso da molte voci.
+            message = byExtension
+                ? $"Piu' di {MaxSuggestions} voci su questo interno"
+                : $"Piu' di {MaxSuggestions} contatti, continua a digitare";
         }
         else
         {
-            message = $"{_suggestions.Count} contatti, freccia giu' per scegliere";
+            message = byExtension
+                ? $"{_suggestions.Count} voci su questo interno, freccia giu' per scegliere"
+                : $"{_suggestions.Count} contatti, freccia giu' per scegliere";
         }
 
         _announcer.Announce(Announcement.CommandResponse(message, DateTimeOffset.Now));
@@ -3953,6 +4206,10 @@ public partial class MainWindow : Window
         var typed = DialerBox.Text.Trim();
 
         if (SuggestionsGrid.Visibility != Visibility.Visible) return typed;
+
+        // Con le cifre la destinazione sono le cifre, anche se l'elenco e' aperto:
+        // l'elenco di un interno contiene solo voci che hanno quell'interno, quindi
+        // scegliere una riga o non sceglierla porta allo stesso numero.
         if (!LooksLikeName(typed)) return typed;
 
         var chosen = SuggestionsGrid.SelectedItem as DialerSuggestion ?? _suggestions.FirstOrDefault();
@@ -4399,6 +4656,37 @@ public partial class MainWindow : Window
     // La finestra si allarga per contenere quello che c'è scritto
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Porta la misura iniziale della finestra dentro l'area di lavoro dello schermo.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>La finestra nasceva sempre a 1000 per 700, qualunque fosse lo schermo.</b> Su
+    /// un monitor basso — un portatile da 768 righe, o un 1080 con la scala al 150 per
+    /// cento, che in unità indipendenti dal dispositivo dà 720 — l'area di lavoro è più
+    /// piccola della finestra: il bordo basso finisce sotto la barra delle applicazioni
+    /// e con lui il campo di composizione, cioè la cosa per cui si apre il programma.
+    /// Lo stesso vale in larghezza sugli schermi stretti.
+    /// </para>
+    /// <para>
+    /// Si riduce soltanto, e mai sotto le misure minime dichiarate: la finestra non si
+    /// ingrandisce da sé oltre quello che il codice XAML dice, e su uno schermo che non
+    /// la contiene nemmeno al minimo non c'è una scelta giusta da fare qui.
+    /// </para>
+    /// <para>
+    /// Va fatto prima della prima visualizzazione: con il centraggio automatico la
+    /// posizione si calcola sulla misura che la finestra ha in quel momento, e una
+    /// riduzione successiva la lascerebbe decentrata.
+    /// </para>
+    /// </remarks>
+    private void FitToWorkArea()
+    {
+        var area = SystemParameters.WorkArea;
+
+        Height = Math.Max(MinHeight, Math.Min(Height, area.Height));
+        Width = Math.Max(MinWidth, Math.Min(Width, area.Width));
+    }
+
     /// <summary>Ridimensionamento già in coda, per non chiederne uno per fotogramma.</summary>
     private bool _resizePending;
 
@@ -4427,14 +4715,29 @@ public partial class MainWindow : Window
     /// <para>
     /// <b>Perché di qui e non dai punti che riscrivono i testi</b>: i modi di cambiare
     /// altezza sono molti — l'avviso di chiamata, la barra dei comandi che cambia
-    /// numero di pulsanti, l'elenco dei contatti proposti, il riquadro della pausa — e
-    /// ricordarsi di chiamare il controllo in ognuno è il genere di cosa che si
-    /// dimentica proprio nel caso nuovo. Qui il controllo è una sottrazione e finisce
-    /// subito quando non c'è niente da fare.
+    /// numero di pulsanti, il riquadro della pausa — e ricordarsi di chiamare il
+    /// controllo in ognuno è il genere di cosa che si dimentica proprio nel caso nuovo.
+    /// Qui il controllo è una sottrazione e finisce subito quando non c'è niente da
+    /// fare.
+    /// </para>
+    /// <para>
+    /// <b>L'elenco dei contatti proposti non è fra questi</b>: è sovrapposto alle altre
+    /// sezioni e non occupa altezza, quindi comparire non richiede nessun allargamento.
+    /// Prima richiedeva spazio sotto il campo di composizione, e dove la finestra non
+    /// poteva più crescere — schermi bassi — l'elenco restava tagliato.
     /// </para>
     /// </remarks>
     private void OnRootLayoutUpdated(object? sender, EventArgs e)
     {
+        // Prima di tutto il resto, e a finestra ingrandita come a finestra normale: un
+        // elenco fuori dalla finestra e una lista che toglie il campo di composizione
+        // si presentano in entrambi i casi.
+        if (IsLoaded && WindowState != WindowState.Minimized)
+        {
+            PositionSuggestions();
+            ScheduleListFit();
+        }
+
         if (_resizePending) return;
         if (!IsLoaded || WindowState != WindowState.Normal) return;
 
@@ -4449,6 +4752,152 @@ public partial class MainWindow : Window
         // primo. Si rimanda al giro successivo del dispatcher, quando questo e' chiuso.
         _resizePending = true;
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(GrowToFitContent));
+    }
+
+    // -----------------------------------------------------------------------
+    // Elenco dei contatti proposti e liste: stare dentro la finestra
+    // -----------------------------------------------------------------------
+
+    /// <summary>Adeguamento dell'altezza delle liste già in coda.</summary>
+    private bool _listFitPending;
+
+    /// <summary>
+    /// Porta l'elenco dei contatti proposti dentro la finestra.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// L'elenco è ancorato al bordo alto del campo di composizione. Quando il campo sta
+    /// sotto il bordo della finestra — con coda e colleghi su uno schermo basso — così
+    /// ancorato scendeva con lui, e fuori dalla finestra non restava che la fascia
+    /// delle intestazioni: i risultati si sentivano e non si vedevano.
+    /// </para>
+    /// <para>
+    /// Qui, a ogni impaginazione, si riporta il bordo basso dell'elenco al più in basso
+    /// che la finestra consente, e se ne limita l'altezza allo spazio che sta sopra. Il
+    /// calcolo è in <see cref="MainWindowLayout.PlaceSuggestions"/>. Non cambia altezza
+    /// a nessun'altra sezione, quindi non innesca altro: la seconda impaginazione che
+    /// questa produce ritrova gli stessi valori e si ferma.
+    /// </para>
+    /// </remarks>
+    private void PositionSuggestions()
+    {
+        if (SuggestionsGrid.Visibility != Visibility.Visible) return;
+        if (!SuggestionsCanvas.IsLoaded) return;
+        if (VisualTreeHelper.GetParent(RootGrid) is not FrameworkElement host || host.ActualHeight <= 0) return;
+
+        var canvasTop = SuggestionsCanvas.TranslatePoint(new System.Windows.Point(0, 0), host).Y;
+
+        var placement = MainWindowLayout.PlaceSuggestions(
+            canvasTop,
+            visibleTop: RootGrid.Margin.Top,
+            visibleBottom: host.ActualHeight - RootGrid.Margin.Bottom);
+
+        var bottom = System.Windows.Controls.Canvas.GetBottom(SuggestionsGrid);
+
+        if (double.IsNaN(bottom) || Math.Abs(bottom - placement.Bottom) >= 1)
+        {
+            System.Windows.Controls.Canvas.SetBottom(SuggestionsGrid, placement.Bottom);
+        }
+
+        if (Math.Abs(SuggestionsGrid.MaxHeight - placement.MaxHeight) >= 1)
+        {
+            SuggestionsGrid.MaxHeight = placement.MaxHeight;
+        }
+    }
+
+    /// <summary>
+    /// Altezza utile massima che la finestra può dare al proprio contenuto.
+    /// </summary>
+    /// <param name="host">Il contenitore della griglia principale, cioè l'area utile.</param>
+    /// <remarks>
+    /// A finestra normale è quella che la finestra raggiungerebbe allargandosi fino al
+    /// bordo dello schermo, perché è fin lì che <see cref="GrowToFitContent"/> la porta;
+    /// a finestra ingrandita è quella che ha. Lo scarto fra l'altezza della finestra e
+    /// quella dell'area utile è la cornice — titolo e bordi — che il sistema aggiunge.
+    /// </remarks>
+    private double ContentCapacity(FrameworkElement host)
+    {
+        if (WindowState != WindowState.Normal) return host.ActualHeight;
+
+        var frame = ActualHeight - host.ActualHeight;
+
+        return Math.Max(host.ActualHeight, SystemParameters.WorkArea.Height - frame);
+    }
+
+    /// <summary>
+    /// Stabilisce quale altezza minima dare alle liste visibili, e a quali.
+    /// </summary>
+    /// <returns>Le righe delle liste visibili e l'altezza voluta, oppure <c>null</c> se non c'è niente da decidere.</returns>
+    private (List<System.Windows.Controls.RowDefinition> Rows, double Wanted)? PlanListMinimum()
+    {
+        List<System.Windows.Controls.RowDefinition> rows = [];
+
+        if (QueueSection.Visibility == Visibility.Visible) rows.Add(QueueRow);
+        if (ColleaguesSection.Visibility == Visibility.Visible) rows.Add(ColleaguesRow);
+
+        if (rows.Count == 0) return null;
+        if (VisualTreeHelper.GetParent(RootGrid) is not FrameworkElement host || host.ActualHeight <= 0) return null;
+
+        var capacity = ContentCapacity(host) - RootGrid.Margin.Top - RootGrid.Margin.Bottom;
+
+        // Le altre righe hanno altezza propria: nessuna si allunga se una lista cede.
+        var fixedHeight = RootGrid.RowDefinitions.Where(r => !rows.Contains(r)).Sum(r => r.ActualHeight);
+
+        return (rows, MainWindowLayout.ListMinimum(capacity, fixedHeight, rows.Count));
+    }
+
+    /// <summary>
+    /// Chiede l'adeguamento dell'altezza minima delle liste, se serve.
+    /// </summary>
+    /// <remarks>
+    /// Come per l'allargamento della finestra, non si agisce dentro il calcolo
+    /// dell'impaginazione ma al giro successivo del dispatcher. Costa un confronto fra
+    /// due numeri a ogni impaginazione, e finisce lì quando le liste hanno già
+    /// l'altezza giusta.
+    /// </remarks>
+    private void ScheduleListFit()
+    {
+        if (_listFitPending) return;
+        if (PlanListMinimum() is not { } plan) return;
+        if (!plan.Rows.Any(r => Math.Abs(r.MinHeight - plan.Wanted) >= 1)) return;
+
+        _listFitPending = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(FitListMinimums));
+    }
+
+    /// <summary>
+    /// Lascia alle liste l'altezza minima che lo spazio consente.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Il difetto che chiude.</b> Le due liste hanno un minimo di 180 pixel ciascuna,
+    /// scelto perché sotto mostrano solo i nomi delle colonne. Su uno schermo basso
+    /// quei 360 pixel più il resto non entrano, la finestra non può crescere oltre lo
+    /// schermo e a restare fuori è il campo di composizione, che sta in fondo.
+    /// </para>
+    /// <para>
+    /// La scelta è di priorità: fra una lista più corta e un campo di composizione che
+    /// non si vede, vince il campo. La lista resta percorribile con la tastiera e letta
+    /// per intero dallo screen reader, il campo no. Dove lo spazio basta nulla cambia: il
+    /// valore resta 180 e la finestra si allarga, come prima, per darglielo.
+    /// </para>
+    /// </remarks>
+    private void FitListMinimums()
+    {
+        _listFitPending = false;
+
+        if (!IsLoaded || PlanListMinimum() is not { } plan) return;
+
+        foreach (var row in plan.Rows)
+        {
+            if (Math.Abs(row.MinHeight - plan.Wanted) >= 1) row.MinHeight = plan.Wanted;
+        }
+
+        // Con un minimo diverso la mancanza di prima non vale piu': si riprova a
+        // contenere il contenuto.
+        _unreachableGrowth = 0;
+
+        _log.LogDebug("Altezza minima delle liste portata a {Altezza} pixel", (int)plan.Wanted);
     }
 
     /// <summary>

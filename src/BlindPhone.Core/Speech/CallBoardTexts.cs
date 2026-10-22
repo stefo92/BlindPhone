@@ -130,11 +130,10 @@ public static class CallBoardTexts
     /// invece di essere letto una per una.
     /// </para>
     /// <para>
-    /// <b>Il numero compare accanto al nome solo per chi è in rubrica</b>, ed è la
-    /// stessa regola dell'annuncio parlato. Un nome che arriva dall'intestazione SIP
-    /// lo sceglie chi chiama: mostrarlo con il numero a fianco gli darebbe l'aspetto
-    /// di una scheda verificata, che è esattamente ciò che non è. Chi non si trova in
-    /// rubrica compare con il solo numero, che è l'unico dato di cui si risponda.
+    /// <b>Il numero compare accanto a qualunque nome</b>, venga dalla rubrica o
+    /// dall'intestazione SIP, ed è la stessa regola dell'annuncio parlato: il perché
+    /// sta in <see cref="IncomingIdentity"/>. Chi non ha un nome compare con il solo
+    /// numero, e non ha un nome nemmeno chi ha il numero scritto al posto del nome.
     /// </para>
     /// </remarks>
     public static string IncomingCall(CallParty party, string? queueName = null)
@@ -177,23 +176,33 @@ public static class CallBoardTexts
     /// Chi c'è dall'altra parte, con il numero fra parentesi.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>Il numero compare sempre, quando c'è.</b> Prima veniva mostrato solo per i
     /// contatti in rubrica: con un nome dichiarato dal centralino e un numero
     /// sconosciuto restava il solo nome. Sul campo quel caso è la regola e non
     /// l'eccezione — il centralino annuncia le chiamate esterne come
     /// <c>"Chiamate esterne"</c> — e il riquadro diceva «Chiamata da: Chiamate
     /// esterne», cioè nulla di utilizzabile.
+    /// </para>
+    /// <para>
+    /// <b>Il nome è <see cref="CallParty.MeaningfulName"/>, non quello grezzo.</b> La
+    /// regola qui sopra, in vigore dalla 1.0.7, metteva il numero accanto a qualunque
+    /// nome senza chiedersi se il nome fosse già il numero: quando il centralino scrive
+    /// il numero al posto del nome, o una voce di rubrica senza nominativo presta il
+    /// proprio, il riquadro diceva «Chiamata da: 3491234567 (3491234567)».
+    /// </para>
     /// </remarks>
     private static string IncomingIdentity(CallParty party)
     {
+        var nome = party.MeaningfulName;
         var hasNumber = !string.IsNullOrWhiteSpace(party.Number);
 
-        if (string.IsNullOrWhiteSpace(party.DisplayName))
+        if (nome is null)
         {
             return hasNumber ? party.Number : "numero sconosciuto";
         }
 
-        return hasNumber ? $"{party.DisplayName} ({party.Number})" : party.DisplayName;
+        return hasNumber ? $"{nome} ({party.Number})" : nome;
     }
 
     /// <summary>
@@ -202,18 +211,25 @@ public static class CallBoardTexts
     /// <param name="party">Controparte.</param>
     /// <returns>"Mario Rossi - 4021", oppure il solo dato disponibile.</returns>
     /// <remarks>
-    /// Si usa <see cref="CallParty.DisplayName"/> e non
-    /// <see cref="CallParty.SpeechName"/>: quest'ultimo può contenere la resa fonetica
-    /// del cognome, che serve alla sintesi vocale e a schermo comparirebbe come un
-    /// errore di ortografia — "Cekerini" al posto di "Ceccherini".
+    /// <para>
+    /// Si usa il nome visualizzato e non <see cref="CallParty.SpeechName"/>:
+    /// quest'ultimo può contenere la resa fonetica del cognome, che serve alla sintesi
+    /// vocale e a schermo comparirebbe come un errore di ortografia — "Cekerini" al
+    /// posto di "Ceccherini".
+    /// </para>
+    /// <para>
+    /// Del nome visualizzato conta <see cref="CallParty.MeaningfulName"/>, come nel
+    /// riquadro della chiamata: un numero scritto al posto del nome produceva
+    /// «Collegato a: 3491234567 - 3491234567».
+    /// </para>
     /// </remarks>
     public static string Identity(CallParty party)
     {
-        var hasName = !string.IsNullOrWhiteSpace(party.DisplayName);
+        var nome = party.MeaningfulName;
         var hasNumber = !string.IsNullOrWhiteSpace(party.Number);
 
-        if (hasName && hasNumber) return $"{party.DisplayName} - {party.Number}";
-        if (hasName) return party.DisplayName!;
+        if (nome is not null && hasNumber) return $"{nome} - {party.Number}";
+        if (nome is not null) return nome;
         if (hasNumber) return party.Number;
 
         return "sconosciuto";

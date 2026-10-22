@@ -1131,9 +1131,39 @@ public sealed class CallSessionManager : IAsyncDisposable
     /// <param name="destination">Numero o interno da chiamare.</param>
     /// <param name="cancellationToken">Token di annullamento.</param>
     /// <returns>Identificativo della chiamata creata.</returns>
+    /// <remarks>
+    /// La controparte che viene annunciata e conservata <b>non è sempre quello che si
+    /// compone</b>: su una riunione i due differiscono, e la ragione è in
+    /// <see cref="ZoomRoomConnector.Redact"/>.
+    /// </remarks>
     public async Task<string> DialAsync(string destination, CancellationToken cancellationToken = default)
     {
+        // La risoluzione in rubrica usa la destinazione INTERA, cosi' una riunione
+        // ricorrente salvata come contatto — «Giunta settimanale» — viene riconosciuta
+        // con il suo nome invece che con undici cifre.
         var resolved = await ResolvePartyAsync(destination, cancellationToken).ConfigureAwait(false);
+
+        // DA QUI IN POI IL CODICE D'ACCESSO NON ESISTE PIU'.
+        //
+        // Su una riunione viaggia dentro il numero composto, quindi senza questa riga
+        // finirebbe nel registro delle chiamate e — questo e' il punto — verrebbe
+        // LETTO A VOCE ALTA in un centralino dove ci sono altre persone. L'archivio e'
+        // cifrato e il file non e' il problema: il problema e' la voce. Il codice
+        // d'accesso della giunta comunale pronunciato in uno stanzone e' un codice
+        // diffuso.
+        //
+        // Su tutto cio' che non e' una riunione non cambia niente.
+        resolved = resolved with { Number = ZoomRoomConnector.Redact(resolved.Number) };
+
+        // Senza nome in rubrica, «ottocentododici milioni... chiocciola zoomcrc punto
+        // com» e' quello che l'operatore sentirebbe. Dirgli «riunione Zoom» e il solo
+        // identificativo e' la stessa informazione in una forma ascoltabile.
+        if (string.IsNullOrWhiteSpace(resolved.DisplayName)
+            && ZoomRoomConnector.Describe(destination) is { } riunione)
+        {
+            resolved = resolved with { DisplayName = riunione };
+        }
+
         var callId = await _telephony.DialAsync(destination, cancellationToken).ConfigureAwait(false);
 
         var call = new Call(callId, CallDirection.Outbound, resolved, _clock.Now);
@@ -1595,6 +1625,13 @@ public sealed class CallSessionManager : IAsyncDisposable
     /// che il centralino ha deciso di mostrare per quella chiamata, e può essere più
     /// specifico della scheda in rubrica.
     /// </para>
+    /// <para>
+    /// <b>Salvo quando il nome è il numero stesso.</b> Allora non è una scelta del
+    /// centralino ma l'assenza di un nome, e dargli la precedenza nascondeva il
+    /// nominativo di rubrica dietro «4021 (4021)». Allo stesso modo una voce di rubrica
+    /// senza nome non presta il proprio numero: vedi <see cref="CallParty.MeaningfulName"/>
+    /// e <see cref="Contact.NameOrDescription"/>.
+    /// </para>
     /// </remarks>
     private async Task<CallParty> ResolveIncomingPartyAsync(CallParty party, CancellationToken cancellationToken)
     {
@@ -1602,10 +1639,10 @@ public sealed class CallSessionManager : IAsyncDisposable
 
         try
         {
-            var contact = await _contacts.ResolveByNumberAsync(party.Number, cancellationToken)
+            var matches = await _contacts.ResolveByNumberAsync(party.Number, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (contact is null)
+            if (matches.Count == 0)
             {
                 // Va registrato quanto il ritrovamento: davanti a "ha annunciato solo
                 // il numero" e' la riga che distingue un contatto assente da una
@@ -1614,13 +1651,28 @@ public sealed class CallSessionManager : IAsyncDisposable
                 return party;
             }
 
-            _log.LogInformation(
-                "Chiamante {Number} riconosciuto in rubrica: {Name}, interno {Extension}",
-                party.Number, contact.EffectiveDisplayName, contact.ExtensionNumber ?? "-");
+            var contact = matches[0];
 
+            _log.LogInformation(
+                "Chiamante {Number} riconosciuto in rubrica: {Name}, interno {Extension}{Altre}",
+                party.Number,
+                contact.EffectiveDisplayName,
+                contact.ExtensionNumber ?? "-",
+                matches.Count > 1 ? $", e altre {matches.Count - 1} voci sullo stesso numero" : string.Empty);
+
+            // IL NOME ANNUNCIATO RESTA QUELLO DELLA PRIMA VOCE, ANCHE SU UN INTERNO
+            // CONDIVISO.
+            //
+            // La tentazione era aggiungere "o una di altre sette voci sullo stesso
+            // numero". Non si puo': questo nome finisce nel registro chiamate e nel
+            // campo braille da sedici caratteri, dove la qualifica occuperebbe tutto lo
+            // spazio e il nome verrebbe troncato via. L'ambiguita' resta nel registro
+            // diagnostico, e in rubrica l'operatore trova tutte le voci quando gli
+            // servono; l'ordinamento dell'archivio garantisce almeno che la prima sia
+            // sempre la stessa e la piu' rappresentativa, invece di una a caso.
             return party with
             {
-                DisplayName = party.DisplayName ?? contact.EffectiveDisplayName,
+                DisplayName = party.MeaningfulName ?? CallParty.MeaningfulNameOf(contact.NameOrDescription, party.Number),
                 PhoneticName = contact.PhoneticName,
                 IsKnownContact = true,
                 Extension = contact.ExtensionNumber,
@@ -1642,18 +1694,20 @@ public sealed class CallSessionManager : IAsyncDisposable
 
         try
         {
-            var contact = await _contacts.ResolveByNumberAsync(destination, cancellationToken)
+            var matches = await _contacts.ResolveByNumberAsync(destination, cancellationToken)
                 .ConfigureAwait(false);
 
-            return contact is null
-                ? party
-                : party with
-                {
-                    DisplayName = contact.EffectiveDisplayName,
-                    PhoneticName = contact.PhoneticName,
-                    IsKnownContact = true,
-                    Extension = contact.ExtensionNumber,
-                };
+            if (matches.Count == 0) return party;
+
+            var contact = matches[0];
+
+            return party with
+            {
+                DisplayName = CallParty.MeaningfulNameOf(contact.NameOrDescription, destination),
+                PhoneticName = contact.PhoneticName,
+                IsKnownContact = true,
+                Extension = contact.ExtensionNumber,
+            };
         }
         catch (Exception ex)
         {

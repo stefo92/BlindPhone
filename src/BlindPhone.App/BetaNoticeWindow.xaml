@@ -12,11 +12,15 @@
     <!--
         AVVISO DI VERSIONE BETA
 
-        Compare a ogni avvio, prima della finestra principale. Non ha una casella
-        "non mostrare piu'": un avviso di responsabilita' che si puo' spegnere e'
-        un avviso che dopo il primo giorno non esiste piu', e la condizione che
-        descrive — software in prova su un posto telefonico di servizio — non
-        smette di valere il secondo giorno.
+        OGGI NON VIENE MOSTRATO: l'interruttore e' App.AvvisoBetaAllAvvio. Quando e'
+        acceso compare a ogni avvio, prima della finestra principale.
+
+        Non ha una casella "non mostrare piu'": un avviso di responsabilita' che
+        l'operatore puo' spegnere e' un avviso che dopo il primo giorno non esiste
+        piu', e la condizione che descrive — software in prova su un posto
+        telefonico di servizio — non smette di valere il secondo giorno. Mostrarlo o
+        no e' una decisione di chi distribuisce il programma, e sta nel codice di
+        avvio.
 
         Il costo per l'operatore e' una pressione di Invio: il pulsante di conferma
         e' quello predefinito e ha gia' il fuoco all'apertura, quindi chi conosce il

@@ -247,6 +247,9 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 // La riga sulla segnalazione va letta insieme a quella sui
                 // certificati: «cifrata» da sola non dice se si sa con chi.
                 new("Segnalazione", DescribeSignalling()),
+                new("Proxy in uscita", CurrentProxy is { } proxy
+                    ? $"{proxy} (da {_account.OutboundProxy}, {_proxyCandidates.Count} disponibili)"
+                    : "nessuno"),
                 new("Chiamate in corso", _calls.Count.ToString(CultureInfo.CurrentCulture)),
             };
 
@@ -284,6 +287,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             counters.Add(new DiagnosticCounter("Silenzio inserito", $"{Formatta(silence)} ms"));
             counters.Add(new DiagnosticCounter("Buffer in questo momento", $"{endPoint.BufferedMilliseconds} ms"));
             counters.Add(new DiagnosticCounter("Cuscinetto configurato", $"{endPoint.JitterBufferMilliseconds} ms"));
+            counters.Add(new DiagnosticCounter("Elaborazione del microfono", endPoint.MicrophoneProcessingDescription));
 
             if (endPoint.IsInConference)
             {
@@ -354,13 +358,15 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     // -----------------------------------------------------------------------
 
     /// <inheritdoc />
-    public Task StartAsync(CancellationToken cancellationToken)
+    public async Task StartAsync(CancellationToken cancellationToken)
     {
         if (!_account.Validate(out var error))
         {
             SetRegistrationState(RegistrationStatus.Failed, error);
             throw new InvalidOperationException(error);
         }
+
+        await ResolveOutboundProxyAsync(cancellationToken).ConfigureAwait(false);
 
         _transport = new SIPTransport();
 
@@ -386,15 +392,92 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
         // La sorveglianza degli interni per via SIP nasce con il trasporto: prima non
         // c'e' nulla su cui sottoscrivere. E' il ripiego per i centralini senza API.
-        _presenceSource = new SipPresenceSource(_transport, _account, _presenceLogger);
+        _presenceSource = new SipPresenceSource(_transport, _account, _presenceLogger, () => CurrentProxy);
 
         // Il sondaggio nasce con il trasporto per la stessa ragione: prima non c'e' nulla
         // a cui chiedere. E' la strada che resta quando le sottoscrizioni vengono
         // rifiutate, ed e' l'unica che il quadro dei turni possa usare su questo impianto.
-        _optionsProbe = new SipOptionsProbe(_transport, _account, _probeLogger);
+        _optionsProbe = new SipOptionsProbe(_transport, _account, _probeLogger, () => CurrentProxy);
 
         StartRegistration();
-        return Task.CompletedTask;
+    }
+
+    // -----------------------------------------------------------------------
+    // Proxy in uscita
+    // -----------------------------------------------------------------------
+
+    private IReadOnlyList<SIPEndPoint> _proxyCandidates = [];
+    private int _proxyIndex;
+
+    /// <summary>
+    /// Proxy in uscita in uso, gia' risolto in indirizzo IP, oppure <c>null</c> se
+    /// l'account non ne usa.
+    /// </summary>
+    /// <remarks>
+    /// Tutta la segnalazione — registrazione, chiamate, sondaggi, sottoscrizioni — passa
+    /// di qui: un'unica scelta evita che la registrazione vada al proxy e le chiamate
+    /// al dominio, che su una linea d'operatore e' un indirizzo da cui non si riceve
+    /// risposta.
+    /// </remarks>
+    private SIPEndPoint? CurrentProxy
+    {
+        get
+        {
+            var candidates = _proxyCandidates;
+            return candidates.Count == 0 ? null : candidates[Math.Min(_proxyIndex, candidates.Count - 1)];
+        }
+    }
+
+    /// <summary>
+    /// Trova l'indirizzo del proxy in uscita configurato, anche quando e' un nome di
+    /// servizio da cercare con una query DNS SRV.
+    /// </summary>
+    /// <remarks>
+    /// Se l'account dichiara un proxy che non si risolve, la registrazione <b>non</b>
+    /// parte senza: andrebbe al dominio, un percorso che su una linea come TIM non
+    /// risponde, e l'operatore vedrebbe un generico timeout invece della causa.
+    /// </remarks>
+    private async Task ResolveOutboundProxyAsync(CancellationToken cancellationToken)
+    {
+        _proxyCandidates = [];
+        _proxyIndex = 0;
+
+        if (string.IsNullOrWhiteSpace(_account.OutboundProxy)) return;
+
+        var resolver = new SipServerResolver(logger: _log);
+
+        var candidates = await resolver
+            .ResolveAsync(_account.OutboundProxy, _account.Transport, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (candidates.Count == 0)
+        {
+            const string message = "Proxy in uscita non risolvibile: controllare il nome e la connessione";
+            _log.LogError("Proxy in uscita {Proxy} non risolto da DNS", _account.OutboundProxy);
+            SetRegistrationState(RegistrationStatus.Failed, message);
+            throw new InvalidOperationException(message);
+        }
+
+        _proxyCandidates = candidates;
+
+        _log.LogInformation(
+            "Proxy in uscita {Proxy}: {Count} server da provare, si parte da {First}",
+            _account.OutboundProxy, candidates.Count, candidates[0]);
+    }
+
+    /// <summary>
+    /// Passa al server successivo dell'elenco SRV dopo una registrazione senza risposta.
+    /// </summary>
+    /// <returns><c>true</c> se c'e' un altro server da provare.</returns>
+    private bool TryAdvanceProxy()
+    {
+        var count = _proxyCandidates.Count;
+        if (count < 2) return false;
+
+        _proxyIndex = (_proxyIndex + 1) % count;
+        _log.LogWarning("Registrazione senza risposta: provo il proxy {Proxy}", CurrentProxy);
+
+        return true;
     }
 
     /// <summary>
@@ -507,16 +590,30 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             _account.AuthId ?? _account.Username,
             _account.Password,
             RegistrarUri(),
-            _account.RegistrationExpiry);
+            _account.RegistrationExpiry)
+        {
+            // Il REGISTER ha per destinazione logica il dominio, ma fisicamente va al
+            // proxy: e' cosi' che un operatore con proxy in uscita vuole essere servito.
+            OutboundProxy = CurrentProxy,
+        };
 
-        _registration.RegistrationSuccessful += (_, _) =>
+        var registration = _registration;
+
+        registration.RegistrationSuccessful += (_, _) =>
             SetRegistrationState(RegistrationStatus.Registered, null);
 
-        _registration.RegistrationFailed += (_, _, message) =>
+        registration.RegistrationFailed += (_, _, message) =>
             SetRegistrationState(RegistrationStatus.Failed, TranslateRegistrationError(message));
 
-        _registration.RegistrationTemporaryFailure += (_, _, message) =>
+        registration.RegistrationTemporaryFailure += (_, _, message) =>
+        {
+            // Timeout o server irraggiungibile: se l'SRV ne indicava altri, il
+            // prossimo tentativo va al successivo invece di insistere su un server
+            // che non risponde. E' il motivo per cui i record SRV hanno una priorita'.
+            if (TryAdvanceProxy()) registration.OutboundProxy = CurrentProxy;
+
             SetRegistrationState(RegistrationStatus.Registering, TranslateRegistrationError(message));
+        };
 
         _registration.RegistrationRemoved += (_, _) =>
             SetRegistrationState(RegistrationStatus.Unregistered, null);
@@ -777,7 +874,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         var callId = NextCallId();
         var agent = CreateUserAgent();
         var builder = new CallContextBuilder();
-        var media = CreateMediaSession(builder, secure);
+        var media = CreateMediaSession(builder, secure, destination);
 
         var context = new CallContext(callId, agent, media, destination)
         {
@@ -990,7 +1087,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
             var agent = CreateUserAgent();
             var builder = new CallContextBuilder();
-            var media = CreateMediaSession(builder, secure: false);
+            var media = CreateMediaSession(builder, secure: false, destination);
 
             var context = new CallContext(callId, agent, media, destination)
             {
@@ -1214,11 +1311,26 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             // chiamata che il dizionario non conosce non la fermerebbe piu' nessuno.
             StartRingingRefresh(context);
 
+            // Il nome del From si prende solo quando dice qualcosa che il numero non dice
+            // gia'. Un centralino che per quel chiamante non ha un nome puo' scrivere li'
+            // il numero stesso, e preso per nome compariva due volte: "Chiamata da:
+            // 3491234567 (3491234567)". Vedi CallParty.MeaningfulName.
+            var numero = request.Header.From?.FromURI?.User ?? string.Empty;
+            var nomeDichiarato = request.Header.From?.FromName;
+            var nome = CallParty.MeaningfulNameOf(nomeDichiarato, numero);
+
+            if (nome is null && !string.IsNullOrWhiteSpace(nomeDichiarato))
+            {
+                _log.LogDebug(
+                    "Chiamata entrante {CallId}: il nome dichiarato nel From e' il numero stesso, non viene usato come nome",
+                    callId);
+            }
+
             var party = new CallParty(
-                request.Header.From?.FromURI?.User ?? string.Empty,
-                string.IsNullOrWhiteSpace(request.Header.From?.FromName) ? null : request.Header.From.FromName,
+                numero,
+                nome,
                 PhoneticName: null,
-                IsInternal: IsLikelyInternal(request.Header.From?.FromURI?.User));
+                IsInternal: IsLikelyInternal(numero));
 
             IncomingCall?.Invoke(this, new IncomingCallEventArgs(
                 callId,
@@ -2403,11 +2515,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
     private SIPUserAgent CreateUserAgent()
     {
-        var proxy = string.IsNullOrWhiteSpace(_account.OutboundProxy)
-            ? null
-            : SIPEndPoint.ParseSIPEndPoint(_account.OutboundProxy);
-
-        return new SIPUserAgent(_transport, proxy);
+        return new SIPUserAgent(_transport, CurrentProxy);
     }
 
     /// <summary>
@@ -2449,9 +2557,25 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// <see cref="SrtpNegotiation"/> a partire dalla politica dell'account e, sulle
     /// chiamate entranti, da quello che ha offerto chi chiama.
     /// </param>
-    private VoIPMediaSession CreateMediaSession(CallContextBuilder context, bool secure)
+    /// <param name="destination">
+    /// Destinazione della chiamata, quando è nota. Serve al solo scopo di scegliere i
+    /// codec: il gateway di riunione Zoom non accetta G.729, che è il primo della
+    /// preferenza predefinita. Vale <c>null</c> sulle chiamate entranti e
+    /// sull'inclusione, dove la preferenza configurata resta quella buona.
+    /// </param>
+    private VoIPMediaSession CreateMediaSession(
+        CallContextBuilder context, bool secure, string? destination = null)
     {
-        var preferred = AudioCodecCatalog.ParseList(_account.CodecPreference);
+        // La destinazione puo' cambiare i codec da offrire, e oggi lo fa in un caso
+        // solo: il gateway di riunione Zoom non accetta G.729, che e' il primo della
+        // preferenza predefinita. Vedi ZoomRoomConnector.CodecPreferenceFor.
+        //
+        // Vale null sulle chiamate entranti e sull'inclusione, dove la preferenza
+        // configurata resta quella buona: questo ramo non deve cambiare il
+        // comportamento di una sola telefonata ordinaria.
+        var preferred = ZoomRoomConnector.CodecPreferenceFor(
+            destination, AudioCodecCatalog.ParseList(_account.CodecPreference));
+
         var allowed = preferred.Select(ToSipSorceryCodec).ToHashSet();
 
         VoIPMediaSession session;

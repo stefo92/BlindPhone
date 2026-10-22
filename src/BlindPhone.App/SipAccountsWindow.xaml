@@ -119,7 +119,7 @@
                     AutomationProperties.Name="Attiva l'account selezionato adesso"
                     Click="OnActivateClick" />
 
-            <Button x:Name="DefaultButton" Content="Usa _all'avvio"
+            <Button x:Name="DefaultButton" Content="_Usa all'avvio"
                     MinWidth="160" Margin="0,0,8,0"
                     AutomationProperties.Name="Rendi predefinito l'account selezionato"
                     Click="OnDefaultClick" />

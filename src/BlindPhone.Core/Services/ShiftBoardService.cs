@@ -479,11 +479,15 @@ public sealed class ShiftBoardService
 
             try
             {
-                var contatto = await _contacts
+                // Sul quadro dei turni si prende la prima voce e basta: l'interno di un
+                // collega in turno e' il suo, e se il numero ne serve altre sono la
+                // stanza o il fax dello stesso ufficio — dirle qui allungherebbe una
+                // riga che si scorre per sapere solo chi c'e'.
+                var contatti = await _contacts
                     .ResolveByNumberAsync(voce.Number, cancellationToken)
                     .ConfigureAwait(false);
 
-                if (contatto is not null) nomi[voce.Key] = contatto.EffectiveDisplayName;
+                if (contatti.Count > 0) nomi[voce.Key] = contatti[0].EffectiveDisplayName;
             }
             catch (Exception ex)
             {

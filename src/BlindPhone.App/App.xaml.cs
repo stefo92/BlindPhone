@@ -36,6 +36,38 @@ namespace BlindPhone.App;
 /// </remarks>
 public partial class App : Application
 {
+    /// <summary>
+    /// Se mostrare l'avviso di versione beta all'avvio. <b>Oggi è spento.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// L'avviso è la finestra che compariva prima della finestra principale e chiedeva
+    /// un Invio per proseguire. È stato spento su richiesta: su una postazione che si
+    /// avvia più volte al giorno una conferma obbligatoria a ogni avvio è attrito, e
+    /// pesa di più proprio su chi non vede, perché va ascoltata per sapere che c'è.
+    /// </para>
+    /// <para>
+    /// <b>Che cosa non viene più detto.</b> Quella finestra era l'unico punto in cui il
+    /// programma dichiarava di essere una versione di prova, di non offrire garanzie, e
+    /// di non dover essere l'unico mezzo per le chiamate di emergenza. Spegnendola quel
+    /// testo non compare più da nessuna parte a tempo di esecuzione: se deve restare
+    /// raggiungibile, il posto naturale è un argomento della guida in linea.
+    /// </para>
+    /// <para>
+    /// <b>La finestra resta al suo posto.</b> Non è codice morto per distrazione:
+    /// <see cref="BetaNoticeWindow"/> è completa e funzionante — porta anche la
+    /// correzione per cui il suo testo arriva davvero agli screen reader — e riaccenderla
+    /// costa la sola modifica di questa riga. Cancellarla obbligherebbe a riscriverla al
+    /// primo collaudo esterno.
+    /// </para>
+    /// <para>
+    /// È <c>static readonly</c> e non <c>const</c> di proposito: una costante renderebbe
+    /// irraggiungibile il ramo sottostante, e la compilazione avvisa. La soluzione
+    /// compila a zero avvisi ed è un livello che vale la pena difendere.
+    /// </para>
+    /// </remarks>
+    private static readonly bool AvvisoBetaAllAvvio = false;
+
     private ServiceProvider? _services;
     private DispatcherTimer? _pumpTimer;
     private SingleInstanceGuard? _singleInstance;
@@ -172,13 +204,29 @@ public partial class App : Application
         // E' successo davvero: il registro mostrava avvio, servizi pronti e chiusura a
         // un secondo e mezzo di distanza, senza una sola riga della finestra
         // principale.
+        //
+        // Con l'avviso spento non si apre piu' nessuna finestra prima della principale,
+        // quindi in questo momento la riga non protegge da niente. Resta per due
+        // ragioni: torna necessaria appena si riaccende l'avviso, e vale per qualunque
+        // altra finestra che un domani venga aperta durante l'avvio — dove il difetto
+        // si ripresenterebbe identico e ugualmente difficile da leggere.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         // L'avviso di versione beta viene prima della finestra principale, e dopo
         // l'avvio del ciclo di pump: senza quel ciclo l'annuncio resterebbe in coda e
         // chi non vede si troverebbe davanti una finestra muta in attesa di una
         // conferma che non sa di dover dare.
-        if (!ShowBetaNotice())
+        //
+        // Oggi non viene mostrato: vedi AvvisoBetaAllAvvio.
+        if (!AvvisoBetaAllAvvio)
+        {
+            // Va registrato. Davanti a "l'avviso non compare piu'" la prima domanda e'
+            // se sia stato spento di proposito o se la finestra non sia riuscita ad
+            // aprirsi, e le due cose si distinguono solo da qui: il secondo caso ha una
+            // riga di errore, questo ha questa.
+            _logger?.LogInformation("Avviso di versione beta disattivato: non viene mostrato");
+        }
+        else if (!ShowBetaNotice())
         {
             _logger?.LogInformation("Avvio interrotto: avviso di versione beta non accettato");
             Shutdown();

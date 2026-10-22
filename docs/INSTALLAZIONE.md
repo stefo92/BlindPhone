@@ -11,7 +11,7 @@ eseguito, e come distribuirlo su più postazioni.
 powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1
 ```
 
-Servono l'SDK .NET 9 e WiX 5, che si installa una volta sola:
+Servono l'SDK .NET 10 e WiX 5, che si installa una volta sola:
 
 ```powershell
 dotnet tool install --global wix --version 5.*
@@ -86,7 +86,7 @@ dell'architettura in costruzione. Chi aggiorna la libreria le aggiorni entrambe:
 ### Il pacchetto include il motore di esecuzione .NET
 
 È la ragione dei 62 MB, ed è una scelta. Un pacchetto che pretende .NET Desktop
-Runtime 9 già installato pesa una decina di megabyte, ma può fermarsi con un
+Runtime 10 già installato pesa una decina di megabyte, ma può fermarsi con un
 errore di prerequisito — e per chi installa da solo senza vedere lo schermo quel
 messaggio è un muro.
 
@@ -278,7 +278,7 @@ CAD.
 ### Cambiare la grafica
 
 Striscia superiore e riquadro laterale si rigenerano dall'immagine sorgente
-`icona.png` insieme all'icona dell'applicazione:
+`BlindPhoneLogo.png` insieme all'icona dell'applicazione:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\genera-icona.ps1

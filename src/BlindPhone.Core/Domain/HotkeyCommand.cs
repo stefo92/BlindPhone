@@ -124,6 +124,17 @@ public enum HotkeyCommand
     /// <summary>Apre la guida in linea.</summary>
     OpenHelp,
 
+    /// <summary>
+    /// Entra in una riunione Zoom, componendo quello che c'è nel campo di
+    /// composizione.
+    /// </summary>
+    /// <remarks>
+    /// Funzione secondaria, e la collocazione lo rispetta: non aggiunge un tasto alla
+    /// modalità semplificata, non aggiunge un pulsante alla barra delle azioni di
+    /// chiamata, e chi non la usa non paga niente.
+    /// </remarks>
+    JoinMeeting,
+
     /// <summary>Riporta il focus sulla chiamata attiva.</summary>
     FocusActiveCall,
 

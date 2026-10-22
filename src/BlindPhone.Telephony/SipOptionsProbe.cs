@@ -52,17 +52,23 @@ public sealed class SipOptionsProbe : IReachabilityProbe
     private readonly SipAccountOptions _account;
     private readonly ILogger<SipOptionsProbe> _log;
 
+    /// <summary>Proxy in uscita corrente dell'account: gli OPTIONS passano di li' come il resto.</summary>
+    private readonly Func<SIPEndPoint?> _outboundProxy;
+
     /// <summary>Crea il sondaggio.</summary>
     /// <param name="transport">Trasporto SIP già avviato dal motore telefonico.</param>
     /// <param name="account">Credenziali e dominio dell'account.</param>
     /// <param name="logger">Log diagnostico.</param>
+    /// <param name="outboundProxy">Fornisce il proxy in uscita corrente dell'account, se c'e'.</param>
     public SipOptionsProbe(
         SIPTransport transport,
         SipAccountOptions account,
-        ILogger<SipOptionsProbe>? logger = null)
+        ILogger<SipOptionsProbe>? logger = null,
+        Func<SIPEndPoint?>? outboundProxy = null)
     {
         _transport = transport;
         _account = account;
+        _outboundProxy = outboundProxy ?? (() => null);
         _log = logger ?? NullLogger<SipOptionsProbe>.Instance;
     }
 
@@ -180,7 +186,7 @@ public sealed class SipOptionsProbe : IReachabilityProbe
         }
 
         var attesa = new TaskCompletionSource<SIPResponse?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var transazione = new SIPNonInviteTransaction(_transport, richiesta, null);
+        var transazione = new SIPNonInviteTransaction(_transport, richiesta, _outboundProxy());
 
         transazione.NonInviteTransactionFinalResponseReceived += (_, _, _, risposta) =>
         {

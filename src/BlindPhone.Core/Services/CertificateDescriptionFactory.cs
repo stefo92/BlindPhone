@@ -17,7 +17,7 @@ namespace BlindPhone.Core.Services;
 /// Sta nel core e non nell'infrastruttura perché la usano due progetti che non si
 /// conoscono fra loro, la telefonia e il connettore del centralino, e perché
 /// <c>X509Certificate2</c> è libreria di base e non codice specifico della
-/// piattaforma: il core resta compilabile su <c>net9.0</c>.
+/// piattaforma: il core resta compilabile sulla banda senza <c>-windows</c>.
 /// </para>
 /// </remarks>
 public static class CertificateDescriptionFactory

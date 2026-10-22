@@ -763,8 +763,8 @@ public sealed record AppSettings
     /// Come l'operatore comanda la postazione: scorciatoie complete o tastierino.
     /// </summary>
     /// <remarks>
-    /// La modalità semplificata <b>aggiunge</b> i tre tasti del tastierino e blocca la
-    /// rimappatura delle scorciatoie; non toglie nulla di quello che c'era.
+    /// La modalità semplificata <b>aggiunge</b> i quattro tasti del tastierino e blocca
+    /// la rimappatura delle scorciatoie; non toglie nulla di quello che c'era.
     /// </remarks>
     public InteractionMode Interaction { get; init; } = InteractionMode.Standard;
 
@@ -800,6 +800,17 @@ public sealed record AppSettings
 
     /// <summary>Regolazione del buffer audio della conversazione.</summary>
     public AudioTuning Audio { get; init; } = new();
+
+    /// <summary>
+    /// Elaborazione automatica del microfono: controllo del livello e riduzione del
+    /// rumore ambientale.
+    /// </summary>
+    /// <remarks>
+    /// Spenta per impostazione predefinita, anche in un file di configurazione scritto
+    /// da una versione che non la conosceva: la proprietà manca, e il valore di
+    /// partenza è «nessuna elaborazione». Vedi <see cref="MicrophoneProcessing"/>.
+    /// </remarks>
+    public MicrophoneProcessing MicrophoneProcessing { get; init; } = new();
 
     // Il profilo di scorciatoie attivo NON sta qui.
     //

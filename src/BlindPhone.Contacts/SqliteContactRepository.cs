@@ -94,6 +94,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
                 no_transfer   INTEGER NOT NULL DEFAULT 0,
                 source        TEXT NOT NULL,
                 presence      INTEGER NOT NULL DEFAULT 0,
+                kind          INTEGER NOT NULL DEFAULT 0,
                 updated_at    TEXT NOT NULL,
                 search_text   TEXT NOT NULL,
                 search_t9     TEXT NOT NULL
@@ -151,6 +152,12 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
             ("related_to", "TEXT"),
             ("building", "TEXT"),
             ("floor_name", "TEXT"),
+
+            // Zero e' ContactKind.Unknown, che e' il valore giusto per un archivio
+            // esistente: il tipo di voce lo sa la sorgente, e i contatti gia' scritti
+            // lo riceveranno al primo riallineamento invece di essere classificati
+            // adesso da un'ipotesi fatta su dati incompleti.
+            ("kind", "INTEGER NOT NULL DEFAULT 0"),
         ];
 
         foreach (var (column, type) in required)
@@ -228,27 +235,60 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
         }
     }
 
+    /// <summary>
+    /// Quante voci si restituiscono per un numero condiviso.
+    /// </summary>
+    /// <remarks>
+    /// Il tetto non serve a proteggere la memoria — le voci su uno stesso interno sono
+    /// una manciata — ma l'orecchio: oltre una decina l'elenco non è più
+    /// un'informazione, e un numero con quaranta voci significa che la rubrica è
+    /// mappata male, non che quaranta persone condividono un telefono.
+    /// </remarks>
+    private const int MaxSharedNumberMatches = 10;
+
     /// <inheritdoc />
-    public async Task<Contact?> ResolveByNumberAsync(string number, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<Contact>> ResolveByNumberAsync(
+        string number,
+        CancellationToken cancellationToken)
     {
         var normalized = NormalizeNumber(number);
-        if (normalized is null) return null;
+        if (normalized is null) return [];
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             using var command = _connection.CreateCommand();
-            command.CommandText = """
+
+            // L'ORDINE DECIDE CHI VIENE ANNUNCIATO, QUINDI NON PUO' ESSERE QUELLO DI
+            // INSERIMENTO.
+            //
+            // I preferiti per primi: se l'operatore ha marcato una voce su quel numero,
+            // e' quella che si aspetta di sentire. Poi le persone prima dei servizi,
+            // perche' su un apparecchio condiviso fra una persona e una stanza il nome
+            // della persona identifica meglio la chiamata. I fax e i numeri brevi per
+            // ultimi: sono i tipi che non si annunciano volentieri come chiamante.
+            command.CommandText = $"""
                 SELECT c.* FROM contacts c
                 JOIN contact_numbers n ON n.contact_id = c.id
                 WHERE n.normalized = $number
-                LIMIT 1
+                ORDER BY
+                    c.is_favorite DESC,
+                    CASE c.kind
+                        WHEN {(int)ContactKind.Person} THEN 0
+                        WHEN {(int)ContactKind.Service} THEN 1
+                        WHEN {(int)ContactKind.Unknown} THEN 2
+                        WHEN {(int)ContactKind.Emergency} THEN 3
+                        WHEN {(int)ContactKind.ShortCode} THEN 4
+                        ELSE 5
+                    END,
+                    c.last_name, c.first_name, c.display_name, c.category
+                LIMIT $limit
                 """;
 
             command.Parameters.AddWithValue("$number", normalized);
+            command.Parameters.AddWithValue("$limit", MaxSharedNumberMatches);
 
-            var results = await ReadContactsAsync(command, cancellationToken).ConfigureAwait(false);
-            return results.FirstOrDefault();
+            return await ReadContactsAsync(command, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -314,13 +354,13 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
                 id, first_name, last_name, display_name, phonetic_name, organization,
                 department, job_title, category, related_to, building, floor_name,
                 email, notes, numbers_json, is_favorite,
-                speed_dial, is_vip, no_transfer, source, presence, updated_at,
+                speed_dial, is_vip, no_transfer, source, presence, kind, updated_at,
                 search_text, search_t9)
             VALUES (
                 $id, $first, $last, $display, $phonetic, $org,
                 $dept, $title, $category, $relatedTo, $building, $floor,
                 $email, $notes, $numbers, $fav,
-                $speed, $vip, $noTransfer, $source, $presence, $updated,
+                $speed, $vip, $noTransfer, $source, $presence, $kind, $updated,
                 $search, $t9)
             ON CONFLICT(id) DO UPDATE SET
                 first_name = $first, last_name = $last, display_name = $display,
@@ -328,7 +368,8 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
                 organization = $org, department = $dept, job_title = $title,
                 category = $category, related_to = $relatedTo,
                 building = $building, floor_name = $floor,
-                email = $email, numbers_json = $numbers, source = $source,
+                email = $email, notes = $notes, numbers_json = $numbers,
+                source = $source, kind = $kind,
                 updated_at = $updated, search_text = $search, search_t9 = $t9
             """;
 
@@ -359,6 +400,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
         command.Parameters.AddWithValue("$noTransfer", contact.DoNotTransfer ? 1 : 0);
         command.Parameters.AddWithValue("$source", sourceName);
         command.Parameters.AddWithValue("$presence", (int)contact.Presence);
+        command.Parameters.AddWithValue("$kind", (int)contact.Kind);
         command.Parameters.AddWithValue("$updated", contact.UpdatedAt.ToString("O"));
         command.Parameters.AddWithValue("$search", searchText);
         command.Parameters.AddWithValue("$t9", ToT9(searchText));
@@ -528,6 +570,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
                 DoNotTransfer = reader.GetInt32(reader.GetOrdinal("no_transfer")) == 1,
                 Source = reader.GetString(reader.GetOrdinal("source")),
                 Presence = (PresenceState)reader.GetInt32(reader.GetOrdinal("presence")),
+                Kind = (ContactKind)reader.GetInt32(reader.GetOrdinal("kind")),
                 UpdatedAt = DateTimeOffset.Parse(reader.GetString(reader.GetOrdinal("updated_at"))),
             });
         }
@@ -545,10 +588,19 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
     /// Compone il testo su cui opera la ricerca incrementale.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Include anche edificio e piano. In una struttura complessa l'operatore
     /// riceve di continuo domande di collocazione — "chi c'è al padiglione B?" — e
     /// poterle risolvere digitando "padiglione b" evita di dover ricordare a memoria
     /// la mappa dell'ente.
+    /// </para>
+    /// <para>
+    /// <b>Ci sono anche le note e il tipo di voce.</b> Le note raccolgono ciò che la
+    /// rubrica dell'ente scrive nel campo del numero senza che sia un numero — «breve
+    /// 6583», un secondo interno annotato a mano — ed è informazione che l'operatore
+    /// cerca esattamente come cerca un reparto. Il tipo rende cercabile «fax», che è
+    /// il modo in cui si chiede un fax quando non se ne ricorda il reparto.
+    /// </para>
     /// </remarks>
     private static string BuildSearchText(Contact contact)
     {
@@ -557,6 +609,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
             contact.FirstName, contact.LastName, contact.DisplayName,
             contact.Organization, contact.Department, contact.JobTitle,
             contact.Category, contact.RelatedTo, contact.Building, contact.Floor,
+            contact.Notes, contact.KindSpeech,
             string.Join(' ', contact.Numbers.Select(n => n.Number)),
         };
 

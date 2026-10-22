@@ -36,7 +36,7 @@ public sealed record ContactsSettings
     public ContactsSqlServerSettings SqlServer { get; init; } = new();
 
     /// <summary>
-    /// Campi della rubrica mostrati accanto ai contatti proposti sotto il campo di
+    /// Campi della rubrica mostrati accanto ai contatti proposti sopra il campo di
     /// composizione.
     /// </summary>
     /// <remarks>
@@ -103,14 +103,37 @@ public sealed record ContactsSqlServerSettings
 /// Quale colonna del server riempie quale campo del contatto.
 /// </summary>
 /// <remarks>
-/// Sono le stesse voci della procedura guidata dei file: numero, relativo,
-/// descrizione, nome, cognome, reparto, padiglione, piano. Tenere gli stessi campi
-/// significa che chi ha imparato a importare un file sa già collegare un server.
+/// <para>
+/// Le prime voci sono le stesse della procedura guidata dei file: numero, secondo
+/// numero, relativo, descrizione, nome, cognome, reparto, padiglione, piano. Tenere
+/// gli stessi campi significa che chi ha imparato a importare un file sa già
+/// collegare un server.
+/// </para>
+/// <para>
+/// <b>Le ultime quattro non compaiono nella procedura guidata</b>, e non è una
+/// dimenticanza: non sono scelte dell'operatore ma fatti della sorgente — come si
+/// identifica una voce, come si riconosce un numero breve, come si riconosce una voce
+/// dismessa, dove sta la data di aggiornamento. Le riempie il profilo riconosciuto,
+/// e chiederle a chi importa significherebbe pretendere che conosca lo schema del
+/// gestionale dell'ente.
+/// </para>
 /// </remarks>
 public sealed record ContactsColumnMapping
 {
     /// <summary>Colonna dell'interno.</summary>
     public string? Extension { get; init; }
+
+    /// <summary>
+    /// Colonna del secondo recapito.
+    /// </summary>
+    /// <remarks>
+    /// Nelle rubriche di centralino è il secondo apparecchio della stessa postazione,
+    /// o il numero urbano diretto. Mancava, e mancava per costruzione: le impostazioni
+    /// non avevano dove metterlo, quindi dal server si poteva importare un solo numero
+    /// per contatto anche quando la tabella ne dichiarava due. Su una rubrica vera
+    /// erano millequattrocento recapiti irraggiungibili.
+    /// </remarks>
+    public string? WorkPhone { get; init; }
 
     /// <summary>Colonna dell'interno di riferimento.</summary>
     public string? RelatedTo { get; init; }
@@ -132,4 +155,16 @@ public sealed record ContactsColumnMapping
 
     /// <summary>Colonna del piano.</summary>
     public string? Floor { get; init; }
+
+    /// <summary>Colonna che identifica la voce nella sorgente, in modo stabile.</summary>
+    public string? EntryKey { get; init; }
+
+    /// <summary>Colonna che marca la voce come codice abbreviato.</summary>
+    public string? ShortCodeFlag { get; init; }
+
+    /// <summary>Colonna che marca la voce come non più in uso.</summary>
+    public string? InactiveFlag { get; init; }
+
+    /// <summary>Colonna con la data dell'ultima modifica nella sorgente.</summary>
+    public string? UpdatedAt { get; init; }
 }

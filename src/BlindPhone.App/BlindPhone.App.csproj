@@ -39,7 +39,7 @@
     <UseWindowsForms>true</UseWindowsForms>
 
     <!--
-      Icona dell'applicazione, generata da icona.png con tools\genera-icona.ps1.
+      Icona dell'applicazione, generata da BlindPhoneLogo.png con tools\genera-icona.ps1.
 
       Vale anche per le finestre: una finestra WPF che non dichiara la propria
       Icon usa quella dell'eseguibile, quindi questa riga copre barra del titolo,
@@ -141,6 +141,25 @@
   <ItemGroup>
     <None Include="..\..\lib\nvda\$(ArchitetturaClientNvda)\nvdaControllerClient*.dll"
           Condition="Exists('..\..\lib\nvda\$(ArchitetturaClientNvda)')">
+      <Link>%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!--
+    IL TESTO DELLA LICENZA VIAGGIA CON LA LIBRERIA.
+
+    La libreria di NV Access e' sotto LGPL 2.1, e una delle condizioni per
+    distribuirla e' che il testo della licenza l'accompagni. Il pacchetto di
+    installazione porta tutto quello che c'e' nella cartella di pubblicazione, quindi
+    basta che il file ci arrivi: lo stesso criterio della DLL, e con la stessa
+    condizione, perche' senza la libreria non c'e' niente da accompagnare.
+    lib\nvda\LEGGIMI.md spiega perche' la licenza e' compatibile con quella del
+    progetto.
+  -->
+  <ItemGroup>
+    <None Include="..\..\lib\nvda\LICENSE-nvdaControllerClient-LGPL-2.1.txt"
+          Condition="Exists('..\..\lib\nvda\$(ArchitetturaClientNvda)') and Exists('..\..\lib\nvda\LICENSE-nvdaControllerClient-LGPL-2.1.txt')">
       <Link>%(Filename)%(Extension)</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

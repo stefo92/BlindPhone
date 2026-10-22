@@ -977,7 +977,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
                 .ConfigureAwait(false);
 
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.BlindTransferSent(session.DestinationSpeech),
+                AnnouncementTexts.BlindTransferSent(SpokenDestination(session)),
                 _clock.Now,
                 EarconKind.TransferSucceeded,
                 coalesceKey: "transfer:result",
@@ -1119,18 +1119,27 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         // 2. Destinazione non disponibile secondo la presenza nota.
         try
         {
-            var contact = await _contacts.ResolveByNumberAsync(destination, cancellationToken)
+            var matches = await _contacts.ResolveByNumberAsync(destination, cancellationToken)
                 .ConfigureAwait(false);
 
-            if (contact is null) return false;
+            if (matches.Count == 0) return false;
 
-            if (contact.DoNotTransfer)
+            var contact = matches[0];
+
+            // IL DIVIETO SI CERCA FRA TUTTE LE VOCI DEL NUMERO, NON SOLO NELLA PRIMA.
+            //
+            // Su un apparecchio condiviso basta che una delle voci sia contrassegnata
+            // perche' il trasferimento vada confermato: il contrassegno riguarda il
+            // telefono che squilla, non la riga di rubrica con cui lo si e' cercato.
+            // Guardare solo la prima significava che l'ordine dei risultati decideva
+            // se l'avviso scattasse, cioe' che a volte non scattava.
+            if (matches.FirstOrDefault(c => c.DoNotTransfer) is { } riservato)
             {
                 lock (_gate) _pendingConfirmation =
                     new PendingConfirmation(isBlind, ConfirmationKind.DoNotTransfer, destination);
 
                 _announcer.Announce(Announcement.CommandResponse(
-                    $"Attenzione: {contact.SpeechName} non riceve trasferimenti diretti. "
+                    $"Attenzione: {riservato.SpeechName} non riceve trasferimenti diretti. "
                     + $"{Options.TransferKeyName} per procedere comunque, ESC per annullare",
                     _clock.Now));
 
@@ -1548,7 +1557,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             _announcer.Announce(Announcement.High(
                 AnnouncementTexts.TransferCompleted(
                     session.OriginalCall.RemoteParty.SpeechName,
-                    session.DestinationSpeech),
+                    SpokenDestination(session)),
                 e.At,
                 EarconKind.TransferSucceeded,
                 coalesceKey: "transfer:result",
@@ -1614,22 +1623,48 @@ public sealed class TransferOrchestrator : IAsyncDisposable
                && !number.StartsWith('+');
     }
 
+    /// <summary>
+    /// La destinazione come si pronuncia negli annunci che chiudono il trasferimento:
+    /// il nome che le dà la rubrica, oppure il numero cifra per cifra.
+    /// </summary>
+    /// <param name="session">Trasferimento in corso.</param>
+    /// <remarks>
+    /// <para>
+    /// <see cref="TransferSession.DestinationSpeech"/> ricade sul numero così come è
+    /// stato digitato, e «4021» passato intero alla sintesi si sente
+    /// «quattromilaventuno». A trasferimento concluso l'annuncio diceva il nome quando
+    /// la rubrica ne aveva uno, e fuori rubrica un numero che l'operatore non
+    /// riconosceva come l'interno a cui aveva appena passato il chiamante: cioè proprio
+    /// la cosa che quell'annuncio serve a verificare.
+    /// </para>
+    /// <para>
+    /// Una voce di rubrica senza nome vale come fuori rubrica: il suo nome sarebbe il
+    /// numero stesso, e <see cref="SpeechFormatter.Party"/> non lo prende per un nome.
+    /// </para>
+    /// </remarks>
+    private string SpokenDestination(TransferSession session)
+        => SpeechFormatter.Party(session.ResolvedDestination?.SpeechName, session.Destination, Options.DigitGrouping);
+
     private async Task<CallParty?> ResolveDestinationAsync(string destination, CancellationToken cancellationToken)
     {
         if (_contacts is null) return null;
 
         try
         {
-            var contact = await _contacts.ResolveByNumberAsync(destination, cancellationToken)
+            var matches = await _contacts.ResolveByNumberAsync(destination, cancellationToken)
                 .ConfigureAwait(false);
 
-            return contact is null
-                ? null
-                : new CallParty(
-                    destination,
-                    contact.EffectiveDisplayName,
-                    contact.PhoneticName,
-                    IsInternalNumber(destination));
+            if (matches.Count == 0) return null;
+
+            var contact = matches[0];
+
+            // Una voce senza nome non presta il proprio numero come nome: la destinazione
+            // comparirebbe due volte. Vedi CallParty.MeaningfulName.
+            return new CallParty(
+                destination,
+                CallParty.MeaningfulNameOf(contact.NameOrDescription, destination),
+                contact.PhoneticName,
+                IsInternalNumber(destination));
         }
         catch (Exception ex)
         {

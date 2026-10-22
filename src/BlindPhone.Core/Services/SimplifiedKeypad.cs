@@ -2,7 +2,7 @@ using BlindPhone.Core.Domain;
 
 namespace BlindPhone.Core.Services;
 
-/// <summary>I tre tasti del tastierino che governano la chiamata.</summary>
+/// <summary>I quattro tasti del tastierino che governano la chiamata.</summary>
 public enum KeypadKey
 {
     /// <summary>Il <c>+</c> del tastierino: risponde, mette in pausa, riprende.</summary>
@@ -11,8 +11,13 @@ public enum KeypadKey
     /// <summary>Il <c>/</c> del tastierino: chiude quello che c'è da chiudere.</summary>
     HangUp,
 
-    /// <summary>L'<c>Invio</c>: manda avanti il trasferimento.</summary>
+    /// <summary>L'<c>Invio</c>: chiama l'interno a cui si vuole passare il chiamante.</summary>
     Confirm,
+
+    /// <summary>
+    /// Il <c>-</c> del tastierino: svincola il chiamante, cioè glielo passa davvero.
+    /// </summary>
+    Release,
 }
 
 /// <summary>Cosa deve succedere alla pressione di un tasto del tastierino.</summary>
@@ -33,55 +38,77 @@ public enum KeypadAction
     /// <summary>Chiude la chiamata, o la linea con l'interno durante un trasferimento.</summary>
     HangUp,
 
-    /// <summary>Manda il chiamante all'interno composto, senza annunciarlo.</summary>
-    BlindTransfer,
-
-    /// <summary>Chiama l'interno composto per annunciargli la chiamata.</summary>
+    /// <summary>Chiama l'interno composto per sentire se squilla o se è occupato.</summary>
     StartConsultation,
 
-    /// <summary>Passa il chiamante all'interno, che risponda o stia ancora squillando.</summary>
+    /// <summary>Svincola il chiamante verso l'interno: il trasferimento si compie qui.</summary>
     CompleteTransfer,
+
+    /// <summary>
+    /// Ricorda a voce qual è il tasto che svincola, invece di rifiutare in silenzio.
+    /// </summary>
+    AnnounceReleaseKey,
 
     /// <summary>Compone il numero: è il comportamento normale del campo, fuori da una chiamata.</summary>
     Dial,
 }
 
 /// <summary>
-/// Traduce i tre tasti del tastierino nell'azione che lo stato corrente richiede.
+/// Traduce i tasti del tastierino nell'azione che lo stato corrente richiede.
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Tre tasti per tutto il lavoro di centralino.</b> <c>+</c> risponde, e da lì in
-/// poi alterna fra linea e pausa. <c>/</c> chiude. <c>Invio</c> manda avanti il
-/// trasferimento. Non c'è nient'altro da imparare, e nessuno dei tre cambia posto:
-/// stanno tutti e tre sotto la mano destra, su una tastiera qualunque.
+/// <b>Quattro tasti per tutto il lavoro di centralino.</b> <c>+</c> risponde, e da lì
+/// in poi alterna fra linea e pausa. <c>/</c> chiude. <c>Invio</c> chiama l'interno a
+/// cui si vuole passare il chiamante. <c>-</c> svincola, cioè glielo passa davvero.
+/// Non c'è nient'altro da imparare, e nessuno dei quattro cambia posto: stanno tutti
+/// sotto la mano destra, su una tastiera qualunque.
 /// </para>
 /// <para>
-/// <b>Il segreto sta in cosa distingue i due trasferimenti</b>, ed è la pausa. Se il
-/// chiamante è ancora in linea, <c>Invio</c> lo manda direttamente all'interno
-/// composto: è il gesto rapido, quello che smaltisce la coda. Se invece è stato messo
-/// in pausa con <c>+</c>, allora l'operatore ha dichiarato di volerci parlare prima:
-/// il primo <c>Invio</c> chiama l'interno e lo fa squillare, il secondo gli passa la
-/// chiamata — che abbia risposto o che stia ancora squillando.
+/// <b>Il trasferimento ha una strada sola, e passa sempre dall'ascolto.</b> Composto
+/// l'interno, <c>Invio</c> lo chiama e l'operatore <i>sente</i> cosa succede: se
+/// squilla, se è occupato, se non risponde nessuno. Solo allora <c>-</c> gli passa il
+/// chiamante. Finché non si preme <c>-</c>, il chiamante resta dov'è e lo si riprende
+/// con <c>/</c>.
 /// </para>
 /// <para>
-/// <b>Nessun tasto significa due cose nello stesso stato.</b> È la regola che rende
-/// la modalità insegnabile in un minuto: davanti a una situazione, ciascuno dei tre
-/// tasti fa una cosa sola, sempre la stessa. Quando un tasto non ha significato non
-/// ne prende uno per approssimazione — restituisce <see cref="KeypadAction.None"/>, e
+/// <b>Perché non c'è più il trasferimento alla cieca.</b> Prima <c>Invio</c> con il
+/// chiamante ancora in linea lo mandava all'interno senza annunciarlo: un solo tasto,
+/// veloce, e nella coda piena era il gesto che la smaltiva. Ma su un interno occupato
+/// l'operatore non aveva modo di accorgersene — il centralino se la sbrigava da solo,
+/// e il chiamante finiva su un telefono che non poteva rispondergli, quando non cadeva
+/// del tutto. Chi non vede non ha nessun altro canale per scoprirlo: non c'è una spia
+/// che si accende, e il silenzio dopo il trasferimento è identico a quello di un
+/// trasferimento riuscito. La velocità di un tasto non vale un chiamante perso, e la
+/// modalità semplificata è proprio quella usata da chi ha meno strumenti per rimediare.
+/// </para>
+/// <para>
+/// <b>Nessun tasto significa due cose nello stesso stato.</b> È la regola che rende la
+/// modalità insegnabile in un minuto: davanti a una situazione, ciascuno dei quattro
+/// tasti fa una cosa sola, sempre la stessa. Quando un tasto non ha significato non ne
+/// prende uno per approssimazione — restituisce <see cref="KeypadAction.None"/>, e
 /// l'operatore sente il segnale di comando rifiutato invece di ottenere qualcosa che
 /// non aveva chiesto.
 /// </para>
 /// <para>
 /// Vive nel core e non nel gestore dei tasti della finestra perché è una macchina a
-/// stati, e le macchine a stati si verificano stato per stato: qui la tabella
-/// completa sta nei test, dove si legge tutta insieme.
+/// stati, e le macchine a stati si verificano stato per stato: qui la tabella completa
+/// sta nei test, dove si legge tutta insieme.
 /// </para>
 /// </remarks>
 public static class SimplifiedKeypad
 {
-    /// <summary>Come si chiama, a voce, il tasto che manda avanti il trasferimento.</summary>
+    /// <summary>Come si chiama, a voce, il tasto che chiama l'interno.</summary>
     public const string ConfirmKeyName = "Invio";
+
+    /// <summary>Come si chiama, a voce, il tasto che svincola il chiamante.</summary>
+    /// <remarks>
+    /// Si pronuncia per esteso e non come simbolo: una sintesi vocale che legge
+    /// «meno» è capita al primo ascolto, mentre il carattere da solo viene reso in
+    /// modi diversi da NVDA, da JAWS e dalla voce interna — talvolta come «trattino»,
+    /// talvolta saltato del tutto.
+    /// </remarks>
+    public const string ReleaseKeyName = "meno";
 
     /// <summary>
     /// Nome del tasto da pronunciare negli annunci del trasferimento.
@@ -92,9 +119,16 @@ public static class SimplifiedKeypad
     /// <para>
     /// <b>Un annuncio che nomina il tasto sbagliato è peggio del silenzio</b>: manda a
     /// premere qualcosa e, quando non succede niente, la conclusione è che il programma
-    /// non funzioni. In modalità semplificata l'operatore ha imparato tre tasti e il
-    /// trasferimento è Invio: dirgli «F9 per procedere comunque» gli nomina un tasto
-    /// che quella modalità non gli ha mai insegnato.
+    /// non funzioni. In modalità semplificata l'operatore ha imparato quattro tasti e
+    /// l'avviso da superare si supera con Invio: dirgli «F9 per procedere comunque» gli
+    /// nomina un tasto che quella modalità non gli ha mai insegnato.
+    /// </para>
+    /// <para>
+    /// <b>Qui si nomina Invio e non il meno</b>, ed è la distinzione che conta: gli
+    /// avvisi preventivi arrivano <i>prima</i> di chiamare l'interno — destinazione
+    /// esterna, interno fuori servizio — e quello che l'operatore deve ripremere per
+    /// procedere è il tasto che ha appena premuto. Il meno viene dopo, quando l'interno
+    /// è già stato chiamato e si è sentito cosa risponde.
     /// </para>
     /// <para>
     /// La combinazione del profilo continua a funzionare — le due strade convivono — ma
@@ -114,6 +148,7 @@ public static class SimplifiedKeypad
         KeypadKey.Answer => ResolveAnswerKey(state),
         KeypadKey.HangUp => state.HasRingingCall || state.HasAnyCall ? KeypadAction.HangUp : KeypadAction.None,
         KeypadKey.Confirm => ResolveConfirmKey(state),
+        KeypadKey.Release => ResolveReleaseKey(state),
         _ => KeypadAction.None,
     };
 
@@ -134,12 +169,12 @@ public static class SimplifiedKeypad
         return KeypadAction.None;
     }
 
-    /// <summary>L'<c>Invio</c>: il trasferimento, in tutte le sue fasi.</summary>
+    /// <summary>L'<c>Invio</c>: chiamare l'interno a cui passare il chiamante.</summary>
     /// <remarks>
     /// <para>
     /// L'ordine dei controlli è l'ordine in cui le fasi si susseguono, e non è
-    /// intercambiabile: una consultazione in corso ha la precedenza su tutto, perché
-    /// lì <c>Invio</c> significa «passa la chiamata» e nient'altro.
+    /// intercambiabile: una consultazione in corso ha la precedenza su tutto, perché lì
+    /// l'interno è già stato chiamato e <c>Invio</c> non ha più niente da fare.
     /// </para>
     /// <para>
     /// Fuori da qualunque chiamata <c>Invio</c> torna a essere quello che è sempre
@@ -149,7 +184,16 @@ public static class SimplifiedKeypad
     /// </remarks>
     private static KeypadAction ResolveConfirmKey(CallActionContext state)
     {
-        if (state.TransferPhase == TransferPhase.Consulting) return KeypadAction.CompleteTransfer;
+        // L'INTERNO E' GIA' IN LINEA: QUI INVIO NON TRASFERISCE PIU'.
+        //
+        // E' il punto in cui la modalita' e' cambiata, ed e' anche quello in cui la
+        // vecchia abitudine sopravvive piu' a lungo: chi ha imparato "Invio, Invio"
+        // lo ripremera' per mesi. Rifiutare in silenzio lo lascerebbe a chiedersi se
+        // il programma abbia smesso di funzionare, quindi si risponde dicendo qual e'
+        // il tasto giusto. E' anche la ragione per cui il trasferimento non si compie
+        // qui: chi martella Invio non ha ascoltato niente, ed e' esattamente
+        // l'operatore che questa modifica deve proteggere.
+        if (state.TransferPhase == TransferPhase.Consulting) return KeypadAction.AnnounceReleaseKey;
 
         if (state.TransferPhase == TransferPhase.EnteringDestination)
         {
@@ -173,14 +217,34 @@ public static class SimplifiedKeypad
             return state.HasAnyCall ? KeypadAction.None : KeypadAction.Dial;
         }
 
-        // IL CHIAMANTE IN PAUSA E' LA DICHIARAZIONE DI VOLERCI PARLARE PRIMA.
+        // C'E' UN CHIAMANTE E UN INTERNO COMPOSTO: SI CHIAMA L'INTERNO, SEMPRE.
         //
-        // E' l'unico bivio della modalita': chi ha premuto "+" prima di comporre ha
-        // gia' detto che vuole annunciare la chiamata, chi non l'ha premuto vuole
-        // mandarla e passare alla successiva.
-        if (state.HeldCount > 0 && !state.HasActiveCall) return KeypadAction.StartConsultation;
-        if (state.HasActiveCall || state.IsConferenceActive) return KeypadAction.BlindTransfer;
+        // Non conta piu' se il chiamante sia in linea o in pausa. Prima era il bivio
+        // fra le due forme di trasferimento; ora la forma e' una sola, e la pausa resta
+        // solo quello che dice di essere.
+        if (state.HasActiveCall || state.IsConferenceActive || state.HeldCount > 0)
+            return KeypadAction.StartConsultation;
 
         return KeypadAction.Dial;
     }
+
+    /// <summary>Il <c>-</c>: svincolare il chiamante verso l'interno.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Ha significato in un momento solo</b>, e il momento è quello in cui
+    /// l'operatore ha appena sentito cosa fa l'interno: squilla, è occupato, non
+    /// risponde. Prima di quel momento non c'è niente da svincolare, e dopo il
+    /// trasferimento è già partito.
+    /// </para>
+    /// <para>
+    /// Il chiamante viene passato <b>che l'interno abbia risposto o stia ancora
+    /// squillando</b>: è la decisione dell'operatore, che ha sentito e sa cosa sta
+    /// facendo. Se invece l'interno è occupato, la via è <c>/</c>, che chiude la linea
+    /// con lui e riporta il chiamante.
+    /// </para>
+    /// </remarks>
+    private static KeypadAction ResolveReleaseKey(CallActionContext state)
+        => state.TransferPhase == TransferPhase.Consulting
+            ? KeypadAction.CompleteTransfer
+            : KeypadAction.None;
 }

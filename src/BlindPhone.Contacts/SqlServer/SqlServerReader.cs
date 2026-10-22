@@ -77,29 +77,41 @@ public sealed class SqlServerReader : ISqlBackupReader
 
     private List<SqlTableInfo> LeggiTabelle()
     {
-        var nomi = new List<string>();
+        var nomi = new List<(string Nome, bool Vista)>();
 
         using (var comando = _connection.CreateCommand())
         {
             // Tabelle e viste insieme: negli enti la rubrica pubblicata ai sistemi
             // esterni e' quasi sempre una vista, perche' il gestionale non espone le
-            // tabelle vere.
+            // tabelle vere. Il tipo si conserva perche' la proposta automatica ne
+            // tiene conto: una vista puo' filtrare o unire, e su una rubrica vera
+            // capita che restituisca meno righe della tabella da cui deriva.
             comando.CommandText = """
-                SELECT TABLE_SCHEMA, TABLE_NAME
+                SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE
                 FROM INFORMATION_SCHEMA.TABLES
                 WHERE TABLE_TYPE IN ('BASE TABLE', 'VIEW')
                 ORDER BY TABLE_SCHEMA, TABLE_NAME
                 """;
 
             using var lettore = comando.ExecuteReader();
-            while (lettore.Read()) nomi.Add($"{lettore.GetString(0)}.{lettore.GetString(1)}");
+
+            while (lettore.Read())
+            {
+                nomi.Add((
+                    $"{lettore.GetString(0)}.{lettore.GetString(1)}",
+                    string.Equals(lettore.GetString(2), "VIEW", StringComparison.OrdinalIgnoreCase)));
+            }
         }
 
         var colonne = LeggiColonne();
 
         return [.. nomi
-            .Where(colonne.ContainsKey)
-            .Select(nome => new SqlTableInfo(nome, colonne[nome], ContaRighe(nome)))];
+            .Where(v => colonne.ContainsKey(v.Nome))
+            .Select(v =>
+            {
+                var (righe, leggibile) = ContaRighe(v.Nome);
+                return new SqlTableInfo(v.Nome, colonne[v.Nome], righe, v.Vista, leggibile);
+            })];
     }
 
     private Dictionary<string, List<string>> LeggiColonne()
@@ -134,12 +146,26 @@ public sealed class SqlServerReader : ISqlBackupReader
     /// <summary>
     /// Conta le righe, senza pretendere di riuscirci.
     /// </summary>
+    /// <param name="table">Nome qualificato dell'oggetto.</param>
+    /// <returns>
+    /// Il conteggio, quando si può fare, e se l'oggetto si lascia interrogare.
+    /// </returns>
     /// <remarks>
-    /// Il conteggio serve solo a riconoscere la rubrica nell'elenco. Una vista
-    /// costosa o una tabella su cui l'utenza non ha permesso non devono impedire di
-    /// vedere tutte le altre, quindi il fallimento vale «non so quante righe».
+    /// <para>
+    /// Il conteggio serve a riconoscere la rubrica nell'elenco. Una vista costosa o
+    /// una tabella su cui l'utenza non ha permesso non devono impedire di vedere tutte
+    /// le altre, quindi il fallimento vale «non so quante righe».
+    /// </para>
+    /// <para>
+    /// <b>Due errori dicono però che l'oggetto non è utilizzabile</b>, non che il
+    /// conteggio è costoso: la vista che non compila perché una colonna a cui si
+    /// riferisce non esiste più, e l'oggetto che non esiste. Distinguerli conta perché
+    /// il permesso negato è una cosa che l'amministratore può concedere, mentre una
+    /// vista rotta va riscritta — e nel frattempo sceglierla produrrebbe un errore al
+    /// momento dell'importazione invece che al momento della scelta.
+    /// </para>
     /// </remarks>
-    private int? ContaRighe(string table)
+    private (int? Righe, bool Leggibile) ContaRighe(string table)
     {
         try
         {
@@ -147,17 +173,39 @@ public sealed class SqlServerReader : ISqlBackupReader
             comando.CommandText = $"SELECT COUNT_BIG(*) FROM {QuoteName(table)}";
             comando.CommandTimeout = 10;
 
-            return Convert.ToInt32(comando.ExecuteScalar());
+            return (Convert.ToInt32(comando.ExecuteScalar()), true);
         }
-        catch (SqlException)
+        catch (SqlException ex)
         {
-            return null;
+            return (null, !IsBindingFailure(ex));
         }
         catch (OverflowException)
         {
-            return null;
+            return (null, true);
         }
     }
+
+    /// <summary>
+    /// L'errore dice che l'oggetto non si lascia compilare.
+    /// </summary>
+    /// <param name="exception">Errore restituito dal server.</param>
+    /// <remarks>
+    /// <para>
+    /// I due numeri sono quelli con cui SQL Server segnala una vista i cui riferimenti
+    /// non si risolvono più (4413, «Could not use view or function ... because of
+    /// binding errors») e un oggetto inesistente (208). Sono stabili e documentati:
+    /// è quello che li rende riconoscibili senza leggere il testo del messaggio, che
+    /// cambia con la lingua dell'installazione.
+    /// </para>
+    /// <para>
+    /// Si scorrono <b>tutti</b> gli errori della raccolta e non solo il primo: una
+    /// vista rotta ne produce due, e il primo è l'errore di sintassi che la vista
+    /// contiene — «Incorrect syntax near '*'» — che da solo non direbbe di quale
+    /// oggetto si parla.
+    /// </para>
+    /// </remarks>
+    private static bool IsBindingFailure(SqlException exception)
+        => exception.Errors.Cast<SqlError>().Any(e => e.Number is 4413 or 208);
 
     /// <summary>Virgoletta un nome qualificato secondo le regole di SQL Server.</summary>
     /// <param name="qualified">Nome nella forma <c>schema.tabella</c>.</param>

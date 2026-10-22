@@ -11,11 +11,31 @@ public interface IContactRepository
     /// <param name="cancellationToken">Token di annullamento.</param>
     Task<IReadOnlyList<Contact>> SearchAsync(string query, int limit, CancellationToken cancellationToken);
 
-    /// <summary>Risolve un numero in un contatto, per dare un nome alle chiamate entranti.</summary>
+    /// <summary>
+    /// Risolve un numero nelle voci di rubrica che lo dichiarano.
+    /// </summary>
     /// <param name="number">Numero da risolvere.</param>
     /// <param name="cancellationToken">Token di annullamento.</param>
-    /// <returns>Il contatto corrispondente, oppure <c>null</c>.</returns>
-    Task<Contact?> ResolveByNumberAsync(string number, CancellationToken cancellationToken);
+    /// <returns>
+    /// Le voci corrispondenti, la più rappresentativa per prima; elenco vuoto se il
+    /// numero non è in rubrica.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Restituisce un elenco perché un interno non identifica una persona.</b> In
+    /// una struttura complessa lo stesso apparecchio serve più voci — l'accettazione e
+    /// la stanza infermieri, l'ambulatorio e l'ufficio contabilità — e su una rubrica
+    /// ospedaliera vera sono centotrentotto numeri, fino a otto voci ciascuno.
+    /// Restituirne una sola significava sceglierne una a caso e annunciarla come se
+    /// fosse certa: l'operatore sentiva un nome preciso e sbagliato, che è peggio di
+    /// un numero.
+    /// </para>
+    /// <para>
+    /// Conta anche per gli avvisi: se una sola delle voci su quel numero non riceve
+    /// trasferimenti diretti, il controllo deve vederla anche quando non è la prima.
+    /// </para>
+    /// </remarks>
+    Task<IReadOnlyList<Contact>> ResolveByNumberAsync(string number, CancellationToken cancellationToken);
 
     /// <summary>Restituisce il contatto assegnato a uno slot di chiamata rapida.</summary>
     /// <param name="slot">Slot da 1 a 20.</param>

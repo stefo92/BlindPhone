@@ -47,6 +47,11 @@ public static class AudioSettingsApplier
         Assign(audio, AudioRoute.Conversation, settings.Conversation, log);
         Assign(audio, AudioRoute.Ringer, settings.Ringer, log);
         Assign(audio, AudioRoute.Announcements, settings.Announcements, log);
+
+        // L'elaborazione del microfono segue la stessa strada dei dispositivi e vale
+        // anche per la chiamata in corso: chi sente il rumore se ne accorge parlando, e
+        // verifica l'effetto subito dopo aver salvato.
+        audio.SetMicrophoneProcessing(settings.MicrophoneProcessing);
     }
 
     private static void Assign(IAudioEngine audio, AudioRoute route, AudioRouteSettings via, ILogger? log)

@@ -49,7 +49,7 @@
                    Margin="0,10,0,10"
                    Text="Premi la combinazione che vuoi assegnare. Puoi tenere premuti Control, Alt, Maiusc e Windows. Poi premi Tab per uscire dall'area di cattura e raggiungere i pulsanti: Invio conferma, Esc annulla. Tab e' l'unico tasto che non si puo' assegnare." />
 
-        <Label Grid.Row="2" Target="{Binding ElementName=CaptureBox}" Content="_Combinazione rilevata" />
+        <Label Grid.Row="2" Target="{Binding ElementName=CaptureBox}" Content="Combinazione _rilevata" />
 
         <TextBox Grid.Row="3"
                  x:Name="CaptureBox"

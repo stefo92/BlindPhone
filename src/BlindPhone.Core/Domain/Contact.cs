@@ -61,6 +61,46 @@ public enum PresenceState
 /// <param name="IsPrimary">Se è il recapito da usare per la chiamata rapida.</param>
 public sealed record PhoneNumber(string Number, PhoneNumberKind Kind, bool IsPrimary = false);
 
+/// <summary>Che cosa risponde a una voce della rubrica.</summary>
+/// <remarks>
+/// <para>
+/// <b>Non è una classificazione anagrafica, è ciò che l'operatore deve sapere prima
+/// di comporre.</b> Una rubrica di ente non contiene solo persone: contiene
+/// ambulatori, stanze di reparto, apparecchi fax e telefoni che squillano solo
+/// quando la telefonia ordinaria è interrotta. Sono tutte righe con un nome e un
+/// numero, indistinguibili in un elenco letto a voce, e ognuna cambia il modo in cui
+/// ci si presenta — o se convenga chiamare.
+/// </para>
+/// <para>
+/// Il caso che ha motivato il campo è il fax: comporre un numero di fax produce un
+/// portante che chi non vede riconosce solo dopo averlo sentito, e nel frattempo la
+/// chiamata in attesa è rimasta ferma.
+/// </para>
+/// </remarks>
+public enum ContactKind
+{
+    /// <summary>Non determinato: la sorgente non dà elementi per deciderlo.</summary>
+    Unknown,
+
+    /// <summary>Una persona, con nome e cognome.</summary>
+    Person,
+
+    /// <summary>Un servizio, un ambulatorio, una stanza: risponde chi c'è.</summary>
+    Service,
+
+    /// <summary>Un apparecchio fax: comporre questo numero non mette in contatto con nessuno.</summary>
+    Fax,
+
+    /// <summary>Un recapito di emergenza, da usare solo nella circostanza per cui esiste.</summary>
+    Emergency,
+
+    /// <summary>
+    /// Un numero breve: un codice abbreviato che il centralino espande su un
+    /// recapito esterno.
+    /// </summary>
+    ShortCode,
+}
+
 /// <summary>Un contatto della rubrica.</summary>
 /// <remarks>
 /// <para>
@@ -161,6 +201,14 @@ public sealed record Contact
     /// <summary>Se il contatto non deve ricevere trasferimenti senza conferma esplicita.</summary>
     public bool DoNotTransfer { get; init; }
 
+    /// <summary>Che cosa risponde a questa voce.</summary>
+    /// <remarks>
+    /// Ricavato dalla sorgente al momento dell'importazione — vedi
+    /// <c>ContactKindRules</c> — e non modificabile a mano: viene dal dato, e una
+    /// correzione manuale sarebbe cancellata al primo riallineamento.
+    /// </remarks>
+    public ContactKind Kind { get; init; } = ContactKind.Unknown;
+
     /// <summary>Sorgente da cui il contatto proviene.</summary>
     public string Source { get; init; } = "Locale";
 
@@ -172,12 +220,41 @@ public sealed record Contact
 
     /// <summary>Nome da mostrare, composto se <see cref="DisplayName"/> è assente.</summary>
     /// <remarks>
-    /// L'ultima risorsa è il numero: un contatto senza nome è raro ma esiste (voci
-    /// importate da CSV incompleti), e restituire una stringa vuota produrrebbe una
+    /// <para>
+    /// <b>Quando non c'è una persona, il nome della voce è la sua descrizione.</b> In
+    /// una rubrica ospedaliera le righe senza cognome sono la maggioranza — ambulatori,
+    /// stanze di reparto, fax, telefoni di emergenza — e sono proprio quelle che
+    /// l'operatore cerca più spesso. Prima si ricadeva direttamente sul numero, e un
+    /// elenco di risultati si leggeva «2033, 2091, 2095»: informazione che l'operatore
+    /// ha già davanti e che non gli dice quale delle tre sia l'accettazione.
+    /// </para>
+    /// <para>
+    /// L'ultima risorsa resta il numero: restituire una stringa vuota produrrebbe una
     /// riga di elenco che lo screen reader legge come silenzio, cioè una voce
-    /// invisibile a chi non vede.
+    /// invisibile a chi non vede. Per la stessa ragione non è il nome da dare a una
+    /// chiamata, dove il numero c'è già: lì serve <see cref="NameOrDescription"/>.
+    /// </para>
     /// </remarks>
-    public string EffectiveDisplayName
+    public string EffectiveDisplayName => NameOrDescription ?? PrimaryNumber ?? string.Empty;
+
+    /// <summary>
+    /// Nome della voce — nominativo, nome e cognome oppure descrizione — oppure
+    /// <c>null</c> se la voce ha soltanto numeri.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// È <see cref="EffectiveDisplayName"/> senza l'ultima risorsa. Un elenco ha bisogno
+    /// di una riga che si legga sempre, e lì il numero al posto del nome è giusto; il
+    /// nome di una chiamata no, perché il numero lo accompagna già. Una voce senza nome
+    /// che prestava il proprio numero faceva comparire «Chiamata da: 4021 (4021)».
+    /// </para>
+    /// <para>
+    /// Il recapito dell'ultima risorsa, per giunta, è il primario e non per forza
+    /// quello che sta chiamando: per una voce con il cellulare contrassegnato come
+    /// primario, una chiamata dall'interno avrebbe mostrato il cellulare come nome.
+    /// </para>
+    /// </remarks>
+    public string? NameOrDescription
     {
         get
         {
@@ -189,7 +266,59 @@ public sealed record Contact
 
             if (!string.IsNullOrWhiteSpace(composed)) return composed;
 
-            return PrimaryNumber ?? string.Empty;
+            return string.IsNullOrWhiteSpace(Category) ? null : Category;
+        }
+    }
+
+    /// <summary>
+    /// Come si pronuncia il tipo di voce, oppure <c>null</c> se non aggiunge nulla.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ContactKind.Person"/> e <see cref="ContactKind.Service"/> tacciono, e
+    /// non è una dimenticanza: sono i due casi ordinari, quelli in cui la descrizione
+    /// dice già che cosa si sta chiamando. Dirlo comunque costerebbe una parola su ogni
+    /// risultato scorso per informare solo nei casi in cui l'operatore lo sapeva già.
+    /// Parlano i tre casi che cambiano una decisione.
+    /// </remarks>
+    public string? KindSpeech => Kind switch
+    {
+        ContactKind.Fax => "fax",
+        ContactKind.Emergency => "emergenza",
+        ContactKind.ShortCode => "numero breve",
+        _ => null,
+    };
+
+    /// <summary>
+    /// L'avvertimento sul tipo di voce, quando il nominativo non lo dà già.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Sui fax il tipo è quasi sempre ridondante, e lo è per costruzione.</b> Una
+    /// voce viene riconosciuta come fax proprio perché la sua descrizione comincia con
+    /// quella parola, e sulle voci senza persona la descrizione è anche il nominativo:
+    /// l'avvertimento produrrebbe «fax, Fax Accettazione DH». Vale lo stesso per
+    /// «emergenza», che compare dentro la descrizione da cui è stato ricavato.
+    /// </para>
+    /// <para>
+    /// <b>Resta invece nei due casi in cui informa davvero</b>: il fax intestato a una
+    /// persona, dove il nominativo è il cognome e nient'altro direbbe che quel numero è
+    /// un apparecchio; e il numero breve, che viene da un contrassegno della sorgente e
+    /// non da una parola, quindi «MILANO POLICLINICO» non lo lascia intuire.
+    /// </para>
+    /// <para>
+    /// <see cref="KindSpeech"/> resta la forma grezza e non va sostituita da questa: è
+    /// quella che rende cercabile «fax» anche sulle voci dove qui si tace.
+    /// </para>
+    /// </remarks>
+    public string? KindNotice
+    {
+        get
+        {
+            if (KindSpeech is not { } tipo) return null;
+
+            return EffectiveDisplayName.Contains(tipo, StringComparison.OrdinalIgnoreCase)
+                ? null
+                : tipo;
         }
     }
 
@@ -257,17 +386,41 @@ public sealed record Contact
     /// Descrizione completa del contatto per la lettura a richiesta.
     /// </summary>
     /// <remarks>
-    /// L'ordine segue l'utilità decrescente per chi ascolta: chi è, che cosa è,
-    /// dove sta, a chi fa capo. L'operatore interrompe appena ha l'informazione che
-    /// cercava, quindi ciò che serve più spesso va detto prima.
+    /// <para>
+    /// L'ordine segue l'utilità decrescente per chi ascolta: che cosa è, chi è, che
+    /// cosa fa, dove sta, a chi fa capo. L'operatore interrompe appena ha
+    /// l'informazione che cercava, quindi ciò che serve più spesso va detto prima.
+    /// </para>
+    /// <para>
+    /// <b>Il tipo di voce viene prima del nome</b> nei soli casi in cui parla — fax,
+    /// emergenza, numero breve — perché è l'unico elemento che può far decidere di
+    /// <i>non</i> comporre: sentirlo dopo il nome e la descrizione significa averlo
+    /// saputo quando la mano è già sul tastierino.
+    /// </para>
+    /// <para>
+    /// <b>La descrizione non si ripete quando è già il nome.</b> Per le voci senza
+    /// persona <see cref="EffectiveDisplayName"/> ricade proprio su
+    /// <see cref="Category"/>, e ripeterla produrrebbe «Ambulatorio, Ambulatorio»:
+    /// a schermo si perdona, in ascolto è tempo speso due volte per niente.
+    /// </para>
     /// </remarks>
     public string FullSpeechDescription
     {
         get
         {
-            var parts = new List<string> { SpeechName };
+            var parts = new List<string>(6);
 
-            if (!string.IsNullOrWhiteSpace(Category)) parts.Add(Category);
+            if (KindNotice is { } kind) parts.Add(kind);
+
+            var name = SpeechName;
+            parts.Add(name);
+
+            if (!string.IsNullOrWhiteSpace(Category)
+                && !string.Equals(Category, name, StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(Category);
+            }
+
             if (!string.IsNullOrWhiteSpace(Department)) parts.Add(Department);
             if (LocationSpeech is { } location) parts.Add(location);
             if (!string.IsNullOrWhiteSpace(Organization)) parts.Add(Organization);

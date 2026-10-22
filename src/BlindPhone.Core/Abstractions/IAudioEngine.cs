@@ -1,3 +1,5 @@
+using BlindPhone.Core.Domain;
+
 namespace BlindPhone.Core.Abstractions;
 
 /// <summary>
@@ -57,6 +59,18 @@ public interface IAudioEngine : IAsyncDisposable
     /// <param name="route">Via da regolare.</param>
     /// <param name="volume">Volume, valori fuori intervallo vengono limitati.</param>
     void SetVolume(AudioRoute route, float volume);
+
+    /// <summary>
+    /// Imposta l'elaborazione automatica del microfono: controllo del livello e
+    /// riduzione del rumore ambientale.
+    /// </summary>
+    /// <param name="processing">Elaborazione richiesta.</param>
+    /// <remarks>
+    /// Vale <b>anche per la chiamata in corso</b>, entro un pacchetto audio: chi
+    /// avverte il rumore si accorge del problema parlando, e deve poterlo correggere
+    /// subito invece di aspettare la chiamata successiva.
+    /// </remarks>
+    void SetMicrophoneProcessing(MicrophoneProcessing processing);
 
     /// <summary>Riproduce un file audio su una via specifica.</summary>
     /// <param name="route">Via su cui riprodurre.</param>

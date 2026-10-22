@@ -59,7 +59,7 @@ public sealed class SipPresenceSource : IPresenceSource
     /// Numero massimo di interni sorvegliati contemporaneamente.
     /// </summary>
     /// <remarks>
-    /// L'elenco dei contatti proposti sotto il campo di composizione ne mostra al
+    /// L'elenco dei contatti proposti sopra il campo di composizione ne mostra al
     /// massimo otto, e i risultati della rubrica si guardano pochi alla volta: oltre
     /// questa soglia si stanno sottoscrivendo interni che nessuno sta guardando.
     /// </remarks>
@@ -77,6 +77,9 @@ public sealed class SipPresenceSource : IPresenceSource
     private readonly SIPTransport _transport;
     private readonly SipAccountOptions _account;
     private readonly ILogger<SipPresenceSource> _log;
+
+    /// <summary>Proxy in uscita corrente dell'account: le SUBSCRIBE passano di li' come il resto.</summary>
+    private readonly Func<SIPEndPoint?> _outboundProxy;
 
     private readonly ConcurrentDictionary<string, SIPNotifierClient> _watched = new(StringComparer.Ordinal);
     private readonly Lock _gate = new();
@@ -117,13 +120,16 @@ public sealed class SipPresenceSource : IPresenceSource
     /// <param name="transport">Trasporto SIP già avviato dal motore telefonico.</param>
     /// <param name="account">Credenziali e dominio dell'account.</param>
     /// <param name="logger">Log diagnostico.</param>
+    /// <param name="outboundProxy">Fornisce il proxy in uscita corrente dell'account, se c'e'.</param>
     public SipPresenceSource(
         SIPTransport transport,
         SipAccountOptions account,
-        ILogger<SipPresenceSource>? logger = null)
+        ILogger<SipPresenceSource>? logger = null,
+        Func<SIPEndPoint?>? outboundProxy = null)
     {
         _transport = transport;
         _account = account;
+        _outboundProxy = outboundProxy ?? (() => null);
         _log = logger ?? NullLogger<SipPresenceSource>.Instance;
     }
 
@@ -209,7 +215,7 @@ public sealed class SipPresenceSource : IPresenceSource
 
             var client = new SIPNotifierClient(
                 _transport,
-                outboundProxy: null,
+                outboundProxy: _outboundProxy(),
                 SIPEventPackagesEnum.Dialog,
                 risorsa,
                 _account.AuthId ?? _account.Username,

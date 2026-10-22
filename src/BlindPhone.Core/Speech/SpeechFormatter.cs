@@ -1,4 +1,5 @@
 using System.Text;
+using BlindPhone.Core.Domain;
 
 namespace BlindPhone.Core.Speech;
 
@@ -199,19 +200,25 @@ public static class SpeechFormatter
     /// Se <c>true</c> e il nome è noto, legge anche il numero dopo il nome.
     /// </param>
     /// <returns>Testo pronunciabile, oppure "sconosciuto" se non c'è nulla da dire.</returns>
+    /// <remarks>
+    /// Un nome che è soltanto il numero non vale come nome — la regola è quella di
+    /// <see cref="CallParty.MeaningfulName"/> — e il numero si legge cifra per cifra.
+    /// Può arrivare così, per esempio, il nome di un chiamante in coda: preso per nome,
+    /// la sintesi lo leggeva come numero intero.
+    /// </remarks>
     public static string Party(
         string? displayName,
         string? number,
         DigitGrouping grouping = DigitGrouping.Single,
         bool includeNumberWithName = false)
     {
-        var hasName = !string.IsNullOrWhiteSpace(displayName);
+        var name = CallParty.MeaningfulNameOf(displayName, number);
         var hasNumber = !string.IsNullOrWhiteSpace(number);
 
-        if (hasName && hasNumber && includeNumberWithName)
-            return $"{displayName}, {Digits(number, grouping)}";
+        if (name is not null && hasNumber && includeNumberWithName)
+            return $"{name}, {Digits(number, grouping)}";
 
-        if (hasName) return displayName!;
+        if (name is not null) return name;
         if (hasNumber) return Digits(number, grouping);
 
         return "sconosciuto";

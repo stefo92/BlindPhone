@@ -26,6 +26,11 @@ namespace BlindPhone.App;
 /// si carica il tema di sistema qualunque cosa dicano le impostazioni, e non si
 /// chiede conferma.
 /// </para>
+/// <para>
+/// <b>La barra del titolo segue il tema a parte.</b> Non è contenuto della finestra ma
+/// cornice disegnata da Windows, e un dizionario non la raggiunge: vedi
+/// <see cref="TitleBarTheme"/>.
+/// </para>
 /// </remarks>
 public sealed class ThemeService : IDisposable
 {
@@ -97,6 +102,10 @@ public sealed class ThemeService : IDisposable
 
         _resources.MergedDictionaries.Insert(0, dizionario);
         _applicato = nome;
+
+        // La barra del titolo la disegna Windows e i dizionari non la raggiungono: il
+        // suo colore si chiede a parte, altrimenti resta chiara sopra il tema scuro.
+        TitleBarTheme.Set(string.Equals(nome, "Scuro", StringComparison.Ordinal));
 
         _log.LogInformation(
             "Tema dei colori: {Tema} (scelta {Scelta}, contrasto elevato {Contrasto})",

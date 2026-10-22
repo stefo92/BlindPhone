@@ -11,8 +11,8 @@
 
     Le versioni dei pacchetti che seguono il motore di esecuzione non sono scritte
     qui: arrivano da BandaPacchetti, in Directory.Build.props, che le tiene allineate
-    alla banda del target. Montare i 10.x su un target net9.0 - o il contrario -
-    significherebbe spedire assembly di una banda dentro un pacchetto dell'altra.
+    alla banda del target. Scriverle a mano significherebbe, al prossimo salto di
+    banda, spedire assembly di una banda dentro un pacchetto dell'altra.
   -->
 
   <PropertyGroup>
@@ -60,7 +60,7 @@
       Il collegamento e' di sola lettura: BlindPhone non scrive mai nel database
       dell'ente, e i contatti finiscono nella copia locale cifrata.
     -->
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
   </ItemGroup>
 
 </Project>

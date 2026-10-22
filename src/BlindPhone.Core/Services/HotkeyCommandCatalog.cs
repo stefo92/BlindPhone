@@ -70,6 +70,13 @@ public static class HotkeyCommandCatalog
         new(HotkeyCommand.RedialLast, HotkeyCategory.CallControl, "Richiama l'ultimo numero",
             "Ricompone l'ultimo numero chiamato."),
 
+        new(HotkeyCommand.JoinMeeting, HotkeyCategory.CallControl, "Entra in riunione Zoom",
+            "Scrivi l'identificativo della riunione nel campo di composizione e premi questo tasto. Se la "
+            + "riunione ha un codice d'accesso, scrivilo dopo un punto: 812345678 punto 4321. Il codice da "
+            + "usare e' quello numerico per chi entra per telefono, non quello con le lettere del "
+            + "collegamento sul sito. Da li' in poi e' una chiamata come le altre: attesa, conferenza e "
+            + "riaggancio funzionano con i tasti di sempre."),
+
         new(HotkeyCommand.ToggleDtmfMode, HotkeyCategory.CallControl, "Modalita' toni",
             "Attiva o disattiva l'invio dei toni: finche' e' attiva, le cifre che digiti vanno in linea per "
             + "rispondere ai menu automatici invece di finire nel campo di composizione. Si spegne da sola "

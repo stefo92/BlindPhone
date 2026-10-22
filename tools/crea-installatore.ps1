@@ -7,7 +7,7 @@
     un pacchetto .msi. Il risultato finisce in dist\.
 
     PREREQUISITI
-      - SDK .NET 9
+      - SDK .NET 10
       - WiX 5, con le estensioni per l'interfaccia e per le azioni ausiliarie:
 
             dotnet tool install --global wix --version 5.*
@@ -32,7 +32,7 @@
 .PARAMETER Autonomo
     Se vero (predefinito) il pacchetto porta dentro di se' il motore di
     esecuzione .NET e non ha prerequisiti. Se falso produce un pacchetto molto
-    piu' piccolo, che pero' pretende .NET Desktop Runtime 9 gia' installato sulla
+    piu' piccolo, che pero' pretende .NET Desktop Runtime 10 gia' installato sulla
     postazione: ha senso solo dove il motore di esecuzione e' gestito
     centralmente.
 
@@ -107,7 +107,7 @@ if ($Versione -notmatch '^\d+\.\d+\.\d+$') {
 
 Write-Host "BlindPhone $etichetta (versione del pacchetto $Versione)" -ForegroundColor Cyan
 Write-Host "Architettura $Architettura"
-Write-Host ("Pacchetto {0}" -f $(if ($Autonomo) { 'autonomo (include .NET)' } else { 'dipendente da .NET Desktop Runtime 9' }))
+Write-Host ("Pacchetto {0}" -f $(if ($Autonomo) { 'autonomo (include .NET)' } else { 'dipendente da .NET Desktop Runtime 10' }))
 
 # ---------------------------------------------------------------------------
 # Verifica dei prerequisiti, prima di lavorare per due minuti a vuoto

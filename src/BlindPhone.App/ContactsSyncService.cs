@@ -1,6 +1,8 @@
 using BlindPhone.Contacts;
+using BlindPhone.Contacts.SqlBackup;
 using BlindPhone.Contacts.SqlServer;
 using BlindPhone.Core.Abstractions;
+using BlindPhone.Core.Domain;
 using BlindPhone.Infrastructure;
 using Microsoft.Extensions.Logging;
 
@@ -130,12 +132,12 @@ public sealed class ContactsSyncService : IDisposable
                 return new ContactsSyncResult(false, "Il server non ha restituito contatti: la rubrica resta quella di prima");
             }
 
-            await _contacts.ClearAsync(sorgente.Name, cancellationToken).ConfigureAwait(false);
-            var scritti = await _contacts.UpsertAsync(contatti, sorgente.Name, cancellationToken).ConfigureAwait(false);
+            var scritti = await WriteAsync(sorgente, contatti, replace: true, cancellationToken)
+                .ConfigureAwait(false);
 
             _log.LogInformation("Rubrica riallineata dal server: {Conteggio} contatti", scritti);
 
-            return new ContactsSyncResult(true, $"Rubrica riallineata: {scritti} contatti", scritti);
+            return new ContactsSyncResult(true, $"Rubrica riallineata: {Describe(contatti)}", scritti);
         }
         catch (Exception ex)
         {
@@ -146,6 +148,88 @@ public sealed class ContactsSyncService : IDisposable
         {
             _gate.Release();
         }
+    }
+
+    /// <summary>
+    /// Scrive nella copia locale i contatti letti da una sorgente.
+    /// </summary>
+    /// <param name="source">Sorgente da cui provengono.</param>
+    /// <param name="contacts">Contatti letti.</param>
+    /// <param name="replace">
+    /// Svuotare prima le voci già presenti della stessa sorgente, invece di
+    /// aggiungersi a quelle.
+    /// </param>
+    /// <param name="cancellationToken">Token di annullamento.</param>
+    /// <returns>Quanti contatti sono stati scritti.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Sta qui e non nei due punti che scrivono</b> — il riallineamento periodico e
+    /// il pulsante di importazione — perché le due regole che seguono sono facili da
+    /// applicare in un posto e dimenticare nell'altro, e la differenza non si vede
+    /// contando i contatti: si vede mesi dopo, come voci che nessuno riesce più a
+    /// togliere dalla rubrica.
+    /// </para>
+    /// <para>
+    /// <b>Ogni contatto va sotto la sorgente che dichiara.</b> Una lettura si divide in
+    /// rubrica e numeri brevi, e i due gruppi hanno nomi di sorgente diversi. Scriverli
+    /// tutti sotto il nome della sorgente li appiattirebbe in uno solo, e la
+    /// separazione esisterebbe solo durante la lettura.
+    /// </para>
+    /// <para>
+    /// <b>Si svuotano tutte le sotto-sorgenti, non solo quelle tornate adesso.</b>
+    /// Svuotare i soli gruppi appena letti lascerebbe sulla postazione i numeri brevi
+    /// di ieri il giorno in cui l'ente li toglie dalla tabella: voci che non esistono
+    /// più e che nessuna lettura successiva nominerebbe, quindi che nessun
+    /// riallineamento potrebbe più rimuovere.
+    /// </para>
+    /// </remarks>
+    public async Task<int> WriteAsync(
+        IContactSource source,
+        IReadOnlyList<Contact> contacts,
+        bool replace,
+        CancellationToken cancellationToken)
+    {
+        if (replace)
+        {
+            foreach (var nome in SourceNamesOf(source))
+            {
+                await _contacts.ClearAsync(nome, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        var scritti = 0;
+
+        foreach (var gruppo in contacts.GroupBy(c => c.Source, StringComparer.Ordinal))
+        {
+            scritti += await _contacts
+                .UpsertAsync(gruppo, gruppo.Key, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return scritti;
+    }
+
+    /// <summary>Tutti i nomi di sorgente che una lettura può produrre.</summary>
+    /// <param name="source">Sorgente interrogata.</param>
+    public static IReadOnlyList<string> SourceNamesOf(IContactSource source)
+        => source is TabularContactSource tabellare ? tabellare.SourceNames : [source.Name];
+
+    /// <summary>
+    /// Descrive che cosa è stato letto, distinguendo i numeri brevi dai contatti.
+    /// </summary>
+    /// <param name="contacts">Contatti letti.</param>
+    /// <remarks>
+    /// Senza la ripartizione, un totale di duemila voci su una rubrica che ne ha
+    /// milleduecento sembrerebbe un errore di importazione; con la ripartizione è
+    /// invece la conferma che il riconoscimento ha funzionato.
+    /// </remarks>
+    public static string Describe(IReadOnlyList<Contact> contacts)
+    {
+        var brevi = contacts.Count(c => c.Kind == ContactKind.ShortCode);
+
+        return brevi > 0
+            ? $"{contacts.Count - brevi} contatti e {brevi} numeri brevi"
+            : $"{contacts.Count} contatti";
     }
 
     /// <summary>Costruisce la sorgente dalle impostazioni salvate.</summary>
@@ -176,6 +260,7 @@ public sealed class ContactsSyncService : IDisposable
         Mapping = new CsvColumnMapping
         {
             Extension = settings.Mapping.Extension,
+            WorkPhone = settings.Mapping.WorkPhone,
             RelatedTo = settings.Mapping.RelatedTo,
             Category = settings.Mapping.Category,
             FirstName = settings.Mapping.FirstName,
@@ -183,6 +268,11 @@ public sealed class ContactsSyncService : IDisposable
             Department = settings.Mapping.Department,
             Building = settings.Mapping.Building,
             Floor = settings.Mapping.Floor,
+
+            EntryKey = settings.Mapping.EntryKey,
+            ShortCodeFlag = settings.Mapping.ShortCodeFlag,
+            InactiveFlag = settings.Mapping.InactiveFlag,
+            UpdatedAt = settings.Mapping.UpdatedAt,
         },
     };
 

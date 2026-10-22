@@ -37,6 +37,11 @@ public sealed class HotkeyConflictDetector
         "Windows:D",
         "Windows:R",
         "Windows:E",
+
+        // Alt+F4 resta qui anche se BlindPhone la gestisce: la usa per chiudere, che
+        // e' quello che Windows le fa fare dappertutto. Assegnarle un altro comando
+        // renderebbe imprevedibile il gesto con cui si chiude qualunque finestra, e
+        // lascerebbe la postazione senza il modo standard di spegnersi.
         "Alt:F4",
     ];
 

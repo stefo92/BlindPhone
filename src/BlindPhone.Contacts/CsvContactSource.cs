@@ -66,16 +66,86 @@ public sealed record CsvColumnMapping
     /// <summary>Colonna del piano.</summary>
     public string? Floor { get; init; }
 
+    // -----------------------------------------------------------------------
+    // Colonne strutturali
+    //
+    // NON SONO SCELTE DELL'OPERATORE, E PER QUESTO NON STANNO NELLA PROCEDURA
+    // GUIDATA.
+    //
+    // Le voci qui sopra rispondono a "da quale colonna prendo il reparto", che e'
+    // una domanda a cui l'operatore sa rispondere guardando il file. Queste
+    // rispondono a "come e' fatta questa rubrica", che e' un fatto della sorgente:
+    // le riempie il profilo riconosciuto, e chiederle a chi importa significherebbe
+    // pretendere che conosca lo schema del gestionale dell'ente.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Colonna che identifica la voce nella sorgente, in modo stabile nel tempo.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>È la colonna che tiene i preferiti attaccati alla voce giusta.</b> Senza,
+    /// l'identità si compone da nome e primo numero, e in una rubrica dove più voci
+    /// condividono un interno — l'accettazione e la stanza infermieri sullo stesso
+    /// apparecchio — due righe diverse producono la stessa identità e si
+    /// sovrascrivono a vicenda: una delle due sparisce dalla rubrica senza che nulla
+    /// lo segnali.
+    /// </para>
+    /// </remarks>
+    public string? EntryKey { get; init; }
+
+    /// <summary>
+    /// Colonna che marca la voce come codice abbreviato invece che come contatto.
+    /// </summary>
+    /// <remarks>
+    /// I numeri brevi sono l'elenco esterno del centralino — altri ospedali, ditte,
+    /// cellulari di reperibili — e nelle rubriche dei gestionali stanno nella stessa
+    /// tabella dei contatti interni. Tenerli distinti evita che chi cerca un reparto
+    /// se li ritrovi in mezzo ai risultati.
+    /// </remarks>
+    public string? ShortCodeFlag { get; init; }
+
+    /// <summary>Colonna che marca la voce come non più in uso.</summary>
+    /// <remarks>
+    /// Una voce disattivata resta in tabella perché il gestionale ne conserva lo
+    /// storico. In rubrica sarebbe un numero che non risponde più, indistinguibile
+    /// dagli altri finché non lo si compone.
+    /// </remarks>
+    public string? InactiveFlag { get; init; }
+
+    /// <summary>Colonna con la data dell'ultima modifica nella sorgente.</summary>
+    public string? UpdatedAt { get; init; }
+
     /// <summary>
     /// Mappatura che tenta di indovinare le colonne dai nomi più comuni.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// <b>I profili noti vengono prima dell'euristica.</b> Il riconoscimento per nome
+    /// di colonna funziona sulle esportazioni scritte per essere lette da un umano, e
+    /// fallisce sulle tabelle vere dei gestionali, dove le colonne si chiamano
+    /// <c>_extn_num</c> e <c>_initials</c>. Su quelle non fallisce in modo evidente:
+    /// abbina la colonna sbagliata, e la rubrica risulta importata.
+    /// </para>
+    /// <para>
     /// Il rilevamento automatico va sempre mostrato e confermato dall'operatore, mai
     /// applicato in silenzio: un file mappato male produce una rubrica in cui i
     /// numeri appartengono alle persone sbagliate, e l'errore si scopre solo
     /// trasferendo una chiamata alla persona sbagliata.
+    /// </para>
     /// </remarks>
     public static CsvColumnMapping Guess(IEnumerable<string> headers)
+    {
+        var columnsForProfile = headers as IReadOnlyList<string> ?? [.. headers];
+
+        if (ContactSourceProfile.Recognize(columnsForProfile) is { } profilo) return profilo.Mapping;
+
+        return GuessByName(columnsForProfile);
+    }
+
+    /// <summary>Mappatura indovinata dai soli nomi delle colonne.</summary>
+    /// <param name="headers">Intestazioni della sorgente.</param>
+    private static CsvColumnMapping GuessByName(IEnumerable<string> headers)
     {
         // LE INTESTAZIONI DI UNA RUBRICA VERA NON SONO UN INSIEME ORDINATO E DISTINTO.
         //

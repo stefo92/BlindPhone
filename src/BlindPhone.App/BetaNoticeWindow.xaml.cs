@@ -8,7 +8,8 @@ using BlindPhone.Core.Services;
 namespace BlindPhone.App;
 
 /// <summary>
-/// Avviso di versione beta, mostrato a ogni avvio prima della finestra principale.
+/// Avviso di versione beta. <b>Oggi non viene mostrato all'avvio</b>: vedi
+/// <see cref="App.AvvisoBetaAllAvvio"/>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -17,10 +18,16 @@ namespace BlindPhone.App;
 /// chi lo ha scritto non risponde di quello che succede usandolo.
 /// </para>
 /// <para>
-/// <b>Perché non si può spegnere.</b> Un avviso con una casella «non mostrare più» è
-/// un avviso che dopo il primo giorno non esiste, mentre la condizione che descrive —
-/// software in prova su un posto telefonico di servizio — vale tutti i giorni. Il
-/// costo è una pressione di Invio: il pulsante di conferma ha già il fuoco.
+/// <b>Non c'è una casella «non mostrare più», e non è una dimenticanza.</b> Un avviso
+/// che l'operatore può spegnere è un avviso che dopo il primo giorno non esiste,
+/// mentre la condizione che descrive — software in prova su un posto telefonico di
+/// servizio — vale tutti i giorni. La decisione di mostrarlo o no resta quindi di chi
+/// distribuisce il programma, non di chi ci risponde al telefono, ed è per questo che
+/// l'interruttore sta nel codice di avvio e non nelle impostazioni.
+/// </para>
+/// <para>
+/// La finestra è tenuta funzionante di proposito: riaccenderla costa la modifica di
+/// una riga sola.
 /// </para>
 /// <para>
 /// Il testo viene anche pronunciato. Una finestra che compare e non parla, per chi non

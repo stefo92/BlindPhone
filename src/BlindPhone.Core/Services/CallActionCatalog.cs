@@ -87,6 +87,9 @@ public enum CallAction
     /// <summary>Rimette la postazione in servizio.</summary>
     ServicePauseOff,
 
+    /// <summary>Apre la rubrica.</summary>
+    OpenContacts,
+
     /// <summary>Apre l'elenco delle ultime chiamate.</summary>
     OpenCallHistory,
 
@@ -364,6 +367,12 @@ public static class CallActionCatalog
         //    riguarda il turno e non la chiamata, e vive accanto all'orologio del
         //    servizio, che e' l'altra cosa che parla del turno. Vedi la riga di stato
         //    della finestra principale.
+        // La rubrica apre la fila: e' la finestra che il posto operatore apre piu' spesso,
+        // per cercare l'interno a cui passare chi sta aspettando. Sta accanto all'elenco
+        // delle chiamate, l'altra finestra in cui si cerca qualcuno da chiamare.
+        buttons.Add(new(CallAction.OpenContacts, "\uE780", "Rubrica",
+            "Apre la rubrica", CallActionGroup.Station));
+
         buttons.Add(new(CallAction.OpenCallHistory, "\uE8FD", "Elenco chiamate",
             "Apre l'elenco delle ultime chiamate", CallActionGroup.Station));
 

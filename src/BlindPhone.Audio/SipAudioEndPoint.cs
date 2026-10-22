@@ -791,6 +791,13 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
             _captureQueue = new float[_captureFormat.SampleRate];
             _captureQueued = 0;
 
+            // L'elaborazione parte spenta e prende la configurazione al primo
+            // pacchetto: vedi ProcessCapturedFrame. Si costruisce qui e non li' perche'
+            // la frequenza e' quella del codec, nota solo adesso.
+            _micProcessor = new MicrophoneProcessor(_sourceFormat.ClockRate);
+            _micProcessingApplied = null;
+            _micFaultReported = false;
+
             _capture.DataAvailable += OnCaptureDataAvailable;
             _capture.RecordingStopped += OnRecordingStopped;
 
@@ -952,12 +959,82 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
             var produced = resampler.ResampleOut(_frameFloat, needed, _samplesPerFrame, 1);
             if (produced < _samplesPerFrame) return;
 
+            // DOPO il ricampionamento e PRIMA della conversione a sedici bit: e' il
+            // punto in cui il segnale e' gia' alla frequenza del codec, quindi
+            // l'elaborazione lavora sui campioni che l'interlocutore sentira' e non su
+            // quarantottomila al secondo che poi verrebbero buttati via, e in virgola
+            // mobile, dove un guadagno di venti decibel non satura.
+            ProcessCapturedFrame(_frameFloat.AsSpan(0, _samplesPerFrame));
+
             for (var i = 0; i < _samplesPerFrame; i++)
             {
                 _framePcm[i] = ToPcm16(_frameFloat[i]);
             }
 
             SendFrame(_framePcm, _samplesPerFrame);
+        }
+    }
+
+    // Elaborazione del microfono: controllo del livello e riduzione del rumore.
+    private MicrophoneProcessor? _micProcessor;
+    private BlindPhone.Core.Domain.MicrophoneProcessing? _micProcessingApplied;
+    private bool _micFaultReported;
+
+    /// <summary>
+    /// Descrizione dell'elaborazione del microfono in corso, per il rapporto diagnostico.
+    /// </summary>
+    /// <remarks>
+    /// Serve a chi riceve la segnalazione «mi sentono male»: la prima domanda è se
+    /// l'elaborazione era accesa, e con quali effetti sul ritardo.
+    /// </remarks>
+    public string MicrophoneProcessingDescription => _micProcessor?.Describe() ?? _lastMicDescription;
+
+    private string _lastMicDescription = "nessuna";
+
+    /// <summary>
+    /// Applica al pacchetto l'elaborazione che il motore audio chiede in questo momento.
+    /// </summary>
+    /// <param name="frame">Campioni mono in virgola mobile, alla frequenza del codec.</param>
+    /// <remarks>
+    /// <para>
+    /// La configurazione si rilegge a ogni pacchetto e si confronta per riferimento:
+    /// costa una lettura. È quello che fa valere un cambio delle impostazioni <b>sulla
+    /// chiamata in corso</b>, entro venti millisecondi, senza blocchi condivisi con
+    /// l'interfaccia.
+    /// </para>
+    /// <para>
+    /// Se l'elaborazione si esclude da sola lo si scrive nel registro una volta sola, e
+    /// la voce continua a passare non elaborata. Il guasto non interrompe mai la
+    /// trasmissione.
+    /// </para>
+    /// </remarks>
+    private void ProcessCapturedFrame(Span<float> frame)
+    {
+        var processor = _micProcessor;
+        if (processor is null) return;
+
+        var wanted = _engine.MicrophoneProcessing;
+
+        if (!ReferenceEquals(wanted, _micProcessingApplied))
+        {
+            processor.Apply(wanted);
+            _micProcessingApplied = wanted;
+            _micFaultReported = false;
+
+            if (wanted.IsActive)
+            {
+                _log.LogInformation(
+                    "Elaborazione del microfono sulla chiamata: {Descrizione}", processor.Describe());
+            }
+        }
+
+        processor.Process(frame);
+
+        if (processor.Fault is { } fault && !_micFaultReported)
+        {
+            _micFaultReported = true;
+            _log.LogWarning(
+                "Elaborazione del microfono esclusa, la voce passa non elaborata: {Motivo}", fault);
         }
     }
 
@@ -2048,6 +2125,13 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
             _capture.Dispose();
             _capture = null;
         }
+
+        // La descrizione si trattiene prima di buttare il processore, per lo stesso
+        // motivo dei contatori della riproduzione: chi legge il rapporto dopo la
+        // chiusura deve trovare com'era la chiamata, non "nessuna".
+        _lastMicDescription = _micProcessor?.Describe() ?? _lastMicDescription;
+        _micProcessor = null;
+        _micProcessingApplied = null;
 
         _captureResampler = null;
         _captureFormat = null;

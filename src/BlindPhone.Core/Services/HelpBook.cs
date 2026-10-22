@@ -87,6 +87,7 @@ public static class HelpBook
         Topic(ColleaguesTopicId, "Sapere chi e' in turno", Colleghi(profile)),
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
+        Topic("riunioni", "Entrare in una riunione Zoom", Riunioni(profile)),
         Topic("stato", "Sapere come sta andando", Stato(profile)),
         Topic("voce", "La voce, i segnali acustici e il braille", Voce(profile)),
         Topic("finestra", "Chiudere, riaprire, secondo piano", Finestra(profile)),
@@ -142,7 +143,7 @@ public static class HelpBook
 
         Se ti perdi: {K(profile, HotkeyCommand.AnnounceStatusSummary)} legge tutto lo stato in una volta, e {K(profile, HotkeyCommand.AnnounceHotkeyList)} rilegge l'elenco delle scorciatoie.
 
-        Se le scorciatoie ti sembrano troppe, c'è una via più corta: la modalità semplificata governa l'intera chiamata con tre tasti del tastierino numerico. Ha un argomento suo in questa guida.
+        Se le scorciatoie ti sembrano troppe, c'è una via più corta: la modalità semplificata governa l'intera chiamata con quattro tasti del tastierino numerico. Ha un argomento suo in questa guida.
 
         Nella finestra trovi due caselle di sola lettura, affiancate: a sinistra «Collegato a», con nome e numero di chi hai in linea; a destra «In attesa», con nome, numero e da quanto tempo aspetta. Servono soprattutto a chi guarda lo schermo — un collega che ti affianca, chi passa dalla postazione — e fanno per lui quello che le spie luminose fanno su un centralino tradizionale. Sono caselle di testo e non etichette proprio perché il numero che c'è scritto si possa selezionare e copiare. Non parlano da sole: il tempo di attesa cambia ogni secondo e sentirlo ripetere ti coprirebbe la conversazione. Quello che devi sapere continua ad arrivarti dagli annunci.
 
@@ -153,25 +154,34 @@ public static class HelpBook
 
     private static string Tastierino(HotkeyProfile profile) =>
         $"""
-        La modalità semplificata governa l'intera chiamata con tre tasti del tastierino numerico. Si attiva da Impostazioni, scheda Accessibilità, alla voce «modalità di interazione».
+        La modalità semplificata governa l'intera chiamata con quattro tasti del tastierino numerico. Si attiva da Impostazioni, scheda Accessibilità, alla voce «modalità di interazione».
 
         Serve a chi sta al centralino senza il tempo di imparare le scorciatoie, e a chi copre un turno ogni tanto. Non toglie niente: tutte le combinazioni continuano a funzionare, e questa è una via più corta che si affianca a quelle.
 
-        I tre tasti, sotto la mano destra su qualunque tastiera:
+        I quattro tasti, sotto la mano destra su qualunque tastiera:
 
         - PIÙ risponde alla chiamata che squilla. Dopo, mette in pausa chi è in linea e lo riprende: è lo stesso tasto, e fa l'una o l'altra cosa secondo dove sei.
         - DIVISO chiude. Chiude la chiamata in corso, rifiuta quella che squilla, e durante un trasferimento chiude la linea con l'interno riportandoti al chiamante.
-        - INVIO trasferisce.
+        - INVIO chiama l'interno a cui vuoi passare il chiamante.
+        - MENO svincola: passa il chiamante all'interno.
 
-        Il trasferimento ha due strade, e a distinguerle è la pausa. Non c'è altro da ricordare.
+        Il trasferimento è sempre lo stesso, e sono tre gesti nell'ordine in cui vengono naturali.
 
-        Se il chiamante è ancora in linea, componi l'interno e premi INVIO: la chiamata parte subito verso quell'interno, senza annunciarla. È il percorso rapido, quello che smaltisce la coda.
+        Uno. Rispondi con PIÙ e parla con chi ha chiamato.
 
-        Se invece hai messo il chiamante in pausa con PIÙ, allora hai già detto che vuoi parlare prima con il collega: componi l'interno, premi INVIO e lo senti squillare. Un secondo INVIO gli passa la chiamata, che abbia risposto o che stia ancora squillando.
+        Due. Componi l'interno e premi INVIO. Il chiamante va in attesa e tu senti cosa fa l'interno: se squilla, se è occupato, se non risponde nessuno. Se il collega risponde, puoi annunciargli la chiamata.
+
+        Tre. Premi MENO e il chiamante passa all'interno. Lo puoi fare sia dopo che il collega ha risposto, sia mentre sta ancora squillando: decidi tu, perché hai sentito.
+
+        Se l'interno è occupato o non risponde, non premere MENO: premi DIVISO. Chiude la linea con il collega e ti riporta al chiamante, che è ancora lì ad aspettare e a cui puoi dire com'è andata.
+
+        È il motivo per cui il trasferimento passa sempre da INVIO prima che da MENO. Mandare il chiamante direttamente all'interno costerebbe un tasto in meno, ma su un interno occupato non ci sarebbe modo di accorgersene: il chiamante finirebbe su un telefono che non può rispondergli, e tu non lo sapresti.
+
+        Se premi INVIO quando l'interno è già in linea, BlindPhone te lo dice e ti ricorda che il tasto per passargli la chiamata è MENO. Non succede nulla di male: è solo il tasto sbagliato per quel momento.
 
         Mentre una chiamata squilla il campo di composizione non accetta testo, così il PIÙ con cui rispondi non ci finisce dentro per sbaglio. Torna a scrivere appena hai risposto, che è quando ti serve per comporre l'interno.
 
-        PIÙ e DIVISO non arrivano mai al campo di composizione, in nessun momento: se in quello stato non hanno significato senti il segnale di comando rifiutato e nel numero non compare nulla.
+        PIÙ, DIVISO e MENO non arrivano mai al campo di composizione, in nessun momento: se in quello stato non hanno significato senti il segnale di comando rifiutato e nel numero non compare nulla.
 
         Fuori da una chiamata INVIO torna a essere quello di sempre: compone il numero che hai scritto.
 
@@ -263,7 +273,7 @@ public static class HelpBook
 
         Il numero ti viene riletto cifra per cifra mentre l'interno squilla. Se una cifra è sbagliata sei ancora in tempo: {K(profile, HotkeyCommand.Cancel)} chiude la chiamata all'interno e ti riporta il chiamante. Finché non premi {key} la seconda volta stai parlando tu con l'interno, e il chiamante è ancora tuo.
 
-        Scegliere fra due omonimi. Digitando un nome compare sotto l'elenco dei contatti che corrispondono: freccia giu' scende dentro l'elenco, le frecce su e giu' scorrono i contatti, destra e sinistra leggono i campi di quello su cui ti trovi, Invio chiama. Freccia su dal primo contatto riporta al campo.
+        Scegliere fra due omonimi. Digitando un nome compare sopra il campo l'elenco dei contatti che corrispondono: freccia giu' scende dentro l'elenco, le frecce su e giu' scorrono i contatti, destra e sinistra leggono i campi di quello su cui ti trovi, Invio chiama. Freccia su dal primo contatto riporta al campo.
 
         Quali campi vedi accanto a ogni contatto lo decidi tu, in Impostazioni, scheda Rubrica: nominativo e interno ci sono sempre, gli altri - descrizione, reparto, collocazione, stato - si spuntano uno per uno con la barra spaziatrice. Tienine pochi: ogni campo in piu' e' una freccia destra in piu' da percorrere su ogni contatto.
 
@@ -325,6 +335,13 @@ public static class HelpBook
         La ricerca parte tre decimi di secondo dopo l'ultima lettera, non a ogni tasto: altrimenti sentiresti un conteggio per ogni carattere, sovrapposto all'eco delle lettere stesse. Se premi Invio prima che sia partita, la ricerca viene completata subito e non perdi la chiamata.
 
         Se cerchi un nome e non c'è nessuno, te lo dice, invece di lasciarti comporre delle lettere.
+
+        Anche un interno viene cercato, ma in un altro modo. Un nome si cerca per pezzi, un interno no: le cifre devono essere quelle di un interno in rubrica, tutte e nell'ordine giusto. Scrivendo 40 non compare nessuno dei 4021 o dei 1402; compare solo chi ha proprio l'interno 40.
+
+        - Se c'è una voce sola, la voce ti dice di chi è, senza ripetere l'interno che hai appena scritto, e ti avverte se è occupato o fuori servizio.
+        - Se l'interno è condiviso da più voci - succede con le stanze e gli ambulatori - ti dice quante sono, e con la freccia giù le scorri come i contatti trovati per nome.
+        - Se nessuno ha quell'interno la voce tace: stai componendo un numero, e non serve sentirsi dire ogni volta che non è in rubrica.
+        - Trovare un interno non cambia quello che fa Invio: compone le cifre che hai scritto, come sempre.
         """;
 
     private static string Coda(HotkeyProfile profile) =>
@@ -501,13 +518,15 @@ public static class HelpBook
 
     private static string Finestra(HotkeyProfile profile) =>
         $"""
-        Chiudendo la finestra BlindPhone non si spegne: resta in servizio nell'area di notifica, continua a ricevere chiamate e resta registrato al centralino. È deliberato, perché un softphone chiuso per sbaglio si manifesta come chiamanti che squillano a vuoto, e non c'è nulla che te lo faccia notare.
+        Chiudendo la finestra con la X BlindPhone non si spegne: resta in servizio nell'area di notifica, continua a ricevere chiamate e resta registrato al centralino. È deliberato, perché un softphone chiuso per sbaglio si manifesta come chiamanti che squillano a vuoto, e non c'è nulla che te lo faccia notare.
 
+        Alt F4 invece chiude davvero, come in qualunque altro programma. Il gesto che conosci fa quello che ti aspetti: se vuoi spegnere BlindPhone, quello è il tasto.
+
+        - Chiudi BlindPhone: Alt F4, oppure {K(profile, HotkeyCommand.QuitApplication)}
         - Riapri la finestra da qualunque programma: {G(profile, HotkeyCommand.ShowWindow)}
         - Raggiungi l'icona da tastiera: Windows B, poi il tasto applicazione oppure Maiusc F10 per il menu, con «Apri BlindPhone» ed «Esci»
-        - Esci davvero, con la finestra aperta: {K(profile, HotkeyCommand.QuitApplication)}
 
-        Se esci mentre una chiamata è in corso ti viene chiesta conferma, perché uscendo cadrebbe.
+        Se esci mentre una chiamata è in corso ti viene chiesta conferma, perché uscendo cadrebbe. Vale per tutti e due i modi di uscire.
 
         Se non trovi la finestra e riapri il collegamento sul desktop non parte una seconda copia: torna davanti quella già in esecuzione, e la voce te lo dice. Due copie registrerebbero lo stesso interno sul centralino, e le chiamate arriverebbero a una sola delle due, non sempre la stessa.
 
@@ -569,6 +588,8 @@ public static class HelpBook
 
         L'interlocutore mi sente a scatti, o io sento a scatti. Impostazioni, scheda Audio, sezione Regolazione del buffer audio: aumenta il cuscinetto. I tre valori preimpostati coprono quasi tutti i casi: rete locale, prudente, rete disturbata. Se invece ti accorgi di sovrapporti all'interlocutore, il cuscinetto è troppo alto.
 
+        L'interlocutore mi sente piano, oppure sente il rumore dietro di me. Impostazioni, scheda Audio, sezione Elaborazione del microfono, sotto la scelta del microfono. Il controllo automatico del livello alza la voce se parli piano e la abbassa se parli forte. La riduzione del rumore ambientale attenua ventole, ronzii e aria condizionata. Sono spente di partenza e si applicano subito, anche sulla chiamata in corso: accendile una alla volta e chiedi all'interlocutore se sente la differenza. La riduzione agisce soprattutto fra una parola e l'altra, quindi mentre parli il rumore resta, e ai livelli alti la voce diventa meno naturale: parti da leggera. Aggiunge circa sedici millisecondi di ritardo a quello che dici.
+
         Sento gli annunci due volte. Impostazioni, scheda Accessibilità: togli la spunta a «Fai parlare BlindPhone con la sua voce». Gli annunci continuano ad arrivare dallo screen reader.
 
         Una impostazione non si lascia cambiare. La postazione è configurata dall'amministratore: le schede bloccate lo dicono nel titolo — «Account SIP (bloccata)» — e restano leggibili, così puoi comunque riferire come è configurata quando chiami l'assistenza. Il messaggio che senti aprendo le impostazioni dice a chi rivolgersi. Se hai la password dell'amministratore, il pulsante «Sblocca o riblocca» le apre per questa sessione soltanto.
@@ -619,6 +640,25 @@ public static class HelpBook
         Per aggiungere, modificare o eliminare un account: Impostazioni, scheda Account SIP. In cima c'è l'elenco a discesa che sceglie quale account stai modificando — controlla sempre di essere su quello giusto prima di scrivere, perché i campi sotto cambiano tutti insieme.
 
         Ogni account ha la sua password, conservata separatamente e cifrata. Rinominare un account non gliela fa perdere.
+        """;
+
+    private static string Riunioni(HotkeyProfile profile) =>
+        $"""
+        Si entra in una riunione Zoom dal campo di composizione: scrivi l'identificativo e premi {K(profile, HotkeyCommand.JoinMeeting)}.
+
+        Se la riunione ha un codice d'accesso, scrivilo dopo un punto: 812345678 punto 4321. L'identificativo lo puoi scrivere a gruppi come sta nell'invito, gli spazi non danno fastidio.
+
+        Attenzione al codice, perché Zoom ne ha due per la stessa riunione. Quello scritto nell'invito può contenere lettere e vale per chi entra dal sito. Quello che serve qui è il codice numerico, lo stesso che si userebbe entrando per telefono. Se scrivi quello con le lettere il programma te lo dice invece di lasciarti provare.
+
+        Una volta dentro è una chiamata come tutte le altre: attesa, conferenza, toni e riaggancio funzionano con i tasti di sempre. Non c'è una modalità riunione da imparare.
+
+        Da qui viene anche la cosa più utile che un centralino può fare con una riunione: se hai un chiamante in linea che deve partecipare, entri in riunione e poi mettete tutti insieme con {K(profile, HotkeyCommand.Conference)}. Il centralino fa da ponte fra il telefono e la riunione.
+
+        Le riunioni che si ripetono — la giunta, il consiglio, la commissione — conviene metterle in rubrica come contatti normali, con tutto l'indirizzo. Da quel momento si chiamano per nome come qualunque altro contatto, e non devi più ricordare undici cifre.
+
+        Il codice d'accesso non viene mai riletto a voce e non resta nelle ultime chiamate: in un centralino dove ci sono altre persone, un codice pronunciato ad alta voce è un codice diffuso.
+
+        Quello che non c'è, perché passa da Zoom e non dal telefono: la chat, la mano alzata, l'elenco dei partecipanti e il comando del microfono dal lato riunione. Hai l'audio e i comandi del tuo telefono.
         """;
 
     private static string Mancante() =>

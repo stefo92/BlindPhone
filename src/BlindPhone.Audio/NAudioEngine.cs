@@ -1,5 +1,6 @@
 using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Accessibility;
+using BlindPhone.Core.Domain;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NAudio.CoreAudioApi;
@@ -167,6 +168,38 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
     public void SetVolume(AudioRoute route, float volume)
     {
         lock (_gate) _volumes[route] = Math.Clamp(volume, 0f, 1f);
+    }
+
+    private MicrophoneProcessing _microphoneProcessing = MicrophoneProcessing.None;
+
+    /// <summary>
+    /// Elaborazione richiesta per il microfono, quella che ogni chiamata legge.
+    /// </summary>
+    /// <remarks>
+    /// È un oggetto immutabile che si sostituisce per intero: chi trasmette lo confronta
+    /// per riferimento a ogni pacchetto e ricostruisce la catena solo se è un altro. Così
+    /// il cambio vale subito anche sulla chiamata in corso, senza blocchi condivisi sul
+    /// thread della scheda audio.
+    /// </remarks>
+    public MicrophoneProcessing MicrophoneProcessing => Volatile.Read(ref _microphoneProcessing);
+
+    /// <inheritdoc />
+    public void SetMicrophoneProcessing(MicrophoneProcessing processing)
+    {
+        var sanitized = processing.Sanitized();
+
+        // Lo stesso valore non si risostituisce: renderebbe il riferimento diverso, e
+        // le chiamate in corso ricostruirebbero la catena — cioe' azzererebbero il
+        // livello raggiunto — a ogni salvataggio delle impostazioni, anche senza che
+        // nessuno avesse toccato questi due controlli.
+        if (sanitized == Volatile.Read(ref _microphoneProcessing)) return;
+
+        Volatile.Write(ref _microphoneProcessing, sanitized);
+
+        _log.LogInformation(
+            "Elaborazione del microfono: controllo del livello {AutoGain}, riduzione del rumore {Noise}",
+            sanitized.AutoGain ? "attivo" : "spento",
+            sanitized.Level);
     }
 
     /// <inheritdoc />

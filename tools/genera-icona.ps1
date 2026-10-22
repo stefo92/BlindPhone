@@ -57,7 +57,7 @@ if ([string]::IsNullOrEmpty($radice)) { $radice = Split-Path -Parent $PSCommandP
 if ([string]::IsNullOrEmpty($radice)) { $radice = (Get-Location).Path }
 $radice = Split-Path -Parent $radice
 
-if ([string]::IsNullOrEmpty($Sorgente)) { $Sorgente = Join-Path $radice 'icona.png' }
+if ([string]::IsNullOrEmpty($Sorgente)) { $Sorgente = Join-Path $radice 'BlindPhoneLogo.png' }
 if ([string]::IsNullOrEmpty($Destinazione)) {
     $Destinazione = Join-Path $radice 'src\BlindPhone.App\blindphone.ico'
 }

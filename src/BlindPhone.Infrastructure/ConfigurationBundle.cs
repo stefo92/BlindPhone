@@ -433,6 +433,11 @@ public sealed class ConfigurationBundleService
                     Announcements = origine.Announcements,
                     RingtonePath = origine.RingtonePath,
                     Audio = origine.Audio,
+
+                    // Fa parte della sezione Audio come il resto: un reparto che ha
+                    // trovato il livello di riduzione del rumore adatto ai propri
+                    // uffici lo distribuisce insieme ai dispositivi.
+                    MicrophoneProcessing = origine.MicrophoneProcessing,
                 },
 
                 SettingsSection.Accessibility => risultato with { Accessibility = origine.Accessibility },

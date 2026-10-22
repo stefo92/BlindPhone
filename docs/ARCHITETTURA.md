@@ -165,6 +165,9 @@ Implementa `IQueueProvider` e registralo in `App.BuildServices`. Il core non cam
 capacità non supportata produce comandi muti, che per un operatore non vedente sono
 peggio di una funzione assente.
 
+Il connettore nuovo entra nello stesso pacchetto di tutti gli altri: vedi §4-bis, che
+spiega perché e quali sono le due sole eccezioni.
+
 ### Cambiare account SIP senza riavviare
 
 Il motore telefonico è un singleton e mezzo prodotto vi si aggancia: gestore delle
@@ -253,6 +256,109 @@ conversazione normale il posto operatore non avrebbe potuto dire quale delle due
 Sequenze ascendenti per "arrivato o riuscito", discendenti per "finito", intervalli
 dissonanti per "non ha funzionato": un operatore le interpreta correttamente al
 primo ascolto.
+
+---
+
+## 4-bis. Un solo binario per tutti i centralini
+
+> **Decisione, 5 settembre 2026 — un solo prodotto, un solo pacchetto di
+> installazione, connettori scelti a runtime. Non si costruisce una variante per
+> marchio di centralino.**
+
+La domanda si ripresenterà — arriva puntuale quando il secondo connettore entra in
+piano — quindi qui c'è la risposta e il perché.
+
+### L'architettura la implementa già
+
+`CreateQueueProvider` in `App.BuildServices` sceglie il connettore a runtime dalla
+configurazione e ricade su `DisabledQueueProvider` quando non c'è nulla da collegare.
+**Un connettore non configurato non viene mai istanziato**, quindi un difetto nel
+codice di un centralino non può manifestarsi su una postazione che ne usa un altro.
+
+`QueueProviderCapabilities` fa il resto: la stessa interfaccia nasconde le funzioni
+che quel centralino non offre. È ciò che permette a un binario solo di servire un
+impianto che dà il solo conteggio delle chiamate in coda e uno che dà l'elenco
+completo, senza mentire a nessuno dei due.
+
+### I quattro conti
+
+| | Con un pacchetto solo | Con un pacchetto per marchio |
+|---|---|---|
+| **Lavoro di packaging** | Nullo: `BlindPhone.wxs` raccoglie l'intera cartella di pubblicazione con `<Files Include="…\**" />` | Un `.wxs` o una variabile per variante |
+| **Peso** | Un connettore è 100–300 KB su un pacchetto autonomo da 64 MB: **0,3%** | Lo stesso peso moltiplicato per il numero di varianti |
+| **Rilascio** | 2 pacchetti (x64, arm64), 2 file di novità, 2 impronte SHA256 | *marchi × architetture*, e altrettante novità e impronte da tenere allineate |
+| **Conformità** | Una dichiarazione EN 301 549, un ciclo di collaudo con NVDA e JAWS | Una per variante, per un prodotto che è lo stesso |
+
+Il terzo è quello che si sottovaluta. `UpdateCatalog.InstallerPrefix` è la costante
+`"BlindPhone-"` e il legame fra pacchetto e novità è il **nome del file**:
+`BlindPhone-1.2.0-x64.msi` accanto a `BlindPhone-1.2.0-x64.txt`. Con sei marchi e due
+architetture diventano dodici pacchetti per rilascio, dodici file di novità e dodici
+impronte — un lavoro manuale che sbaglia da solo alla seconda volta.
+
+Il quarto pesa nel mercato di riferimento: nell'Accordo Quadro Consip è **la PA a
+scegliere il marchio** fra quelli dell'aggiudicatario, quindi un posto operatore
+venduto per marchio è la forma sbagliata per quel canale. Vedi
+[PIATTAFORME-PA.md](../PIATTAFORME-PA.md).
+
+### L'argomento che vale più di tutti gli altri
+
+**Una sola build significa gli stessi tasti ovunque.** Un centralinista che cambia
+sede, o un formatore che insegna su un impianto e assiste su un altro, trova la stessa
+mappa: stessa scheda dei tasti rapidi, stesso `HelpBook`, stessi annunci.
+
+Con build separate le differenze di comportamento diventano inevitabili — una funzione
+che c'è di là e non di qua — e **chi non vede non può scoprirle guardando lo schermo**.
+Le scopre premendo un tasto che non fa nulla, che è precisamente ciò che
+`QueueProviderCapabilities` è stato scritto per evitare.
+
+### La differenziazione per cliente è configurazione, non compilazione
+
+Il meccanismo esiste già nell'installatore:
+
+```
+msiexec /i BlindPhone-1.2.0-x64.msi /qn ^
+    CONFIGURAZIONE="\\server\deploy\cisco-asl.bpcfg" ^
+    SEZIONIBLOCCATE=SipAccounts,Pbx
+```
+
+Un pacchetto di configurazione per cliente, lo stesso MSI per tutti. Si può comunque
+**vendere** «BlindPhone per Cisco»: è una voce di listino e un `.bpcfg`, non un
+eseguibile diverso.
+
+### Le due sole eccezioni
+
+Non riguardano i marchi ma i **componenti che non si possono spedire a tutti**:
+
+1. **Un redistribuibile di terze parti con licenza per postazione** — per esempio un
+   middleware CSTA commerciale, che non può finire nel pacchetto di chi non l'ha
+   acquistato.
+2. **Un driver nativo da installare separatamente** — per esempio il TSP di Cisco.
+
+In entrambi i casi la risposta **non è una seconda build**: è un **prerequisito**, che
+si documenta, si rileva all'avvio e la cui assenza degrada la funzione senza impedire
+l'uso del prodotto. Il precedente è già in casa: il client controller di NVDA in
+`BlindPhone.App.csproj` è un binario nativo di terze parti, uno per architettura, fuori
+dal repository, incluso condizionalmente — e senza di lui il programma funziona lo
+stesso, ricadendo sulle notifiche UI Automation.
+
+### Regole per chi aggiunge un connettore
+
+- **Riferimento diretto al progetto e un ramo nella fabbrica.** Niente sistema a
+  plugin: la riflessione romperebbe il trimming, aggiungerebbe modi di fallire a
+  caricamento e non risolverebbe nulla con l'ordine di grandezza di connettori che
+  questo prodotto avrà.
+- **Un connettore non deve poter impedire l'avvio.** Se una dipendenza nativa manca,
+  `StartAsync` fallisce in modo ordinato e dichiara `PbxLinkStatus.Disabled` con un
+  motivo pronunciabile. Mai un errore di caricamento all'avvio: su una postazione dove
+  nessuno guarda lo schermo, un programma che non parte è un guasto senza diagnosi.
+
+### Se la decisione viene rimessa in discussione
+
+L'obiezione che arriverà è quella di un ufficio IT che non vuole sulla propria
+postazione codice per centralini di altri fornitori. La via di mezzo esiste **senza
+creare un secondo prodotto**: le `Feature` di WiX rendono i connettori selezionabili
+dentro lo stesso pacchetto. Va fatta solo quando qualcuno la chiede davvero, perché
+ogni funzione facoltativa è una combinazione in più da collaudare.
 
 ---
 

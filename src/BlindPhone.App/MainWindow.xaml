@@ -64,7 +64,16 @@
             resta compatto a schermo e in braille, dove quattro cifre devono occupare
             quattro celle.
         -->
-        <Style x:Key="SpokenNumberCell" TargetType="DataGridCell">
+        <!--
+            BASEDON, E NON E' UN DETTAGLIO. Uno stile dato a CellStyle SOSTITUISCE quello
+            implicito del tema, non lo estende: senza BasedOn la cella perde il trigger
+            di selezione, e nella riga evidenziata il numero restava chiaro e a testo
+            nero mentre tutte le altre celle diventavano blu. Era proprio la cella con
+            l'informazione che si cerca. Vale per ogni stile di cella che si assegna a
+            una colonna: vedi SpokenCellStyleTests.
+        -->
+        <Style x:Key="SpokenNumberCell" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
             <Setter Property="AutomationProperties.Name" Value="{Binding SpokenNumber}" />
         </Style>
 
@@ -249,7 +258,14 @@
                 ha dichiarato nessun interno da sorvegliare.
             -->
             <RowDefinition x:Name="ColleaguesRow" Height="*" />
-            <RowDefinition Height="Auto" />
+
+            <!--
+                Riga 6: composizione. Riga 7: ultimo annuncio.
+
+                I contatti proposti dal campo di composizione NON hanno una riga: si
+                disegnano sopra le altre, ancorati al bordo alto del campo. Vedi il
+                commento sull'elenco, dentro la riga della composizione.
+            -->
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -683,7 +699,7 @@
 
                 <ListView.View>
                     <GridView>
-                        <GridViewColumn Header="Posizione" DisplayMemberBinding="{Binding Position}" Width="90" />
+                        <GridViewColumn Header="Posizione" DisplayMemberBinding="{Binding Position}" Width="110" />
                         <GridViewColumn Header="Chiamante" DisplayMemberBinding="{Binding Caller}" Width="260" />
                         <GridViewColumn Header="Attesa" DisplayMemberBinding="{Binding Wait}" Width="120" />
                         <GridViewColumn Header="Coda" DisplayMemberBinding="{Binding Queue}" Width="160" />
@@ -783,7 +799,7 @@
             <TextBox Grid.Column="1"
                      x:Name="DialerBox"
                      AutomationProperties.Name="Campo di composizione: numero o nome da cercare"
-                     AutomationProperties.HelpText="Digita un numero e premi Invio per chiamare. Digita un nome e la rubrica propone i contatti corrispondenti: freccia giu' per sceglierne uno, Invio per chiamarlo. Durante una conversazione puoi scrivere qui il numero che il chiamante ti detta. In modalita' trasferimento Invio trasferisce subito senza chiedere conferma, mentre il tasto di trasferimento chiama prima l'interno per annunciare la chiamata."
+                     AutomationProperties.HelpText="Digita un numero e premi Invio per chiamare. Se il numero e' un interno in rubrica, la voce ti dice di chi e'. Digita un nome e la rubrica propone i contatti corrispondenti: freccia giu' per sceglierne uno, Invio per chiamarlo. Durante una conversazione puoi scrivere qui il numero che il chiamante ti detta. In modalita' trasferimento Invio trasferisce subito senza chiedere conferma, mentre il tasto di trasferimento chiama prima l'interno per annunciare la chiamata."
                      PreviewKeyDown="OnDialerPreviewKeyDown"
                      KeyDown="OnDialerKeyDown"
                      TextChanged="OnDialerTextChanged" />
@@ -817,54 +833,99 @@
                     <AccessText VerticalAlignment="Center" Text="C_hiama" />
                 </StackPanel>
             </Button>
+
+            <!--
+                CONTATTI CHE CORRISPONDONO AL NOME O ALL'INTERNO DIGITATO.
+
+                Compare quando nel campo ci sono lettere, cioe' quando l'operatore sta
+                cercando un nome, oppure quando le cifre sono esattamente un interno
+                che esiste in rubrica. Un numero qualunque non la apre: la ricerca
+                dell'interno e' per uguaglianza, non per somiglianza.
+
+                E' UN ELENCO SOVRAPPOSTO, NON UNA RIGA DELLA FINESTRA, ed e' la ragione
+                per cui sta qui dentro e non fra le righe della griglia.
+
+                Prima aveva una riga sua, sotto il campo. Il campo sta in fondo alla
+                finestra, quindi l'elenco stava piu' in fondo ancora: bastava una
+                finestra non a tutto schermo su un monitor piccolo perche' non ci
+                fosse posto, e l'elenco compariva tagliato o non compariva affatto,
+                con l'operatore che sentiva «tre contatti» senza poterli vedere. La
+                finestra non puo' allargarsi oltre lo schermo, e tutto lo spazio che
+                poteva ancora cedere — le due liste — era gia' ridotto al minimo.
+
+                Qui non toglie niente a nessuno: non occupa altezza, quindi non fa
+                crescere la finestra, non sposta l'ultimo annuncio e non innesca
+                nessun ridimensionamento. Si apre verso l'alto a partire dal campo,
+                dove c'e' sempre posto — sopra il campo ci sono almeno la scheda dello
+                stato, quella della chiamata e le due caselle di riepilogo — e copre
+                per il tempo della ricerca la parte bassa delle liste, che e' la meno
+                utile in quel momento.
+
+                SE IL CAMPO E' FUORI DALLA FINESTRA, L'ELENCO NO. Il valore di
+                Canvas.Bottom scritto qui e' quello di partenza, per il caso di tutti
+                i giorni; a ogni impaginazione il code-behind lo riporta al piu' in
+                basso che la finestra consente, e ne limita l'altezza allo spazio che
+                sta sopra (PositionSuggestions, MainWindowLayout.PlaceSuggestions).
+                Senza, un campo sotto il bordo si portava dietro l'elenco, e delle sue
+                righe si vedeva soltanto la fascia delle intestazioni.
+
+                COME NON OCCUPA ALTEZZA. Il Canvas misura zero e il suo contenuto non
+                concorre alla misura della riga; l'elenco e' ancorato al bordo basso
+                del Canvas, cioe' al bordo alto del campo, con uno stacco di otto
+                pixel. Il Canvas sta DENTRO la riga della composizione, dopo il
+                pulsante, e non in una riga a parte: cosi' l'ordine di tabulazione e
+                l'ordine con cui lo screen reader legge il contenuto restano quelli di
+                prima — campo, pulsante, elenco — e l'elenco viene sempre disegnato
+                sopra le liste, che lo precedono.
+
+                E' una tabella per lo stesso motivo della rubrica: nominativo e interno
+                sono due celle, si leggono una per una con le frecce, e il gesto e'
+                identico nelle due finestre. Due colonne bastano — a questo punto serve
+                solo riconoscere il contatto giusto, la scheda completa e' in rubrica.
+            -->
+            <Canvas x:Name="SuggestionsCanvas"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="3"
+                    Height="0"
+                    VerticalAlignment="Top">
+                <DataGrid x:Name="SuggestionsGrid"
+                          Canvas.Left="0"
+                          Canvas.Bottom="8"
+                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          CanUserAddRows="False"
+                          Visibility="Collapsed"
+                          MaxHeight="180"
+                          BorderBrush="{DynamicResource AccentBrush}"
+                          BorderThickness="2"
+                          AutomationProperties.Name="Contatti che corrispondono al nome o all'interno digitato"
+                          AutomationProperties.HelpText="Frecce su e giu' per cambiare contatto, destra e sinistra per leggere nominativo, interno e stato. Invio chiama. Freccia su dal primo contatto torna al campo di composizione."
+                          CanUserSortColumns="False"
+                          CanUserReorderColumns="False"
+                          CanUserResizeRows="False"
+                          CanUserDeleteRows="False"
+                          EnableRowVirtualization="False"
+                          PreviewKeyDown="OnSuggestionsPreviewKeyDown"
+                          MouseDoubleClick="OnSuggestionsDoubleClick">
+                    <!--
+                        LE COLONNE LE COSTRUISCE IL CODE-BEHIND.
+                        Nominativo e interno ci sono sempre; quelle facoltative dipendono da
+                        cosa l'operatore ha scelto in Impostazioni, scheda Rubrica. Vedi
+                        BuildSuggestionColumns.
+                    -->
+                </DataGrid>
+            </Canvas>
         </Grid>
 
         <!--
-            Riga 7: contatti che corrispondono al nome digitato.
-
-            Compare solo quando nel campo di composizione ci sono lettere, cioe'
-            quando l'operatore sta cercando un nome e non componendo un numero.
-            Finche' resta vuota la riga non occupa spazio e il resto della finestra
-            non si muove.
-
-            E' una tabella per lo stesso motivo della rubrica: nominativo e interno
-            sono due celle, si leggono una per una con le frecce, e il gesto e'
-            identico nelle due finestre. Due colonne bastano — a questo punto serve
-            solo riconoscere il contatto giusto, la scheda completa e' in rubrica.
-        -->
-        <DataGrid Grid.Row="7"
-                  x:Name="SuggestionsGrid"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  CanUserAddRows="False"
-                  Visibility="Collapsed"
-                  MaxHeight="180"
-                  Margin="0,8,0,0"
-                  AutomationProperties.Name="Contatti che corrispondono al nome digitato"
-                  AutomationProperties.HelpText="Frecce su e giu' per cambiare contatto, destra e sinistra per leggere nominativo, interno e stato. Invio chiama. Freccia su dal primo contatto torna al campo di composizione."
-                  CanUserSortColumns="False"
-                  CanUserReorderColumns="False"
-                  CanUserResizeRows="False"
-                  CanUserDeleteRows="False"
-                  EnableRowVirtualization="False"
-                  PreviewKeyDown="OnSuggestionsPreviewKeyDown"
-                  MouseDoubleClick="OnSuggestionsDoubleClick">
-            <!--
-                LE COLONNE LE COSTRUISCE IL CODE-BEHIND.
-                Nominativo e interno ci sono sempre; quelle facoltative dipendono da
-                cosa l'operatore ha scelto in Impostazioni, scheda Rubrica. Vedi
-                BuildSuggestionColumns.
-            -->
-        </DataGrid>
-
-        <!--
-            Riga 8: ultimo annuncio, per chi usa il cursore virtuale.
+            Riga 7: ultimo annuncio, per chi usa il cursore virtuale.
 
             E' una scheda come le altre ma piu' bassa e senza margine sotto: e' un
             dettaglio di servizio, non un'area di lavoro, e prima aveva lo stesso peso
             visivo di tutto il resto solo perche' aveva lo stesso contorno.
         -->
-        <Border Grid.Row="8"
+        <Border Grid.Row="7"
                 Style="{StaticResource Card}"
                 Padding="12,8"
                 Margin="0,16,0,0">

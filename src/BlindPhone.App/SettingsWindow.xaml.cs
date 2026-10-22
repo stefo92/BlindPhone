@@ -324,10 +324,11 @@ public partial class SettingsWindow : Window
             SipAuthId.Text = account.AuthId ?? string.Empty;
             SipDomain.Text = account.Domain;
             SipRegistrar.Text = account.Registrar ?? string.Empty;
+            SipOutboundProxy.Text = account.OutboundProxy ?? string.Empty;
             SipDisplayName.Text = account.DisplayName;
             SipOutboundCallerId.Text = account.OutboundCallerId;
-            SelectByContent(SipTransport, account.Transport);
-            SelectByContent(SipSrtp, account.Srtp);
+            SelectByTag(SipTransport, account.Transport);
+            SelectByTag(SipSrtp, account.Srtp);
             UpdateSrtpHint();
 
             var password = _sipPasswords.GetValueOrDefault(account.Id, string.Empty);
@@ -359,14 +360,15 @@ public partial class SettingsWindow : Window
             AuthId = NullIfEmpty(SipAuthId.Text),
             Domain = SipDomain.Text.Trim(),
             Registrar = NullIfEmpty(SipRegistrar.Text),
+            OutboundProxy = NullIfEmpty(SipOutboundProxy.Text),
             DisplayName = SipDisplayName.Text.Trim(),
 
             // Si conservano le sole cifre e il piu' iniziale: vedi CallerIdentity.
             // La stessa pulizia la rifa' il motore telefonico, perche' la
             // configurazione puo' arrivare anche da un file scritto a mano.
             OutboundCallerId = CallerIdentity.Normalize(SipOutboundCallerId.Text),
-            Transport = SelectedContent(SipTransport) ?? "Udp",
-            Srtp = SelectedContent(SipSrtp) ?? "Disabled",
+            Transport = SelectedTag(SipTransport) ?? "Udp",
+            Srtp = SelectedTag(SipSrtp) ?? "Disabled",
             CodecPreference = [.. _codecs.Where(c => c.IsEnabled).Select(c => c.Info.ShortName)],
         };
 
@@ -740,6 +742,13 @@ public partial class SettingsWindow : Window
         SelectByTag(RingerDevice, settings.Ringer.DeviceId);
         SelectByTag(AnnouncementDevice, settings.Announcements.DeviceId);
 
+        // L'elaborazione del microfono si carica prima di agganciare il commento
+        // sull'effetto: la casella e l'elenco lo aggiornano a ogni cambio, e a finestra
+        // in costruzione leggerebbero l'una il valore nuovo e l'altro quello vecchio.
+        MicAutoGain.IsChecked = settings.MicrophoneProcessing.AutoGain;
+        SelectByTag(MicNoiseSuppression, settings.MicrophoneProcessing.Level.ToString());
+        UpdateMicProcessingHint();
+
         RingtonePath.Text = settings.RingtonePath ?? string.Empty;
         UpdateRingtoneHint();
 
@@ -760,9 +769,9 @@ public partial class SettingsWindow : Window
         LoadDialerFields(settings.Contacts.DialerFields);
         SelectByTag(Theme, settings.Accessibility.Theme.ToString());
         UpdateThemeHint();
-        SelectByContent(Verbosity, settings.Accessibility.Verbosity.ToString());
-        SelectByContent(QueueMode, settings.Accessibility.QueueMode.ToString());
-        SelectByContent(DigitGrouping, settings.Accessibility.DigitGrouping.ToString());
+        SelectByTag(Verbosity, settings.Accessibility.Verbosity.ToString());
+        SelectByTag(QueueMode, settings.Accessibility.QueueMode.ToString());
+        SelectByTag(DigitGrouping, settings.Accessibility.DigitGrouping.ToString());
         SilenceDuringCall.IsChecked = settings.Accessibility.SilenceDuringConversation;
         EarconsEnabled.IsChecked = settings.Accessibility.EarconsEnabled;
         SpatialPanning.IsChecked = settings.Accessibility.EarconSpatialPanning;
@@ -797,7 +806,7 @@ public partial class SettingsWindow : Window
         RefreshDiagnostics();
 
         // Chiamate
-        SelectByContent(TransferMode, settings.Calls.TransferMode);
+        SelectByTag(TransferMode, settings.Calls.TransferMode);
         ConsultationTimeout.Text = settings.Calls.ConsultationTimeoutSeconds.ToString(CultureInfo.InvariantCulture);
         ConfirmExternal.IsChecked = settings.Calls.ConfirmExternalTransfers;
         WarnUnavailable.IsChecked = settings.Calls.WarnOnUnavailableDestination;
@@ -822,7 +831,7 @@ public partial class SettingsWindow : Window
     /// </remarks>
     private void UpdateSrtpHint()
     {
-        SipSrtpHint.Text = SelectedContent(SipSrtp) switch
+        SipSrtpHint.Text = SelectedTag(SipSrtp) switch
         {
             "Preferred" => "La voce viene cifrata dove la controparte lo consente. Se rifiuta, la chiamata "
                            + "riparte automaticamente in chiaro e la voce te lo dice: nessuna chiamata va persa.",
@@ -960,9 +969,10 @@ public partial class SettingsWindow : Window
 
         InteractionModeHint.Text = semplificata
             ? "Con il tastierino: PIU' risponde alla chiamata che squilla, e poi alterna fra linea e pausa. "
-              + "DIVISO riaggancia. INVIO, con il chiamante ancora in linea, lo manda subito all'interno composto; "
-              + "con il chiamante in pausa chiama prima l'interno per annunciare la chiamata, e un secondo INVIO "
-              + "gliela passa. Le altre scorciatoie continuano a funzionare, ma non si possono riassegnare."
+              + "DIVISO riaggancia, e durante un trasferimento chiude la linea con l'interno riportando il chiamante. "
+              + "INVIO chiama l'interno composto, cosi' si sente se squilla o se e' occupato. MENO svincola, "
+              + "cioe' passa il chiamante all'interno. Le altre scorciatoie continuano a funzionare, ma non si "
+              + "possono riassegnare."
             : "Tutte le scorciatoie sono attive e si possono riassegnare dalla scheda Tasti rapidi.";
 
         HotkeyGrid.IsEnabled = !semplificata;
@@ -1631,7 +1641,8 @@ public partial class SettingsWindow : Window
 
         var closing = (icon, minimize) switch
         {
-            (true, true) => "Chiudendo la finestra BlindPhone resta in servizio nell'area di notifica.",
+            (true, true) => "Chiudendo la finestra con la X BlindPhone resta in servizio nell'area di notifica. "
+                            + "Con Alt piu' F4 si chiude davvero.",
             (true, false) => "Chiudendo la finestra BlindPhone si chiude davvero e smette di ricevere chiamate.",
             (false, true) => "Attenzione: senza icona nell'area di notifica la chiusura non puo' mettere via "
                              + "la finestra, e chiuderla fermera' il telefono. Al salvataggio l'opzione verra' "
@@ -1746,6 +1757,50 @@ public partial class SettingsWindow : Window
         RingtoneHint.Text = File.Exists(path)
             ? $"File scelto: {Path.GetFileName(path)}."
             : "Attenzione: il file indicato non esiste. Alla prossima chiamata verra' usato il segnale predefinito.";
+    }
+
+    // -----------------------------------------------------------------------
+    // Elaborazione del microfono
+    // -----------------------------------------------------------------------
+
+    private void OnMicProcessingChanged(object sender, RoutedEventArgs e) => UpdateMicProcessingHint();
+
+    /// <summary>
+    /// Descrive a voce che cosa produce la scelta fatta.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Una casella e un elenco con nomi tecnici — AGC, riduzione del rumore — non dicono
+    /// a chi li cambia che cosa sentirà l'interlocutore. Il commento lo traduce, e
+    /// ripete l'unico costo che c'è: il ritardo, che con la riduzione del rumore
+    /// accesa passa da zero a circa sedici millisecondi e non si percepisce, ma è
+    /// meglio saperlo.
+    /// </para>
+    /// <para>
+    /// Chiamato anche mentre la finestra si sta costruendo, quando uno dei due
+    /// controlli può non esistere ancora: in quel caso non fa niente.
+    /// </para>
+    /// </remarks>
+    private void UpdateMicProcessingHint()
+    {
+        if (MicProcessingHint is null || MicAutoGain is null || MicNoiseSuppression is null) return;
+
+        var gain = MicAutoGain.IsChecked == true;
+        var level = ParseEnum(SelectedTag(MicNoiseSuppression), NoiseSuppressionLevel.Off);
+
+        var gainText = gain
+            ? "Il livello della voce viene regolato in automatico."
+            : "Il livello della voce non viene toccato.";
+
+        var noiseText = level switch
+        {
+            NoiseSuppressionLevel.Light => "Riduzione del rumore leggera: ritardo aggiunto circa sedici millisecondi.",
+            NoiseSuppressionLevel.Medium => "Riduzione del rumore media: ritardo aggiunto circa sedici millisecondi, qualche effetto sulla voce.",
+            NoiseSuppressionLevel.Strong => "Riduzione del rumore forte: ritardo aggiunto circa sedici millisecondi, la voce diventa meno naturale.",
+            _ => "Nessuna riduzione del rumore.",
+        };
+
+        LiveRegion.Update(MicProcessingHint, $"{gainText} {noiseText}");
     }
 
     // -----------------------------------------------------------------------
@@ -2137,25 +2192,15 @@ public partial class SettingsWindow : Window
 
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e) => UpdateThemeHint();
 
-    private static void SelectByContent(ComboBox combo, string? value)
-    {
-        foreach (ComboBoxItem item in combo.Items)
-        {
-            if (string.Equals(item.Content?.ToString(), value, StringComparison.OrdinalIgnoreCase))
-            {
-                combo.SelectedItem = item;
-                return;
-            }
-        }
-
-        if (combo.Items.Count > 0) combo.SelectedIndex = 0;
-    }
 
     private static void SelectByTag(ComboBox combo, string? deviceId)
     {
         foreach (ComboBoxItem item in combo.Items)
         {
-            if ((string?)item.Tag == deviceId)
+            // Senza distinguere maiuscole e minuscole: i valori scritti a mano nel file di
+            // configurazione («udp», «TLS») erano accettati quando la scelta si cercava per
+            // testo, e non devono smettere di esserlo.
+            if (string.Equals(item.Tag as string, deviceId, StringComparison.OrdinalIgnoreCase))
             {
                 combo.SelectedItem = item;
                 return;
@@ -2705,6 +2750,11 @@ public partial class SettingsWindow : Window
             Ringer = current.Ringer with { DeviceId = SelectedTag(RingerDevice), DeviceName = SelectedName(RingerDevice) },
             Announcements = current.Announcements with { DeviceId = SelectedTag(AnnouncementDevice), DeviceName = SelectedName(AnnouncementDevice) },
             RingtonePath = NullIfEmpty(RingtonePath.Text),
+            MicrophoneProcessing = new MicrophoneProcessing
+            {
+                AutoGain = MicAutoGain.IsChecked == true,
+                NoiseSuppression = ParseEnum(SelectedTag(MicNoiseSuppression), NoiseSuppressionLevel.Off),
+            },
             Audio = current.Audio with
             {
                 JitterBufferMs = ParseInt(JitterBuffer.Text, 100),
@@ -2717,9 +2767,9 @@ public partial class SettingsWindow : Window
                 SpeechChannel = speechChannel,
                 InternalVoiceEnabled = internalVoice,
                 Theme = ParseEnum(SelectedTag(Theme), AppTheme.FollowSystem),
-                Verbosity = ParseEnum(SelectedContent(Verbosity), VerbosityLevel.Standard),
-                QueueMode = ParseEnum(SelectedContent(QueueMode), QueueAnnouncementMode.CountOnly),
-                DigitGrouping = ParseEnum(SelectedContent(DigitGrouping), Core.Speech.DigitGrouping.Single),
+                Verbosity = ParseEnum(SelectedTag(Verbosity), VerbosityLevel.Standard),
+                QueueMode = ParseEnum(SelectedTag(QueueMode), QueueAnnouncementMode.CountOnly),
+                DigitGrouping = ParseEnum(SelectedTag(DigitGrouping), Core.Speech.DigitGrouping.Single),
                 SilenceDuringConversation = SilenceDuringCall.IsChecked == true,
                 EarconsEnabled = EarconsEnabled.IsChecked == true,
                 EarconSpatialPanning = SpatialPanning.IsChecked == true,
@@ -2738,7 +2788,7 @@ public partial class SettingsWindow : Window
             },
             Calls = current.Calls with
             {
-                TransferMode = SelectedContent(TransferMode) ?? "ProgressiveDoubleTap",
+                TransferMode = SelectedTag(TransferMode) ?? "ProgressiveDoubleTap",
                 ConsultationTimeoutSeconds = ParseInt(ConsultationTimeout.Text, 20),
                 ConfirmExternalTransfers = ConfirmExternal.IsChecked == true,
                 WarnOnUnavailableDestination = WarnUnavailable.IsChecked == true,
@@ -3186,9 +3236,6 @@ public partial class SettingsWindow : Window
         LiveRegion.Update(ResultText, message);
         _announcer.Announce(Announcement.CommandResponse(message, DateTimeOffset.Now));
     }
-
-    private static string? SelectedContent(ComboBox combo)
-        => (combo.SelectedItem as ComboBoxItem)?.Content?.ToString();
 
     private static string? SelectedTag(ComboBox combo)
         => (combo.SelectedItem as ComboBoxItem)?.Tag as string;
@@ -3837,6 +3884,7 @@ public partial class SettingsWindow : Window
     private IEnumerable<(ComboBox Combo, string Label)> MappingCombos =>
     [
         (MapNumber, "Numero"),
+        (MapSecondNumber, "Secondo numero"),
         (MapRelatedTo, "Relativo"),
         (MapCategory, "Descrizione"),
         (MapFirstName, "Nome"),
@@ -3845,6 +3893,24 @@ public partial class SettingsWindow : Window
         (MapBuilding, "Padiglione"),
         (MapFloor, "Piano"),
     ];
+
+    /// <summary>
+    /// Colonne che la sorgente dichiara di sé e che la procedura guidata non chiede.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Arrivano dal profilo riconosciuto o dalle impostazioni già salvate, e vanno
+    /// conservate qui perché <see cref="BuildMappingFromUi"/> compone la mappatura
+    /// dalle sole caselle a schermo: senza questo, ogni passaggio dalla procedura
+    /// guidata cancellerebbe l'identificativo stabile delle voci, e al
+    /// riallineamento successivo l'intera rubrica si presenterebbe come nuova —
+    /// preferiti e numeri rapidi compresi.
+    /// </para>
+    /// </remarks>
+    private CsvColumnMapping _structuralMapping = new();
+
+    /// <summary>Profilo riconosciuto nell'ultima analisi, se ce n'è uno.</summary>
+    private ContactSourceProfile? _recognizedProfile;
 
     /// <summary>Tabelle trovate nel backup, quando il file è un backup.</summary>
     private IReadOnlyList<SqlTableInfo> _backupTables = [];
@@ -3943,7 +4009,16 @@ public partial class SettingsWindow : Window
             // Senza titoli non c'e' niente da riconoscere: i nomi delle colonne sono
             // posizioni, e l'abbinamento lo fa l'operatore.
             var senzaTitoli = CsvNoHeader.IsChecked == true;
-            if (!senzaTitoli) ApplyMapping(CsvColumnMapping.Guess(layout.Columns));
+
+            if (senzaTitoli)
+            {
+                _recognizedProfile = null;
+                _structuralMapping = new CsvColumnMapping();
+            }
+            else
+            {
+                ApplyMappingFor(layout.Columns);
+            }
 
             var source = BuildCsvSource(path);
             LiveRegion.Update(
@@ -4022,6 +4097,17 @@ public partial class SettingsWindow : Window
         SqlServerPanel.Visibility = settings.Mode == ContactsMode.SqlServer
             ? Visibility.Visible
             : Visibility.Collapsed;
+
+        // Le colonne strutturali salvate tornano in memoria anche se le caselle
+        // restano vuote: non hanno una casella, e senza questo un salvataggio fatto
+        // dopo essersi ricollegati alla stessa tabella le perderebbe.
+        _structuralMapping = new CsvColumnMapping
+        {
+            EntryKey = server.Mapping.EntryKey,
+            ShortCodeFlag = server.Mapping.ShortCodeFlag,
+            InactiveFlag = server.Mapping.InactiveFlag,
+            UpdatedAt = server.Mapping.UpdatedAt,
+        };
 
         // La tabella salvata non compare finche' non ci si collega: l'elenco lo
         // fornisce il server, e mostrarne una sola voce presa dalle impostazioni
@@ -4102,6 +4188,7 @@ public partial class SettingsWindow : Window
         Mapping = new ContactsColumnMapping
         {
             Extension = SelectedTag(MapNumber),
+            WorkPhone = SelectedTag(MapSecondNumber),
             RelatedTo = SelectedTag(MapRelatedTo),
             Category = SelectedTag(MapCategory),
             FirstName = SelectedTag(MapFirstName),
@@ -4109,6 +4196,14 @@ public partial class SettingsWindow : Window
             Department = SelectedTag(MapDepartment),
             Building = SelectedTag(MapBuilding),
             Floor = SelectedTag(MapFloor),
+
+            // Non vengono da caselle a schermo: le porta il profilo riconosciuto, e
+            // vanno salvate perche' senza l'identificativo stabile ogni
+            // riallineamento presenterebbe l'intera rubrica come nuova.
+            EntryKey = _structuralMapping.EntryKey,
+            ShortCodeFlag = _structuralMapping.ShortCodeFlag,
+            InactiveFlag = _structuralMapping.InactiveFlag,
+            UpdatedAt = _structuralMapping.UpdatedAt,
         },
     };
 
@@ -4169,7 +4264,7 @@ public partial class SettingsWindow : Window
             finally { _fillingBackupTables = false; }
 
             FillMappingCombos(scelta.Columns);
-            ApplyMapping(CsvColumnMapping.Guess(scelta.Columns));
+            var riconoscimento = ApplyMappingFor(scelta.Columns);
 
             await RefreshServerPreviewAsync().ConfigureAwait(true);
 
@@ -4177,8 +4272,8 @@ public partial class SettingsWindow : Window
                 SqlServerStatusText,
                 $"Collegamento riuscito: {tabelle.Count} fra tabelle e viste");
 
-            Report($"Collegamento riuscito: {tabelle.Count} tabelle. Proposta {scelta.Name}. "
-                   + "Controlla la tabella e l'anteprima, poi salva");
+            Report($"Collegamento riuscito: {tabelle.Count} fra tabelle e viste. Proposta {scelta.Name}: "
+                   + $"{riconoscimento}. Controlla la tabella e l'anteprima, poi salva");
         }
         catch (SqlException ex)
         {
@@ -4322,12 +4417,10 @@ public partial class SettingsWindow : Window
             try { BackupTable.SelectedIndex = tabelle.ToList().IndexOf(scelta); }
             finally { _fillingBackupTables = false; }
 
-            await ApplyBackupTableAsync(path, scelta).ConfigureAwait(true);
+            var riconoscimento = await ApplyBackupTableAsync(path, scelta).ConfigureAwait(true);
 
-            var abbinate = MappingCombos.Count(m => SelectedTag(m.Combo) is not null);
-
-            Report($"Backup analizzato: {tabelle.Count} tabelle. Proposta {scelta.Name} "
-                   + $"con {abbinate} colonne abbinate. Controlla la tabella e l'anteprima prima di importare");
+            Report($"Backup analizzato: {tabelle.Count} tabelle. Proposta {scelta.Name}: "
+                   + $"{riconoscimento}. Controlla la tabella e l'anteprima prima di importare");
         }
         catch (NotSupportedException ex)
         {
@@ -4350,29 +4443,44 @@ public partial class SettingsWindow : Window
     /// Sceglie la tabella che ha più l'aria di essere una rubrica.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Il punteggio è il numero di campi che il riconoscimento automatico saprebbe
     /// riempire, con la colonna del numero che pesa quanto tutte le altre insieme:
     /// senza numero non si importa nulla, quindi una tabella che ce l'ha batte
     /// sempre una che ha solo nomi e indirizzi.
+    /// </para>
+    /// <para>
+    /// <b>Contano anche tre cose che il solo elenco delle colonne non dice</b>, e la
+    /// ragione per cui contano è che si sono verificate tutte e tre su una rubrica di
+    /// centralino vera:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///   <b>Un oggetto vuoto o non leggibile non è la rubrica.</b> La vista pubblicata
+    ///   per i sistemi esterni univa la rubrica alla segreteria di ciascuna voce, e in
+    ///   quell'ente nessuna voce aveva una segreteria: restituiva zero righe su
+    ///   duemila. Aveva le colonne giuste e il nome giusto, e veniva proposta per
+    ///   prima.
+    ///   </description></item>
+    ///   <item><description>
+    ///   <b>Un profilo riconosciuto vale più di qualunque punteggio</b>: significa che
+    ///   la tabella è stata identificata per quello che è, non indovinata dai nomi
+    ///   delle colonne.
+    ///   </description></item>
+    ///   <item><description>
+    ///   <b>A parità di tutto, la tabella batte la vista.</b> Una vista filtra, unisce
+    ///   o restringe, e sulla rubrica di quell'ente le viste facevano tutte e tre.
+    ///   </description></item>
+    /// </list>
     /// </remarks>
     private static SqlTableInfo PickLikelyTable(IReadOnlyList<SqlTableInfo> tables)
     {
         SqlTableInfo? migliore = null;
-        var punteggioMigliore = -1;
+        var punteggioMigliore = int.MinValue;
 
         foreach (var tabella in tables)
         {
-            var ipotesi = CsvColumnMapping.Guess(tabella.Columns);
-
-            var punteggio = new[]
-            {
-                ipotesi.FirstName, ipotesi.LastName, ipotesi.DisplayName,
-                ipotesi.Department, ipotesi.Organization, ipotesi.Building,
-                ipotesi.Floor, ipotesi.Email, ipotesi.JobTitle,
-            }.Count(v => v is not null);
-
-            if (ipotesi.Extension is not null || ipotesi.WorkPhone is not null || ipotesi.MobilePhone is not null)
-                punteggio += 10;
+            var punteggio = Punteggio(tabella);
 
             // A parità di punteggio vince la tabella con più righe: fra "anagrafica"
             // e "anagrafica_storico" la rubrica in uso è quasi sempre la più popolata.
@@ -4387,6 +4495,31 @@ public partial class SettingsWindow : Window
         }
 
         return migliore ?? tables[0];
+
+        static int Punteggio(SqlTableInfo tabella)
+        {
+            // Non leggibile e vuoto vanno in fondo, e non semplicemente in basso: una
+            // proposta sbagliata qui costa un'importazione che non produce nulla e non
+            // spiega perche'.
+            if (!tabella.IsReadable) return -1000;
+            if (tabella.RowCount == 0) return -500;
+
+            if (ContactSourceProfile.IsKnown(tabella.Columns)) return 1000 - (tabella.IsView ? 1 : 0);
+
+            var ipotesi = CsvColumnMapping.Guess(tabella.Columns);
+
+            var punteggio = new[]
+            {
+                ipotesi.FirstName, ipotesi.LastName, ipotesi.DisplayName,
+                ipotesi.Department, ipotesi.Organization, ipotesi.Building,
+                ipotesi.Floor, ipotesi.Email, ipotesi.JobTitle,
+            }.Count(v => v is not null);
+
+            if (ipotesi.Extension is not null || ipotesi.WorkPhone is not null || ipotesi.MobilePhone is not null)
+                punteggio += 10;
+
+            return tabella.IsView ? punteggio * 2 : punteggio * 2 + 1;
+        }
     }
 
     private void ShowBackupTables(IReadOnlyList<SqlTableInfo> tables)
@@ -4428,30 +4561,33 @@ public partial class SettingsWindow : Window
         if (_importKind == ImportKind.SqlServer)
         {
             FillMappingCombos(tabella.Columns);
-            ApplyMapping(CsvColumnMapping.Guess(tabella.Columns));
+            var riconoscimentoServer = ApplyMappingFor(tabella.Columns);
 
             await RefreshServerPreviewAsync().ConfigureAwait(true);
 
-            var abbinateServer = MappingCombos.Count(m => SelectedTag(m.Combo) is not null);
-            Report($"Tabella {tabella.Name}: {tabella.Columns.Count} colonne, {abbinateServer} abbinate automaticamente");
+            Report($"{tabella.Description}. {riconoscimentoServer}");
             return;
         }
 
-        await ApplyBackupTableAsync(path, tabella).ConfigureAwait(true);
+        var riconoscimento = await ApplyBackupTableAsync(path, tabella).ConfigureAwait(true);
 
-        var abbinate = MappingCombos.Count(m => SelectedTag(m.Combo) is not null);
-        Report($"Tabella {tabella.Name}: {tabella.Columns.Count} colonne, {abbinate} abbinate automaticamente");
+        Report($"{tabella.Description}. {riconoscimento}");
     }
 
     /// <summary>Riempie abbinamenti e anteprima per la tabella scelta.</summary>
-    private async Task ApplyBackupTableAsync(string path, SqlTableInfo table)
+    /// <param name="path">Percorso del backup.</param>
+    /// <param name="table">Tabella scelta.</param>
+    /// <returns>Come riferire all'operatore che cosa è stato riconosciuto.</returns>
+    private async Task<string> ApplyBackupTableAsync(string path, SqlTableInfo table)
     {
         FillMappingCombos(table.Columns);
-        ApplyMapping(CsvColumnMapping.Guess(table.Columns));
+        var riconoscimento = ApplyMappingFor(table.Columns);
 
         var sorgente = BuildBackupSource(path, table.Name);
 
         await RefreshPreviewAsync((righe, token) => sorgente.PreviewAsync(righe, token)).ConfigureAwait(true);
+
+        return riconoscimento;
     }
 
     /// <summary>
@@ -4520,9 +4656,14 @@ public partial class SettingsWindow : Window
         await AnalyzeCsvAsync().ConfigureAwait(true);
     }
 
+    /// <summary>
+    /// Porta una mappatura a schermo, conservandone le colonne strutturali.
+    /// </summary>
+    /// <param name="mapping">Mappatura proposta o già salvata.</param>
     private void ApplyMapping(CsvColumnMapping mapping)
     {
         SelectByTag(MapNumber, mapping.Extension);
+        SelectByTag(MapSecondNumber, mapping.WorkPhone);
         SelectByTag(MapRelatedTo, mapping.RelatedTo);
         SelectByTag(MapCategory, mapping.Category);
         SelectByTag(MapFirstName, mapping.FirstName);
@@ -4530,21 +4671,60 @@ public partial class SettingsWindow : Window
         SelectByTag(MapDepartment, mapping.Department);
         SelectByTag(MapBuilding, mapping.Building);
         SelectByTag(MapFloor, mapping.Floor);
+
+        _structuralMapping = new CsvColumnMapping
+        {
+            EntryKey = mapping.EntryKey,
+            ShortCodeFlag = mapping.ShortCodeFlag,
+            InactiveFlag = mapping.InactiveFlag,
+            UpdatedAt = mapping.UpdatedAt,
+        };
+    }
+
+    /// <summary>
+    /// Riconosce il profilo della sorgente e ne applica la mappatura.
+    /// </summary>
+    /// <param name="columns">Colonne della tabella o del file.</param>
+    /// <returns>Come riferire all'operatore che cosa è stato riconosciuto.</returns>
+    /// <remarks>
+    /// <b>Il profilo si dice, non si applica in silenzio.</b> Riconoscere una rubrica
+    /// di gestionale significa abbinare colonne il cui nome non corrisponde al
+    /// contenuto — la descrizione dentro un campo che si chiama «iniziali» — e chi
+    /// importa deve poterlo verificare nell'anteprima invece di scoprirlo trasferendo
+    /// una chiamata.
+    /// </remarks>
+    private string ApplyMappingFor(IReadOnlyList<string> columns)
+    {
+        _recognizedProfile = ContactSourceProfile.Recognize(columns);
+
+        ApplyMapping(CsvColumnMapping.Guess(columns));
+
+        if (_recognizedProfile is { } profilo) return $"{profilo.Name}. {profilo.Description}";
+
+        var abbinate = MappingCombos.Count(m => SelectedTag(m.Combo) is not null);
+        return $"{abbinate} colonne abbinate automaticamente";
     }
 
     /// <summary>
     /// Compone la mappatura dalle scelte a schermo.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// I campi sono quelli che la rubrica dell'ente dichiara, e non uno di piu'. Le
     /// voci che il modello del contatto prevede ma che questa rubrica non ha —
     /// posta elettronica, cellulare, struttura, resa fonetica — restano vuote
     /// all'importazione da file: continuano a esistere perche' le riempiono le altre
     /// sorgenti, il centralino e la directory LDAP.
+    /// </para>
+    /// <para>
+    /// Alle scelte a schermo si aggiungono le colonne strutturali, che non sono a
+    /// schermo perche' non sono scelte: vedi <see cref="_structuralMapping"/>.
+    /// </para>
     /// </remarks>
     private CsvColumnMapping BuildMappingFromUi() => new()
     {
         Extension = SelectedTag(MapNumber),
+        WorkPhone = SelectedTag(MapSecondNumber),
         RelatedTo = SelectedTag(MapRelatedTo),
         Category = SelectedTag(MapCategory),
         FirstName = SelectedTag(MapFirstName),
@@ -4552,6 +4732,11 @@ public partial class SettingsWindow : Window
         Department = SelectedTag(MapDepartment),
         Building = SelectedTag(MapBuilding),
         Floor = SelectedTag(MapFloor),
+
+        EntryKey = _structuralMapping.EntryKey,
+        ShortCodeFlag = _structuralMapping.ShortCodeFlag,
+        InactiveFlag = _structuralMapping.InactiveFlag,
+        UpdatedAt = _structuralMapping.UpdatedAt,
     };
 
     private CsvContactSource BuildCsvSource(string path)
@@ -4594,64 +4779,80 @@ public partial class SettingsWindow : Window
         }
     }
 
+    /// <summary>
+    /// Importa adesso quello che è a schermo, da qualunque provenienza arrivi.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Il pulsante presumeva un file.</b> Con la rubrica collegata a un server non
+    /// c'è nessun percorso da controllare, e il primo controllo rispondeva «Scegli
+    /// prima un file da importare» a chi si era appena collegato, aveva scelto la
+    /// tabella e aveva controllato l'anteprima. Il messaggio non era solo inutile: era
+    /// fuorviante, perché indicava un campo che in quella modalità non va compilato.
+    /// </para>
+    /// <para>
+    /// <b>Questo pulsante e «Riallinea adesso» non fanno la stessa cosa</b>, e la
+    /// differenza va detta perché sono uno accanto all'altro. Questo importa la
+    /// configurazione che si vede a schermo, anche se non è ancora stata salvata: è
+    /// quello che serve subito dopo aver controllato l'anteprima. «Riallinea adesso»
+    /// rifà il riallineamento con la configurazione salvata, cioè quella che userà
+    /// anche il riallineamento periodico.
+    /// </para>
+    /// </remarks>
     private async void OnImportCsvClick(object sender, RoutedEventArgs e)
     {
-        var path = CsvPath.Text.Trim();
-
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
-        {
-            Report("Scegli prima un file da importare");
-            return;
-        }
-
         if (SelectedTag(MapNumber) is null)
         {
             // Senza numero un contatto non serve a un centralino, e importarne
-            // migliaia di inutilizzabili riempirebbe i risultati di ricerca.
+            // migliaia di inutilizzabili riempirebbe i risultati di ricerca. Il
+            // controllo viene prima di quelli sulla provenienza perche' vale per
+            // tutte e tre.
             Report("Abbina la colonna del numero: senza, non c'e' nulla da importare");
             MapNumber.Focus();
             return;
         }
 
-        if (IsBackupSelected && BackupTable.SelectedIndex < 0)
-        {
-            Report("Scegli prima la tabella del backup da importare");
-            BackupTable.Focus();
-            return;
-        }
+        var sorgente = BuildSourceFromUi();
+        if (sorgente is null) return;
 
         ImportCsvButton.IsEnabled = false;
         Report("Importazione in corso");
 
         try
         {
-            IContactSource source = IsBackupSelected
-                ? BuildBackupSource(path, _backupTables[BackupTable.SelectedIndex].Name)
-                : BuildCsvSource(path);
-
             using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
-            var contacts = await source.LoadAsync(timeout.Token).ConfigureAwait(true);
+
+            // La lettura di una tabella di server o di backup e' sincrona sotto:
+            // portarla fuori dal filo dell'interfaccia evita che la finestra smetta di
+            // rispondere allo screen reader per tutta la durata dell'importazione.
+            var contacts = await Task.Run(
+                () => sorgente.LoadAsync(timeout.Token), timeout.Token).ConfigureAwait(true);
 
             if (contacts.Count == 0)
             {
-                Report("Nessun contatto con numero telefonico trovato nel file");
+                Report(_importKind == ImportKind.Csv
+                    ? "Nessun contatto con numero telefonico trovato nel file"
+                    : "Nessun contatto con numero telefonico trovato nella tabella scelta");
                 return;
             }
 
-            if (ReplaceExisting.IsChecked == true)
-            {
-                await _contacts.ClearAsync(source.Name, timeout.Token).ConfigureAwait(true);
-            }
+            var written = await _contactsSync
+                .WriteAsync(sorgente, contacts, ReplaceExisting.IsChecked == true, timeout.Token)
+                .ConfigureAwait(true);
 
-            var written = await _contacts.UpsertAsync(contacts, source.Name, timeout.Token).ConfigureAwait(true);
             var total = await _contacts.CountAsync(timeout.Token).ConfigureAwait(true);
 
-            Report($"Importati {written} contatti. In rubrica ce ne sono {total}");
+            Report($"Importati {ContactsSyncService.Describe(contacts)}. In rubrica ci sono {total} voci");
             await RefreshContactCountAsync().ConfigureAwait(true);
         }
         catch (OperationCanceledException)
         {
-            Report("Importazione interrotta: il file e' troppo grande o non risponde");
+            Report("Importazione interrotta: la rubrica e' troppo grande o non risponde");
+        }
+        catch (SqlException ex)
+        {
+            _log.LogError(ex, "Importazione della rubrica dal server non riuscita");
+            Report(SqlServerContactSource.DescribeSqlFailure(ex));
         }
         catch (Exception ex)
         {
@@ -4662,6 +4863,50 @@ public partial class SettingsWindow : Window
         {
             ImportCsvButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>
+    /// Costruisce la sorgente corrispondente a ciò che è a schermo.
+    /// </summary>
+    /// <returns>
+    /// La sorgente, oppure <c>null</c> se manca qualcosa: in quel caso il motivo è già
+    /// stato riferito e il fuoco spostato dove si rimedia.
+    /// </returns>
+    private IContactSource? BuildSourceFromUi()
+    {
+        if (_importKind == ImportKind.SqlServer)
+        {
+            var collegamento = CurrentSqlServerSettings();
+
+            if (string.IsNullOrWhiteSpace(collegamento.Table))
+            {
+                Report("Scegli prima la tabella del server da importare");
+                BackupTable.Focus();
+                return null;
+            }
+
+            return _contactsSync.BuildSource(collegamento);
+        }
+
+        var path = CsvPath.Text.Trim();
+
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            Report("Scegli prima un file da importare");
+            CsvPath.Focus();
+            return null;
+        }
+
+        if (!IsBackupSelected) return BuildCsvSource(path);
+
+        if (BackupTable.SelectedIndex < 0)
+        {
+            Report("Scegli prima la tabella del backup da importare");
+            BackupTable.Focus();
+            return null;
+        }
+
+        return BuildBackupSource(path, _backupTables[BackupTable.SelectedIndex].Name);
     }
 
     private async void OnClearContactsClick(object sender, RoutedEventArgs e)

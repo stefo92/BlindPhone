@@ -96,5 +96,10 @@ public sealed class TransferSession
     /// <summary>
     /// Nome o numero della destinazione da usare negli annunci.
     /// </summary>
+    /// <remarks>
+    /// Il numero resta come è stato digitato. Gli annunci che chiudono il trasferimento,
+    /// quando non c'è un nome, lo fanno leggere cifra per cifra: vedi
+    /// <c>TransferOrchestrator.SpokenDestination</c>.
+    /// </remarks>
     public string DestinationSpeech => ResolvedDestination?.SpeechName ?? Destination;
 }

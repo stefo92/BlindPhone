@@ -3,7 +3,7 @@ using BlindPhone.Core.Domain;
 namespace BlindPhone.Core.Services;
 
 /// <summary>
-/// Un campo della rubrica mostrabile fra i contatti proposti sotto il campo di
+/// Un campo della rubrica mostrabile fra i contatti proposti sopra il campo di
 /// composizione.
 /// </summary>
 /// <param name="Id">Chiave stabile, salvata nella configurazione.</param>
@@ -38,6 +38,14 @@ public sealed record DialerField(
 /// per ogni contatto scorso in una giornata. Chi non vede paga le colonne inutili
 /// più di chi guarda.
 /// </para>
+/// <para>
+/// <b>Due campi restano deliberatamente vuoti dove ripeterebbero</b>, ed è la
+/// conseguenza diretta della regola qui sopra. «Descrizione» tace sulle voci senza
+/// persona, dove è già il nominativo della riga; «Tipo» tace quando il nominativo
+/// contiene già la parola, cosa che sui fax accade quasi sempre perché è proprio da
+/// quella parola che sono stati riconosciuti. Una cella vuota costa comunque una
+/// freccia destra, ma molto meno di una che ripete quello che si è appena sentito.
+/// </para>
 /// </remarks>
 public static class DialerFieldCatalog
 {
@@ -48,10 +56,17 @@ public static class DialerFieldCatalog
             + "evita di passare una chiamata a un telefono gia' impegnato.",
             c => null),
 
+        new("Kind", "Tipo",
+            "Fax, emergenza o numero breve, quando la voce e' una di queste e il nominativo non lo "
+            + "dice gia'. E' il campo che evita di comporre un fax credendo di chiamare un ufficio, "
+            + "e che riconosce un codice abbreviato del centralino.",
+            c => c.KindNotice),
+
         new("Description", "Descrizione",
             "Il campo descrizione della rubrica: di solito il nome dell'ambulatorio o del servizio. "
-            + "Utile dove i nominativi si assomigliano.",
-            c => c.Category),
+            + "Utile dove i nominativi si assomigliano. Sulle voci senza persona resta vuoto, perche' "
+            + "li' la descrizione e' gia' il nominativo.",
+            DescriptionUnlessItIsTheName),
 
         new("Department", "Reparto",
             "Reparto o unita' operativa di appartenenza.",
@@ -66,6 +81,32 @@ public static class DialerFieldCatalog
             "A chi o a che cosa il contatto fa riferimento, quando la rubrica lo indica.",
             c => c.RelatedTo),
     ];
+
+    /// <summary>
+    /// La descrizione, a meno che non sia già il nominativo della riga.
+    /// </summary>
+    /// <param name="contact">Contatto proposto.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Da quando le voci senza persona si chiamano come la loro descrizione, la
+    /// colonna le ripeteva parola per parola.</b> Il nominativo di
+    /// «Ambulatorio Diabetologico» è quella stessa stringa, e la riga si leggeva
+    /// «Ambulatorio Diabetologico, 2948, Ambulatorio Diabetologico»: una freccia destra
+    /// spesa per sentire due volte quello che si era appena sentito, su ogni voce di
+    /// servizio scorsa in una giornata. In una rubrica ospedaliera sono la maggioranza
+    /// delle voci.
+    /// </para>
+    /// <para>
+    /// La colonna resta però utile e non va tolta dal catalogo: sulle <i>persone</i> il
+    /// nominativo è il cognome e la descrizione porta la qualifica — «Studio medico»,
+    /// «Coordinatore Infermieristico» — che è esattamente quello che distingue due
+    /// omonimi. Vuota dove ripeterebbe, piena dove aggiunge.
+    /// </para>
+    /// </remarks>
+    private static string? DescriptionUnlessItIsTheName(Contact contact)
+        => string.Equals(contact.Category, contact.EffectiveDisplayName, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : contact.Category;
 
     /// <summary>Tutti i campi disponibili, nell'ordine in cui si propongono.</summary>
     public static IReadOnlyList<DialerField> All => Catalog;

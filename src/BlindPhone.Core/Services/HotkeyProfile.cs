@@ -344,6 +344,18 @@ public sealed class HotkeyProfile
         profile.Set(new HotkeyBinding(
             HotkeyCommand.RedialLast, "R", HotkeyModifiers.Control, HotkeyScope.Local));
 
+        // INGRESSO IN RIUNIONE SU ALT Z, e solo locale.
+        //
+        // Locale perche' non si entra in una riunione da dentro un altro programma:
+        // serve il campo di composizione, che c'e' solo qui. Una combinazione globale
+        // occuperebbe un tasto di sistema per una funzione che non puo' funzionare
+        // senza avere davanti la finestra.
+        //
+        // Alt Z e' libera, e la Z sta per Zoom. La funzione e' secondaria e il tasto
+        // lo rispecchia: fuori mano, non fra quelli che le dita trovano da sole.
+        profile.Set(new HotkeyBinding(
+            HotkeyCommand.JoinMeeting, "Z", HotkeyModifiers.Alt, HotkeyScope.Local));
+
         // REGISTRAZIONE DELLA CHIAMATA SU ALT R.
         //
         // "R" come registra, accanto a Control R che richiama: due comandi vicini di

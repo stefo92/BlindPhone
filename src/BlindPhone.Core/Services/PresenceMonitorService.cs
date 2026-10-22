@@ -145,7 +145,7 @@ public sealed class PresenceMonitorService : IDisposable
     /// <remarks>
     /// Sulla strada SIP ogni interno costa una sottoscrizione al centralino, quindi si
     /// sorveglia quello che l'operatore sta guardando — i risultati di una ricerca, i
-    /// contatti proposti sotto il campo di composizione — e si lascia andare il resto.
+    /// contatti proposti sopra il campo di composizione — e si lascia andare il resto.
     /// Sulla strada dell'API la chiamata non fa nulla, perché il centralino manda tutto
     /// da solo.
     /// </remarks>

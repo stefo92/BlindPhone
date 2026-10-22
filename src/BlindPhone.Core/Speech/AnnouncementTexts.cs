@@ -103,6 +103,13 @@ public static class AnnouncementTexts
     /// si può trascrivere né ricomporre, che è esattamente il difetto per cui esiste
     /// <see cref="SpeechFormatter"/>.
     /// </para>
+    /// <para>
+    /// <b>Lo stesso difetto rientrava da un'altra porta</b>: il numero scritto al posto
+    /// del nome, dal centralino o da una voce di rubrica senza nominativo. Contava come
+    /// nome, e l'annuncio diventava «Chiamata da 3491234567, numero tre, quattro,
+    /// nove…», con la prima metà letta come numero intero. <see cref="CallParty.HasName"/>
+    /// guarda <see cref="CallParty.MeaningfulName"/>, e un nome così non conta.
+    /// </para>
     /// </remarks>
     public static string CallerIdentity(CallParty party, DigitGrouping grouping)
     {
@@ -446,13 +453,20 @@ public static class AnnouncementTexts
         => $"{destination} ha risposto. {transferKeyName} per completare il trasferimento";
 
     /// <summary>Trasferimento cieco inviato al centralino.</summary>
-    /// <param name="destination">Destinazione.</param>
+    /// <param name="destination">
+    /// Destinazione già pronunciabile: il nome di rubrica oppure le cifre, mai il numero
+    /// intero, che la sintesi leggerebbe come una quantità.
+    /// </param>
     public static string BlindTransferSent(string destination)
         => $"Trasferimento cieco a {destination} inviato";
 
     /// <summary>Trasferimento completato con successo.</summary>
     /// <param name="caller">Chiamante trasferito.</param>
-    /// <param name="destination">Destinazione.</param>
+    /// <param name="destination">
+    /// Destinazione già pronunciabile: il nome di rubrica, oppure l'interno cifra per
+    /// cifra. Lasciato intero, «4021» si sentiva «quattromilaventuno», e fuori rubrica
+    /// l'operatore non riconosceva l'interno a cui aveva appena passato il chiamante.
+    /// </param>
     /// <remarks>
     /// Se il chiamante non è identificabile con certezza, chi chiama passa
     /// <c>null</c> e il messaggio resta generico. È la regola di degrado sicuro:
@@ -529,6 +543,28 @@ public static class AnnouncementTexts
     /// <summary>Fallback dal trasferimento cieco alla consultazione.</summary>
     public static string BlindTransferNotSupported
         => "Trasferimento cieco non supportato dal centralino, avvio consultazione";
+
+    /// <summary>
+    /// Ricorda qual è il tasto che svincola il chiamante, nella modalità semplificata.
+    /// </summary>
+    /// <param name="releaseKeyName">Nome parlato del tasto che svincola.</param>
+    /// <remarks>
+    /// <para>
+    /// Si pronuncia quando l'operatore preme, con l'interno già in linea, il tasto che
+    /// fino alla versione precedente completava il trasferimento. È l'unico punto in
+    /// cui la modalità semplificata risponde a un tasto insegnandone un altro, e la
+    /// ragione è che quel gesto era corretto fino a ieri: il segnale di comando
+    /// rifiutato, da solo, si interpreta come un guasto del programma.
+    /// </para>
+    /// <para>
+    /// La frase dice <b>anche l'alternativa</b>, perché è il momento in cui serve: se
+    /// l'operatore ha appena sentito l'interno occupato, il tasto che gli serve non è
+    /// quello che svincola ma quello che chiude e riporta il chiamante.
+    /// </para>
+    /// </remarks>
+    public static string ReleaseKeyReminder(string releaseKeyName)
+        => $"L'interno e' gia' in linea. {releaseKeyName} per passargli la chiamata, "
+           + "diviso per riprendere il chiamante";
 
     // ---------------------------------------------------------------------
     // Coda
