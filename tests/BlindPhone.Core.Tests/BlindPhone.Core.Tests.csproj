@@ -15,6 +15,28 @@
     <RootNamespace>BlindPhone.Core.Tests</RootNamespace>
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!--
+      xUnit v3 vuole un eseguibile, non una libreria: ogni progetto di test è un
+      programma che sa avviarsi da solo. Non è una preferenza di stile ma il
+      requisito della versione 3, e senza questa riga i test non vengono trovati.
+    -->
+    <OutputType>Exe</OutputType>
+    <IsTestProject>true</IsTestProject>
+
+    <!--
+      xUnit1051: «usa TestContext.Current.CancellationToken invece di passare un
+      token tuo». È un consiglio giusto per suite che fanno I/O lungo e vogliono
+      interrompersi allo scadere di un timeout; qui l'intera batteria gira in pochi
+      secondi senza rete, senza audio e senza centralino, e i CancellationToken.None
+      sono deliberati: questi test verificano un comportamento, non la cancellazione.
+
+      Accoglierlo significherebbe riscrivere qualche centinaio di chiamate per non
+      cambiare nulla di osservabile, e far dipendere le asserzioni dallo stato
+      ambientale dell'esecutore. La soluzione compila a zero avvisi, ed è un livello
+      che vale la pena difendere.
+    -->
+    <NoWarn>$(NoWarn);xUnit1051</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,9 +45,24 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <!--
+      xunit.v3.mtp-off E NON xunit.v3, ED E' UNA SCELTA OBBLIGATA.
+
+      Il pacchetto xunit.v3 porta con se' Microsoft.Testing.Platform v2. Il driver di
+      «dotnet test» dell'SDK 10.0.400 non va d'accordo con quella implementazione:
+      compila, avvia l'eseguibile e riferisce «nessun test eseguito» in due decimi di
+      secondo, mentre lo stesso eseguibile lanciato a mano ne esegue ottocentodiciannove.
+      Provato anche con la 3.2.2, che monta MTP v1: stesso esito, quindi non e' una
+      questione di versione di xUnit.
+
+      La variante mtp-off esclude MTP e lascia il ponte VSTest, che l'SDK guida
+      correttamente. Il giorno in cui SDK e piattaforma si riallineano si torna al
+      pacchetto principale: cambia solo il nome qui e in BlindPhone.Windows.Tests, e si
+      rimette global.json.
+    -->
+    <PackageReference Include="xunit.v3.mtp-off" Version="4.0.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
   </ItemGroup>
 
 </Project>

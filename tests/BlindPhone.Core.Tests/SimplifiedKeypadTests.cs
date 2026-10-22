@@ -5,15 +5,14 @@ using Xunit;
 namespace BlindPhone.Core.Tests;
 
 /// <summary>
-/// Verifica i tre tasti del tastierino della modalità semplificata.
+/// Verifica i quattro tasti del tastierino della modalità semplificata.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Qui un errore non produce un fastidio ma un chiamante nel posto sbagliato: se
-/// <c>Invio</c> trasferisse alla cieca dove doveva annunciare, il collega si
-/// troverebbe in linea uno sconosciuto senza sapere chi sia né perché; se facesse il
-/// contrario, l'operatore resterebbe ad aspettare una risposta che non aveva chiesto
-/// mentre il chiamante ascolta il silenzio.
+/// <c>Invio</c> passasse il chiamante dove doveva solo chiamare l'interno, il collega
+/// si troverebbe in linea uno sconosciuto senza sapere chi sia né perché — e su un
+/// interno occupato il chiamante lo perderebbe del tutto.
 /// </para>
 /// <para>
 /// La tabella completa sta qui e si legge tutta insieme: è la sola documentazione che
@@ -30,6 +29,9 @@ public sealed class SimplifiedKeypadTests
 
     private static KeypadAction Invio(CallActionContext stato)
         => SimplifiedKeypad.Resolve(KeypadKey.Confirm, stato);
+
+    private static KeypadAction Meno(CallActionContext stato)
+        => SimplifiedKeypad.Resolve(KeypadKey.Release, stato);
 
     // -----------------------------------------------------------------------
     // Il tasto "+": rispondere, mettere in pausa, riprendere
@@ -94,48 +96,130 @@ public sealed class SimplifiedKeypadTests
     }
 
     // -----------------------------------------------------------------------
-    // Il tasto "Invio": il bivio del trasferimento
+    // Il tasto "Invio": chiamare l'interno, mai passargli il chiamante
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// Il trasferimento passa sempre dall'ascolto, anche con il chiamante in linea.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Prima questo stato produceva un trasferimento alla cieca: un tasto solo, veloce,
+    /// pensato per smaltire la coda. Su un interno occupato però il centralino se la
+    /// sbrigava da sé e l'operatore non aveva modo di accorgersene — il chiamante
+    /// finiva su un telefono che non poteva rispondergli, quando non cadeva del tutto.
+    /// </para>
+    /// <para>
+    /// Chi non vede non ha nessun altro canale per scoprirlo: non c'è una spia che si
+    /// accende, e il silenzio dopo un trasferimento riuscito è identico a quello dopo
+    /// un trasferimento perso.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void ConIlChiamanteInLineaInvioTrasferisceAllaCieca()
+    public void ConIlChiamanteInLineaInvioChiamaLInternoENonTrasferisce()
     {
-        // Flusso rapido: rispondi, digita, Invio. E' quello che smaltisce la coda.
         var stato = new CallActionContext(HasActiveCall: true, HasTypedDestination: true);
 
-        Assert.Equal(KeypadAction.BlindTransfer, Invio(stato));
+        Assert.Equal(KeypadAction.StartConsultation, Invio(stato));
     }
 
     [Fact]
     public void ConIlChiamanteInPausaInvioChiamaLInterno()
     {
-        // La pausa e' la dichiarazione di voler annunciare la chiamata: e' l'unico
-        // elemento che distingue i due trasferimenti, e sta tutto qui.
+        // La pausa non e' piu' un bivio: e' soltanto la pausa. Da qui in poi il
+        // percorso e' lo stesso del chiamante ancora in linea.
         var stato = new CallActionContext(HeldCount: 1, HasTypedDestination: true);
 
         Assert.Equal(KeypadAction.StartConsultation, Invio(stato));
     }
 
     [Fact]
-    public void DuranteLaConsultazioneInvioPassaLaChiamata()
+    public void AncheInConferenzaInvioChiamaLInterno()
+    {
+        var stato = new CallActionContext(IsConferenceActive: true, HasTypedDestination: true);
+
+        Assert.Equal(KeypadAction.StartConsultation, Invio(stato));
+    }
+
+    /// <summary>
+    /// Con l'interno già in linea, Invio non completa più: lo dice e basta.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// È il punto su cui si regge l'intera modifica. Se <c>Invio</c> completasse anche
+    /// qui, chi lo preme due volte di fila — e capita, vedi la segnalazione delle sei
+    /// pressioni in un secondo e mezzo — passerebbe il chiamante senza aver ascoltato
+    /// nulla: cioè il trasferimento alla cieca di prima, con un tasto in più.
+    /// </para>
+    /// <para>
+    /// Non restituisce <c>None</c> perché il gesto era corretto fino alla versione
+    /// precedente: il solo segnale di comando rifiutato si interpreta come un guasto
+    /// del programma. Si risponde nominando il tasto giusto.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DuranteLaConsultazioneInvioRicordaIlTastoCheSvincola()
     {
         var stato = new CallActionContext(
             HasActiveCall: true, HeldCount: 1, HasTypedDestination: true,
             TransferPhase: TransferPhase.Consulting);
 
-        Assert.Equal(KeypadAction.CompleteTransfer, Invio(stato));
+        Assert.Equal(KeypadAction.AnnounceReleaseKey, Invio(stato));
+    }
+
+    // -----------------------------------------------------------------------
+    // Il tasto "-": svincolare il chiamante
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void DuranteLaConsultazioneMenoPassaLaChiamata()
+    {
+        var stato = new CallActionContext(
+            HasActiveCall: true, HeldCount: 1, HasTypedDestination: true,
+            TransferPhase: TransferPhase.Consulting);
+
+        Assert.Equal(KeypadAction.CompleteTransfer, Meno(stato));
     }
 
     [Fact]
-    public void DuranteLaConsultazioneInvioPassaLaChiamataAncheSeLInternoStaSquillando()
+    public void MenoPassaLaChiamataAncheSeLInternoStaAncoraSquillando()
     {
-        // "Indipendentemente dal fatto che l'interno risponda o meno": il chiamante
-        // viene passato lo stesso, e il centralino lo tratta come semi-cieco.
+        // E' la decisione dell'operatore, che ha sentito squillare e sa cosa sta
+        // facendo: il centralino lo tratta come semi-cieco.
         var stato = new CallActionContext(
             HasOutgoingCall: true, HeldCount: 1, TransferPhase: TransferPhase.Consulting);
 
-        Assert.Equal(KeypadAction.CompleteTransfer, Invio(stato));
+        Assert.Equal(KeypadAction.CompleteTransfer, Meno(stato));
     }
+
+    /// <summary>Fuori dalla consultazione non c'è niente da svincolare.</summary>
+    /// <remarks>
+    /// Un meno premuto per sbaglio mentre si parla con il chiamante non deve produrre
+    /// nulla: non c'è nessun interno a cui passarlo, e inventarne uno significherebbe
+    /// mandarlo all'ultimo numero rimasto nel campo.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(StatiSenzaConsultazione))]
+    public void FuoriDallaConsultazioneMenoNonFaNiente(CallActionContext stato)
+    {
+        Assert.Equal(KeypadAction.None, Meno(stato));
+    }
+
+    // IL TIPO SI SCRIVE PER ESTESO, E NON E' VERBOSITA'.
+    //
+    // Dentro un TheoryData di xUnit v3 un "new(...)" senza tipo si aggancia a
+    // TheoryDataRow invece che al tipo della riga, e il codice non compila piu'.
+    // Nominare il tipo toglie l'ambiguita' e vale su entrambe le versioni.
+    public static TheoryData<CallActionContext> StatiSenzaConsultazione =>
+    [
+        default(CallActionContext),
+        new CallActionContext(HasRingingCall: true),
+        new CallActionContext(HasActiveCall: true, HasTypedDestination: true),
+        new CallActionContext(HeldCount: 1, HasTypedDestination: true),
+        new CallActionContext(IsConferenceActive: true),
+        new CallActionContext(HeldCount: 1, TransferPhase: TransferPhase.EnteringDestination),
+        new CallActionContext(TransferPhase: TransferPhase.Completing),
+    ];
 
     [Fact]
     public void SenzaDestinazioneInvioNonTrasferisceNiente()
@@ -169,13 +253,13 @@ public sealed class SimplifiedKeypadTests
 
     public static TheoryData<CallActionContext> StatiConUnaChiamata =>
     [
-        new(HasRingingCall: true),
-        new(HasActiveCall: true),
-        new(HeldCount: 1),
-        new(HasOutgoingCall: true),
-        new(IsConferenceActive: true),
-        new(HasActiveCall: true, TransferPhase: TransferPhase.Consulting),
-        new(HeldCount: 1, TransferPhase: TransferPhase.EnteringDestination),
+        new CallActionContext(HasRingingCall: true),
+        new CallActionContext(HasActiveCall: true),
+        new CallActionContext(HeldCount: 1),
+        new CallActionContext(HasOutgoingCall: true),
+        new CallActionContext(IsConferenceActive: true),
+        new CallActionContext(HasActiveCall: true, TransferPhase: TransferPhase.Consulting),
+        new CallActionContext(HeldCount: 1, TransferPhase: TransferPhase.EnteringDestination),
     ];
 
     [Theory]
@@ -196,30 +280,39 @@ public sealed class SimplifiedKeypadTests
         var stato = new CallActionContext(HasRingingCall: true);
         Assert.Equal(KeypadAction.Answer, Piu(stato));
 
-        // 2. In linea: "+" mette in pausa, "/" riaggancerebbe.
-        stato = new CallActionContext(HasActiveCall: true);
-        Assert.Equal(KeypadAction.Hold, Piu(stato));
-        Assert.Equal(KeypadAction.HangUp, Diviso(stato));
-
-        // 3. In pausa, numero composto: Invio chiama l'interno.
-        stato = new CallActionContext(HeldCount: 1, HasTypedDestination: true);
+        // 2. In linea, interno composto: Invio chiama l'interno.
+        stato = new CallActionContext(HasActiveCall: true, HasTypedDestination: true);
         Assert.Equal(KeypadAction.StartConsultation, Invio(stato));
 
-        // 4. L'interno squilla: Invio passa la chiamata.
+        // 3. L'interno squilla e l'operatore sente: "-" svincola il chiamante.
         stato = new CallActionContext(
             HeldCount: 1, HasOutgoingCall: true, TransferPhase: TransferPhase.Consulting);
-        Assert.Equal(KeypadAction.CompleteTransfer, Invio(stato));
+        Assert.Equal(KeypadAction.CompleteTransfer, Meno(stato));
     }
 
+    /// <summary>L'interno è occupato: il chiamante si riprende e non si perde.</summary>
+    /// <remarks>
+    /// È il percorso che la modifica esiste per rendere possibile. Prima, con il
+    /// trasferimento alla cieca, questo bivio non si presentava nemmeno: la chiamata
+    /// era già partita quando l'operatore avrebbe potuto accorgersi del problema.
+    /// </remarks>
     [Fact]
-    public void IlPercorsoDelTrasferimentoCiecoFunziona()
+    public void ConLInternoOccupatoIlChiamanteSiRiprendeConIlDiviso()
     {
-        // 1. La chiamata arriva: "+" risponde.
-        Assert.Equal(KeypadAction.Answer, Piu(new CallActionContext(HasRingingCall: true)));
-
-        // 2. Senza mettere in pausa, si digita e si preme Invio: parte alla cieca.
+        // 1. Risposto e composto: Invio chiama l'interno.
         var stato = new CallActionContext(HasActiveCall: true, HasTypedDestination: true);
-        Assert.Equal(KeypadAction.BlindTransfer, Invio(stato));
+        Assert.Equal(KeypadAction.StartConsultation, Invio(stato));
+
+        // 2. L'operatore sente il tono di occupato. "/" chiude la linea con l'interno
+        //    e riporta il chiamante, che e' ancora li' ad aspettare.
+        stato = new CallActionContext(
+            HeldCount: 1, HasOutgoingCall: true, TransferPhase: TransferPhase.Consulting);
+        Assert.Equal(KeypadAction.HangUp, Diviso(stato));
+
+        // 3. Ripreso il chiamante, "+" torna a metterlo in pausa: la postazione e'
+        //    tornata al punto due dello schema, non in uno stato speciale.
+        stato = new CallActionContext(HasActiveCall: true);
+        Assert.Equal(KeypadAction.Hold, Piu(stato));
     }
 
     /// <summary>

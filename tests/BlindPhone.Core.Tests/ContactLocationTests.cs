@@ -106,19 +106,127 @@ public sealed class ContactLocationTests
     }
 
     [Fact]
-    public void UnaVoceSenzaNomeUsaIlNumeroENonRestaMuta()
+    public void UnaVoceSenzaNomeSiChiamaComeLaSuaDescrizione()
     {
         var contact = new Contact
         {
             Id = Guid.NewGuid(),
-            Category = "Reparto",
+            Category = "Ambulatorio Diabetologico",
+            Numbers = [new PhoneNumber("4055", PhoneNumberKind.Extension, true)],
+        };
+
+        // In una rubrica ospedaliera le voci senza persona sono la maggioranza, e sono
+        // quelle che l'operatore cerca piu' spesso. Prima si chiamavano come il proprio
+        // numero, e un elenco di risultati si leggeva "2033, 2091, 2095".
+        Assert.Equal("Ambulatorio Diabetologico", contact.EffectiveDisplayName);
+
+        // E la descrizione non si sente due volte.
+        Assert.Equal("Ambulatorio Diabetologico", contact.FullSpeechDescription);
+    }
+
+    [Fact]
+    public void SenzaNomeESenzaDescrizioneRestaIlNumero()
+    {
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
             Numbers = [new PhoneNumber("4055", PhoneNumberKind.Extension, true)],
         };
 
         // Una riga di elenco che lo screen reader legge come silenzio e' una voce
-        // invisibile a chi non vede.
-        Assert.False(string.IsNullOrWhiteSpace(contact.EffectiveDisplayName));
+        // invisibile a chi non vede: il numero e' l'ultima risorsa, non la prima.
+        Assert.Equal("4055", contact.EffectiveDisplayName);
         Assert.Contains("4055", contact.FullSpeechDescription);
+    }
+
+    /// <summary>
+    /// Il tipo di voce si sente prima del nome, e solo quando cambia una decisione.
+    /// </summary>
+    /// <remarks>
+    /// È l'unico elemento che può far decidere di <b>non</b> comporre: sentirlo dopo il
+    /// nome e la descrizione significa averlo saputo quando la mano è già sul
+    /// tastierino.
+    /// </remarks>
+    [Theory]
+    [InlineData(ContactKind.Fax, "fax, Accettazione")]
+    [InlineData(ContactKind.Emergency, "emergenza, Accettazione")]
+    [InlineData(ContactKind.ShortCode, "numero breve, Accettazione")]
+    [InlineData(ContactKind.Person, "Accettazione")]
+    [InlineData(ContactKind.Service, "Accettazione")]
+    [InlineData(ContactKind.Unknown, "Accettazione")]
+    public void IlTipoDiVoceParlaSoloQuandoCambiaUnaDecisione(ContactKind tipo, string atteso)
+    {
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            Category = "Accettazione",
+            Kind = tipo,
+            Numbers = [new PhoneNumber("2678", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Equal(atteso, contact.FullSpeechDescription);
+    }
+
+    /// <summary>
+    /// Il tipo tace quando il nominativo lo dice già.
+    /// </summary>
+    /// <remarks>
+    /// Sui fax accade quasi sempre, e per costruzione: una voce è riconosciuta come fax
+    /// perché la descrizione comincia con quella parola, e sulle voci senza persona la
+    /// descrizione è anche il nominativo. Senza questa regola la riga si leggeva «fax,
+    /// Fax Accettazione DH», cioè la stessa parola due volte di fila.
+    /// </remarks>
+    [Fact]
+    public void UnFaxCheSiChiamaGiaFaxNonLoRipete()
+    {
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            Category = "Fax Accettazione DH",
+            Kind = ContactKind.Fax,
+            Numbers = [new PhoneNumber("2678", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Null(contact.KindNotice);
+        Assert.Equal("Fax Accettazione DH", contact.FullSpeechDescription);
+
+        // La forma grezza resta, ed e' quella che rende cercabile "fax".
+        Assert.Equal("fax", contact.KindSpeech);
+    }
+
+    [Fact]
+    public void IlFaxIntestatoAUnaPersonaSiAnnunciaComeFax()
+    {
+        // Qui il nominativo e' il cognome, e nient'altro direbbe che quel numero e' un
+        // apparecchio: e' il caso in cui l'avvertimento informa davvero.
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Maria",
+            LastName = "Rossi",
+            Category = "Fax  Resp. s.s.d.",
+            Kind = ContactKind.Fax,
+            Numbers = [new PhoneNumber("2495", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Equal("fax", contact.KindNotice);
+        Assert.StartsWith("fax, Maria Rossi", contact.FullSpeechDescription);
+    }
+
+    [Fact]
+    public void UnNumeroBreveSiAnnunciaSempre()
+    {
+        // Viene da un contrassegno della sorgente e non da una parola: "MILANO
+        // POLICLINICO" non lascia intuire che sia un codice abbreviato.
+        var contact = new Contact
+        {
+            Id = Guid.NewGuid(),
+            Category = "MILANO POLICLINICO",
+            Kind = ContactKind.ShortCode,
+            Numbers = [new PhoneNumber("6019", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Equal("numero breve", contact.KindNotice);
     }
 
     [Fact]

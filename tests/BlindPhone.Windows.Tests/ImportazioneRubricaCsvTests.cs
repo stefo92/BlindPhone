@@ -78,10 +78,12 @@ public sealed class ImportazioneRubricaCsvTests
     /// voci sono luoghi e servizi, non persone.
     /// </para>
     /// <para>
-    /// <b>Il nominativo diventa il numero.</b> Non ci sono né nome né cognome, e il
-    /// nome visualizzato non è più abbinabile, quindi la composizione non ha nulla da
-    /// unire e ripiega sul numero. La descrizione c'è, ma nel campo che si sente
-    /// dopo. Se questo non è il comportamento voluto, è qui che si vede.
+    /// <b>Il nominativo è la descrizione.</b> Non ci sono né nome né cognome, e la
+    /// composizione non ha nulla da unire: ripiega sulla descrizione, che è ciò che
+    /// dà un nome a una stanza di reparto. Prima ripiegava sul numero, e un elenco di
+    /// risultati si leggeva come una sequenza di cifre che l'operatore aveva già
+    /// davanti. Il numero resta l'ultima risorsa, per le voci che non hanno nemmeno
+    /// la descrizione.
     /// </para>
     /// </remarks>
     [Fact]
@@ -104,8 +106,15 @@ public sealed class ImportazioneRubricaCsvTests
             // I dati portano gia' le parole "Padiglione" e "Piano": non si ripetono.
             Assert.Equal("Padiglione Barbieri, Piano Secondo", voce.LocationSpeech);
 
-            // Senza nome ne' cognome il nominativo ripiega sul numero.
-            Assert.Equal("2127", voce.EffectiveDisplayName);
+            // Senza nome ne' cognome il nominativo e' la descrizione della voce.
+            Assert.Equal("Stanza Lavoro Infermieri Degenza Internistica - Settore blu", voce.EffectiveDisplayName);
+
+            // E non si sente due volte: la descrizione, essendo gia' il nominativo,
+            // non viene ripetuta nella scheda letta.
+            Assert.Equal(
+                "Stanza Lavoro Infermieri Degenza Internistica - Settore blu, Lungodegenza Critica, "
+                + "Padiglione Barbieri, Piano Secondo, riferimento 3300",
+                voce.FullSpeechDescription);
         }
         finally
         {

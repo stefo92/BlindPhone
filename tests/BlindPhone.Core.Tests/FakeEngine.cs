@@ -8,9 +8,9 @@ namespace BlindPhone.Core.Tests;
 /// </summary>
 /// <remarks>
 /// Volutamente non si riusa <c>FakeTelephonyEngine</c> di BlindPhone.Telephony:
-/// quel progetto targetta net9.0-windows perché ha bisogno dell'audio, mentre i
-/// test del core girano su net9.0 proprio per garantire che il dominio resti
-/// indipendente dalla piattaforma. Se un giorno questo file non compilasse più
+/// quel progetto targetta la banda con <c>-windows</c> perché ha bisogno dell'audio,
+/// mentre i test del core girano sulla banda senza, proprio per garantire che il
+/// dominio resti indipendente dalla piattaforma. Se un giorno questo file non compilasse più
 /// significherebbe che qualcosa di specifico di Windows è entrato nel core, ed è
 /// esattamente il segnale che si vuole ricevere.
 /// </remarks>
@@ -37,6 +37,15 @@ internal sealed class FakeEngine : ITelephonyEngine
     /// identificativi del dialogo.
     /// </remarks>
     public IPresenceSource? PresenceSource { get; set; }
+
+    /// <summary>
+    /// Sondaggio di raggiungibilità offerto dal motore, se la prova ne fornisce uno.
+    /// </summary>
+    /// <remarks>
+    /// È la strada da cui <see cref="Core.Services.ShiftBoardService"/> ricava lo stato
+    /// dei colleghi quando il centralino non serve né l'API né le sottoscrizioni.
+    /// </remarks>
+    public IReachabilityProbe? ReachabilityProbe { get; set; }
 
     public IReadOnlyList<DiagnosticCounter> DiagnosticCounters =>
     [

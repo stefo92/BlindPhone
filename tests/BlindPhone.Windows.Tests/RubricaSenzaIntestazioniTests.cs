@@ -124,9 +124,10 @@ public sealed class RubricaSenzaIntestazioniTests : IDisposable
         Assert.Equal("033002", segreteria.PrimaryNumber);
         Assert.Equal("Segreteria Medicina Legale", segreteria.Category);
 
-        // Senza nome ne' cognome il nominativo ripiega sul numero: e' il
-        // comportamento noto, fissato qui perche' cambiarlo sia una scelta.
-        Assert.Equal("033002", segreteria.EffectiveDisplayName);
+        // Senza nome ne' cognome il nominativo e' la descrizione. Il numero resta
+        // l'ultima risorsa, per le voci che non hanno nemmeno quella: una riga che lo
+        // screen reader legge come silenzio e' una voce invisibile a chi non vede.
+        Assert.Equal("Segreteria Medicina Legale", segreteria.EffectiveDisplayName);
     }
 
     [Fact]

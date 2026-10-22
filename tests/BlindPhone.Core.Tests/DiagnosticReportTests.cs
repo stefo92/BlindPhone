@@ -23,7 +23,7 @@ public sealed class DiagnosticReportTests
         GeneratedAt = Now,
         ProductVersion = "0.1.0",
         OperatingSystem = "Microsoft Windows NT 10.0.26200.0",
-        Runtime = "9.0.18",
+        Runtime = "10.0.12",
         DataDirectory = @"C:\Users\operatore\AppData\Roaming\BlindPhone",
         LogFilePath = @"C:\Users\operatore\AppData\Roaming\BlindPhone\log\blindphone-20260805.log",
         LogLevel = "Normale: comandi, chiamate, stato",

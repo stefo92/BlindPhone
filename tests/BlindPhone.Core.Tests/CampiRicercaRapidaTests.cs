@@ -112,4 +112,89 @@ public sealed class CampiRicercaRapidaTests
         // un'altra cosa. Gli altri aiutano a riconoscere il contatto giusto.
         Assert.Equal(["Presence"], DialerFieldCatalog.Default);
     }
+
+    // -----------------------------------------------------------------------
+    // Le colonne che tacciono dove ripeterebbero
+    // -----------------------------------------------------------------------
+
+    /// <summary>Voce di servizio: la descrizione è anche il nominativo della riga.</summary>
+    private static Contact Servizio() => new()
+    {
+        Id = Guid.NewGuid(),
+        Category = "Ambulatorio Diabetologico",
+        Department = "Diabetologia",
+        Numbers = [new PhoneNumber("2948", PhoneNumberKind.Extension, true)],
+    };
+
+    [Fact]
+    public void LaDescrizioneTaceQuandoEGiaIlNominativo()
+    {
+        // Da quando le voci senza persona si chiamano come la loro descrizione, la
+        // colonna le ripeteva parola per parola: la riga si leggeva "Ambulatorio
+        // Diabetologico, 2948, Ambulatorio Diabetologico". In una rubrica ospedaliera
+        // sono la maggioranza delle voci.
+        var servizio = Servizio();
+
+        Assert.Equal("Ambulatorio Diabetologico", servizio.EffectiveDisplayName);
+        Assert.Null(DialerFieldCatalog.Find("Description")!.Value(servizio));
+    }
+
+    [Fact]
+    public void SullePersoneLaDescrizioneResta()
+    {
+        // Qui il nominativo e' il cognome e la descrizione porta la qualifica: e'
+        // esattamente quello che distingue due omonimi.
+        var persona = new Contact
+        {
+            Id = Guid.NewGuid(),
+            FirstName = "Mario",
+            LastName = "Rossi",
+            Category = "Studio medico",
+            Numbers = [new PhoneNumber("2094", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Equal("Studio medico", DialerFieldCatalog.Find("Description")!.Value(persona));
+    }
+
+    [Fact]
+    public void IlTipoTaceQuandoIlNominativoLoDiceGia()
+    {
+        var fax = new Contact
+        {
+            Id = Guid.NewGuid(),
+            Category = "Fax Accettazione DH",
+            Kind = ContactKind.Fax,
+            Numbers = [new PhoneNumber("2678", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Null(DialerFieldCatalog.Find("Kind")!.Value(fax));
+    }
+
+    [Fact]
+    public void IlTipoParlaSuUnCodiceAbbreviato()
+    {
+        // Viene da un contrassegno della sorgente e non da una parola: senza la
+        // colonna, "MILANO POLICLINICO" non lascia intuire che sia un numero breve.
+        var breve = new Contact
+        {
+            Id = Guid.NewGuid(),
+            Category = "MILANO POLICLINICO",
+            Kind = ContactKind.ShortCode,
+            Numbers = [new PhoneNumber("6019", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.Equal("numero breve", DialerFieldCatalog.Find("Kind")!.Value(breve));
+    }
+
+    [Fact]
+    public void NessunCampoRipeteIlNominativoDiUnaVoceDiServizio()
+    {
+        // La rete di sicurezza: qualunque campo si aggiunga al catalogo, nessuno deve
+        // restituire esattamente il nominativo della riga. Sarebbe una freccia destra
+        // spesa per risentire quello che si e' appena sentito.
+        var servizio = Servizio();
+
+        Assert.All(DialerFieldCatalog.All, campo =>
+            Assert.NotEqual(servizio.EffectiveDisplayName, campo.Value(servizio)));
+    }
 }

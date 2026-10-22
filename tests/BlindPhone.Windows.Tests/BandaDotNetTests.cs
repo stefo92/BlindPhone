@@ -9,18 +9,18 @@ namespace BlindPhone.Windows.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// La soluzione è passata a .NET 10, che è LTS, ma il ritorno alla 9 deve restare
-/// praticabile: è la rete di sicurezza di un prodotto installato su postazioni di un
-/// ente pubblico, dove un guasto scoperto in reparto non si risolve aspettando la
-/// prossima versione.
+/// La soluzione sta su <b>.NET 10 e basta</b>. La banda di ritorno alla 9 è stata
+/// rimossa a settembre 2026: SIPSorcery ha smesso di multi-targettare dalla 10.0.16, e
+/// tenerla aperta avrebbe significato restare indietro sullo stack SIP, cioè sul
+/// componente che raccoglie gli aggiornamenti di sicurezza più rilevanti del prodotto.
 /// </para>
 /// <para>
-/// Il ritorno funziona solo se <b>nessun progetto scrive il proprio target a mano</b>:
-/// basta un <c>net10.0-windows</c> dimenticato in un csproj perché
-/// <c>-p:BandaDotNet=net9.0</c> produca una soluzione mezza sulla 9 e mezza sulla 10,
-/// che non si compone. Lo stesso vale per i pacchetti versionati insieme al motore di
-/// esecuzione: la loro versione arriva da <c>BandaPacchetti</c>, e scriverla a mano
-/// significherebbe montare assembly di una banda dentro un pacchetto dell'altra.
+/// <b>L'interruttore resta, e questi test con lui.</b> Nessun progetto scrive il
+/// proprio target né la versione dei pacchetti legati al motore di esecuzione: li
+/// prende da <c>Directory.Build.props</c>. Serve al prossimo salto di banda — la .NET
+/// 11 — che così si fa cambiando due righe invece di undici file. Un
+/// <c>net10.0-windows</c> scritto a mano in un csproj è il modo in cui quel salto si
+/// trasforma in una soluzione mezza su una banda e mezza sull'altra.
 /// </para>
 /// </remarks>
 public sealed class BandaDotNetTests
@@ -87,7 +87,7 @@ public sealed class BandaDotNetTests
             Assert.True(m.Success, $"{p.Nome} non dichiara un TargetFramework.");
             Assert.True(m.Groups[1].Value.StartsWith("$(BandaDotNet)", StringComparison.Ordinal),
                 $"{p.Nome} scrive il target a mano ({m.Groups[1].Value}): "
-                + "con -p:BandaDotNet=net9.0 resterebbe indietro rispetto agli altri.");
+                + "al prossimo cambio di banda resterebbe indietro rispetto agli altri.");
         });
     }
 
@@ -109,14 +109,53 @@ public sealed class BandaDotNetTests
     }
 
     [Fact]
-    public void LeDueBandeSonoDichiarateEntrambe()
+    public void LaBandaEDichiarataInUnPostoSolo()
     {
-        // Senza il ramo della 9 il ritorno indietro compilerebbe con i pacchetti
-        // della 10 su un target net9.0, che e' proprio la mescolanza da evitare.
         var props = File.ReadAllText(Path.Combine(Soluzione().FullName, "Directory.Build.props"));
 
         Assert.Contains("<BandaDotNet Condition=", props, StringComparison.Ordinal);
-        Assert.Contains("'$(BandaDotNet)' == 'net9.0'", props, StringComparison.Ordinal);
+        Assert.Contains("<BandaPacchetti Condition=", props, StringComparison.Ordinal);
         Assert.Contains("net10.0", props, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Della banda .NET 9 non deve restare traccia nella configurazione di build.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Non è pedanteria: un ramo condizionale dimenticato in un csproj continuerebbe a
+    /// essere valutato, e chi lo trovasse fra sei mesi avrebbe ragione di credere che
+    /// il ritorno alla 9 sia ancora praticabile. Non lo è — SIPSorcery dalla 10.0.16
+    /// pretende .NET 10 — e scoprirlo provandolo costa una giornata.
+    /// </para>
+    /// <para>
+    /// Il controllo guarda la sola configurazione di build. I documenti e i commenti
+    /// che <i>raccontano</i> la rimozione possono e devono nominarla.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void DellaBandaNoveNonRestaTracciaNeiProgetti()
+    {
+        var props = File.ReadAllText(Path.Combine(Soluzione().FullName, "Directory.Build.props"));
+
+        Assert.DoesNotContain("net9.0", SenzaCommenti(props), StringComparison.OrdinalIgnoreCase);
+
+        Assert.All(Progetti(), p =>
+            Assert.False(
+                SenzaCommenti(p.Testo).Contains("net9.0", StringComparison.OrdinalIgnoreCase),
+                $"{p.Nome} nomina ancora la banda net9.0, che non esiste piu'."));
+    }
+
+    /// <summary>
+    /// Toglie i commenti XML, lasciando il solo MSBuild che viene valutato.
+    /// </summary>
+    /// <param name="testo">Contenuto di un file di progetto o di proprietà.</param>
+    /// <remarks>
+    /// Serve al controllo qui sopra, ed è la ragione per cui quel controllo è
+    /// applicabile: i commenti <b>devono</b> poter nominare la banda rimossa, perché
+    /// senza raccontare perché non c'è più si ripresenterebbe alla prima occasione.
+    /// Quello che non deve restare è un ramo condizionale che MSBuild valuta davvero.
+    /// </remarks>
+    private static string SenzaCommenti(string testo)
+        => Regex.Replace(testo, "<!--.*?-->", string.Empty, RegexOptions.Singleline);
 }

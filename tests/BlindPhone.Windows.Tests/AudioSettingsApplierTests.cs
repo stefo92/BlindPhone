@@ -1,4 +1,5 @@
 using BlindPhone.Core.Abstractions;
+using BlindPhone.Core.Domain;
 using BlindPhone.Infrastructure;
 using Xunit;
 
@@ -80,6 +81,31 @@ public sealed class AudioSettingsApplierTests
     }
 
     [Fact]
+    public void LElaborazioneDelMicrofonoViaggiaConLeAltreImpostazioniAudio()
+    {
+        var motore = new MotoreFinto();
+        var scelta = new MicrophoneProcessing { AutoGain = true, NoiseSuppression = NoiseSuppressionLevel.Medium };
+
+        AudioSettingsApplier.Apply(motore, new AppSettings { MicrophoneProcessing = scelta });
+
+        Assert.Equal(scelta, motore.Elaborazione);
+    }
+
+    [Fact]
+    public void ToglierePerLElaborazioneVieneComunqueApplicato()
+    {
+        var motore = new MotoreFinto();
+
+        // L'applicazione avviene SEMPRE, anche con tutto spento: se si saltasse quando
+        // non c'e' niente di acceso, chi spegne una funzione dal pannello la
+        // troverebbe ancora accesa fino al riavvio.
+        AudioSettingsApplier.Apply(motore, new AppSettings());
+
+        Assert.NotNull(motore.Elaborazione);
+        Assert.False(motore.Elaborazione!.IsActive);
+    }
+
+    [Fact]
     public void IlPredefinitoDiSistemaRestaSenzaDispositivo()
     {
         var motore = new MotoreFinto();
@@ -102,6 +128,10 @@ public sealed class AudioSettingsApplierTests
         public void AssignDevice(AudioRoute route, string? deviceId) => Dispositivi[route] = deviceId;
 
         public void SetVolume(AudioRoute route, float volume) => Volumi[route] = volume;
+
+        public MicrophoneProcessing? Elaborazione { get; private set; }
+
+        public void SetMicrophoneProcessing(MicrophoneProcessing processing) => Elaborazione = processing;
 
         public IReadOnlyList<AudioDeviceInfo> GetPlaybackDevices() => [];
 

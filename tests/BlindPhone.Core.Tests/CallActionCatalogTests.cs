@@ -341,17 +341,19 @@ public sealed class CallActionCatalogTests
 
     public static TheoryData<CallActionContext> TuttiGliStati =>
     [
-        default,
-        new(HasRingingCall: true),
-        new(HasActiveCall: true),
-        new(HasActiveCall: true, HeldCount: 1),
-        new(HeldCount: 2),
-        new(HasOutgoingCall: true),
-        new(IsConferenceActive: true),
-        new(HasActiveCall: true, TransferPhase: TransferPhase.EnteringDestination, HasTypedDestination: true),
-        new(HasActiveCall: true, TransferPhase: TransferPhase.Consulting),
-        new(HasActiveCall: true, IsRecording: true, IsDtmfMode: true, IsMuted: true),
-        new(IsServicePaused: true),
+        // Il tipo si scrive per esteso: dentro un TheoryData di xUnit v3 un "new(...)"
+        // senza tipo si aggancia a TheoryDataRow invece che al tipo della riga.
+        default(CallActionContext),
+        new CallActionContext(HasRingingCall: true),
+        new CallActionContext(HasActiveCall: true),
+        new CallActionContext(HasActiveCall: true, HeldCount: 1),
+        new CallActionContext(HeldCount: 2),
+        new CallActionContext(HasOutgoingCall: true),
+        new CallActionContext(IsConferenceActive: true),
+        new CallActionContext(HasActiveCall: true, TransferPhase: TransferPhase.EnteringDestination, HasTypedDestination: true),
+        new CallActionContext(HasActiveCall: true, TransferPhase: TransferPhase.Consulting),
+        new CallActionContext(HasActiveCall: true, IsRecording: true, IsDtmfMode: true, IsMuted: true),
+        new CallActionContext(IsServicePaused: true),
     ];
 
     [Theory]
@@ -440,6 +442,35 @@ public sealed class CallActionCatalogTests
         // Il numero da richiamare si cerca proprio quando qualcosa e' appena andato
         // storto: farlo sparire durante una chiamata sarebbe toglierlo quando serve.
         Assert.Contains(CallAction.OpenCallHistory, Azioni(context));
+    }
+
+    [Theory]
+    [MemberData(nameof(TuttiGliStati))]
+    public void LaRubricaSiRaggiungeSempre(CallActionContext context)
+    {
+        // Un interno si cerca proprio mentre qualcuno aspetta di essere passato: come
+        // l'elenco delle chiamate, il pulsante non puo' dipendere dallo stato.
+        Assert.Contains(CallAction.OpenContacts, Azioni(context));
+    }
+
+    [Fact]
+    public void IlPulsanteDellaRubricaEFattoComeGliAltriDelleFinestre()
+    {
+        // Stessa famiglia, stessa forma di descrizione, e il posto accanto all'elenco
+        // delle chiamate. Il pittogramma e' scritto per esteso — la rubrica telefonica
+        // di Segoe Fluent Icons — perche' un glifo sbagliato si nota solo guardando lo
+        // schermo.
+        var rubrica = Pulsante(default, CallAction.OpenContacts);
+        var elenco = Pulsante(default, CallAction.OpenCallHistory);
+
+        Assert.Equal("Rubrica", rubrica.Label);
+        Assert.Equal("\uE780", rubrica.Icon);
+        Assert.Equal("Apre la rubrica", rubrica.Description);
+        Assert.Equal(elenco.Group, rubrica.Group);
+        Assert.True(rubrica.IsEnabled);
+
+        var azioni = Azioni(default).ToList();
+        Assert.Equal(azioni.IndexOf(CallAction.OpenCallHistory) - 1, azioni.IndexOf(CallAction.OpenContacts));
     }
 
     [Theory]

@@ -138,28 +138,56 @@ public sealed class HelpBookTests
         => Assert.Contains("F1", Piatto(HotkeyProfile.CreateDefault()), StringComparison.Ordinal);
 
     [Fact]
-    public void LaModalitaSemplificataHaUnArgomentoCheSpiegaITreTasti()
+    public void LaModalitaSemplificataHaUnArgomentoCheSpiegaIQuattroTasti()
     {
         // Una modalita' di lavoro intera che non compare nella guida esiste solo per
         // chi era presente quando e' stata aggiunta.
         var argomento = HelpBook.Build(HotkeyProfile.CreateDefault(), Now)
             .Single(t => t.Id == HelpBook.KeypadTopicId).Text;
 
-        foreach (var tasto in new[] { "PIÙ", "DIVISO", "INVIO" })
+        foreach (var tasto in new[] { "PIÙ", "DIVISO", "INVIO", "MENO" })
         {
             Assert.Contains(tasto, argomento, StringComparison.Ordinal);
         }
+    }
 
-        // E soprattutto la regola che distingue i due trasferimenti: e' l'unica cosa
-        // che un operatore deve capire per usare la modalita' senza sbagliare
-        // destinatario.
-        Assert.Contains("pausa", argomento, StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// La guida deve spiegare perché il trasferimento passa dall'ascolto.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Non basta elencare i tasti: chi ha usato la versione precedente ha imparato che
+    /// un solo Invio bastava, e senza una riga che dica perché ora ce ne vogliono due
+    /// la modifica si legge come un peggioramento e si cerca il modo di aggirarla.
+    /// </para>
+    /// <para>
+    /// Le tre cose che devono esserci sono l'interno occupato, il tasto che riprende il
+    /// chiamante, e il fatto che si possa svincolare anche mentre l'interno squilla.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("occupato", "non e' detto cosa fare quando l'interno e' occupato")]
+    [InlineData("squillando", "non e' detto che si puo' svincolare prima che risponda")]
+    [InlineData("riporta al chiamante", "non e' detto come si riprende chi sta aspettando")]
+    public void LaGuidaSpiegaPercheIlTrasferimentoPassaDallAscolto(string frammento, string perche)
+    {
+        var argomento = HelpBook.Build(HotkeyProfile.CreateDefault(), Now)
+            .Single(t => t.Id == HelpBook.KeypadTopicId).Text;
+
+        Assert.True(argomento.Contains(frammento, StringComparison.OrdinalIgnoreCase), perche);
     }
 
     [Theory]
     [InlineData("tastierino", "la modalita' semplificata non e' citata da nessuna parte")]
     [InlineData("aggiornament", "gli aggiornamenti dal server non sono spiegati")]
     [InlineData("pulsanti", "la barra dei pulsanti non e' spiegata")]
+    [InlineData("Alt F4", "non e' detto come si chiude davvero BlindPhone")]
+    [InlineData("riunione Zoom", "non e' spiegato come si entra in una riunione")]
+    [InlineData("codice numerico", "non e' detto quale dei due codici di Zoom serve, che e' l'errore piu' probabile")]
+    [InlineData("nell'ordine giusto", "non e' detto che un interno digitato si cerca per uguaglianza e non per pezzi")]
+    [InlineData("la voce tace", "non e' detto che con un numero senza voci in rubrica la voce resta in silenzio")]
+    [InlineData("Elaborazione del microfono", "non e' detto dove si accendono il controllo del livello e la riduzione del rumore")]
+    [InlineData("anche sulla chiamata in corso", "non e' detto che le due funzioni del microfono valgono subito")]
     [InlineData("finché non rispondi", "non e' detto che la suoneria dura fino alla risposta")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {

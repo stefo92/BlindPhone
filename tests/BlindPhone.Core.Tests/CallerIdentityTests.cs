@@ -44,7 +44,8 @@ internal sealed class FakeContactRepository : IContactRepository
         string name,
         string extension,
         PresenceState presence = PresenceState.Unknown,
-        bool doNotTransfer = false)
+        bool doNotTransfer = false,
+        ContactKind kind = ContactKind.Unknown)
     {
         _contacts.Add(new Contact
         {
@@ -53,19 +54,29 @@ internal sealed class FakeContactRepository : IContactRepository
             Numbers = [new PhoneNumber(extension, PhoneNumberKind.Extension)],
             Presence = presence,
             DoNotTransfer = doNotTransfer,
+            Kind = kind,
         });
 
         return this;
     }
 
-    public Task<Contact?> ResolveByNumberAsync(string number, CancellationToken cancellationToken)
+    /// <summary>
+    /// Restituisce tutte le voci che dichiarano il numero, nell'ordine di inserimento.
+    /// </summary>
+    /// <remarks>
+    /// L'ordine di inserimento è deliberato e diverso da quello dell'archivio vero, che
+    /// mette avanti i preferiti e le persone: qui serve che le prove possano decidere
+    /// quale voce arrivi per prima, in particolare per verificare che gli avvisi
+    /// guardino <b>tutte</b> le voci di un interno condiviso e non solo la prima.
+    /// </remarks>
+    public Task<IReadOnlyList<Contact>> ResolveByNumberAsync(string number, CancellationToken cancellationToken)
     {
         ResolveCount++;
 
         var cercato = OnlyDigits(number);
 
-        return Task.FromResult(_contacts
-            .FirstOrDefault(c => c.Numbers.Any(n => OnlyDigits(n.Number) == cercato)));
+        return Task.FromResult<IReadOnlyList<Contact>>(
+            [.. _contacts.Where(c => c.Numbers.Any(n => OnlyDigits(n.Number) == cercato))]);
     }
 
     private static string OnlyDigits(string value) => new([.. value.Where(char.IsDigit)]);

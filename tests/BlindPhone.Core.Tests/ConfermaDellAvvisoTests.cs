@@ -196,6 +196,41 @@ public sealed class ConfermaDellAvvisoTests
         Assert.False(h.Engine.Did("dial:4022"));
     }
 
+    /// <summary>
+    /// Su un interno condiviso il divieto di trasferimento si cerca fra tutte le voci.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// In una struttura complessa lo stesso apparecchio serve più voci di rubrica. Il
+    /// contrassegno riguarda il telefono che squilla, non la riga con cui lo si è
+    /// cercato: se una sola delle voci non riceve trasferimenti diretti, l'avviso deve
+    /// scattare comunque.
+    /// </para>
+    /// <para>
+    /// Prima si guardava solo la prima voce restituita, cioè l'ordine dei risultati
+    /// decideva se l'avviso scattasse — e a volte non scattava.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task IlDivietoSiTrovaAncheSeNonELaPrimaVoceDellInterno()
+    {
+        var rubrica = new FakeContactRepository()
+            .AddExtension("Stanza Lavoro Infermieri", "4021")
+            .AddExtension("Direzione Generale", "4021", doNotTransfer: true);
+
+        var h = new Harness(Opzioni(), rubrica);
+        await h.ConChiamataAttivaAsync();
+
+        await h.Transfer.HandleTransferKeyAsync();
+        await h.Transfer.SetDestinationAsync("4021");
+        await h.Transfer.AttendedTransferNowAsync("4021");
+        await Task.Delay(50);
+
+        Assert.True(h.Announcer.Said("non riceve trasferimenti diretti"));
+        Assert.True(h.Announcer.Said("Direzione Generale"));
+        Assert.False(h.Engine.Did("dial:4021"));
+    }
+
     [Fact]
     public async Task SenzaAvvisoIlPrimoInvioBastaComePrima()
     {

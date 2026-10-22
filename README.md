@@ -12,6 +12,10 @@ P-Series**, mercato di riferimento la **Pubblica Amministrazione italiana**.
 |---|---|
 | [ANALISI-BLINDPHONE.md](ANALISI-BLINDPHONE.md) | Analisi tecnico-funzionale completa |
 | [YEASTAR-INTEGRAZIONE.md](YEASTAR-INTEGRAZIONE.md) | Connettore Yeastar: API, eventi, checklist pre-vendita |
+| [CISCO-INTEGRAZIONE.md](CISCO-INTEGRAZIONE.md) | Connettore Cisco: CUCM, UDS, AXL, Finesse, scheda dati cliente |
+| [3CX-INTEGRAZIONE.md](3CX-INTEGRAZIONE.md) | Connettore 3CX V20: Call Control API e XAPI |
+| [ZOOM-INTEGRAZIONE.md](ZOOM-INTEGRAZIONE.md) | Ingresso in riunione Zoom via Cloud Room Connector (funzione secondaria) |
+| [PIATTAFORME-PA.md](PIATTAFORME-PA.md) | Quali centralini sono diffusi nella PA italiana e quali connettori li coprono |
 | [CONFORMITA-PA-ITALIANA.md](CONFORMITA-PA-ITALIANA.md) | Normativa, requisiti cogenti, percorso di acquisto |
 | [SCHEDA-TASTI-RAPIDI.md](SCHEDA-TASTI-RAPIDI.md) | Scheda tasti per screen reader e stampa braille |
 | [docs/ARCHITETTURA.md](docs/ARCHITETTURA.md) | Mappa dei progetti e punti di estensione |
@@ -22,7 +26,9 @@ P-Series**, mercato di riferimento la **Pubblica Amministrazione italiana**.
 
 - Windows 10 22H2 o Windows 11
 - .NET SDK 10.0 (la soluzione targetta `net10.0` e `net10.0-windows`)
-  - per ricompilare sulla banda precedente basta `-p:BandaDotNet=net9.0`, che richiede l'SDK 9.0
+  - **banda unica**: la via di ritorno alla .NET 9 è stata rimossa a settembre 2026,
+    perché SIPSorcery dalla 10.0.16 pretende la 10. Il target resta governato da
+    `BandaDotNet` in `Directory.Build.props`, che serve al prossimo salto di banda
 
 ## Compilare ed eseguire
 
@@ -164,31 +170,47 @@ Dispositivi e volumi si applicano **all'avvio e a ogni salvataggio**, senza riav
 Fa eccezione il percorso audio di una chiamata già in corso, che prende i dispositivi
 all'apertura e non si sposta a metà conversazione.
 
-## Modalità semplificata: tre tasti del tastierino
+## Modalità semplificata: quattro tasti del tastierino
 
 *Impostazioni → Accessibilità → Modalità di interazione*
 
-Per chi sta al centralino senza il tempo di imparare quattordici scorciatoie, tre tasti
-del tastierino numerico governano l'intera chiamata:
+Per chi sta al centralino senza il tempo di imparare quattordici scorciatoie, quattro
+tasti del tastierino numerico governano l'intera chiamata:
 
 | Tasto | Cosa fa |
 |---|---|
 | **`+`** | Risponde alla chiamata che squilla. Poi alterna: in linea mette in pausa, in pausa riprende |
 | **`/`** | Riaggancia. Durante un trasferimento chiude la linea con l'interno e riporta al chiamante |
-| **`Invio`** | Trasferisce. Fuori da una chiamata compone il numero scritto nel campo, come sempre |
+| **`Invio`** | Chiama l'interno composto. Fuori da una chiamata compone il numero scritto nel campo, come sempre |
+| **`-`** | Svincola: passa il chiamante all'interno |
 
-**È la pausa a distinguere i due trasferimenti**, e non c'è altro da ricordare:
+**Il trasferimento è uno solo, e sono tre gesti:**
 
-- **Chiamante ancora in linea** → `Invio` lo manda **subito** all'interno composto, senza
-  annunciarlo. È il percorso rapido: `+` per rispondere, si digita l'interno, `Invio`.
-- **Chiamante messo in pausa con `+`** → `Invio` chiama prima l'interno e lo fa
-  **squillare**; un secondo `Invio` gli passa la chiamata, che abbia risposto o che stia
-  ancora squillando.
+1. `+` risponde e si parla con chi ha chiamato.
+2. Si compone l'interno e si preme `Invio`. Il chiamante va in attesa e l'operatore
+   **sente** cosa fa l'interno: se squilla, se è occupato, se non risponde nessuno.
+3. `-` passa il chiamante all'interno — che il collega abbia risposto o stia ancora
+   squillando.
+
+**Se l'interno è occupato non si preme `-`, si preme `/`:** chiude la linea con il
+collega e riporta il chiamante, che è ancora lì ad aspettare e a cui si può dire com'è
+andata.
+
+È il motivo per cui il trasferimento passa sempre da `Invio` prima che da `-`. Mandare
+il chiamante direttamente all'interno costerebbe un tasto in meno, ma **su un interno
+occupato non ci sarebbe modo di accorgersene**: il chiamante finirebbe su un telefono
+che non può rispondergli, e chi non vede non ha nessun altro canale per scoprirlo — non
+c'è una spia che si accende, e il silenzio dopo un trasferimento riuscito è identico a
+quello dopo un chiamante perso.
+
+Premendo `Invio` quando l'interno è già in linea, BlindPhone lo dice e ricorda che il
+tasto per passargli la chiamata è `-`.
 
 Mentre una chiamata squilla il campo di composizione non accetta testo, così il `+` con
 cui si risponde non può finirci dentro; torna a scrivere appena si è risposto, che è
-quando serve. `+` e `/` non arrivano mai al campo, in nessuno stato, nemmeno quando in
-quel momento non hanno significato: in quel caso suona il segnale di comando rifiutato.
+quando serve. `+`, `/` e `-` non arrivano mai al campo, in nessuno stato, nemmeno quando
+in quel momento non hanno significato: in quel caso suona il segnale di comando
+rifiutato.
 
 **Il resto continua a funzionare**: la modalità semplificata aggiunge una via breve, non
 ne toglie nessuna. Scorciatoie, barra dei pulsanti e annunci restano dov'erano. **La
@@ -250,8 +272,8 @@ di consenso di Windows. Se il server non risponde la cosa finisce nel registro e
 ## Barra dei comandi, per chi usa il mouse
 
 Sotto la riga della chiamata in corso c'è una fila di pulsanti — *Rispondi*,
-*Trasferisci*, *Registra*, *Toni*, *Pausa* ☕, *Impostazioni*, *Account SIP* e gli
-altri — che esiste per chi guarda lo schermo: il collega che affianca l'operatore nelle
+*Trasferisci*, *Registra*, *Toni*, *Pausa* ☕, *Rubrica*, *Impostazioni*, *Account SIP*
+e gli altri — che esiste per chi guarda lo schermo: il collega che affianca l'operatore nelle
 prime settimane, il responsabile che passa dalla postazione, l'operatore ipovedente che
 lavora con l'ingrandimento. **Non toglie niente alla tastiera**: ogni pulsante esegue
 lo stesso comando della sua scorciatoia, e la scorciatoia compare nel fumetto insieme
@@ -265,7 +287,8 @@ destra, a sinistra dell'orologio del servizio: riguarda il turno e non la chiama
 corso, e mescolarla a *rispondi* e *trasferisci* la faceva cercare nel posto sbagliato.
 L'**elenco delle chiamate** invece è nella barra e c'è sempre, anche durante una
 conversazione: il numero da richiamare si cerca proprio quando qualcosa è appena andato
-storto.
+storto. Lo stesso vale per la **rubrica**, che così si apre anche senza il suo tasto
+rapido: l'interno a cui passare qualcuno si cerca proprio mentre quel qualcuno aspetta.
 
 **Mentre parli, in cima alla finestra c'è un riquadro verde lampeggiante** con
 `In linea con: Mario Rossi (4021)`. Prende il posto di quello blu della chiamata
@@ -616,7 +639,7 @@ Il tastierino numerico è compreso, ed è quello che si usa davvero: le dita son
 
 L'operatore vede se un interno è **libero, occupato, squilla, in non disturbare,
 assente o fuori servizio**, in tre punti: la colonna *Stato* della rubrica, la terza
-colonna dei contatti proposti sotto il campo di composizione, e **`Ctrl+I`** che lo
+colonna dei contatti proposti sopra il campo di composizione, e **`Ctrl+I`** che lo
 chiede a voce sul numero digitato o sul contatto evidenziato. È testo, mai colore.
 
 `Ctrl+I` è la domanda diretta prima di passare una chiamata: risponde «interno 4021,
@@ -648,7 +671,7 @@ perché non chiede nulla oltre al SIP.
 
 L'unica differenza pratica è che ogni interno sorvegliato costa una sottoscrizione al
 PBX, quindi **si sottoscrive solo ciò che l'operatore ha davanti** — i risultati della
-ricerca in rubrica, i contatti proposti sotto il campo di composizione — fino a un
+ricerca in rubrica, i contatti proposti sopra il campo di composizione — fino a un
 massimo di 24, e il resto si lascia andare. Sottoscrivere l'intera rubrica di un ente
 significherebbe centinaia di sottoscrizioni per un posto operatore che alla volta ne
 guarda cinque.
@@ -970,12 +993,19 @@ proprio mentre un chiamante aspetta.
 Chiudere la finestra di un softphone significa smettere di ricevere chiamate, e i
 chiamanti squillano a vuoto senza che nessuno lo sappia — a schermo non c'è nulla che
 lo mostri, e il silenzio è indistinguibile da un momento senza traffico. Per questo la
-chiusura della finestra **mette via** BlindPhone invece di chiuderlo: il telefono
-resta registrato al centralino e l'icona resta nell'area di notifica.
+X del titolo **mette via** BlindPhone invece di chiuderlo: il telefono resta
+registrato al centralino e l'icona resta nell'area di notifica.
+
+La deroga è `Alt+F4`, che chiude davvero. È il gesto con cui si chiude qualunque
+finestra di Windows e, per chi non vede, l'unico: la X va cercata con il mouse.
+Deviarlo nell'area di notifica produceva il peggiore dei due esiti — il programma
+restava acceso e chi l'aveva premuto credeva di averlo chiuso. La protezione dalla
+chiusura accidentale resta dov'è utile, cioè sul gesto che si compie per sbaglio.
 
 | Azione | Effetto |
 |---|---|
-| Chiudi la finestra (`Alt+F4` o la X) | BlindPhone resta in servizio nell'area di notifica, e lo annuncia |
+| `Alt+F4` | Esce davvero. Con una chiamata in corso chiede conferma |
+| Chiudi la finestra con la X | BlindPhone resta in servizio nell'area di notifica, e lo annuncia |
 | `Ctrl+Maiusc+B` (globale) | Riapre la finestra da qualunque programma |
 | `Windows+B`, poi menu contestuale | Raggiunge l'icona da tastiera: *Apri BlindPhone*, *Esci* |
 | `Ctrl+Maiusc+Q` (con la finestra aperta) | Esce davvero. Con una chiamata in corso chiede conferma |
@@ -1044,6 +1074,64 @@ Il pulsante **Salva la configurazione dei tasti** offre quattro destinazioni:
 
 L'applicazione a caldo è deliberata: una scorciatoia si verifica provandola, e
 chiedere un riavvio a ogni tentativo renderebbe la configurazione impraticabile.
+
+## Elaborazione del microfono
+
+*Impostazioni → Audio → Elaborazione del microfono*, sotto la scelta del microfono.
+
+Due correzioni automatiche della voce che si trasmette, **spente di partenza**:
+
+| Controllo | Che cosa fa |
+|---|---|
+| **Controllo automatico del livello (AGC)** | Porta la voce verso un livello costante, −20 dBFS di valore efficace: alza chi parla piano, abbassa chi parla forte. Nelle pause il guadagno resta fermo, quindi non alza il rumore di fondo. Guadagno massimo 24 dB, e un limitatore a −1 dBFS in coda contro la saturazione |
+| **Riduzione del rumore ambientale** | Quattro scelte: spenta, **leggera**, **media**, **forte**. Attenua il rumore costante — ventole, ronzii, aria condizionata |
+
+Valgono **subito, anche sulla chiamata in corso**: chi sente il rumore se ne accorge
+parlando, e deve poter verificare l'effetto senza aspettare la chiamata dopo. Il
+valore fa parte della sezione Audio del pacchetto di configurazione, quindi un
+reparto che ha trovato il livello giusto lo distribuisce con i dispositivi. Il
+rapporto diagnostico riporta, per la chiamata, quale elaborazione era attiva e
+quanto ritardo aggiungeva.
+
+### Da dove viene, e che cosa si può promettere
+
+Non c'è codice scritto da zero e non c'è una dipendenza nuova: gli effetti sono quelli
+di `NAudio.Effects`, già nel pacchetto NAudio 3.1 che il prodotto usa per WASAPI.
+SIPSorcery non offre niente del genere — la sola «AGC» che contiene appartiene al
+decodificatore G.729 e non tocca il microfono. La catena è, nell'ordine, riduzione
+del rumore, controllo del livello, limitatore, e lavora sulla voce già alla frequenza
+del codec, a pacchetti da 20 ms.
+
+Misurato su segnali di prova — voce sintetica con pause, rumore bianco, rosa e ronzio —
+a 8 e 16 kHz:
+
+| Livello | Rumore fra una parola e l'altra | Livello della voce |
+|---|---|---|
+| Leggera | da −6 a −14 dB | da −0,3 a −0,8 dB |
+| Media | da −8 a −18 dB | da −0,4 a −1,0 dB |
+| Forte | da −11 a −20 dB | da −0,6 a −1,3 dB; sul rumore bianco il rapporto segnale/rumore peggiora |
+
+Sono misure su segnali sintetici: dicono da dove partire, non come suona una voce vera.
+
+**La riduzione agisce soprattutto fra una parola e l'altra.** Mentre si parla il rumore
+resta, e ai livelli alti la voce suona meno naturale: per questo «forte» non è presentato
+come il migliore, ma come quello per ambienti molto rumorosi. La scelta si fa
+ascoltando — è l'interlocutore a giudicarla — e le misure dicono solo da dove partire.
+
+**Costo:** la riduzione del rumore aggiunge circa **16 ms** alla voce trasmessa (un frame
+di analisi: 128 campioni a 8 kHz, 256 a 16 kHz; il valore predefinito della libreria,
+512, ne darebbe 64 a 8 kHz), il controllo del livello circa 2 ms per il limitatore. La
+catena completa costa circa 0,05 ms per pacchetto da 20 ms.
+
+**Se qualcosa va storto la voce passa lo stesso.** Un'eccezione, o valori non validi
+prodotti dall'elaborazione, la escludono per quella chiamata e la voce prosegue non
+elaborata; il registro lo riporta una volta sola.
+
+**Cosa non c'è:** la cancellazione dell'eco acustica (AEC), che serve in viva-voce e non
+con la cuffia. NAudio 3.1 la espone solo come richiesta a Windows — modalità
+«comunicazioni» e controllo dell'eco dell'endpoint in `NAudio.Wasapi` — che la fornisce
+se il driver del dispositivo la prevede: non è un algoritmo che il prodotto possa
+garantire, e per questo non è stata inserita fra i controlli.
 
 ## Regolazione del buffer audio
 

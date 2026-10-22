@@ -9,22 +9,23 @@
     supporto è una domanda che prima o poi arriva, e la risposta non può essere «lo
     aggiorniamo quando serve».
 
-    IL RITORNO ALLA 9 RESTA A PORTATA DI UN INTERRUTTORE
-    La banda non è scritta dentro i progetti: la decide BandaDotNet qui sotto, e i
-    pacchetti che seguono il motore di esecuzione la seguono attraverso
-    BandaPacchetti. Per ricompilare tutto sulla 9:
+    LA BANDA E' UNA SOLA, E IL RITORNO ALLA 9 NON C'E' PIU'
+    Fino a settembre 2026 questo file dichiarava anche la banda net9.0, come via di
+    ritorno. E' stata rimossa deliberatamente: SIPSorcery ha smesso di multi-targettare
+    dalla 10.0.16 in poi, e tenere aperta quella via avrebbe significato restare
+    indietro sullo stack SIP — cioe' sul componente su cui pesano gli aggiornamenti di
+    sicurezza piu' rilevanti di tutto il prodotto.
 
-        dotnet build BlindPhone.sln -c Release -p:BandaDotNet=net9.0
-        dotnet test  BlindPhone.sln -c Release -p:BandaDotNet=net9.0
+    LE DUE PROPRIETA' RESTANO, ANCHE CON UNA BANDA SOLA
+    Non sono un residuo. Nessun progetto scrive il proprio target né la versione dei
+    pacchetti legati al motore di esecuzione: li prende da qui. Il beneficio si vede
+    al prossimo salto di banda — la .NET 11 — che si fa cambiando due righe invece di
+    undici file, e che il gate in BandaDotNetTests continua a proteggere impedendo che
+    un progetto si scriva il target a mano.
 
-    oppure si cambia la riga qui sotto. Le due bande restano installate una accanto
-    all'altra — gli SDK .NET convivono per costruzione — quindi il ritorno non
-    richiede di disinstallare niente.
-
-    Le due bande non si mescolano: i pacchetti Microsoft.Extensions e System.* sono
-    versionati insieme al motore di esecuzione, e montare i 10.0.x su un target net9.0
-    significherebbe spedire assembly di .NET 10 dentro un pacchetto che porta il
-    runtime 9. Per questo la versione è condizionata alla banda invece di essere
+    I pacchetti Microsoft.Extensions e System.* sono versionati insieme al motore di
+    esecuzione, e mescolare le bande significherebbe spedire assembly di una dentro un
+    pacchetto che porta il runtime dell'altra. Per questo la versione sta qui e non
     scritta a mano in ogni progetto.
 
     DOCUMENTAZIONE
@@ -35,12 +36,11 @@
   -->
 
   <PropertyGroup>
-    <!-- Banda del motore di esecuzione: net10.0 oppure net9.0. -->
+    <!-- Banda del motore di esecuzione. Una sola: .NET 10, LTS. -->
     <BandaDotNet Condition="'$(BandaDotNet)' == ''">net10.0</BandaDotNet>
 
     <!-- Pacchetti versionati insieme al motore di esecuzione: seguono la banda. -->
-    <BandaPacchetti Condition="'$(BandaPacchetti)' == '' and '$(BandaDotNet)' == 'net9.0'">9.0.19</BandaPacchetti>
-    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.11</BandaPacchetti>
+    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.12</BandaPacchetti>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -68,8 +68,8 @@
       compare la parola "beta": una versione dichiarata beta nei documenti e non
       nel programma sarebbe una dichiarazione che nessuno vede.
     -->
-    <Version>1.0.13</Version>
-    <InformationalVersion>1.0.13 beta</InformationalVersion>
+    <Version>1.0.16</Version>
+    <InformationalVersion>1.0.16 beta</InformationalVersion>
     <NeutralLanguage>it-IT</NeutralLanguage>
     <Copyright>Copyright © 2026</Copyright>
   </PropertyGroup>

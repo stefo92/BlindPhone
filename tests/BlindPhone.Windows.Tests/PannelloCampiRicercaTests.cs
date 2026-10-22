@@ -5,7 +5,7 @@ namespace BlindPhone.Windows.Tests;
 
 /// <summary>
 /// Verifica i comandi con cui si scelgono e si ordinano i campi mostrati fra i
-/// contatti proposti sotto il campo di composizione.
+/// contatti proposti sopra il campo di composizione.
 /// </summary>
 /// <remarks>
 /// <para>
