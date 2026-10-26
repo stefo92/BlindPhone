@@ -17,10 +17,13 @@
        con "manca .NET Desktop Runtime". Per chi installa da solo senza vedere lo
        schermo, quel messaggio e' un muro.
 
-    2. La pagina del contratto di licenza non c'e'. Il prodotto non ha ancora un
-       testo di licenza, e mostrarne uno inventato sarebbe peggio che non
-       mostrarne alcuno. Una pagina in meno e' anche una pagina in meno da
-       ascoltare. Come rimetterla e' scritto in docs\INSTALLAZIONE.md.
+    2. La pagina del contratto di licenza non c'e', e adesso e' una scelta e non
+       una mancanza: il prodotto e' GPL-3.0-only e il testo sta in LICENSE, alla
+       radice del repository. Resta fuori dalla procedura perche' la GPL non e' un
+       contratto da accettare per installare - non pone condizioni sull'uso, solo
+       sulla ridistribuzione - e perche' una pagina in meno e' una pagina in meno
+       da ascoltare per chi installa senza vedere lo schermo. Come rimetterla e'
+       scritto in docs\INSTALLAZIONE.md.
 
     3. La cartella dei dati dell'operatore non e' dichiarata da nessuna parte in
        questo file, e questo e' voluto. L'installatore di Windows rimuove cio' che

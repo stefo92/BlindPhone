@@ -1208,6 +1208,24 @@ utente Windows sulla stessa macchina.
 
 ## Licenza
 
-Da definire. La scelta ha conseguenze concrete: incide sullo stack SIP e sulla
-risposta alla valutazione comparativa dell'art. 68 CAD, che nelle gare della PA
-arriva sempre. Vedi [CONFORMITA-PA-ITALIANA.md §3.2](CONFORMITA-PA-ITALIANA.md).
+**GPL-3.0-only.** Il testo integrale è in [LICENSE](LICENSE), ed è quello che fa fede.
+
+La scelta ha conseguenze concrete, ed è il motivo per cui è dichiarata qui e non
+lasciata implicita: incide sullo stack SIP — [SIPSorcery](https://github.com/sipsorcery-org/sipsorcery)
+è MIT, quindi compatibile e riusabile senza vincoli aggiuntivi — e sulla risposta alla
+valutazione comparativa dell'art. 68 CAD, che nelle gare della PA arriva sempre. Vedi
+[CONFORMITA-PA-ITALIANA.md §3.2](CONFORMITA-PA-ITALIANA.md).
+
+**Che cosa comporta per chi riusa il programma.** La GPL-3.0 consente di usarlo,
+studiarlo, modificarlo e ridistribuirlo, a una condizione: chi distribuisce una
+versione modificata deve rilasciarne il sorgente con la stessa licenza. È la clausola
+che rende il software effettivamente riusabile da un'altra amministrazione ai sensi
+dell'art. 69 CAD, invece che soltanto visibile.
+
+**Il client controller di NVDA è LGPL-2.1**, e sta in [lib/nvda/](lib/nvda/) con il
+proprio testo di licenza accanto. Le due licenze convivono: la LGPL-2.1 permette
+espressamente di usare la libreria dentro un programma licenziato GPL, e la libreria
+resta sotto la propria licenza.
+
+La dichiarazione per il catalogo del riuso è in [publiccode.yml](publiccode.yml), alla
+voce `legal.license`.
