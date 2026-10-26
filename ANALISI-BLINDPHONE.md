@@ -482,6 +482,8 @@ Finestra "Diagnostica" (`Ctrl+Alt+D`) con:
 - **Comfort noise** (RFC 3389) e VAD opzionali.
 - **Normalizzazione del volume in ingresso**, per evitare sbalzi tra chiamanti — apprezzata da chi ascolta a volume alto.
 
+> **Stato (ottobre 2026).** NS e AGC sul **microfono** sono realizzati, con `NAudio.Effects` — già nel pacchetto NAudio, senza dipendenze nuove — e si accendono da *Impostazioni → Audio → Elaborazione del microfono*; vedi il README. **Non sono realizzati**: AEC, comfort noise e VAD verso l'interlocutore, e la normalizzazione del volume *in ingresso* dalla linea (la voce che si ascolta).
+
 ### 8.3 Suonerie
 
 - Formati WAV e MP3; suoneria di default fornita, più set alternativi.

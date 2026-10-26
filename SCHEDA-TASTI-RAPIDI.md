@@ -86,7 +86,7 @@ sola delle due linee senza che si possa dire quale.
 - Segnala un problema all'assistenza — Locale: Control Alt I
 - Cambia account SIP — Locale: Control Alt A
 - Riapri la finestra riposta nell'area di notifica — Globale: Control Maiusc B
-- Esci davvero da BlindPhone — Locale: Control Maiusc Q
+- Esci davvero da BlindPhone — Locale: Control Maiusc Q, oppure Alt F4
 
 ## 5. Informazioni sullo stato
 
@@ -242,19 +242,38 @@ corrispondono, con nominativo e interno.
 Se cerchi un nome e non c'è nessuno, te lo dice invece di lasciarti comporre delle
 lettere.
 
+### Digitare un interno
+
+Anche un interno viene cercato, **ma per uguaglianza e non per pezzi**: le cifre
+devono essere quelle di un interno in rubrica, tutte e nell'ordine giusto. Scrivendo
+40 non compare nessuno dei 4021 o dei 1402, ma solo chi ha proprio l'interno 40.
+
+- Una voce sola: la voce ti dice di chi è, senza ripetere l'interno che hai appena
+  scritto, e ti avverte se è occupato o fuori servizio
+- Più voci sullo stesso interno (stanze, ambulatori): ti dice quante sono, e con
+  freccia giù le scorri come i contatti trovati per nome
+- Nessuna voce: silenzio, perché stai componendo un numero
+- Invio compone sempre le cifre che hai scritto
+
 ---
 
-## Chiudere la finestra non spegne il telefono
+## Chiudere la finestra con la X non spegne il telefono
 
-Chiudendo la finestra BlindPhone **resta in servizio** nell'area di notifica: le
-chiamate continuano ad arrivare e il telefono resta registrato al centralino. Viene
+Chiudendo la finestra con la X BlindPhone **resta in servizio** nell'area di notifica:
+le chiamate continuano ad arrivare e il telefono resta registrato al centralino. Viene
 detto a voce ogni volta, insieme al modo per tornare indietro.
 
+**Alt F4 invece chiude davvero**, come in qualunque altro programma: è il gesto che si
+compie per spegnere, e fa quello che ci si aspetta.
+
+- **Alt F4** chiude BlindPhone
 - **Control Maiusc B** riapre la finestra da qualunque programma
 - **Windows B** raggiunge l'icona nell'area di notifica; da lì il tasto applicazione
   o Maiusc F10 aprono il menu, con *Apri BlindPhone* ed *Esci*
-- **Control Maiusc Q**, con la finestra aperta, esce davvero. Se c'è una chiamata in
-  corso viene chiesta conferma, perché uscendo cadrebbe
+- **Control Maiusc Q**, con la finestra aperta, esce davvero
+
+Se c'è una chiamata in corso viene chiesta conferma, perché uscendo cadrebbe. Vale per
+tutti e tre i modi di uscire.
 
 Quando arriva una chiamata la finestra torna davanti da sola. È l'unico caso in cui
 si sposta senza che tu glielo abbia chiesto, e serve perché su una finestra riposta i
