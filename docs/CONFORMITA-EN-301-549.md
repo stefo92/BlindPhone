@@ -5,8 +5,8 @@
 | | |
 |---|---|
 | **Prodotto** | BlindPhone, posto operatore di centralino |
-| **Versione** | 1.0.13 beta |
-| **Data** | 18 agosto 2026 |
+| **Versione** | 1.0.16 beta |
+| **Data** | 13 ottobre 2026 |
 | **Norma di riferimento** | EN 301 549 — capitoli 5, 6, 11, 12 |
 | **Redatto da** | Il fornitore, sulla base di verifiche interne |
 | **Verifica di terza parte** | **Non ancora effettuata** |
