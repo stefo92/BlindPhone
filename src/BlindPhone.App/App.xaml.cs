@@ -238,6 +238,7 @@ public partial class App : Application
         window.Show();
 
         AnnouncePendingCrashReports();
+        AnnounceRejectedSecrets();
 
         // Da qui in avanti vale di nuovo la regola normale: chiudere l'ultima finestra
         // spegne il programma. La finestra principale, quando l'area di notifica e'
@@ -382,6 +383,59 @@ public partial class App : Application
             // sapra' che c'e' un rapporto da mandare, e lo scoprira' aprendo la
             // diagnostica.
             _logger?.LogWarning(ex, "Segnalazione dei rapporti di errore in attesa non riuscita");
+        }
+    }
+
+    /// <summary>
+    /// Dice all'operatore quali credenziali non sono state usate perché il server
+    /// configurato è cambiato.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Senza questo annuncio il sintomo sarebbe soltanto «non si registra».</b> Un
+    /// account SIP che non parte e un'interrogazione della coda che risponde
+    /// «collegamento al centralino interrotto» sono gli stessi sintomi di un
+    /// centralino spento, di una rete guasta e di una password sbagliata: l'operatore
+    /// cercherebbe il guasto dove non è, e chi amministra non saprebbe che qualcuno ha
+    /// cambiato l'indirizzo del server nella configurazione.
+    /// </para>
+    /// <para>
+    /// L'annuncio arriva qui e non al momento della lettura del segreto, perché quella
+    /// avviene durante la costruzione dei servizi — prima che esista una voce con cui
+    /// parlare.
+    /// </para>
+    /// </remarks>
+    private void AnnounceRejectedSecrets()
+    {
+        try
+        {
+            var negati = _services?.GetService<SettingsService>()?.Secrets.Rejected;
+
+            if (negati is null || negati.Count == 0) return;
+
+            foreach (var negato in negati)
+            {
+                _logger?.LogWarning(
+                    "Credenziale {Chiave} non usata: inserita per {Atteso}, configurato {Richiesto}",
+                    negato.Key, negato.BoundHost, negato.RequestedHost);
+            }
+
+            // Uno per volta, con una chiave di accorpamento diversa: sono richieste di
+            // azione distinte — reinserire il Client Secret non reinserisce la
+            // password SIP — e accorparle in una frase sola lascerebbe l'operatore a
+            // indovinare quante cose deve rimettere.
+            foreach (var negato in negati)
+            {
+                _announcer?.Announce(Announcement.High(
+                    negato.Speech,
+                    DateTimeOffset.Now,
+                    EarconKind.PbxLinkDegraded,
+                    coalesceKey: $"secret:rejected:{negato.Key}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Segnalazione delle credenziali non utilizzate non riuscita");
         }
     }
 
@@ -871,9 +925,19 @@ public partial class App : Application
     /// <param name="sip">Account come sta nella configurazione.</param>
     /// <param name="settingsService">Servizio di configurazione, per il deposito dei segreti.</param>
     /// <remarks>
+    /// <para>
     /// La password si legge con la chiave dell'account e non con quella storica: è
     /// ciò che permette a più account di coesistere senza sovrascriversi la
     /// credenziale. Vedi <see cref="SipSettings.PasswordKey"/>.
+    /// </para>
+    /// <para>
+    /// <b>E si legge per l'host a cui sta per essere inviata.</b> Cambiare il
+    /// registrar tenendo lo stesso identificativo di account faceva usare la password
+    /// memorizzata verso il server nuovo, e bastava una riga in <c>settings.json</c>
+    /// o un pacchetto di configurazione distribuito. Adesso un registrar diverso da
+    /// quello per cui la password è stata inserita non la riceve: l'account non si
+    /// registra, e l'operatore sente perché.
+    /// </para>
     /// </remarks>
     internal static SipAccountOptions BuildAccountOptions(SipSettings sip, SettingsService settingsService) => new()
     {
@@ -885,7 +949,10 @@ public partial class App : Application
             : Core.Domain.SrtpPolicy.Disabled,
         Username = sip.Username,
         AuthId = sip.AuthId,
-        Password = settingsService.Secrets.Get(sip.PasswordKey),
+        Password = settingsService.Secrets.GetForHost(
+            sip.PasswordKey,
+            sip.EffectiveRegistrar,
+            $"la password dell'account SIP {sip.Name}"),
         Domain = sip.Domain,
         Registrar = sip.Registrar,
         OutboundProxy = sip.OutboundProxy,
@@ -930,15 +997,32 @@ public partial class App : Application
     /// Applica la suoneria scelta dall'operatore, se il file esiste ancora.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Un percorso non più valido non deve lasciare muta la suoneria: si ricade sul
     /// segnale sintetizzato e lo si registra. Su un posto operatore una chiamata che
     /// entra senza farsi sentire è il guasto peggiore possibile.
+    /// </para>
+    /// <para>
+    /// <b>Un percorso di rete viene rifiutato</b>, e il controllo sta qui e non solo
+    /// dove la configurazione viene letta. Aprire <c>\\host\share\suoneria.wav</c> fa
+    /// partire un'autenticazione verso <c>host</c>, che riceve un tentativo di accesso
+    /// con l'identità dell'operatore; il valore può essere arrivato da un pacchetto
+    /// distribuito, ma anche da <c>settings.json</c> modificato a mano, e questo è
+    /// l'unico punto che vede tutte le provenienze.
+    /// </para>
     /// </remarks>
     private static void ApplyRingtone(ToneEarconPlayer player, AppSettings settings, ILogger logger)
     {
         var path = settings.RingtonePath;
 
         if (string.IsNullOrWhiteSpace(path)) return;
+
+        if (!ProtectedLocation.IsLocalPath(path))
+        {
+            logger.LogWarning(
+                "Suoneria {Path} ignorata: non e' un percorso locale. Si usa il segnale predefinito", path);
+            return;
+        }
 
         if (!File.Exists(path))
         {
@@ -1004,7 +1088,12 @@ public partial class App : Application
         Port = settings.Pbx.Port,
         UseTls = settings.Pbx.UseTls,
         ClientId = settings.Pbx.ClientId,
-        ClientSecret = settingsService.Secrets.Get(SecretStore.PbxClientSecretKey),
+        // Il Client Secret viaggia nel corpo JSON di get_token: l'host che lo riceve
+        // lo riceve per intero. Si legge solo per l'host per cui e' stato inserito.
+        ClientSecret = settingsService.Secrets.GetForHost(
+            SecretStore.PbxClientSecretKey,
+            settings.Pbx.Host,
+            "il Client Secret dell'API del centralino"),
         Extension = settings.Sip.Username,
         QueueIds = settings.Pbx.QueueIds,
         WaitingListIsOrdered = settings.Pbx.WaitingListIsOrdered,

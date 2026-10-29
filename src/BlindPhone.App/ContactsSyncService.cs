@@ -234,11 +234,20 @@ public sealed class ContactsSyncService : IDisposable
 
     /// <summary>Costruisce la sorgente dalle impostazioni salvate.</summary>
     /// <param name="settings">Collegamento configurato.</param>
+    /// <remarks>
+    /// La password si legge per il server a cui sta per essere inviata: con
+    /// l'autenticazione SQL, spostare il nome del server nella configurazione
+    /// manderebbe altrimenti la credenziale del gestionale dell'ente a una macchina
+    /// che l'ente non ha scelto. Vedi <see cref="SecretStore.GetForHost"/>.
+    /// </remarks>
     public SqlServerContactSource BuildSource(ContactsSqlServerSettings settings)
     {
         var password = settings.UseWindowsAuthentication
             ? null
-            : _secrets.Get(settings.PasswordSecretKey);
+            : _secrets.GetForHost(
+                settings.PasswordSecretKey,
+                settings.Server,
+                "la password del server della rubrica");
 
         return new SqlServerContactSource(ToOptions(settings), password, _sourceLog);
     }

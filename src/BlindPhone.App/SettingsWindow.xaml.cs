@@ -266,9 +266,17 @@ public partial class SettingsWindow : Window
             _sipPasswords.Clear();
             _sipAccounts.AddRange(settings.SipAccounts.Count > 0 ? settings.SipAccounts : [settings.Sip]);
 
+            // Si legge per il registrar dell'account, non in assoluto. Se qualcuno ha
+            // spostato il registrar fuori da qui — settings.json a mano, un pacchetto
+            // distribuito — il campo resta vuoto: l'operatore si accorge che la
+            // password va rimessa, invece di salvarla inconsapevolmente verso il
+            // server nuovo.
             foreach (var account in _sipAccounts)
             {
-                _sipPasswords[account.Id] = _settingsService.Secrets.Get(account.PasswordKey);
+                _sipPasswords[account.Id] = _settingsService.Secrets.GetForHost(
+                    account.PasswordKey,
+                    account.EffectiveRegistrar,
+                    $"la password dell'account SIP {account.Name}");
             }
 
             _defaultSipAccountId = settings.DefaultSipAccountId;
@@ -706,7 +714,10 @@ public partial class SettingsWindow : Window
         PbxPort.Text = settings.Pbx.Port.ToString(CultureInfo.InvariantCulture);
         PbxUseTls.IsChecked = settings.Pbx.UseTls;
         PbxClientId.Text = settings.Pbx.ClientId;
-        PbxClientSecret.Password = _settingsService.Secrets.Get(SecretStore.PbxClientSecretKey);
+        PbxClientSecret.Password = _settingsService.Secrets.GetForHost(
+            SecretStore.PbxClientSecretKey,
+            settings.Pbx.Host,
+            "il Client Secret dell'API del centralino");
         PbxQueueIds.Text = string.Join(',', settings.Pbx.QueueIds);
 
         CaricaRubricaCollegata(settings.Contacts);
@@ -729,7 +740,10 @@ public partial class SettingsWindow : Window
         // configurata, e salvando la si cancellerebbe senza volerlo.
         UpdateServerUrl.Text = settings.Updates.ServerUrl;
         UpdateUsername.Text = settings.Updates.Username ?? string.Empty;
-        UpdatePassword.Password = _settingsService.Secrets.Get(settings.Updates.PasswordKey);
+        UpdatePassword.Password = _settingsService.Secrets.GetForHost(
+            settings.Updates.PasswordKey,
+            settings.Updates.ServerUrl,
+            "la password del server degli aggiornamenti");
         UpdateCheckOnStartup.IsChecked = settings.Updates.CheckOnStartup;
 
         OnAcceptAnyCertificateChanged(this, new RoutedEventArgs());
@@ -1751,6 +1765,18 @@ public partial class SettingsWindow : Window
         if (string.IsNullOrWhiteSpace(path))
         {
             RingtoneHint.Text = "Nessun file scelto: viene usato il segnale sintetizzato di BlindPhone.";
+            return;
+        }
+
+        // Un percorso di rete non viene usato: aprirlo manderebbe un'autenticazione
+        // all'host che lo ospita. Lo si dice qui, dove il percorso si sceglie, perche'
+        // scoprirlo al primo squillo mancato e' il modo peggiore.
+        if (!ProtectedLocation.IsLocalPath(path))
+        {
+            RingtoneHint.Text =
+                "Attenzione: e' un percorso di rete e non verra' usato. Copia il file sul disco della "
+                + "postazione e scegli quello: aprirlo dalla rete fa partire un'autenticazione verso "
+                + "il server che lo ospita.";
             return;
         }
 
@@ -2809,26 +2835,64 @@ public partial class SettingsWindow : Window
         //
         // Una password per account, sotto la chiave dell'account: e' quello che
         // permette a piu' account di coesistere senza sovrascriversi la credenziale.
+        //
+        // OGNUNA VIENE LEGATA AL SERVER PER CUI VALE.
+        //
+        // Qui il legame si puo' rifare, e deve: chi salva ha davanti il campo
+        // dell'indirizzo e quello della password, quindi e' una scelta presa da una
+        // persona. Quello che non deve poter spostare il destinatario di una
+        // credenziale e' una modifica silenziosa della configurazione — settings.json
+        // aperto con un editor di testo, un pacchetto distribuito — e quella passa
+        // dalla lettura, che non rilega niente e lascia la credenziale dov'era.
+        //
+        // Lo spostamento viene detto, perche' e' l'unica traccia che l'operatore ha
+        // di una credenziale che da ora parte verso un server diverso.
+        var spostamenti = new List<string>();
+
         foreach (var account in _sipAccounts)
         {
-            _settingsService.Secrets.Set(
-                account.PasswordKey, _sipPasswords.GetValueOrDefault(account.Id, string.Empty));
+            SaveSecretForHost(
+                account.PasswordKey,
+                _sipPasswords.GetValueOrDefault(account.Id, string.Empty),
+                account.EffectiveRegistrar,
+                $"La password dell'account {account.Name}",
+                spostamenti);
         }
 
         var pbxSecret = ShowPbxSecret.IsChecked == true ? PbxClientSecretPlain.Text : PbxClientSecret.Password;
-        _settingsService.Secrets.Set(SecretStore.PbxClientSecretKey, pbxSecret);
+
+        SaveSecretForHost(
+            SecretStore.PbxClientSecretKey,
+            pbxSecret,
+            updated.Pbx.Host,
+            "Il Client Secret dell'API del centralino",
+            spostamenti);
 
         // La password del server degli aggiornamenti segue la stessa strada di quelle
         // SIP: nel deposito protetto e mai nel file di configurazione, che finisce nel
         // pacchetto per l'assistenza e nei backup.
-        _settingsService.Secrets.Set(updated.Updates.PasswordKey, UpdatePassword.Password);
+        SaveSecretForHost(
+            updated.Updates.PasswordKey,
+            UpdatePassword.Password,
+            updated.Updates.ServerUrl,
+            "La password del server degli aggiornamenti",
+            spostamenti);
 
-        // La password del server della rubrica segue la stessa strada.
+        // La password del server della rubrica segue la stessa strada. Resta la
+        // condizione sul campo vuoto: questa scheda si salva anche da chi non ha mai
+        // aperto quella della rubrica, e li' il campo e' vuoto perche' non e' stato
+        // caricato, non perche' la password vada cancellata.
         if (SqlServerPassword.Password.Length > 0)
         {
-            _settingsService.Secrets.Set(
-                updated.Contacts.SqlServer.PasswordSecretKey, SqlServerPassword.Password);
+            SaveSecretForHost(
+                updated.Contacts.SqlServer.PasswordSecretKey,
+                SqlServerPassword.Password,
+                updated.Contacts.SqlServer.Server,
+                "La password del server della rubrica",
+                spostamenti);
         }
+
+        var secretNote = spostamenti.Count == 0 ? string.Empty : " " + string.Join(" ", spostamenti);
 
         if (!_settingsService.Save(updated))
         {
@@ -2848,7 +2912,7 @@ public partial class SettingsWindow : Window
         // ma suoneria, annunci e segnali seguono da subito.
         AudioSettingsApplier.Apply(_audio, updated, _log);
 
-        Report($"Impostazioni salvate.{speechNote}{trayNote}{hotkeyNote}");
+        Report($"Impostazioni salvate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
         DialogResult = true;
         Close();
 
@@ -2857,6 +2921,63 @@ public partial class SettingsWindow : Window
         // uscita al posto della domanda, e l'operatore sente parlare di riavvio senza
         // sapere che gli e' stato chiesto qualcosa.
         Dispatcher.BeginInvoke(new Action(PromptForRestart), DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>
+    /// Scrive un segreto legandolo al server per cui vale, e annota quando quel
+    /// server cambia.
+    /// </summary>
+    /// <param name="key">Chiave del segreto nel deposito protetto.</param>
+    /// <param name="value">Valore da conservare. Vuoto rimuove la credenziale.</param>
+    /// <param name="host">Server per cui il segreto vale.</param>
+    /// <param name="what">Come si chiama la credenziale, per l'annuncio.</param>
+    /// <param name="notices">Elenco a cui aggiungere la frase, se c'è da dirne una.</param>
+    /// <remarks>
+    /// <para>
+    /// L'annotazione serve a chi non vede lo schermo. Chi vede si ricorda di aver
+    /// cambiato il campo dell'indirizzo un momento prima; chi non vede ha salvato una
+    /// scheda con una cinquantina di campi, e «la password del centralino ora vale
+    /// per un altro indirizzo» è l'unica conferma che quel cambio è stato capito come
+    /// lo intendeva.
+    /// </para>
+    /// <para>
+    /// Non si annota il primo inserimento, dove non c'è nessuno spostamento da
+    /// riferire: sarebbe una frase in più su ogni salvataggio di una postazione
+    /// nuova.
+    /// </para>
+    /// </remarks>
+    private void SaveSecretForHost(
+        string key, string value, string? host, string what, List<string> notices)
+    {
+        var precedente = _settingsService.Secrets.BoundHostOf(key);
+
+        _settingsService.Secrets.SetForHost(key, value, host);
+
+        var adesso = _settingsService.Secrets.BoundHostOf(key);
+
+        if (value.Length == 0)
+        {
+            // Il campo era vuoto perche' la credenziale vale per un altro server: il
+            // deposito l'ha conservata, e l'operatore deve sapere che non viene usata
+            // qui — altrimenti il sintomo sara' soltanto un collegamento che non parte.
+            if (adesso is not null)
+            {
+                notices.Add(
+                    $"{what} resta quella inserita per {adesso} e non viene usata con il server "
+                    + "configurato adesso: per usarla qui va reinserita.");
+            }
+
+            return;
+        }
+
+        if (precedente is null) return;
+
+        if (string.Equals(precedente, adesso, StringComparison.Ordinal)) return;
+
+        _log.LogInformation(
+            "Credenziale {Chiave} rilegata dal pannello: da {Prima} a {Adesso}", key, precedente, adesso);
+
+        notices.Add($"{what} ora vale per {adesso ?? "nessun server"} e non piu' per {precedente}.");
     }
 
     /// <summary>
@@ -4090,7 +4211,10 @@ public partial class SettingsWindow : Window
         SqlServerDatabase.Text = server.Database;
         SelectByTag(SqlServerAuth, server.UseWindowsAuthentication ? "Windows" : "SqlLogin");
         SqlServerUser.Text = server.Username ?? string.Empty;
-        SqlServerPassword.Password = _settingsService.Secrets.Get(server.PasswordSecretKey);
+        SqlServerPassword.Password = _settingsService.Secrets.GetForHost(
+            server.PasswordSecretKey,
+            server.Server,
+            "la password del server della rubrica");
         SqlServerTrustCertificate.IsChecked = server.TrustServerCertificate;
         SelectByTag(SqlServerInterval, server.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture));
 
@@ -4227,7 +4351,10 @@ public partial class SettingsWindow : Window
 
         if (!impostazioni.UseWindowsAuthentication && SqlServerPassword.Password.Length > 0)
         {
-            _settingsService.Secrets.Set(impostazioni.PasswordSecretKey, SqlServerPassword.Password);
+            // Legata al server appena indicato: la prova di collegamento e' la
+            // richiesta esplicita di usarla verso quell'indirizzo.
+            _settingsService.Secrets.SetForHost(
+                impostazioni.PasswordSecretKey, SqlServerPassword.Password, impostazioni.Server);
         }
 
         SqlServerConnectButton.IsEnabled = false;
@@ -4237,7 +4364,10 @@ public partial class SettingsWindow : Window
         {
             var password = impostazioni.UseWindowsAuthentication
                 ? null
-                : _settingsService.Secrets.Get(impostazioni.PasswordSecretKey);
+                : _settingsService.Secrets.GetForHost(
+                    impostazioni.PasswordSecretKey,
+                    impostazioni.Server,
+                    "la password del server della rubrica");
 
             var opzioni = ContactsSyncService.ToOptions(impostazioni);
 

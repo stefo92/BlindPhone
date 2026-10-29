@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Services;
@@ -64,6 +65,8 @@ public partial class UpdateWindow : Window
         NotesText.Text = DescribeNotes();
         ChannelText.Text = DescribeChannel();
 
+        DisableInstallIfUnverifiable();
+
         Loaded += (_, _) =>
         {
             LaterButton.Focus();
@@ -101,30 +104,56 @@ public partial class UpdateWindow : Window
     /// </summary>
     /// <remarks>
     /// <para>
-    /// È l'informazione che rende la scelta consapevole invece che automatica. Su un
-    /// canale in chiaro chi sta sul percorso di rete può sostituire il pacchetto con
-    /// un altro programma, che verrebbe installato con i privilegi di amministratore:
-    /// è il rischio più grosso dell'intera funzione, e va scritto dove si preme il
-    /// pulsante, non solo nel registro.
+    /// Un canale in chiaro non è più una scelta da dichiarare qui: l'aggiornamento non
+    /// parte affatto, e il testo dice perché. Chi stava sul percorso di rete poteva
+    /// sostituire il pacchetto con un altro programma, che veniva installato con i
+    /// privilegi di amministratore, e un avviso in questa casella non è mai stata una
+    /// difesa — lo leggeva chi non poteva farci niente.
     /// </para>
     /// <para>
-    /// L'impronta dichiarata nelle note non elimina quel rischio — chi può cambiare il
-    /// pacchetto può cambiare anche le note — ma copre il caso più frequente, che è il
-    /// file arrivato incompleto o sovrascritto a metà caricamento.
+    /// Quello che resta da dire è <b>che cosa viene verificato</b>. La firma dimostra
+    /// la provenienza; l'impronta dichiarata nelle note, quando c'è, aggiunge la
+    /// verifica dell'integrità del trasferimento. Sono due cose diverse e l'operatore
+    /// sente entrambe.
     /// </para>
     /// </remarks>
     private string DescribeChannel()
     {
-        var canale = _updates.IsSecureChannel
-            ? "Il pacchetto arriva da un canale cifrato."
-            : "ATTENZIONE: il pacchetto arriva da un canale NON cifrato. Chi si trova sul percorso di rete "
-              + "potrebbe sostituirlo. Chiedi a chi amministra il server di abilitare FTPS.";
+        if (!_updates.IsSecureChannel)
+        {
+            return "Il server degli aggiornamenti usa un canale NON cifrato: l'aggiornamento non viene "
+                   + "scaricato. Chiedi a chi amministra il server di abilitare FTPS.";
+        }
+
+        if (!UpdateSignature.IsConfigured)
+        {
+            return "Questa versione di BlindPhone non puo' verificare la firma degli aggiornamenti, quindi "
+                   + "non li installa da sola. L'aggiornamento va fatto a mano da chi amministra la postazione.";
+        }
 
         var impronta = _notes.Sha256 is null
-            ? "Le note non dichiarano l'impronta del pacchetto: l'integrita' non potra' essere verificata."
-            : "L'integrita' del pacchetto sara' verificata con l'impronta dichiarata nelle note.";
+            ? "Le note non dichiarano l'impronta del pacchetto: serve la riga SHA256 nel file delle novita'."
+            : "L'integrita' del pacchetto sara' verificata anche con l'impronta dichiarata nelle note.";
 
-        return $"{canale} {impronta}";
+        return "Il pacchetto arriva da un canale cifrato e la sua firma viene verificata prima "
+               + $"dell'installazione. {impronta}";
+    }
+
+    /// <summary>
+    /// Toglie il pulsante di installazione quando l'aggiornamento non è installabile.
+    /// </summary>
+    /// <remarks>
+    /// Un pulsante che c'è e fallisce sempre è peggio di un pulsante che non c'è: per
+    /// chi non vede lo schermo, premerlo e sentire un errore è l'unico modo di
+    /// scoprire che non era disponibile. Il perché sta già in
+    /// <see cref="DescribeChannel"/>, che viene letto ad alta voce.
+    /// </remarks>
+    private void DisableInstallIfUnverifiable()
+    {
+        if (_updates.IsSecureChannel && UpdateSignature.IsConfigured) return;
+
+        InstallButton.IsEnabled = false;
+        InstallButton.ToolTip = "L'aggiornamento non puo' essere verificato su questa postazione";
     }
 
     private async void OnInstallClick(object sender, RoutedEventArgs e)
@@ -185,24 +214,85 @@ public partial class UpdateWindow : Window
     /// servizio quello è un costo che si può evitare uscendo prima.
     /// </para>
     /// <para>
+    /// <b>Fra la verifica e l'avvio non c'è una finestra da sfruttare.</b> Prima
+    /// c'era: il pacchetto restava in <c>%TEMP%</c> — cartella su cui l'utente ha
+    /// pieno controllo — senza che nessuno lo trattenesse, e fra il controllo
+    /// dell'impronta e l'avvio di <c>msiexec</c> un altro processo poteva
+    /// sostituirlo. Quello che partiva era l'altro, con i privilegi di
+    /// amministratore. Ora il file viene aperto in modo da negarne la scrittura e la
+    /// cancellazione, la firma si riverifica <b>su quel flusso</b> e il blocco resta
+    /// fino a quando <c>msiexec</c> non ha preso in mano il pacchetto.
+    /// </para>
+    /// <para>
     /// L'installazione <b>non</b> è silenziosa. L'operatore vede la stessa procedura
     /// della prima installazione, con la richiesta di consenso di Windows: è quello che
     /// permette di fermarsi a metà se qualcosa non torna, ed è l'ultima occasione in
     /// cui un pacchetto sbagliato può ancora essere rifiutato.
     /// </para>
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// Il pacchetto non è più quello verificato, oppure la sua firma non si trova:
+    /// l'installazione non parte e il motivo viene annunciato.
+    /// </exception>
     private void LaunchInstaller(string packagePath)
     {
+        // La lettura resta concessa: msiexec deve poter aprire il pacchetto. Quello
+        // che il blocco nega e' scriverlo e cancellarlo.
+        using var blocco = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        var firma = ReadSignature(packagePath);
+
+        // Si verificano i byte TENUTI APERTI, non quelli che il percorso
+        // restituirebbe riaprendolo: riaprire il file vanificherebbe il blocco,
+        // perche' fra le due aperture ci sarebbe di nuovo spazio per una sostituzione.
+        if (!UpdateSignature.Verify(blocco, firma))
+        {
+            _log.LogError(
+                "Firma del pacchetto {Pacchetto} non valida al momento dell'installazione: annullata",
+                packagePath);
+
+            throw new InvalidOperationException(
+                "Il pacchetto e' cambiato dopo la verifica: l'installazione e' stata annullata. "
+                + "Riprova, e se il problema resta avvisa chi amministra la postazione.");
+        }
+
         var avvio = new ProcessStartInfo
         {
-            FileName = "msiexec.exe",
+            // PERCORSO ASSOLUTO, E NON "msiexec.exe".
+            //
+            // Con il solo nome, la risoluzione passa per le regole di ricerca di
+            // Windows: la cartella di lavoro e le voci di PATH vengono guardate, e
+            // una cartella scrivibile dall'utente che contenga un file con quel nome
+            // vincerebbe sul programma di sistema. Si chiede quello in
+            // %SystemRoot%\System32, che e' l'unico che si intende avviare.
+            FileName = Path.Combine(Environment.SystemDirectory, "msiexec.exe"),
             Arguments = $"/i \"{packagePath}\"",
             UseShellExecute = true,
         };
 
         _log.LogInformation("Avvio dell'installazione di {Pacchetto}", packagePath);
 
-        Process.Start(avvio);
+        using var processo = Process.Start(avvio);
+
+        // Si attende che msiexec sia pronto, così il blocco cade quando il pacchetto
+        // è già nelle sue mani. Non tutte le configurazioni hanno una finestra da
+        // attendere — un'installazione senza interfaccia non ne ha — e un'attesa
+        // impossibile non è un guasto: il pacchetto è stato verificato un istante
+        // prima e il processo è già partito.
+        //
+        // L'attesa e' breve di proposito. Blocca il thread dell'interfaccia, cioe'
+        // anche la coda degli annunci, e su un posto operatore un programma muto per
+        // dieci secondi e' indistinguibile da un programma bloccato. msiexec apre il
+        // pacchetto nei primi istanti, molto prima di mostrare la sua prima finestra:
+        // cinque secondi sono un tetto, non un'attesa prevista.
+        try
+        {
+            processo?.WaitForInputIdle(5_000);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            _log.LogDebug(ex, "Attesa dell'avvio di msiexec non disponibile: si prosegue");
+        }
 
         DialogResult = true;
         Close();
@@ -210,6 +300,27 @@ public partial class UpdateWindow : Window
         // La chiusura dell'applicazione passa dal percorso normale: le chiamate in
         // corso vengono chiuse come si deve e la registrazione SIP viene ritirata.
         Application.Current.Shutdown();
+    }
+
+    /// <summary>Legge la firma pubblicata accanto al pacchetto scaricato.</summary>
+    /// <exception cref="InvalidOperationException">La firma non è leggibile.</exception>
+    private byte[] ReadSignature(string packagePath)
+    {
+        var percorso = packagePath + UpdateSignature.SignatureExtension;
+
+        try
+        {
+            return File.ReadAllBytes(percorso);
+        }
+        catch (Exception ex)
+        {
+            _log.LogError(ex, "Firma {Percorso} non leggibile al momento dell'installazione", percorso);
+
+            throw new InvalidOperationException(
+                "La firma del pacchetto non si trova piu': l'installazione non parte. "
+                + "Riprova a scaricare l'aggiornamento.",
+                ex);
+        }
     }
 
     private void OnLaterClick(object sender, RoutedEventArgs e)

@@ -8,6 +8,28 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace BlindPhone.Infrastructure;
 
 /// <summary>
+/// Un segreto non restituito perché l'host configurato non è quello per cui era
+/// stato inserito.
+/// </summary>
+/// <param name="Key">Chiave del segreto.</param>
+/// <param name="What">Che cosa va reinserito, in parole che l'operatore riconosce.</param>
+/// <param name="BoundHost">L'host per cui il segreto era stato inserito.</param>
+/// <param name="RequestedHost">L'host che la configurazione indica adesso.</param>
+public sealed record RejectedSecret(string Key, string What, string BoundHost, string RequestedHost)
+{
+    /// <summary>Frase pronunciabile che spiega all'operatore cosa è successo.</summary>
+    /// <remarks>
+    /// Senza questa frase l'operatore vedrebbe soltanto un errore di autenticazione, e
+    /// cercherebbe il guasto nella password invece che nel cambio di server — che è
+    /// l'informazione che gli serve per capire se qualcuno ha toccato la
+    /// configurazione.
+    /// </remarks>
+    public string Speech =>
+        $"Il server configurato e' cambiato: era {BoundHost}, ora e' {RequestedHost}. "
+        + $"Per sicurezza {What} non viene inviato al server nuovo: va reinserito dalle impostazioni.";
+}
+
+/// <summary>
 /// Deposito protetto per i segreti: password SIP e Client Secret dell'API.
 /// </summary>
 /// <remarks>
@@ -22,14 +44,39 @@ namespace BlindPhone.Infrastructure;
 /// che è esportabile, condivisibile e finisce nei backup. Un collaudo di sicurezza
 /// presso una PA controlla esattamente questo.
 /// </para>
+/// <para>
+/// <b>Ogni credenziale è legata all'host per cui è stata inserita.</b> Prima non lo
+/// era, e la conseguenza era questa: bastava cambiare l'indirizzo del centralino —
+/// in <c>settings.json</c>, che l'operatore può aprire con un editor di testo, o con
+/// un pacchetto di configurazione distribuito — perché il Client Secret dell'API
+/// partisse verso il nuovo indirizzo senza che nessuno venisse avvisato. Nel caso
+/// Yeastar quel segreto viaggia nel corpo JSON di <c>get_token</c>: il nuovo host lo
+/// riceve per intero, e da quel momento ha le credenziali dell'API del centralino
+/// vero. Vale lo stesso per la password SIP verso un registrar sostituito.
+/// </para>
+/// <para>
+/// Il legame non è una cifratura aggiuntiva: DPAPI protegge il file, questo protegge
+/// il <i>destinatario</i>. Sono due problemi diversi — «chi può leggere il segreto
+/// sul disco» e «a chi il programma lo manda» — e il secondo non era coperto.
+/// </para>
 /// </remarks>
 public sealed class SecretStore
 {
     private static readonly byte[] Entropy = Encoding.UTF8.GetBytes("BlindPhone.SecretStore.v1");
 
+    /// <summary>Un segreto e l'host a cui appartiene.</summary>
+    /// <param name="Value">Il valore del segreto.</param>
+    /// <param name="BoundHost">
+    /// L'host per cui è stato inserito, già normalizzato. <c>null</c> per le voci
+    /// scritte dalle versioni precedenti alla 1.0.17, che non lo registravano.
+    /// </param>
+    private sealed record SecretEntry(string Value, string? BoundHost);
+
     private readonly string _path;
     private readonly ILogger<SecretStore> _log;
-    private Dictionary<string, string> _secrets = [];
+    private readonly List<RejectedSecret> _rejected = [];
+
+    private Dictionary<string, SecretEntry> _secrets = new(StringComparer.Ordinal);
 
     /// <summary>Crea il deposito.</summary>
     /// <param name="directory">Cartella dati dell'applicazione.</param>
@@ -41,25 +88,223 @@ public sealed class SecretStore
         Load();
     }
 
-    /// <summary>Legge un segreto.</summary>
+    /// <summary>
+    /// I segreti che sono stati negati perché l'host configurato non corrisponde.
+    /// </summary>
+    /// <remarks>
+    /// Si accumulano invece di essere annunciati sul posto: la lettura dei segreti
+    /// avviene durante la costruzione dei servizi, prima che esista una voce con cui
+    /// parlare. L'applicazione li annuncia quando la pipeline è pronta.
+    /// </remarks>
+    public IReadOnlyList<RejectedSecret> Rejected => _rejected;
+
+    /// <summary>
+    /// Legge un segreto senza guardare a quale host appartenga.
+    /// </summary>
     /// <param name="key">Chiave del segreto.</param>
     /// <returns>Il valore, oppure stringa vuota se assente.</returns>
-    public string Get(string key) => _secrets.GetValueOrDefault(key, string.Empty);
+    /// <remarks>
+    /// Vale per i segreti che non vengono inviati a nessuno — la chiave di cifratura
+    /// degli archivi locali è l'unico caso. Per una credenziale che parte verso un
+    /// server si usa <see cref="GetForHost"/>: un segreto letto da qui finisce
+    /// dovunque la configurazione dica di mandarlo.
+    /// </remarks>
+    public string Get(string key)
+        => _secrets.TryGetValue(key, out var voce) ? voce.Value : string.Empty;
 
-    /// <summary>Scrive un segreto e persiste il deposito.</summary>
+    /// <summary>Scrive un segreto senza legarlo a un host, e persiste il deposito.</summary>
     /// <param name="key">Chiave del segreto.</param>
     /// <param name="value">Valore da conservare.</param>
+    /// <remarks>Come <see cref="Get"/>: solo per i segreti che non vengono inviati.</remarks>
     public void Set(string key, string value)
     {
-        _secrets[key] = value;
+        _secrets[key] = new SecretEntry(value, null);
         Save();
     }
+
+    /// <summary>
+    /// Legge un segreto solo se è stato inserito per l'host indicato.
+    /// </summary>
+    /// <param name="key">Chiave del segreto.</param>
+    /// <param name="host">
+    /// Host o indirizzo a cui il segreto sta per essere inviato. Un indirizzo
+    /// completo viene ridotto al suo nome host.
+    /// </param>
+    /// <param name="what">
+    /// Che cosa va reinserito, in parole che l'operatore riconosce: finisce
+    /// nell'annuncio quando il segreto viene negato.
+    /// </param>
+    /// <returns>
+    /// Il valore, oppure stringa vuota se il segreto non c'è o appartiene a un altro
+    /// host.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Le voci scritte dalle versioni precedenti vengono legate qui</b>, al primo
+    /// utilizzo, all'host che la configurazione indica in quel momento. È quello che
+    /// permette a una postazione aggiornata dalla 1.0.16 di continuare a funzionare
+    /// senza reinserire niente, e il costo è noto: se l'host era già stato cambiato
+    /// prima del primo avvio della versione nuova, il legame si forma su quello. È
+    /// l'unico momento in cui la vecchia falla resta aperta, e dura un avvio.
+    /// </para>
+    /// <para>
+    /// Un segreto negato <b>non viene cancellato</b>: rimettendo l'host di prima
+    /// torna a funzionare. Cancellarlo renderebbe definitivo un cambio di indirizzo
+    /// fatto per sbaglio.
+    /// </para>
+    /// </remarks>
+    public string GetForHost(string key, string? host, string what)
+    {
+        if (!_secrets.TryGetValue(key, out var voce) || voce.Value.Length == 0) return string.Empty;
+
+        var richiesto = NormalizeHost(host);
+
+        if (voce.BoundHost is null)
+        {
+            if (richiesto.Length == 0)
+            {
+                // Nessun host configurato: non c'e' niente a cui legare il segreto, e
+                // non c'e' nemmeno niente a cui inviarlo. Si legherà al primo
+                // utilizzo vero.
+                return voce.Value;
+            }
+
+            _secrets[key] = voce with { BoundHost = richiesto };
+            Save();
+
+            _log.LogInformation(
+                "Segreto {Chiave} legato all'host {Host}: da ora un cambio di host richiede il reinserimento",
+                key, richiesto);
+
+            return voce.Value;
+        }
+
+        if (string.Equals(voce.BoundHost, richiesto, StringComparison.Ordinal)) return voce.Value;
+
+        _log.LogWarning(
+            "Segreto {Chiave} non restituito: inserito per {Atteso}, la configurazione indica {Richiesto}",
+            key, voce.BoundHost, richiesto.Length == 0 ? "nessun host" : richiesto);
+
+        var rifiuto = new RejectedSecret(
+            key, what, voce.BoundHost, richiesto.Length == 0 ? "nessuno" : richiesto);
+
+        // Una chiave sola nell'elenco, anche se la si legge piu' volte durante
+        // l'avvio: l'operatore deve sentirlo una volta, non una per servizio.
+        if (!_rejected.Any(r => string.Equals(r.Key, key, StringComparison.Ordinal)))
+        {
+            _rejected.Add(rifiuto);
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Scrive un segreto legandolo all'host per cui è stato inserito.
+    /// </summary>
+    /// <param name="key">Chiave del segreto.</param>
+    /// <param name="value">Valore da conservare. Vuoto rimuove la voce.</param>
+    /// <param name="host">Host per cui il segreto vale.</param>
+    /// <remarks>
+    /// <para>
+    /// Si chiama dal pannello delle impostazioni, dove l'operatore ha davanti il campo
+    /// dell'indirizzo e quello della password: lì il legame si forma o si rifà, ed è
+    /// una scelta presa da una persona. Quello che non deve poter cambiare il
+    /// destinatario di un segreto è una modifica silenziosa della configurazione — un
+    /// file di testo, un pacchetto distribuito — e quella passa da
+    /// <see cref="GetForHost"/>, che non rilega niente.
+    /// </para>
+    /// <para>
+    /// Un valore vuoto rimuove la voce invece di conservare una stringa vuota legata a
+    /// un host: «nessuna password» e «password vuota per questo server» si
+    /// comporterebbero allo stesso modo, e la prima è quella che si intende. Con
+    /// un'eccezione, spiegata nel corpo: non rimuove una credenziale che vale per un
+    /// altro server.
+    /// </para>
+    /// </remarks>
+    public void SetForHost(string key, string value, string? host)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            // UN CAMPO VUOTO NON SIGNIFICA SEMPRE «CANCELLA».
+            //
+            // Quando la credenziale e' legata a un altro server, il pannello la mostra
+            // vuota di proposito: non e' stata cancellata, e' stata nascosta perche'
+            // non vale per il server configurato. Salvare la scheda senza ritoccare
+            // quel campo la distruggerebbe — e distruggerebbe anche la via d'uscita,
+            // perche' rimettere l'indirizzo di prima deve far tornare le cose a
+            // posto. Chi vuole davvero cancellarla svuota il campo con il server
+            // giusto configurato, e allora il ramo sotto fa il suo lavoro.
+            if (_secrets.TryGetValue(key, out var esistente)
+                && esistente.BoundHost is { } altroHost
+                && !string.Equals(altroHost, NormalizeHost(host), StringComparison.Ordinal))
+            {
+                _log.LogInformation(
+                    "Credenziale {Chiave} conservata: vale per {Legato}, non per il server configurato",
+                    key, altroHost);
+
+                return;
+            }
+
+            Remove(key);
+            return;
+        }
+
+        var legato = NormalizeHost(host);
+        _secrets[key] = new SecretEntry(value, legato.Length == 0 ? null : legato);
+
+        _rejected.RemoveAll(r => string.Equals(r.Key, key, StringComparison.Ordinal));
+
+        Save();
+    }
+
+    /// <summary>L'host a cui un segreto è legato, se è legato a uno.</summary>
+    /// <param name="key">Chiave del segreto.</param>
+    /// <returns>L'host normalizzato, oppure <c>null</c>.</returns>
+    /// <remarks>
+    /// Serve al pannello per dire all'operatore che una credenziale stava su un altro
+    /// server, prima di rilegarla al nuovo.
+    /// </remarks>
+    public string? BoundHostOf(string key)
+        => _secrets.TryGetValue(key, out var voce) ? voce.BoundHost : null;
 
     /// <summary>Rimuove un segreto.</summary>
     /// <param name="key">Chiave del segreto.</param>
     public void Remove(string key)
     {
+        _rejected.RemoveAll(r => string.Equals(r.Key, key, StringComparison.Ordinal));
+
         if (_secrets.Remove(key)) Save();
+    }
+
+    /// <summary>
+    /// Riduce un host o un indirizzo alla forma con cui si confrontano.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Un indirizzo completo si riduce al suo nome host: <c>ftps://server/blindphone/</c>
+    /// e <c>ftps://server/altra-cartella/</c> sono lo stesso server, e cambiare
+    /// cartella non cambia a chi si manda la password.
+    /// </para>
+    /// <para>
+    /// Il confronto è fra due valori passati da questa stessa funzione, quindi una
+    /// forma che non viene riconosciuta — un host con la porta attaccata, per dirne
+    /// una — resta confrontata per intero. Il peggio che accade è un reinserimento in
+    /// più quando si aggiunge o si toglie una porta, che è l'errore dalla parte
+    /// giusta.
+    /// </para>
+    /// </remarks>
+    private static string NormalizeHost(string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host)) return string.Empty;
+
+        var pulito = host.Trim().TrimEnd('.').ToLowerInvariant();
+
+        if (Uri.TryCreate(pulito, UriKind.Absolute, out var uri) && !string.IsNullOrEmpty(uri.Host))
+        {
+            return uri.Host.TrimEnd('.').ToLowerInvariant();
+        }
+
+        return pulito;
     }
 
     private void Load()
@@ -70,7 +315,8 @@ public sealed class SecretStore
         {
             var protectedBytes = File.ReadAllBytes(_path);
             var plain = ProtectedData.Unprotect(protectedBytes, Entropy, DataProtectionScope.CurrentUser);
-            _secrets = JsonSerializer.Deserialize<Dictionary<string, string>>(plain) ?? [];
+
+            _secrets = ParseSecrets(plain);
         }
         catch (Exception ex)
         {
@@ -78,10 +324,87 @@ public sealed class SecretStore
             // altrove non lo puo' decifrare. Si riparte vuoti e si chiedono di nuovo
             // le credenziali, invece di impedire l'avvio dell'applicazione.
             _log.LogWarning(ex, "Deposito dei segreti non leggibile: sara' necessario reinserire le credenziali");
-            _secrets = [];
+            _secrets = new Dictionary<string, SecretEntry>(StringComparer.Ordinal);
         }
     }
 
+    /// <summary>
+    /// Interpreta il contenuto del deposito, nel formato attuale e in quello
+    /// precedente.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Fino alla 1.0.16 il deposito era <c>{"chiave": "valore"}</c>; adesso è
+    /// <c>{"chiave": {"Value": "...", "BoundHost": "..."}}</c>. Si distinguono dal
+    /// tipo del valore, voce per voce, e non dal formato del file intero: una voce
+    /// nuova accanto a una vecchia si legge comunque, che è la condizione in cui si
+    /// trova il deposito subito dopo l'aggiornamento.
+    /// </para>
+    /// <para>
+    /// Un deposito vuoto o illeggibile costa all'operatore il reinserimento delle
+    /// credenziali: per questo si preferisce leggere quel che si può invece di
+    /// scartare tutto alla prima voce che non torna.
+    /// </para>
+    /// </remarks>
+    private Dictionary<string, SecretEntry> ParseSecrets(byte[] plain)
+    {
+        var letti = new Dictionary<string, SecretEntry>(StringComparer.Ordinal);
+
+        using var documento = JsonDocument.Parse(plain);
+
+        if (documento.RootElement.ValueKind != JsonValueKind.Object) return letti;
+
+        foreach (var voce in documento.RootElement.EnumerateObject())
+        {
+            switch (voce.Value.ValueKind)
+            {
+                // Formato precedente: il valore nudo, senza host a cui sia legato.
+                case JsonValueKind.String:
+                    letti[voce.Name] = new SecretEntry(voce.Value.GetString() ?? string.Empty, null);
+                    break;
+
+                case JsonValueKind.Object when ReadProperty(voce.Value, "value") is { } valore:
+                    letti[voce.Name] = new SecretEntry(valore, ReadProperty(voce.Value, "boundHost"));
+                    break;
+
+                default:
+                    _log.LogWarning("Voce {Chiave} del deposito dei segreti non interpretabile: ignorata", voce.Name);
+                    break;
+            }
+        }
+
+        return letti;
+    }
+
+    /// <summary>
+    /// Legge una proprietà di stringa senza badare alle maiuscole.
+    /// </summary>
+    /// <remarks>
+    /// Il deposito viene scritto con i nomi dei membri del record, quindi
+    /// <c>Value</c> e <c>BoundHost</c>. La lettura tollera anche la forma con
+    /// l'iniziale minuscola, così un deposito scritto da una versione che usasse
+    /// l'altra convenzione resta leggibile: il prezzo di sbagliare qui è
+    /// l'operatore che reinserisce tutte le password.
+    /// </remarks>
+    private static string? ReadProperty(JsonElement oggetto, string name)
+    {
+        foreach (var proprieta in oggetto.EnumerateObject())
+        {
+            if (!string.Equals(proprieta.Name, name, StringComparison.OrdinalIgnoreCase)) continue;
+
+            return proprieta.Value.ValueKind == JsonValueKind.String ? proprieta.Value.GetString() : null;
+        }
+
+        return null;
+    }
+
+    /// <remarks>
+    /// Il formato scritto è quello nuovo, con l'host accanto al valore. Una versione
+    /// di BlindPhone precedente alla 1.0.17 non lo sa leggere: ripartirebbe con il
+    /// deposito vuoto e chiederebbe di reinserire le credenziali. È il prezzo di un
+    /// ritorno indietro, non di un aggiornamento, ed è recuperabile — a differenza di
+    /// un segreto spedito a un host sbagliato.
+    /// </remarks>
     private void Save()
     {
         try
