@@ -242,8 +242,24 @@
 
       <Component Id="CartellaDatiProtetta" Directory="DATIBLINDPHONE"
                  Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B06">
+        <!--
+            PermissionEx SENZA PREFISSO: E' L'ELEMENTO DEL NUCLEO, NON QUELLO
+            DELL'ESTENSIONE UTIL.
+
+            Sono due elementi omonimi e fanno due cose diverse. Questo scrive la
+            tabella MsiLockPermissionsEx dell'installatore di Windows, che prende la
+            stringa SDDL cosi' com'e': nessuna azione ausiliaria, nessun nome di
+            gruppo da risolvere — e quindi nessun problema sulle installazioni di
+            Windows in lingue diverse, dove un "Administrators" scritto a mano
+            potrebbe non corrispondere a niente. Richiede InstallerVersion 500, che
+            questo pacchetto dichiara.
+
+            util:PermissionEx e' l'altro: prende User e Domain, passa dall'azione
+            SecureObjects e in WiX 5 NON accetta l'attributo Sddl. Scriverlo con il
+            prefisso util: fa fallire la compilazione del pacchetto con WIX0004.
+        -->
         <CreateFolder>
-          <util:PermissionEx Sddl="O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)" />
+          <PermissionEx Sddl="O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)" />
         </CreateFolder>
 
         <!--

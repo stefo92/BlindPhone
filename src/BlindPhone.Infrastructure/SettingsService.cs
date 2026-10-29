@@ -235,12 +235,12 @@ public sealed class SecretStore
             // posto. Chi vuole davvero cancellarla svuota il campo con il server
             // giusto configurato, e allora il ramo sotto fa il suo lavoro.
             if (_secrets.TryGetValue(key, out var esistente)
-                && esistente.BoundHost is { } legato
-                && !string.Equals(legato, NormalizeHost(host), StringComparison.Ordinal))
+                && esistente.BoundHost is { } altroHost
+                && !string.Equals(altroHost, NormalizeHost(host), StringComparison.Ordinal))
             {
                 _log.LogInformation(
                     "Credenziale {Chiave} conservata: vale per {Legato}, non per il server configurato",
-                    key, legato);
+                    key, altroHost);
 
                 return;
             }

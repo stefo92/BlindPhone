@@ -375,26 +375,30 @@ public sealed class UpdateService
         AvailableUpdate update, CancellationToken cancellationToken)
     {
         var nome = UpdateSignature.SignatureFileNameFor(update.InstallerFileName);
+        byte[] firma;
 
+        // Il blocco protetto copre il solo scaricamento, e non i controlli che
+        // seguono. Escludere le proprie eccezioni con un filtro «non e' una
+        // InvalidOperationException» qui non funzionerebbe: WebException deriva
+        // proprio da quella, quindi un .sig assente — un 550 del server — non
+        // verrebbe tradotto e l'operatore sentirebbe il messaggio grezzo di .NET.
         try
         {
-            var firma = await DownloadBytesAsync(nome, UpdateSignature.MaxSignatureBytes, cancellationToken)
+            firma = await DownloadBytesAsync(nome, UpdateSignature.MaxSignatureBytes, cancellationToken)
                 .ConfigureAwait(false);
-
-            if (firma.Length == 0)
-            {
-                throw new InvalidOperationException(
-                    $"Il file di firma {nome} e' vuoto: l'aggiornamento non viene installato.");
-            }
-
-            _log.LogInformation("Firma del pacchetto scaricata: {Byte} byte da {File}", firma.Length, nome);
-            return firma;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (Exception ex) when (ex is not InvalidOperationException)
+        catch (InvalidDataException ex)
+        {
+            // Il tetto sulla dimensione: la frase la porta gia' chi l'ha alzato, ed e'
+            // piu' precisa di «manca la firma».
+            _log.LogError(ex, "File di firma {File} rifiutato", nome);
+            throw new InvalidOperationException(ex.Message, ex);
+        }
+        catch (Exception ex)
         {
             _log.LogError(ex, "File di firma {File} non scaricabile", nome);
 
@@ -403,6 +407,15 @@ public sealed class UpdateService
                 + "L'aggiornamento non viene installato: avvisa chi gestisce il server.",
                 ex);
         }
+
+        if (firma.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Il file di firma {nome} e' vuoto: l'aggiornamento non viene installato.");
+        }
+
+        _log.LogInformation("Firma del pacchetto scaricata: {Byte} byte da {File}", firma.Length, nome);
+        return firma;
     }
 
     private void TryDelete(string path)
@@ -524,7 +537,10 @@ public sealed class UpdateService
 
             if (memoria.Length + letti > maxBytes)
             {
-                throw new InvalidOperationException(
+                // InvalidDataException e non InvalidOperationException: la seconda e'
+                // la base di WebException, quindi un guasto di rete e un file troppo
+                // grande non si distinguerebbero piu' da chi chiama.
+                throw new InvalidDataException(
                     $"Il file {fileName} supera i {maxBytes} byte attesi: non viene letto.");
             }
 
@@ -630,10 +646,6 @@ public sealed class UpdateService
     /// </remarks>
     private static string DescribeFailure(Exception ex) => ex switch
     {
-        // Un rifiuto deciso qui dentro porta già la frase giusta, scritta per chi la
-        // dovrà sentire: tradurla una seconda volta la sostituirebbe con una generica.
-        InvalidOperationException => ex.Message,
-
         WebException { Response: FtpWebResponse { StatusCode: FtpStatusCode.NotLoggedIn } }
             => "Il server ha rifiutato le credenziali degli aggiornamenti",
 
@@ -650,6 +662,17 @@ public sealed class UpdateService
             => "Il certificato del server degli aggiornamenti non e' attendibile",
 
         UriFormatException => "L'indirizzo del server degli aggiornamenti non e' valido",
+
+        // Un rifiuto deciso qui dentro porta già la frase giusta, scritta per chi la
+        // dovrà sentire: tradurla una seconda volta la sostituirebbe con una generica.
+        //
+        // VA DOPO I CASI DI RETE, E NON PRIMA. <see cref="WebException"/> deriva da
+        // <see cref="InvalidOperationException"/> — una scelta di libreria che non si
+        // indovina leggendo il codice — quindi un ramo messo in cima si prenderebbe
+        // anche tutti i guasti di rete, sostituendo «il nome del server non si
+        // risolve» con il messaggio grezzo dell'eccezione. Il compilatore lo dice
+        // (CS8510), ed è il motivo per cui l'ordine qui non va cambiato.
+        InvalidOperationException => ex.Message,
 
         _ => "Controllo degli aggiornamenti non riuscito",
     };
