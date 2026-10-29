@@ -217,7 +217,15 @@ async Task TestPbxAsync()
         Port = settings.Pbx.Port,
         UseTls = settings.Pbx.UseTls,
         ClientId = settings.Pbx.ClientId,
-        ClientSecret = settingsService.Secrets.Get(SecretStore.PbxClientSecretKey),
+        // Come l'applicazione: il segreto si legge per l'host a cui sta per essere
+        // inviato. Uno strumento di diagnosi che aggira il legame mostrerebbe un
+        // collegamento che funziona dove BlindPhone si rifiuta, che e' il modo
+        // migliore di far cercare il guasto nel posto sbagliato.
+        ClientSecret = settingsService.Secrets.GetForHost(
+            SecretStore.PbxClientSecretKey,
+            settings.Pbx.Host,
+            "il Client Secret dell'API del centralino"),
+
         Extension = settings.Sip.Username,
         QueueIds = settings.Pbx.QueueIds,
     };
@@ -629,7 +637,11 @@ static string Diagnosis(long sent, long received) => (sent, received) switch
 SipAccountOptions? BuildAccount()
 {
     var sip = settings.Sip;
-    var password = settingsService.Secrets.Get(SecretStore.SipPasswordKey);
+
+    var password = settingsService.Secrets.GetForHost(
+        SecretStore.SipPasswordKey,
+        sip.EffectiveRegistrar,
+        $"la password dell'account SIP {sip.Name}");
 
     if (string.IsNullOrWhiteSpace(sip.Username) || string.IsNullOrWhiteSpace(sip.Domain))
     {

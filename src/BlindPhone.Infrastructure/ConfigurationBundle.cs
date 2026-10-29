@@ -155,19 +155,32 @@ public sealed class ConfigurationBundleService
     private readonly SettingsService _settings;
     private readonly HotkeyProfileStore _hotkeys;
     private readonly ILogger<ConfigurationBundleService> _log;
+    private readonly IReadOnlyList<string> _provisioningFolders;
 
     /// <summary>Crea il servizio.</summary>
     /// <param name="settings">Configurazione dell'applicazione.</param>
     /// <param name="hotkeys">Deposito dei profili di tasti rapidi.</param>
     /// <param name="logger">Log diagnostico.</param>
+    /// <param name="provisioningFolders">
+    /// Cartelle in cui cercare il pacchetto da applicare all'avvio. Omesse si usano
+    /// quelle di <see cref="ProvisioningFolders"/>.
+    /// </param>
+    /// <remarks>
+    /// Le cartelle si possono indicare perché la verifica dei permessi che protegge
+    /// il provisioning va collaudata, e collaudarla su <c>%ProgramData%</c> vorrebbe
+    /// dire cambiare i permessi di una cartella di sistema sulla macchina di chi
+    /// esegue i test.
+    /// </remarks>
     public ConfigurationBundleService(
         SettingsService settings,
         HotkeyProfileStore hotkeys,
-        ILogger<ConfigurationBundleService>? logger = null)
+        ILogger<ConfigurationBundleService>? logger = null,
+        IReadOnlyList<string>? provisioningFolders = null)
     {
         _settings = settings;
         _hotkeys = hotkeys;
         _log = logger ?? NullLogger<ConfigurationBundleService>.Instance;
+        _provisioningFolders = provisioningFolders ?? ProvisioningFolders;
     }
 
     /// <summary>Tutte le sezioni, per chi vuole esportare la configurazione intera.</summary>
@@ -219,14 +232,63 @@ public sealed class ConfigurationBundleService
     /// avvio perderebbe le regolazioni fatte dall'operatore nelle sezioni che
     /// l'amministratore aveva lasciato libere.
     /// </para>
+    /// <para>
+    /// <b>Un pacchetto che non arriva da un amministratore non viene applicato.</b> Un
+    /// pacchetto distribuito vale per tutti i profili della postazione: sposta
+    /// l'indirizzo del centralino, cambia il registrar SIP, dirotta l'invio dei
+    /// pacchetti di assistenza e può installare un criterio con password che
+    /// impedisce all'operatore di rimettere le cose a posto. Con i permessi
+    /// predefiniti di <c>%ProgramData%</c> un utente standard può creare quella
+    /// sottocartella e scriverci dentro, quindi la sola posizione del file non
+    /// dimostra niente: si guarda chi può modificarlo. Vedi
+    /// <see cref="ProtectedLocation"/>.
+    /// </para>
+    /// <para>
+    /// Un pacchetto rifiutato <b>non interrompe la ricerca</b>: si passa alla cartella
+    /// successiva. Fermarsi lì permetterebbe di mettere fuori gioco una
+    /// configurazione legittima, accanto all'eseguibile, lasciando un file qualunque
+    /// in una cartella non protetta.
+    /// </para>
     /// </remarks>
     public BundleResult? ApplyProvisioningIfNewer()
     {
         var applicata = _settings.Current.AppliedConfigurationRevision;
 
-        foreach (var cartella in ProvisioningFolders)
+        // Il primo rifiuto si conserva: se non si trova nessun pacchetto valido,
+        // l'operatore deve comunque sentire che ce n'era uno e perche' e' stato
+        // ignorato. Un pacchetto scartato in silenzio e' indistinguibile da un
+        // pacchetto mai arrivato, e manderebbe chi amministra a cercare il guasto
+        // sul server di distribuzione.
+        BundleResult? rifiuto = null;
+
+        foreach (var cartella in _provisioningFolders)
         {
             var percorso = Path.Combine(cartella, ConfigurationBundle.ProvisioningFileName);
+
+            if (!File.Exists(percorso)) continue;
+
+            // LA VERIFICA DEI PERMESSI VIENE PRIMA DELLA LETTURA.
+            //
+            // Non per ordine formale: leggere e interpretare un JSON scritto da chi
+            // non doveva poterlo scrivere e' comunque dare in pasto al programma
+            // dati di origine non verificata, e qui c'e' tutto il tempo di non
+            // farlo.
+            if (!ProtectedLocation.IsAdminOnly(percorso, out var motivo))
+            {
+                _log.LogError(
+                    "Pacchetto di configurazione in {Path} ignorato: {Motivo}. "
+                    + "Un pacchetto distribuito deve stare in una cartella modificabile solo dagli "
+                    + "amministratori, e appartenere a loro. Come sistemarla: {Rimedio}",
+                    percorso, motivo, DescribeFix(cartella));
+
+                rifiuto ??= new BundleResult(
+                    false,
+                    "Configurazione distribuita ignorata: la cartella che la contiene non e' protetta, "
+                    + "quindi il pacchetto potrebbe non venire dall'amministratore. Avvisa chi gestisce la postazione");
+
+                continue;
+            }
+
             var bundle = Read(percorso);
 
             if (bundle is null) continue;
@@ -247,8 +309,31 @@ public sealed class ConfigurationBundleService
             return Apply(bundle);
         }
 
-        return null;
+        return rifiuto;
     }
+
+    /// <summary>
+    /// I due comandi che rimettono a posto i permessi di una cartella di
+    /// distribuzione.
+    /// </summary>
+    /// <param name="folder">Cartella da sistemare.</param>
+    /// <remarks>
+    /// <para>
+    /// Stanno nel registro, per esteso e pronti da incollare, perché chi li leggerà è
+    /// un amministratore che sta cercando di capire perché una configurazione
+    /// distribuita non viene applicata: dirgli «la cartella non è protetta» senza
+    /// dirgli come proteggerla sposta il problema invece di risolverlo.
+    /// </para>
+    /// <para>
+    /// Si usano gli identificativi numerici e non i nomi dei gruppi: i nomi integrati
+    /// cambiano con la lingua di Windows, e un comando che funziona solo su
+    /// un'installazione italiana è un comando che fallirà senza spiegare perché.
+    /// </para>
+    /// </remarks>
+    private static string DescribeFix(string folder)
+        => $"icacls \"{folder}\" /inheritance:r /grant \"*S-1-5-18:(OI)(CI)F\" "
+           + "\"*S-1-5-32-544:(OI)(CI)F\" \"*S-1-5-32-545:(OI)(CI)RX\"  —  poi  "
+           + $"icacls \"{folder}\" /setowner \"*S-1-5-32-544\" /t";
 
     /// <summary>Compone un pacchetto dalla configurazione corrente.</summary>
     /// <param name="sections">Sezioni da includere.</param>
@@ -359,7 +444,12 @@ public sealed class ConfigurationBundleService
 
         try
         {
-            var risultato = Merge(_settings.Current, bundle);
+            // La configurazione di partenza si cattura adesso: dopo il salvataggio
+            // _settings.Current e' quella nuova, e il confronto che dice all'operatore
+            // che cosa e' stato abbassato non avrebbe piu' niente con cui confrontare.
+            var prima = _settings.Current;
+            var risultato = Merge(prima, bundle);
+            var declassamenti = DescribeSecurityDowngrades(prima, risultato);
 
             if (!_settings.Save(risultato))
             {
@@ -384,13 +474,28 @@ public sealed class ConfigurationBundleService
 
             if (profili > 0) parti.Add($"{profili} profili di tasti rapidi");
 
-            return new BundleResult(
-                true,
-                parti.Count == 0
-                    ? "Configurazione applicata"
-                    : $"Configurazione applicata: {string.Join("; ", parti)}. "
-                      + "Le password vanno reinserite: non viaggiano nel pacchetto",
-                risultato);
+            var messaggio = parti.Count == 0
+                ? "Configurazione applicata"
+                : $"Configurazione applicata: {string.Join("; ", parti)}. "
+                  + "Le password vanno reinserite: non viaggiano nel pacchetto";
+
+            if (declassamenti.Count > 0)
+            {
+                foreach (var avviso in declassamenti)
+                {
+                    _log.LogWarning("Pacchetto di configurazione, sicurezza abbassata: {Avviso}", avviso);
+                }
+
+                // SI DICE, E AD ALTA VOCE.
+                //
+                // Un operatore vedente avrebbe davanti l'icona del lucchetto o la
+                // casella spuntata nel pannello. Chi non vede ha questo annuncio e
+                // nient'altro, e sono proprio le modifiche che un pacchetto
+                // malintenzionato farebbe per prime.
+                messaggio += $". ATTENZIONE: {string.Join("; ", declassamenti)}";
+            }
+
+            return new BundleResult(true, messaggio, risultato);
         }
         catch (Exception ex)
         {
@@ -403,7 +508,7 @@ public sealed class ConfigurationBundleService
     /// Compone la configurazione risultante prendendo dal pacchetto le sole sezioni
     /// dichiarate.
     /// </summary>
-    private static AppSettings Merge(AppSettings current, ConfigurationBundle bundle)
+    private AppSettings Merge(AppSettings current, ConfigurationBundle bundle)
     {
         var origine = bundle.Impostazioni;
         if (origine is null) return ApplyPolicy(current, bundle);
@@ -431,7 +536,12 @@ public sealed class ConfigurationBundleService
                     Conversation = origine.Conversation,
                     Ringer = origine.Ringer,
                     Announcements = origine.Announcements,
-                    RingtonePath = origine.RingtonePath,
+
+                    // La suoneria e' un percorso che il programma apre da se'
+                    // all'avvio: un valore di rete non e' un file che potrebbe non
+                    // esserci, e' un'autenticazione verso un host scelto da chi ha
+                    // scritto il pacchetto.
+                    RingtonePath = AcceptLocalRingtone(origine.RingtonePath, risultato.RingtonePath),
                     Audio = origine.Audio,
 
                     // Fa parte della sezione Audio come il resto: un reparto che ha
@@ -474,6 +584,154 @@ public sealed class ConfigurationBundleService
                 Policy = bundle.Criterio with { Origin = PolicyOrigin.User },
                 AppliedConfigurationRevision = bundle.Revisione,
             };
+
+    /// <summary>
+    /// Accetta la suoneria proposta dal pacchetto solo se è un file locale.
+    /// </summary>
+    /// <param name="proposto">Percorso che arriva dal pacchetto.</param>
+    /// <param name="attuale">Percorso in uso sulla postazione, che resta se il primo viene scartato.</param>
+    /// <remarks>
+    /// <para>
+    /// Un valore come <c>\\host\share\suoneria.wav</c> fa partire un'autenticazione
+    /// verso <c>host</c> appena la suoneria viene caricata, e chi controlla quell'host
+    /// raccoglie un tentativo di accesso con l'identità dell'operatore. Gli è bastato
+    /// scrivere una riga in un file di configurazione.
+    /// </para>
+    /// <para>
+    /// Si scarta il valore e si tiene quello che c'era, invece di rifiutare l'intero
+    /// pacchetto: le altre sezioni possono essere perfettamente legittime, e una
+    /// postazione che non si configura è un costo certo contro un rischio che qui è
+    /// già stato rimosso.
+    /// </para>
+    /// </remarks>
+    private string? AcceptLocalRingtone(string? proposto, string? attuale)
+    {
+        if (ProtectedLocation.IsLocalPath(proposto)) return proposto;
+
+        _log.LogWarning(
+            "Suoneria {Path} del pacchetto di configurazione scartata: non e' un percorso locale. Resta {Attuale}",
+            proposto, attuale ?? "il segnale predefinito");
+
+        return attuale;
+    }
+
+    /// <summary>
+    /// Elenca, in frasi pronunciabili, le protezioni che il pacchetto abbassa.
+    /// </summary>
+    /// <param name="prima">Configurazione in uso sulla postazione.</param>
+    /// <param name="dopo">Configurazione che il pacchetto produrrebbe.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Perché esiste anche con la cartella protetta.</b> Un pacchetto che arriva da
+    /// un amministratore può comunque abbassare la sicurezza per errore — un modello
+    /// preparato durante un collaudo, con la verifica dei certificati spenta, e poi
+    /// distribuito. Qui non si rifiuta niente: si dice che è accaduto, perché la
+    /// differenza fra una scelta e una dimenticanza la vede solo chi se ne accorge.
+    /// </para>
+    /// <para>
+    /// Sono elencate anche le cose che non sono un «abbassamento» ma uno
+    /// <i>spostamento</i>: il centralino, il registrar, il server degli aggiornamenti
+    /// e l'indirizzo dell'assistenza. Un pacchetto che li muove manda le credenziali
+    /// e i dati di traffico verso una macchina diversa da prima, e il legame fra
+    /// segreto e host (vedi <see cref="SecretStore.GetForHost"/>) impedisce che le
+    /// password partano, ma non che l'operatore debba saperlo.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<string> DescribeSecurityDowngrades(AppSettings prima, AppSettings dopo)
+    {
+        var avvisi = new List<string>();
+
+        if (!prima.Pbx.AcceptAnyCertificate && dopo.Pbx.AcceptAnyCertificate)
+        {
+            avvisi.Add("la verifica dei certificati del centralino e' stata disattivata");
+        }
+
+        if (!prima.Updates.AllowUnverifiedPackages && dopo.Updates.AllowUnverifiedPackages)
+        {
+            avvisi.Add("sono stati ammessi aggiornamenti senza impronta dichiarata");
+        }
+
+        if (Spostato(prima.Pbx.Host, dopo.Pbx.Host))
+        {
+            avvisi.Add($"il centralino e' cambiato: ora e' {dopo.Pbx.Host}");
+        }
+
+        if (Spostato(prima.Updates.ServerUrl, dopo.Updates.ServerUrl))
+        {
+            avvisi.Add("il server degli aggiornamenti e' cambiato");
+        }
+
+        if (Spostato(prima.Support.UploadUrl, dopo.Support.UploadUrl))
+        {
+            avvisi.Add("l'indirizzo a cui si inviano i pacchetti di assistenza e' cambiato");
+        }
+
+        avvisi.AddRange(DescribeAccountDowngrades(prima, dopo));
+
+        return avvisi;
+
+        // Un valore che viene svuotato non e' uno spostamento: non manda niente da
+        // nessuna parte, e segnalarlo sarebbe rumore su ogni pacchetto che lascia
+        // fuori una sezione.
+        static bool Spostato(string? vecchio, string? nuovo)
+            => !string.IsNullOrWhiteSpace(nuovo)
+               && !string.Equals(vecchio, nuovo, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Gli abbassamenti che riguardano i singoli account SIP.
+    /// </summary>
+    /// <remarks>
+    /// Il confronto è per identificativo e non per posizione nell'elenco: un pacchetto
+    /// può riordinare gli account, e confrontare il primo con il primo produrrebbe
+    /// avvisi inventati.
+    /// </remarks>
+    private static IEnumerable<string> DescribeAccountDowngrades(AppSettings prima, AppSettings dopo)
+    {
+        foreach (var nuovo in dopo.SipAccounts)
+        {
+            var vecchio = prima.SipAccounts.FirstOrDefault(
+                a => string.Equals(a.Id, nuovo.Id, StringComparison.Ordinal));
+
+            if (vecchio is null) continue;
+
+            if (TransportRank(nuovo.Transport) < TransportRank(vecchio.Transport))
+            {
+                yield return $"l'account {nuovo.Name} passa da {vecchio.Transport} a {nuovo.Transport}: "
+                             + "la segnalazione non e' piu' cifrata";
+            }
+
+            if (SrtpRank(nuovo.Srtp) < SrtpRank(vecchio.Srtp))
+            {
+                yield return $"l'account {nuovo.Name} passa da cifratura {vecchio.Srtp} a {nuovo.Srtp}: "
+                             + "la voce puo' viaggiare in chiaro";
+            }
+
+            if (!string.Equals(
+                    string.IsNullOrWhiteSpace(vecchio.Registrar) ? vecchio.Domain : vecchio.Registrar,
+                    string.IsNullOrWhiteSpace(nuovo.Registrar) ? nuovo.Domain : nuovo.Registrar,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                yield return $"il registrar dell'account {nuovo.Name} e' cambiato";
+            }
+        }
+    }
+
+    /// <summary>Quanto protegge un trasporto, dal meno al più.</summary>
+    private static int TransportRank(string? transport) => transport?.Trim().ToLowerInvariant() switch
+    {
+        "tls" => 2,
+        "tcp" => 1,
+        _ => 0,
+    };
+
+    /// <summary>Quanto protegge una politica di cifratura della voce, dalla meno alla più.</summary>
+    private static int SrtpRank(string? srtp) => srtp?.Trim().ToLowerInvariant() switch
+    {
+        "required" => 2,
+        "preferred" => 1,
+        _ => 0,
+    };
 
     private int ApplyHotkeys(ConfigurationBundle bundle)
     {

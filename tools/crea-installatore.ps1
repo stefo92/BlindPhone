@@ -42,6 +42,30 @@
     dell'architettura richiesta, non l'ultima costruita: le due stanno in cartelle
     separate proprio perche' non si possano scambiare.
 
+.PARAMETER ChiaveFirma
+    Percorso della chiave privata ECDSA P-256 con cui firmare il pacchetto. Se
+    omesso si legge dalla variabile d'ambiente BLINDPHONE_CHIAVE_FIRMA.
+
+    LA CHIAVE NON STA NEL REPOSITORY E NON DEVE ENTRARCI. E' l'unica cosa che un
+    attaccante non puo' procurarsi controllando il server degli aggiornamenti, ed
+    e' quello che rende utile la firma.
+
+    La firma prodotta finisce accanto al pacchetto come <nome>.msi.sig, ed e' il
+    file che le postazioni verificano prima di installare: senza, l'aggiornamento
+    automatico viene rifiutato. La chiave pubblica corrispondente va incorporata
+    in UpdateSignature.PublicKeySpki. La procedura completa sta in
+    docs\INSTALLAZIONE.md §10.
+
+    Generazione, una volta sola:
+
+        openssl ecparam -name prime256v1 -genkey -noout -out blindphone-update.key
+        openssl ec -in blindphone-update.key -pubout -outform DER | openssl base64 -A
+
+.PARAMETER SaltaFirma
+    Costruisce il pacchetto senza firmarlo. Serve per le prove locali, e il
+    pacchetto che ne esce NON e' distribuibile come aggiornamento: le postazioni
+    lo rifiutano. Un rilascio non si fa con questo interruttore.
+
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1
 
@@ -58,7 +82,9 @@ param(
     [ValidateSet('x64', 'arm64')]
     [string] $Architettura = 'x64',
     [bool] $Autonomo = $true,
-    [switch] $SaltaPubblicazione
+    [switch] $SaltaPubblicazione,
+    [string] $ChiaveFirma,
+    [switch] $SaltaFirma
 )
 
 $ErrorActionPreference = 'Stop'
@@ -130,6 +156,50 @@ foreach ($file in @($sorgenteWix, $fileIcona,
                     (Join-Path $cartellaGrafica 'riquadro.bmp'))) {
     if (-not (Test-Path $file)) {
         throw "File mancante: $file. Se e' grafica, rigenerala con tools\genera-icona.ps1"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Chiave di firma: si controlla ADESSO, non dopo la costruzione
+# ---------------------------------------------------------------------------
+#
+# Un pacchetto senza .sig accanto viene rifiutato dalle postazioni, quindi
+# scoprirlo a cose fatte significa aver costruito per niente. Il controllo e'
+# bloccante: un rilascio non firmato non e' un rilascio, e -SaltaFirma esiste
+# proprio perche' la via per non firmare sia una scelta scritta e non una
+# dimenticanza.
+
+if ([string]::IsNullOrWhiteSpace($ChiaveFirma)) { $ChiaveFirma = $env:BLINDPHONE_CHIAVE_FIRMA }
+
+if ($SaltaFirma) {
+    Write-Warning ("Pacchetto NON firmato (-SaltaFirma). Le postazioni rifiuteranno di installarlo " +
+                   "come aggiornamento automatico: va bene per una prova locale, non per un rilascio.")
+}
+else {
+    if ([string]::IsNullOrWhiteSpace($ChiaveFirma)) {
+        throw ("Nessuna chiave di firma. Indicala con -ChiaveFirma o nella variabile d'ambiente " +
+               "BLINDPHONE_CHIAVE_FIRMA, oppure usa -SaltaFirma per una prova locale. " +
+               "Vedi docs\INSTALLAZIONE.md §10.")
+    }
+
+    if (-not (Test-Path $ChiaveFirma)) {
+        throw "Chiave di firma non trovata: $ChiaveFirma"
+    }
+
+    if (-not (Get-Command openssl -ErrorAction SilentlyContinue)) {
+        throw ("openssl non trovato: serve per firmare il pacchetto. Arriva con Git per Windows " +
+               "(in C:\Program Files\Git\usr\bin) oppure si installa a parte.")
+    }
+
+    # La chiave privata dentro il repository, o dentro la cartella che finisce nel
+    # pacchetto, e' il modo piu' diretto di rendere inutile tutta questa procedura.
+    $chiaveRisolta = (Resolve-Path $ChiaveFirma).Path
+    foreach ($vietata in @($radice, $cartellaPubblicazione)) {
+        $prefisso = $vietata.TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+        if ($chiaveRisolta.StartsWith($prefisso, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw ("La chiave privata di firma si trova in $vietata. Spostala fuori: dentro il " +
+                   "repository o nella cartella di pubblicazione finirebbe distribuita.")
+        }
     }
 }
 
@@ -289,9 +359,77 @@ if ($LASTEXITCODE -ne 0) { throw "Costruzione del pacchetto non riuscita (codice
 
 $dimensione = (Get-Item $pacchetto).Length
 
+# ---------------------------------------------------------------------------
+# Firma applicativa e impronta
+# ---------------------------------------------------------------------------
+#
+# La firma e' quello che una postazione puo' verificare senza fidarsi del server
+# da cui ha scaricato: la chiave privata non sta sul server, quindi chi lo
+# controlla non riesce a produrla. L'impronta nel file delle novita' resta, ma
+# copre una cosa diversa — il file arrivato a metà — perche' chi puo' cambiare il
+# pacchetto puo' cambiare anche le note.
+
+$impronta = (Get-FileHash $pacchetto -Algorithm SHA256).Hash
+$fileNote = [System.IO.Path]::ChangeExtension($pacchetto, '.txt')
+
+if ($SaltaFirma) {
+    Write-Host "`nFirma saltata: il pacchetto non e' distribuibile come aggiornamento." -ForegroundColor Yellow
+    $fileFirma = $null
+}
+else {
+    Write-Host "`nFirma del pacchetto..."
+
+    $fileFirma = "$pacchetto.sig"
+
+    & openssl dgst -sha256 -sign $ChiaveFirma -out $fileFirma $pacchetto
+    if ($LASTEXITCODE -ne 0) { throw "Firma del pacchetto non riuscita (codice $LASTEXITCODE)" }
+
+    if (-not (Test-Path $fileFirma)) { throw "openssl non ha prodotto il file di firma $fileFirma" }
+
+    # Una firma vuota o enorme non e' una firma: la postazione la rifiuterebbe, e
+    # tanto vale accorgersene qui invece che sul campo. Una ECDSA P-256 in forma DER
+    # sta in settantadue byte, e il limite e' lo stesso che applica
+    # UpdateSignature.MaxSignatureBytes.
+    $byteFirma = (Get-Item $fileFirma).Length
+    if ($byteFirma -eq 0 -or $byteFirma -gt 1024) {
+        throw "Il file di firma e' di $byteFirma byte: non e' una firma ECDSA P-256 valida."
+    }
+
+    Write-Host ("  {0} ({1} byte)" -f $fileFirma, $byteFirma)
+}
+
+# L'impronta va nel file delle novita', sulla riga SHA256:. Si scrive qui e non a
+# mano perche' un'impronta ricopiata a mano, prima o poi, e' l'impronta del
+# pacchetto precedente — e la postazione rifiuterebbe quello giusto.
+if (Test-Path $fileNote) {
+    $righe = @(Get-Content $fileNote | Where-Object { $_ -notmatch '^\s*SHA256\s*:' })
+}
+else {
+    $righe = @(
+        "# Novita' della versione $etichetta. Una riga per novita'.",
+        "# Le righe che cominciano con # non compaiono a schermo.",
+        "# La riga SHA256: la scrive tools\crea-installatore.ps1: non modificarla a mano."
+    )
+}
+
+($righe + @("SHA256: $impronta")) | Set-Content $fileNote -Encoding UTF8
+
 Write-Host "`nFatto." -ForegroundColor Green
 Write-Host ("  {0}" -f $pacchetto)
 Write-Host ("  {0:N1} MB" -f ($dimensione / 1MB))
+Write-Host ("  SHA-256 {0}" -f $impronta)
+Write-Host ("  note    {0}" -f $fileNote)
+if ($fileFirma) { Write-Host ("  firma   {0}" -f $fileFirma) }
+Write-Host ""
+Write-Host "Da pubblicare nella cartella degli aggiornamenti, tutti e tre insieme:"
+Write-Host ("  {0}" -f [System.IO.Path]::GetFileName($pacchetto))
+Write-Host ("  {0}" -f [System.IO.Path]::GetFileName($fileNote))
+if ($fileFirma) {
+    Write-Host ("  {0}" -f [System.IO.Path]::GetFileName($fileFirma))
+}
+else {
+    Write-Warning "Manca il .sig: le postazioni rifiuteranno questo aggiornamento."
+}
 Write-Host ""
 Write-Host "Installazione senza interazione:  msiexec /i `"$pacchetto`" /qn"
 Write-Host "Senza collegamento sul desktop:   msiexec /i `"$pacchetto`" /qn DESKTOP=0"

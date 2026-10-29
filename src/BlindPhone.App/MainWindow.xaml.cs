@@ -694,7 +694,15 @@ public partial class MainWindow : Window
 
         return new UpdateService(
             settings.Updates,
-            _settingsService.Secrets.Get(settings.Updates.PasswordKey),
+
+            // Legata al server per cui e' stata inserita: cambiare l'indirizzo degli
+            // aggiornamenti in settings.json non deve mandare la password del server
+            // dell'ente a un indirizzo che l'ente non ha scelto.
+            _settingsService.Secrets.GetForHost(
+                settings.Updates.PasswordKey,
+                settings.Updates.ServerUrl,
+                "la password del server degli aggiornamenti"),
+
             InstalledVersion(),
             _serviceProvider.GetRequiredService<ILogger<UpdateService>>());
     }

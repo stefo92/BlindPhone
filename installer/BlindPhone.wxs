@@ -131,6 +131,7 @@
     <Feature Id="Principale" Title="BlindPhone" Level="1">
       <ComponentGroupRef Id="FileApplicazione" />
       <ComponentGroupRef Id="Collegamenti" />
+      <ComponentGroupRef Id="CartellaDatiDiMacchina" />
       <ComponentGroupRef Id="CriterioDiPostazione" />
     </Feature>
 
@@ -190,6 +191,68 @@
                   Target="[INSTALLFOLDER]BlindPhone.App.exe"
                   WorkingDirectory="INSTALLFOLDER" />
         <RegistryValue Root="HKLM" Key="Software\BlindPhone" Name="Desktop"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!--==================== Cartella dei dati di macchina ====================-->
+
+    <!--
+        %ProgramData%\BlindPhone VIENE SEMPRE CREATA, E CON UNA LISTA DI PERMESSI
+        SCRITTA A MANO.
+
+        E' la cartella in cui BlindPhone cerca il pacchetto di configurazione da
+        applicare all'avvio, e quel pacchetto vale per tutti i profili della
+        postazione: sposta l'indirizzo del centralino, cambia il registrar SIP,
+        dirotta l'invio dei pacchetti di assistenza e puo' installare un criterio
+        con password che impedisce all'operatore di rimettere le cose a posto.
+
+        Con i permessi che ProgramData ha di suo, un utente standard puo' creare
+        quella sottocartella se non esiste — diventandone proprietario — oppure
+        scriverci dentro se l'ha creata chi non ha interrotto l'ereditarieta'. Su
+        una postazione condivisa fra turni, tanto basta a un operatore qualsiasi
+        per distribuire una configurazione a tutti gli altri.
+
+        Per questo il componente non ha condizione: la cartella deve esistere, ed
+        essere protetta, ANCHE quando non si distribuisce nessuna configurazione.
+        Crearla solo insieme al pacchetto lascerebbe scoperto il caso piu' comune,
+        che e' l'installazione senza preconfigurazione.
+
+        LA STRINGA SDDL, PEZZO PER PEZZO
+
+          O:BA    proprietaria e' il gruppo Administrators. Conta: chi possiede un
+                  oggetto puo' riscriverne i permessi anche quando la lista non
+                  glielo concede.
+          G:SY    gruppo primario, LocalSystem. Non ha effetto sull'accesso.
+          D:P     la lista NON eredita da ProgramData. E' la riga che chiude il
+                  buco: senza, i permessi larghi del padre tornano dentro.
+          (A;OICI;FA;;;SY)        LocalSystem, controllo completo, ereditato da
+                                  file e sottocartelle.
+          (A;OICI;FA;;;BA)        Administrators, controllo completo.
+          (A;OICI;0x1200a9;;;BU)  Users, lettura ed esecuzione e nient'altro.
+                                  0x1200a9 e' FILE_GENERIC_READ|FILE_GENERIC_EXECUTE.
+
+        BlindPhone verifica comunque questi permessi a ogni avvio, prima di
+        applicare un pacchetto: vedi ProtectedLocation. Non e' una ridondanza
+        inutile — copre le postazioni installate con le versioni precedenti e le
+        cartelle i cui permessi sono stati cambiati dopo l'installazione.
+    -->
+    <ComponentGroup Id="CartellaDatiDiMacchina">
+
+      <Component Id="CartellaDatiProtetta" Directory="DATIBLINDPHONE"
+                 Guid="6F2E1C74-4F0B-4E56-9B7E-2C9E5A1D3B06">
+        <CreateFolder>
+          <util:PermissionEx Sddl="O:BAG:SYD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)" />
+        </CreateFolder>
+
+        <!--
+            La chiave di registro e' il KeyPath del componente. Serve perche' un
+            componente che dichiara solo CreateFolder non ha un percorso con cui
+            l'installatore possa decidere se e' installato: senza, la cartella
+            verrebbe ricreata o rimossa a ogni manutenzione del pacchetto.
+        -->
+        <RegistryValue Root="HKLM" Key="SOFTWARE\BlindPhone" Name="CartellaDati"
                        Type="integer" Value="1" KeyPath="yes" />
       </Component>
 

@@ -148,6 +148,15 @@ public sealed record SipSettings
         ? SecretStore.SipPasswordKey
         : $"{SecretStore.SipPasswordKey}.{Id}";
 
+    /// <summary>Server a cui viene inviata la registrazione.</summary>
+    /// <remarks>
+    /// Il registrar quando è indicato, altrimenti il dominio. È anche l'host a cui la
+    /// password di questo account resta legata nel deposito protetto: cambiarlo
+    /// significa cambiare a chi la password viene inviata, e per quello va
+    /// reinserita. Vedi <see cref="SecretStore.GetForHost"/>.
+    /// </remarks>
+    public string EffectiveRegistrar => string.IsNullOrWhiteSpace(Registrar) ? Domain : Registrar;
+
     /// <summary>Se l'account ha i dati minimi per tentare una registrazione.</summary>
     public bool IsUsable =>
         !string.IsNullOrWhiteSpace(Username) && !string.IsNullOrWhiteSpace(Domain);
@@ -292,14 +301,32 @@ public sealed record UpdateSettings
     /// Se accettare un pacchetto la cui impronta non è dichiarata nelle note.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Con la riga <c>SHA256:</c> nel file delle novità, il pacchetto scaricato viene
     /// confrontato con l'impronta dichiarata prima di proporne l'installazione. Senza
     /// quella riga non c'è nulla da confrontare: l'impostazione decide se procedere
-    /// avvisando o rifiutare. Il valore predefinito procede, perché la riga è
-    /// facoltativa e una postazione non deve restare indietro per una dimenticanza di
-    /// chi pubblica.
+    /// avvisando o rifiutare.
+    /// </para>
+    /// <para>
+    /// <b>Il valore predefinito rifiuta, e prima procedeva.</b> Il cambio chiude un
+    /// percorso che bastava da solo a installare un pacchetto qualunque: far fallire
+    /// la lettura del <c>.txt</c> — un file di testo su un server FTP — faceva
+    /// ricadere il programma su «impronta non dichiarata», e con il vecchio valore
+    /// predefinito quello significava installare senza verificare niente. Una
+    /// dimenticanza di chi pubblica costa ora un aggiornamento non proposto, che è un
+    /// disturbo; l'alternativa costava l'esecuzione di codice arbitrario con i
+    /// privilegi di amministratore.
+    /// </para>
+    /// <para>
+    /// <b>Non è l'unico controllo, ed è il più debole dei due.</b> L'impronta nelle
+    /// note sta sullo stesso server e sullo stesso canale del pacchetto, quindi
+    /// verifica l'integrità del trasferimento e non la provenienza. Quella la
+    /// verifica la firma applicativa di <see cref="UpdateSignature"/>, che è
+    /// obbligatoria e <b>non</b> si disattiva da qui: mettere <c>true</c> in questo
+    /// campo non fa accettare un pacchetto senza firma.
+    /// </para>
     /// </remarks>
-    public bool AllowUnverifiedPackages { get; init; } = true;
+    public bool AllowUnverifiedPackages { get; init; } = false;
 }
 
 /// <summary>Impostazioni di collegamento al centralino Yeastar.</summary>

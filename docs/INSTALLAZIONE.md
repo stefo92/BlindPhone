@@ -180,6 +180,27 @@ conservazione dei dati è stretta.
 > giorni di conservazione — *Impostazioni → Diagnostica* — e allinearli alla policy
 > dell'ente invece di lasciare il predefinito di 14 giorni.
 
+### Aggiornando alla 1.0.17
+
+Tre comportamenti cambiano, e sono tre protezioni che prima non c'erano. Chi
+amministra deve conoscerli **prima** di distribuire, perché una postazione può
+smettere di fare qualcosa che prima faceva.
+
+| Cosa cambia | Effetto su una postazione in servizio | Che fare |
+|---|---|---|
+| **Gli aggiornamenti devono essere firmati** | Se nella cartella del server non c'è il file `.msi.sig`, l'aggiornamento automatico viene rifiutato e annunciato | Pubblicare i tre file prodotti da `tools\crea-installatore.ps1` (§10) |
+| **`ftp://` in chiaro viene rifiutato** | Prima era un avviso nel registro; ora il controllo degli aggiornamenti non parte | Passare il server a `ftps://` o `https://` |
+| **La cartella del provisioning deve essere protetta** | Un `.bpcfg` in `%ProgramData%\BlindPhone` con i permessi ereditati viene ignorato | L'installatore protegge la cartella da sé; per il file copiato a mano vedi §8 |
+
+Le credenziali già inserite **non vanno reinserite**: al primo avvio vengono legate
+al server configurato in quel momento, e da lì in poi un cambio di server le richiede
+di nuovo. Vale per la password SIP, il Client Secret dell'API, la password del server
+degli aggiornamenti e quella del server della rubrica.
+
+> `secrets.dat` viene riscritto in un formato nuovo. Una versione precedente alla
+> 1.0.17 non lo sa leggere: tornando indietro, le credenziali vanno reinserite una
+> volta. Gli archivi cifrati non sono interessati.
+
 ---
 
 ## 3. Aggiornare
@@ -191,6 +212,23 @@ funziona allo stesso modo.
 
 Installare una versione **più vecchia** di quella presente viene invece rifiutato
 con un messaggio esplicito. Per farlo va disinstallata prima quella corrente.
+
+### Aggiornamento automatico dalla cartella del server
+
+BlindPhone sa cercare da sé una versione nuova in una cartella remota, e tre cose
+vanno sapute prima di contare su quella via:
+
+- **Il server deve essere su `ftps://` o `https://`.** Su `ftp://` in chiaro il
+  controllo viene rifiutato, non segnalato: chi sta sul percorso di rete potrebbe
+  sostituire il pacchetto con un altro programma, che verrebbe installato con i
+  privilegi di amministratore.
+- **Nella cartella vanno tre file per versione**, non due: il `.msi`, il `.txt` delle
+  novità e il `.msi.sig` con la firma. Li produce
+  `tools\crea-installatore.ps1`; senza il `.sig` l'aggiornamento viene rifiutato.
+- **La copia installata deve portare la chiave pubblica di firma.** Se non la porta
+  lo dice all'operatore e non installa niente da sé.
+
+Il §10 spiega come si generano le chiavi e come si firma.
 
 ---
 
@@ -352,14 +390,84 @@ msiexec /i BlindPhone-1.0.0-x64.msi /qn CONFIGURAZIONE="\\server\deploy\configur
 **A mano**, copiando il file in `%ProgramData%\BlindPhone\configurazione-predefinita.bpcfg`:
 BlindPhone lo cerca lì a ogni avvio e lo applica se la revisione è più alta di quella
 già applicata. Funziona anche su postazioni già installate, e un criterio di gruppo
-che aggiorna quel file aggiorna tutte le postazioni.
+che aggiorna quel file aggiorna tutte le postazioni. Richiede un passaggio in più —
+vedi *La cartella deve essere protetta*, qui sotto.
 
 **Dal pannello**, con *Impostazioni → Configurazione → Importa una configurazione*.
-Prima di applicare mostra che cosa contiene e quali sezioni sovrascriverà.
+Prima di applicare mostra che cosa contiene e quali sezioni sovrascriverà. È una
+scelta esplicita dell'operatore su un file che ha indicato lui, quindi non è
+soggetta alla verifica dei permessi.
 
 > Resta un solo passaggio manuale su ogni postazione, e non è aggirabile: **le
 > password** — SIP e Client Secret dell'API. Vivono sotto DPAPI e sono leggibili solo
 > dall'account Windows che le ha scritte su quella macchina.
+
+### La cartella deve essere protetta
+
+**BlindPhone applica un pacchetto distribuito solo se la cartella che lo contiene è
+modificabile unicamente dagli amministratori, e appartiene a loro.** Altrimenti lo
+ignora, lo scrive nel registro e lo annuncia all'operatore.
+
+Il motivo è che un pacchetto distribuito vale per tutti i profili della postazione:
+sposta l'indirizzo del centralino, cambia il registrar SIP, dirotta l'indirizzo a cui
+vanno i pacchetti di assistenza e può installare un criterio con password che
+impedisce all'operatore di rimettere le cose a posto. Con i permessi che
+`%ProgramData%` ha di suo, un utente standard può creare quella sottocartella — e
+diventarne proprietario — oppure scriverci dentro se l'ha creata chi non ha
+interrotto l'ereditarietà. Su una postazione condivisa fra turni, tanto basta a un
+operatore qualsiasi per riconfigurare quella di tutti gli altri.
+
+**Con l'installatore non serve fare niente**: la cartella viene creata e protetta a
+ogni installazione, e il pacchetto passato con `CONFIGURAZIONE` risulta scritto da
+`SYSTEM`. Verifica così:
+
+```powershell
+icacls "%ProgramData%\BlindPhone"
+```
+
+Devono comparire soltanto `SYSTEM` e `BUILTIN\Administrators` con `(F)`, e
+`BUILTIN\Users` con `(RX)`, senza voci ereditate.
+
+**Copiando il file a mano** il proprietario diventa l'amministratore che ha fatto la
+copia, e BlindPhone non ha modo di distinguere un account amministrativo da uno
+qualsiasi guardando solo il suo identificativo. Da un prompt amministrativo, dopo la
+copia:
+
+```powershell
+icacls "%ProgramData%\BlindPhone\configurazione-predefinita.bpcfg" /setowner "*S-1-5-32-544"
+```
+
+**Su una postazione installata con una versione precedente alla 1.0.17** la cartella
+può avere i permessi ereditati. Si sistema una volta, da un prompt amministrativo:
+
+```powershell
+icacls "%ProgramData%\BlindPhone" /inheritance:r /grant "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "*S-1-5-32-545:(OI)(CI)RX"
+```
+
+```powershell
+icacls "%ProgramData%\BlindPhone" /setowner "*S-1-5-32-544" /t
+```
+
+Si usano gli identificativi numerici e non i nomi perché i nomi dei gruppi integrati
+cambiano con la lingua di Windows: `*S-1-5-18` è `SYSTEM`, `*S-1-5-32-544` è il
+gruppo degli amministratori, `*S-1-5-32-545` quello degli utenti.
+
+> **La cartella dei dati dell'operatore non è questa.** `%APPDATA%\BlindPhone`
+> contiene configurazione, rubrica e registri di un singolo profilo e resta
+> scrivibile da quel profilo: è la cartella di chi ci lavora. Quella protetta è
+> `%ProgramData%\BlindPhone`, che vale per tutti.
+
+### Percorsi di rete nei pacchetti
+
+Un pacchetto non può più far puntare la suoneria a un percorso di rete
+(`\\host\share\suoneria.wav`, o una lettera di unità mappata). Il valore viene
+scartato e registrato, e resta quello che c'era.
+
+Non è una limitazione formale: aprire quel file fa partire un'autenticazione verso
+`host`, che riceve così un tentativo di accesso con l'identità dell'operatore. A chi
+ha scritto il pacchetto è bastata una riga. La suoneria va copiata sul disco della
+postazione — il pacchetto di configurazione non la trasporta, e non lo faceva
+nemmeno prima.
 
 ---
 
@@ -448,15 +556,99 @@ subito.
 
 ## 10. Firma digitale
 
-Il pacchetto **non è firmato**. Windows SmartScreen mostrerà quindi un avviso alla
-prima esecuzione su una postazione, e alcune configurazioni della PA rifiutano i
-pacchetti non firmati.
+Sono **due firme diverse** e servono a due cose diverse. Vanno distinte, perché
+confonderle è il modo di credersi protetti senza esserlo.
+
+| | Firma applicativa (`.msi.sig`) | Firma Authenticode |
+|---|---|---|
+| Chi la verifica | BlindPhone, prima di installare un aggiornamento | Windows: UAC, SmartScreen |
+| Che cosa serve | Una coppia di chiavi generata in casa | Un certificato di firma del codice acquistato |
+| Senza di essa | L'aggiornamento automatico **viene rifiutato** | L'operatore vede «Editore sconosciuto» |
+| Stato oggi | Obbligatoria | Da attivare quando il certificato c'è |
+
+### La firma applicativa, ed è quella obbligatoria
+
+Senza di lei nessun aggiornamento automatico viene installato. Il motivo è che
+l'impronta `SHA256:` nel file delle novità **non dimostra la provenienza**: sta sullo
+stesso server e sullo stesso canale del pacchetto, quindi chi può sostituire il
+pacchetto può sostituire anche l'impronta, e il confronto torna. La firma no: per
+produrla serve una chiave privata che sul server non c'è.
+
+**Una volta sola**, sulla macchina di build, si genera la coppia di chiavi:
+
+```powershell
+openssl ecparam -name prime256v1 -genkey -noout -out blindphone-update.key
+```
+
+```powershell
+openssl ec -in blindphone-update.key -pubout -outform DER | openssl base64 -A
+```
+
+Il secondo comando stampa la chiave **pubblica**: va incollata in
+`UpdateSignature.PublicKeySpki`, dentro
+`src/BlindPhone.Infrastructure/UpdateSignature.cs`. Finché quella costante è vuota,
+BlindPhone **non installa aggiornamenti da sé** e lo dice all'operatore: non è un
+ripiego prudente, è il comportamento corretto, perché l'alternativa — accettare un
+pacchetto che non si riesce a verificare — è la falla che la firma chiude.
+
+> **La chiave privata non entra nel repository, nel pacchetto o in un backup
+> condiviso.** È l'unica cosa che un attaccante non si procura controllando il
+> server degli aggiornamenti, e perderne il controllo annulla tutto il resto.
+> `tools\crea-installatore.ps1` si rifiuta di usare una chiave che si trovi dentro
+> la cartella del repository.
+
+**A ogni rilascio** la firma la produce lo script di costruzione:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\crea-installatore.ps1 -ChiaveFirma C:\chiavi\blindphone-update.key
+```
+
+In alternativa si imposta una volta la variabile d'ambiente
+`BLINDPHONE_CHIAVE_FIRMA` e il parametro si omette. Lo script produce tre file in
+`dist\`, e **vanno pubblicati tutti e tre** nella cartella degli aggiornamenti:
+
+| File | Contenuto |
+|---|---|
+| `BlindPhone-1.0.17-x64.msi` | il pacchetto |
+| `BlindPhone-1.0.17-x64.msi.sig` | la firma, circa settanta byte |
+| `BlindPhone-1.0.17-x64.txt` | le novità, con la riga `SHA256:` scritta dallo script |
+
+Se manca il `.sig`, le postazioni rifiutano l'aggiornamento e lo annunciano. Per
+una prova locale `-SaltaFirma` costruisce un pacchetto non firmato, che si installa
+a mano ma non si distribuisce.
+
+**Sostituire la chiave è un cambio di fiducia, non una correzione.** Dal momento in
+cui la costante cambia, i pacchetti firmati con la chiave precedente non vengono più
+accettati: le postazioni ancora alla versione vecchia vanno aggiornate a mano una
+volta.
+
+### La firma Authenticode
+
+Il pacchetto **non è ancora firmato** con un certificato di firma del codice.
+Windows SmartScreen mostra quindi un avviso alla prima esecuzione, e alcune
+configurazioni della PA rifiutano i pacchetti non firmati. Conta anche per
+l'aggiornamento: la richiesta di consenso di Windows mostra «Editore sconosciuto»
+sia per il pacchetto vero sia per uno contraffatto, e l'operatore — che in quel
+momento sta concedendo i privilegi di amministratore — non ha modo di distinguerli.
 
 Per firmarlo servono un certificato di firma del codice e, dopo la costruzione:
 
 ```powershell
-signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 dist\BlindPhone-0.1.0-x64.msi
+signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 dist\BlindPhone-1.0.17-x64.msi
 ```
 
 La marca temporale (`/tr`) non è facoltativa in pratica: senza, il pacchetto
 smette di risultare firmato alla scadenza del certificato.
+
+Appena il certificato esiste, va dichiarata anche a BlindPhone l'impronta del
+certificato atteso, in `AuthenticodeVerifier.ExpectedPublisherThumbprints`:
+
+```powershell
+certutil -hashfile certificato.cer SHA256
+```
+
+Da quel momento i due controlli sono **entrambi** obbligatori, e «firmato da
+qualcuno» non basta più: il certificato deve essere quello. L'elenco accetta più
+impronte perché un rinnovo le cambia — durante il passaggio ci stanno dentro sia il
+certificato uscente sia quello entrante, e il vecchio si toglie quando non
+circolano più pacchetti firmati con quello.

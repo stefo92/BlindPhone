@@ -98,7 +98,7 @@ Alla prima esecuzione viene creata la cartella `%APPDATA%\BlindPhone` con:
 |---|---|
 | `settings.json` | Configurazione, **senza segreti**, esportabile e condivisibile |
 | `hotkeys.json` | Profili dei tasti rapidi e nome di quello attivo |
-| `secrets.dat` | Password SIP, Client Secret dell'API e chiave degli archivi, cifrati con DPAPI ambito utente |
+| `secrets.dat` | Password SIP, Client Secret dell'API e chiave degli archivi, cifrati con DPAPI ambito utente. Ogni credenziale è legata al server per cui è stata inserita |
 | `contacts.db` | Archivio locale della rubrica, **cifrato** |
 | `history.db` | Elenco delle ultime chiamate, **cifrato**, con la conservazione scelta dall'operatore |
 | `certificati-fidati.json` | Certificati del centralino approvati dall'operatore. **Deliberatamente fuori da `settings.json`**, che è condivisibile |
@@ -141,6 +141,35 @@ Se la conversione non riesce l'archivio resta in chiaro e il programma continua 
 funzionare — un centralinista senza rubrica non lavora — ma il caso **non passa
 inosservato**: finisce nel registro e nella sezione *Archivi locali* del riepilogo
 diagnostico, e la conversione viene ritentata al riavvio.
+
+### Ogni credenziale è legata al server per cui è stata inserita
+
+DPAPI risponde a «chi può leggere il segreto sul disco». C'è una seconda domanda, e
+fino alla 1.0.16 non era coperta: **a chi il programma lo manda.** La password SIP
+stava sotto una chiave che nominava l'account e il Client Secret dell'API sotto una
+chiave fissa, quindi bastava cambiare l'indirizzo del centralino — in `settings.json`,
+che l'operatore può aprire con un editor di testo, o con un pacchetto di
+configurazione distribuito — perché la credenziale partisse verso l'indirizzo nuovo
+senza che nessuno venisse avvisato. Nel caso Yeastar il Client Secret viaggia nel corpo
+JSON di `get_token`: il nuovo host lo riceve per intero, e da quel momento ha le
+credenziali dell'API del centralino vero.
+
+Adesso ogni segreto è conservato insieme all'host per cui è stato inserito, e non viene
+restituito a un host diverso. Vale per la password SIP (legata al registrar), per il
+Client Secret dell'API (all'host del centralino), per la password del server degli
+aggiornamenti e per quella del server della rubrica. Un cambio di host costa un
+reinserimento dalle impostazioni, e **l'operatore sente perché**: «il server
+configurato è cambiato, la password non viene inviata al server nuovo» invece di un
+generico errore di autenticazione, che manderebbe a cercare il guasto nella password.
+
+Il legame si rifà dal pannello delle impostazioni, dove chi salva ha davanti il campo
+dell'indirizzo e quello della password: lì è una scelta di una persona, e il
+salvataggio dice ad alta voce che la credenziale ora vale per un altro server. Quello
+che non può rifarlo è una modifica silenziosa della configurazione.
+
+Le credenziali già presenti su una postazione che si aggiorna vengono legate al primo
+avvio all'host configurato in quel momento: **un aggiornamento dalla 1.0.16 non
+richiede di reinserire niente** se l'host non cambia.
 
 Per collegarsi a un PBX Yeastar servono: piano **Enterprise o Ultimate**, firmware
 37.7.0.16 o superiore, funzione API abilitata con Client ID e Client Secret
@@ -222,17 +251,19 @@ dietro l'abitudine sbagliata.
 ## Aggiornamenti dal server dell'ente
 
 BlindPhone può accorgersi da sé che è uscita una versione nuova, mostrarne le novità e
-installarla. **Sul server serve una cartella con due file per versione**, con lo stesso
-nome ed estensione diversa:
+installarla. **Sul server serve una cartella con tre file per versione**, legati fra
+loro dal nome:
 
 ```
-BlindPhone-1.2.0-x64.msi     il pacchetto prodotto dall'installatore
-BlindPhone-1.2.0-x64.txt     le novità che introduce
+BlindPhone-1.2.0-x64.msi       il pacchetto prodotto dall'installatore
+BlindPhone-1.2.0-x64.txt       le novità che introduce, con l'impronta SHA-256
+BlindPhone-1.2.0-x64.msi.sig   la firma del pacchetto, circa settanta byte
 ```
 
 L'abbinamento è il nome e nient'altro: nessun indice da tenere aggiornato, e pubblicare
-una versione è copiare due file in una cartella. La versione si legge dal nome del
-pacchetto, quindi il nome va lasciato quello che l'installatore produce.
+una versione è copiare tre file in una cartella. Li produce tutti e tre
+`tools\crea-installatore.ps1`. La versione si legge dal nome del pacchetto, quindi il
+nome va lasciato quello che l'installatore produce.
 
 Il file di testo si scrive a mano, una novità per riga:
 
@@ -244,10 +275,17 @@ Il file di testo si scrive a mano, una novità per riga:
 SHA256: 9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08
 ```
 
-La riga `SHA256:` è **facoltativa ma consigliata**: quando c'è, il pacchetto scaricato
-viene confrontato con quell'impronta prima di proporne l'installazione, e un file
-arrivato a metà o sovrascritto durante il caricamento viene scartato invece che
-installato. Si ottiene con `certutil -hashfile BlindPhone-1.2.0-x64.msi SHA256`.
+La riga `SHA256:` la scrive lo script di costruzione e **serve**: senza, il pacchetto
+non viene installato. Verifica l'integrità del trasferimento — il file arrivato a metà
+o sovrascritto durante il caricamento — e nient'altro: chi può sostituire il pacchetto
+sul server può sostituire anche questa riga, quindi non dimostra la provenienza.
+
+**La provenienza la dimostra il file `.sig`**, che è la firma ECDSA P-256 del pacchetto
+calcolata sulla macchina di build. La chiave pubblica è incorporata nel binario, la
+privata non entra nel repository: per far accettare un pacchetto contraffatto non basta
+più controllare il server degli aggiornamenti. Un pacchetto senza `.sig`, o firmato con
+un'altra chiave, viene rifiutato e l'operatore sente perché. Come si generano le chiavi
+e come si firma: [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) §10.
 
 **Dove si scrive l'indirizzo del server:** la costante `UpdateSettings.DefaultServerUrl`
 in [AppSettings.cs](src/BlindPhone.Infrastructure/AppSettings.cs), che vale per tutte le
@@ -255,13 +293,16 @@ postazioni installate da quel momento. Su una postazione già installata si corr
 `settings.json` sotto `Updates.ServerUrl`, che ha la precedenza. Deve essere l'indirizzo
 di una **cartella** e finire con la barra.
 
-**Usare `ftps://` e non `ftp://`.** Su FTP in chiaro la password e il pacchetto
-attraversano la rete leggibili: chi si trova sul percorso vede la prima e può
+**Serve `ftps://`, e `ftp://` viene rifiutato.** Su FTP in chiaro la password e il
+pacchetto attraversano la rete leggibili: chi si trova sul percorso vede la prima e può
 sostituire il secondo con un altro programma, che l'operatore installerebbe con i
-privilegi di amministratore. BlindPhone accetta `ftp://` — non tutti i server hanno
-FTPS — ma lo segnala nel registro e lo scrive nella finestra dell'aggiornamento, perché
-è una scelta che va fatta sapendo. La password del server non sta in `settings.json`: vive
-nel deposito protetto insieme a quelle SIP.
+privilegi di amministratore. Fino alla 1.0.16 BlindPhone accettava `ftp://` segnalandolo
+nel registro; ora non controlla nemmeno, e lo dice. Un avviso che lo legge chi non può
+farci niente non è una difesa.
+
+La password del server non sta in `settings.json`: vive nel deposito protetto insieme a
+quelle SIP, **legata all'indirizzo per cui è stata inserita**. Cambiare
+`Updates.ServerUrl` non la fa partire verso il nuovo indirizzo.
 
 **Come si comporta.** All'avvio legge l'elenco della cartella — poche centinaia di byte
 — e se trova una versione più recente lo annuncia e fa comparire un pulsante nella barra
