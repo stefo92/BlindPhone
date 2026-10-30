@@ -105,6 +105,22 @@ public interface ITelephonyEngine : IAsyncDisposable
     /// </remarks>
     event EventHandler<TransferProgressEventArgs>? TransferProgress;
 
+    /// <summary>Sollevato quando il centralino riporta lo stato della segreteria telefonica.</summary>
+    /// <remarks>
+    /// <para>
+    /// Alimentato dai <c>NOTIFY</c> del pacchetto di eventi <c>message-summary</c> (RFC
+    /// 3842): sia quelli della sottoscrizione che il motore apre da sé, sia quelli che
+    /// molti centralini mandano senza che nessuno li abbia chiesti.
+    /// </para>
+    /// <para>
+    /// <b>Si solleva a ogni notifica, anche identica alla precedente.</b> Il centralino
+    /// ne rimanda una a ogni rinnovo della sottoscrizione: decidere se c'è qualcosa di
+    /// nuovo da dire all'operatore spetta a chi ascolta, vedi
+    /// <see cref="Services.VoicemailService"/>, non al motore che traduce il protocollo.
+    /// </para>
+    /// </remarks>
+    event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
+
     /// <summary>Avvia il motore e la registrazione presso il registrar.</summary>
     /// <param name="cancellationToken">Token di annullamento.</param>
     Task StartAsync(CancellationToken cancellationToken);
@@ -407,4 +423,13 @@ public sealed record TransferProgressEventArgs(
     string CallId,
     TransferOutcome? Outcome,
     string? Detail,
+    DateTimeOffset At);
+
+/// <summary>Stato della segreteria telefonica riportato dal centralino.</summary>
+/// <param name="AccountName">Account a cui la casella appartiene, come lo chiama la configurazione.</param>
+/// <param name="Summary">Stato della casella, già interpretato.</param>
+/// <param name="At">Istante di ricezione.</param>
+public sealed record MessageWaitingEventArgs(
+    string AccountName,
+    MessageSummary Summary,
     DateTimeOffset At);

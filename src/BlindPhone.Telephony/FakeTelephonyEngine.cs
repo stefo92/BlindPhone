@@ -118,6 +118,11 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
     public event EventHandler<TransferProgressEventArgs>? TransferProgress;
 
     /// <inheritdoc />
+#pragma warning disable CS0067 // in modalita' simulata non c'e' un centralino con una segreteria
+    public event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
+#pragma warning restore CS0067
+
+    /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <inheritdoc />

@@ -281,6 +281,41 @@
                                    Text="Verifica sempre l'effetto con una chiamata di prova verso un telefono di cui vedi il display: e' il centralino ad avere l'ultima parola su quale numero viene mostrato."
                                    AutomationProperties.Name="Come verificare il numero presentato in uscita" />
 
+                        <!--
+                            NUMERO DELLA SEGRETERIA
+
+                            Sta nell'account come il numero presentato: due enti hanno due
+                            codici diversi, e quello giusto deve seguire il cambio di account.
+
+                            Alt+H, da "c_hiamare": nella scheda le lettere di "segreteria"
+                            e di "numero" sono gia' tutte prese, e quelle di Salva, Annulla
+                            e Sblocca non si possono riusare.
+
+                            La proposta del centralino compare sotto, con il suo pulsante,
+                            solo quando c'e' e quando e' diversa da quello che c'e' scritto.
+                            Non entra da sola nel campo: un valore che compare da se' in un
+                            modulo finisce salvato senza che nessuno l'abbia letto.
+                        -->
+                        <Label Target="{Binding ElementName=SipVoicemailNumber}" Content="Segreteria: numero da c_hiamare" />
+                        <TextBox x:Name="SipVoicemailNumber"
+                                 AutomationProperties.Name="Numero da chiamare per ascoltare la segreteria"
+                                 AutomationProperties.HelpText="Il codice con cui il centralino ti fa ascoltare i messaggi di questo interno, ad esempio asterisco 97. Lo compone il tasto della segreteria, Control Alt V. Se il centralino ne indica uno, compare qui sotto come proposta. Lascialo vuoto se il tuo interno non ha la segreteria." />
+
+                        <TextBlock x:Name="SipVoicemailProposal"
+                                   Visibility="Collapsed"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Numero della segreteria indicato dal centralino" />
+
+                        <Button x:Name="UseVoicemailProposalButton"
+                                Content="Usa il numero proposto"
+                                Visibility="Collapsed"
+                                HorizontalAlignment="Left"
+                                Margin="0,6,0,0"
+                                AutomationProperties.Name="Usa come segreteria il numero indicato dal centralino"
+                                Click="OnUseVoicemailProposalClick" />
+
                         <Button x:Name="TestSipButton"
                                 Content="Veri_fica la registrazione"
                                 HorizontalAlignment="Left"

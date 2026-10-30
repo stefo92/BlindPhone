@@ -801,6 +801,18 @@ public partial class App : Application
         // altrove.
         services.AddSingleton(sp => new DutyStatusService(sp.GetRequiredService<IClock>()));
 
+        // SEGRETERIA TELEFONICA.
+        //
+        // Si aggancia al motore e non all'account: il motore e' l'involucro che resta
+        // lo stesso quando l'operatore cambia account, e da li' arrivano le notifiche
+        // di qualunque account sia in uso. La finestra principale lo prende al
+        // momento della costruzione, cioe' prima che il motore parta, e per questo non
+        // perde la prima notifica — quella che dice i messaggi lasciati di notte.
+        services.AddSingleton(sp => new VoicemailService(
+            sp.GetRequiredService<ITelephonyEngine>(),
+            sp.GetRequiredService<IAnnouncer>(),
+            sp.GetRequiredService<ILogger<VoicemailService>>()));
+
         // Voce degli avvisi destinati a chi e' in linea. Distinta da quella degli
         // annunci: quella parla all'operatore e obbedisce alla sua configurazione,
         // questa parla all'interlocutore e non ha nulla da configurare.
@@ -916,7 +928,8 @@ public partial class App : Application
             // La politica di fiducia sui certificati e' la stessa del connettore
             // dell'API: un certificato gia' approvato per il centralino non va
             // riapprovato quando la stessa macchina si presenta sulla porta SIP.
-            sp.GetRequiredService<CertificateTrustService>());
+            sp.GetRequiredService<CertificateTrustService>(),
+            messageWaitingLogger: sp.GetRequiredService<ILogger<SipMessageWaitingSource>>());
     }
 
     /// <summary>
