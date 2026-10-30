@@ -316,14 +316,16 @@ CAD.
 ### Cambiare la grafica
 
 Striscia superiore e riquadro laterale si rigenerano dall'immagine sorgente
-`BlindPhoneLogo.png` insieme all'icona dell'applicazione:
+vettoriale `BlindPhoneLogo.svg` insieme all'icona dell'applicazione:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File tools\genera-icona.ps1
 ```
 
 Produce `src\BlindPhone.App\blindphone.ico` a sette risoluzioni e le due immagini
-in `installer\`. Va rieseguito solo se cambia l'immagine di partenza.
+in `installer\`. Va rieseguito solo se cambia l'immagine di partenza. Lo SVG viene
+convertito con Microsoft Edge senza finestra, quindi sulla macchina serve Edge; con
+`-Sorgente` si può indicare in alternativa un PNG quadrato.
 
 ### Aggiungere una regola del firewall
 

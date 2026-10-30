@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title desc">
+<title id="title">BlindPhone BP</title><desc id="desc">Logo blu con cornetta telefonica curva, lettere BP tridimensionali e tre onde di segnale.</desc>
+<defs>
+ <linearGradient id="handset" x1=".13" y1=".1" x2=".9" y2=".95" objectBoundingBox="true"><stop stop-color="#159aff"/><stop offset=".29" stop-color="#0860d1"/><stop offset=".67" stop-color="#0340a8"/><stop offset="1" stop-color="#001c69"/></linearGradient>
+ <linearGradient id="handsetTip" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#179bff"/><stop offset=".55" stop-color="#0766d6"/><stop offset="1" stop-color="#00338c"/></linearGradient>
+ <linearGradient id="bFill" x1=".15" y1="0" x2=".78" y2="1"><stop stop-color="#19a6ff"/><stop offset=".38" stop-color="#057ce9"/><stop offset=".75" stop-color="#0552bf"/><stop offset="1" stop-color="#002b88"/></linearGradient>
+ <linearGradient id="pFill" x1=".1" y1="0" x2=".9" y2="1"><stop stop-color="#0b4da9"/><stop offset=".42" stop-color="#072e78"/><stop offset="1" stop-color="#001448"/></linearGradient>
+ <linearGradient id="signal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#19b4ff"/><stop offset=".65" stop-color="#0875e2"/><stop offset="1" stop-color="#0650bc"/></linearGradient>
+ <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#7bd8ff" stop-opacity=".45"/><stop offset="1" stop-color="#3a9fff" stop-opacity="0"/></linearGradient>
+</defs>
+<!-- Curved receiver, with separately editable end caps -->
+<path d="M 271,220 C 191,255 125,324 121,412 C 109,591 236,787 387,929 C 518,1054 684,1147 826,1143 C 899,1140 962,1099 994,1038 L 811,870 C 777,911 738,936 691,930 C 579,918 454,830 379,750 C 302,669 258,568 295,473 L 386,357 Z" fill="url(#handset)"/>
+<path d="M 278,215 L 320,184 C 344,166 367,170 385,189 C 430,239 465,294 483,339 C 492,361 481,379 461,389 L 388,421 C 369,427 351,416 340,397 L 259,255 C 250,240 260,226 278,215 Z" fill="url(#handsetTip)"/>
+<path d="M 811,872 C 830,850 846,839 866,846 C 913,866 964,909 995,949 C 1015,975 1009,1004 990,1037 L 956,1092 C 942,1112 916,1112 897,1098 L 772,992 C 757,977 760,958 773,943 Z" fill="url(#handsetTip)"/>
+<path d="M 142,386 C 148,326 193,274 265,240 C 249,320 271,408 321,484 C 291,552 314,642 359,707 C 235,594 154,470 142,386 Z" fill="url(#shine)" opacity=".45"/>
+<!-- Letter B, with outlined internal counters -->
+<path fill="url(#bFill)" fill-rule="evenodd" d="M 438,428 L 641,428 C 718,428 762,464 752,527 C 747,559 730,579 698,594 C 746,615 772,647 758,703 C 743,772 686,808 611,808 L 388,808 Z M 520,499 L 508,579 L 614,579 C 641,579 658,565 662,541 C 666,516 652,499 628,499 Z M 498,650 L 483,730 L 612,730 C 638,730 657,716 661,693 C 666,667 648,650 621,650 Z"/>
+<path d="M 442,428 L 641,428 C 711,428 750,459 751,514 C 728,475 687,465 629,465 L 463,465 Z" fill="url(#shine)" opacity=".35"/>
+<!-- Letter P, with counter -->
+<path fill="url(#pFill)" fill-rule="evenodd" d="M 783,473 L 987,473 C 1078,473 1136,515 1135,598 C 1133,687 1075,743 978,743 L 856,743 L 835,838 L 707,838 Z M 866,560 L 848,664 L 969,664 C 1008,664 1031,647 1032,613 C 1033,579 1011,560 972,560 Z"/>
+<path d="M 783,473 L 984,473 C 1057,473 1108,504 1126,562 C 1094,520 1049,509 977,509 L 773,509 Z" fill="url(#shine)" opacity=".22"/>
+<!-- Wireless signal arcs -->
+<path d="M 889,182 C 974,196 1075,284 1125,422" fill="none" stroke="url(#signal)" stroke-width="73" stroke-linecap="round"/>
+<path d="M 873,276 C 942,288 1003,347 1038,423" fill="none" stroke="url(#signal)" stroke-width="64" stroke-linecap="round"/>
+<path d="M 855,365 C 892,369 927,391 952,431" fill="none" stroke="url(#signal)" stroke-width="53" stroke-linecap="round"/>
+</svg>

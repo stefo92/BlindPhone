@@ -20,8 +20,14 @@
     312). Sono a 24 bit e senza trasparenza, perche' le finestre di dialogo
     dell'installatore non compongono il canale alfa e lo renderebbero nero.
 
+    La sorgente predefinita e' vettoriale (BlindPhoneLogo.svg). System.Drawing non
+    legge lo SVG, quindi lo si fa disegnare a Microsoft Edge senza finestra e si
+    lavora sull'immagine che ne esce: Edge c'e' su ogni Windows 10 e 11, e non
+    serve installare altro.
+
 .PARAMETER Sorgente
-    Immagine di partenza, quadrata e con sfondo trasparente o pieno.
+    Immagine di partenza, quadrata e con sfondo trasparente o pieno: SVG, oppure
+    un formato raster che System.Drawing sappia aprire (PNG, BMP, JPEG).
 
 .PARAMETER Destinazione
     File .ico da scrivere.
@@ -57,7 +63,7 @@ if ([string]::IsNullOrEmpty($radice)) { $radice = Split-Path -Parent $PSCommandP
 if ([string]::IsNullOrEmpty($radice)) { $radice = (Get-Location).Path }
 $radice = Split-Path -Parent $radice
 
-if ([string]::IsNullOrEmpty($Sorgente)) { $Sorgente = Join-Path $radice 'BlindPhoneLogo.png' }
+if ([string]::IsNullOrEmpty($Sorgente)) { $Sorgente = Join-Path $radice 'BlindPhoneLogo.svg' }
 if ([string]::IsNullOrEmpty($Destinazione)) {
     $Destinazione = Join-Path $radice 'src\BlindPhone.App\blindphone.ico'
 }
@@ -67,6 +73,67 @@ if ([string]::IsNullOrEmpty($CartellaInstallatore)) {
 
 $Sorgente = (Resolve-Path $Sorgente).Path
 $Destinazione = [System.IO.Path]::GetFullPath($Destinazione)
+
+# Lato dell'immagine ricavata da uno SVG. Basta che superi di parecchio la misura
+# piu' grande richiesta piu' sotto, i 256 dell'icona: il ridimensionamento verso il
+# basso e' quello che riesce bene.
+$latoRaster = 1024
+
+function ConvertFrom-Svg {
+    param([string] $Svg, [int] $Lato, [string] $Cartella)
+
+    $edge = @(
+        (Join-Path ${env:ProgramFiles(x86)} 'Microsoft\Edge\Application\msedge.exe'),
+        (Join-Path $env:ProgramFiles 'Microsoft\Edge\Application\msedge.exe')
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if (-not $edge) {
+        throw "Microsoft Edge non trovato: serve per convertire $Svg. In alternativa passa con -Sorgente un PNG quadrato."
+    }
+
+    # Lo SVG non si apre direttamente: Edge lo mostrerebbe alla sua misura
+    # dichiarata, e con una finestra di misura diversa l'immagine uscirebbe tagliata
+    # o con un bordo vuoto. Una pagina che lo adatta alla finestra lo rende
+    # indipendente da width e height scritti nel file.
+    $pagina = Join-Path $Cartella 'sorgente.html'
+    $uscita = Join-Path $Cartella 'sorgente.png'
+    $indirizzo = ([System.Uri] $Svg).AbsoluteUri
+
+    @"
+<!doctype html>
+<html><body style="margin:0;background:transparent">
+<img src="$indirizzo" style="display:block;width:100vw;height:100vh;object-fit:contain">
+</body></html>
+"@ | Set-Content $pagina -Encoding UTF8
+
+    # Il profilo separato non e' una finezza: con quello predefinito, se Edge e'
+    # gia' aperto, la richiesta passa all'istanza esistente e l'immagine non viene
+    # mai scritta. Lo sfondo a zero e' quello che lascia trasparente il canale alfa.
+    $argomenti = @(
+        '--headless', '--disable-gpu', '--hide-scrollbars', '--no-first-run',
+        "--user-data-dir=`"$(Join-Path $Cartella 'profilo')`"",
+        '--default-background-color=00000000',
+        "--window-size=$Lato,$Lato",
+        "--screenshot=`"$uscita`"",
+        ([System.Uri] $pagina).AbsoluteUri
+    )
+
+    Start-Process -FilePath $edge -ArgumentList $argomenti -Wait -WindowStyle Hidden
+
+    if (-not (Test-Path $uscita)) { throw "Edge non ha prodotto l'immagine di $Svg" }
+
+    return $uscita
+}
+
+$cartellaTemporanea = $null
+
+if ([System.IO.Path]::GetExtension($Sorgente) -ieq '.svg') {
+    $cartellaTemporanea = Join-Path ([System.IO.Path]::GetTempPath()) ("genera-icona-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $cartellaTemporanea -Force | Out-Null
+
+    Write-Host "Sorgente SVG: $Sorgente"
+    $Sorgente = ConvertFrom-Svg -Svg $Sorgente -Lato $latoRaster -Cartella $cartellaTemporanea
+}
 
 # Oltre i 256 pixel il formato .ico non va, e sotto i 16 nessuna interfaccia di
 # Windows chiede l'icona.
@@ -301,4 +368,11 @@ try {
 }
 finally {
     $origine.Dispose()
+}
+
+# L'immagine intermedia e il profilo di Edge non servono piu'. Se Edge tiene ancora
+# aperto qualche file del profilo per un istante, la cartella resta in %TEMP%: non
+# vale la pena di fermare tutto per questo.
+if ($cartellaTemporanea) {
+    Remove-Item $cartellaTemporanea -Recurse -Force -ErrorAction SilentlyContinue
 }
