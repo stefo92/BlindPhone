@@ -39,7 +39,7 @@
     <UseWindowsForms>true</UseWindowsForms>
 
     <!--
-      Icona dell'applicazione, generata da BlindPhoneLogo.png con tools\genera-icona.ps1.
+      Icona dell'applicazione, generata da BlindPhoneLogo.svg con tools\genera-icona.ps1.
 
       Vale anche per le finestre: una finestra WPF che non dichiara la propria
       Icon usa quella dell'eseguibile, quindi questa riga copre barra del titolo,
