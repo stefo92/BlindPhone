@@ -21,9 +21,16 @@ uscita quello che serve.
 |---|---|---|
 | **Machine (PE)** | `0x8664` AMD64 | `0xAA64` ARM64 |
 | **Metadati ibridi** | nessuno | nessuno |
-| **Versione** | 2026.1.1.55980 | 2026.1.1.55980 |
-| **Dimensione** | 262.808 byte | 239.256 byte |
-| **SHA-256** | `2FE60CF00BE929AAE32E95C1E1507A20ADA4902C8FEC273B3CC2D3BF5472932A` | `1A2755C7864701E0EA6805499F1955B45758BA53DEA46A3FA83311F8589D2AF5` |
+| **Versione** | 2026.2.0.57664 | 2026.2.0.57664 |
+| **Dimensione** | 263.832 byte | 251.544 byte |
+| **SHA-256** | `598B7EC3DC469814F571275929F676CE73834C469FBDB359A06FD4DB4E0FC866` | `6FAAA1DD82BAE2AE953BD14F5206FEF63B8932D9A3CB4578FE027EC794F7918E` |
+
+Provenienza: `nvda_2026.2_controllerClient.zip`, 4.795.290 byte, scaricato da
+`https://download.nvaccess.org/releases/2026.2/` (SHA-256 del pacchetto
+`510736F021AEFA33378076FA342A4524B586BC1C6B096DB9479AF42B28AAC649`). Il pacchetto è
+quello pubblicato insieme a NVDA 2026.2 il 31 agosto 2026. Sostituisce la 2026.1.1
+(x64 `2FE60CF0…472932A`, arm64 `1A2755C7…89D2AF5`): stesse sette funzioni esportate,
+stessa architettura nell'intestazione PE.
 
 Le funzioni esportate sono le stesse nelle due copie, e sono quelle che il bridge
 chiama: `nvdaController_testIfRunning`, `nvdaController_speakText`,
@@ -32,10 +39,17 @@ chiama: `nvdaController_testIfRunning`, `nvdaController_speakText`,
 `nvdaController_setOnSsmlMarkReachedCallback`.
 
 Il numero di versione segue la numerazione delle release di NVDA, quindi le librerie
-provengono dalla **2026.1.1**: è il dato con cui verificare di avere il client abbinato
+provengono dalla **2026.2**: è il dato con cui verificare di avere il client abbinato
 alla versione di NVDA installata sulle postazioni. Le due copie vanno tenute alla stessa
 versione — sono la stessa libreria compilata due volte, e una postazione arm64 con un
 client più vecchio di quello x64 diventerebbe un caso da spiegare.
+
+**Compatibilità con NVDA più vecchio.** L'interfaccia è la versione 2.0 del client,
+introdotta con NVDA 2024.1: `nvdaController_getProcessId` e `nvdaController_speakSsml`
+funzionano da quella versione in poi, e su NVDA più vecchi rispondono con l'errore 1717
+(`RPC_S_UNKNOWN_IF`). Il client non è quindi legato alla stessa versione di NVDA, ma a una
+versione minima: una postazione con NVDA 2026.1.1 o precedente, fino alla 2024.1, funziona.
+Il bridge usa le sette funzioni elencate sopra, e nessuna è nuova in questa versione.
 
 **Manca però il blocco testuale della risorsa di versione**: né produttore, né nome del
 prodotto, né copyright. Sono i campi che avrebbero aiutato sulla licenza, e non ci sono.
@@ -100,21 +114,38 @@ sovrapporsi — dando per scontato che lo screen reader legga la notifica. Se qu
 notifica non viene letta, non parla nessuno. Il bridge diretto toglie di mezzo
 l'assunzione, perché dice se il testo è stato accettato.
 
-## Licenza: cosa manca ancora
+## Licenza
 
 La libreria è dichiarata fra le dipendenze in `publiccode.yml`, ed è inclusa nel pacchetto
 di installazione per decisione del titolare del progetto. Con la copia arm64 i binari di
 terze parti nel repository sono **due**: stessa libreria, stessa versione, stesso
-pacchetto di origine, quindi la verifica di licenza resta una sola — ma va chiusa per
-entrambe le architetture distribuite.
+pacchetto di origine, quindi la licenza è una sola per entrambe le architetture.
 
-**Il file di licenza che accompagna il pacchetto di NV Access non è ancora stato
-depositato qui**, e finché manca la verifica di compatibilità non è fatta: BlindPhone è
-distribuito come **GPL-3.0-only**, e i termini di questa libreria vanno letti, non dati
-per scontati. Fra le licenze libere ci sono combinazioni che non stanno insieme — la
-GPL v2 *only* e la GPL v3 sono il caso tipico.
+**Il testo di licenza è depositato qui**, accanto ai binari:
+[`LICENSE-nvdaControllerClient-LGPL-2.1.txt`](LICENSE-nvdaControllerClient-LGPL-2.1.txt),
+copia esatta del `license.txt` del pacchetto di NV Access. Il `readme.md` dello stesso
+pacchetto dichiara: *«The NVDA Controller Client API is licensed under the GNU Lesser
+General Public License (LGPL), version 2.1»*.
 
-È una verifica che va chiusa **prima della pubblicazione nel catalogo del riuso**, dove
-il software viene offerto ad altre amministrazioni che lo ridistribuiranno a loro volta.
-Depositare qui il file `license` o `copying` del pacchetto originale, e citarne i termini
-in questa pagina, è tutto ciò che serve.
+**Esito della verifica di compatibilità con la GPL-3.0-only del prodotto: compatibile.**
+Il caso che preoccupava — GPL v2 *only* contro GPL v3 — non è questo: la LGPL 2.1
+non è una GPL v2 *only*, ed è una licenza pensata proprio per le librerie usate da altri
+programmi. Il suo articolo 3 consente anzi di applicare a una copia della libreria i
+termini della GPL ordinaria, anche di una versione successiva alla 2 (*«If a newer
+version than version 2 of the ordinary GNU General Public License has appeared, then you
+can specify that version instead if you wish»*). Ma qui non serve nemmeno: è una libreria
+a collegamento dinamico, una DLL separata che l'utente può sostituire, cioè il caso di
+«programma che usa la libreria» che la LGPL regola e ammette negli articoli 5 e 6.
+
+**Obblighi che ne discendono, e che il pacchetto di installazione deve rispettare:**
+la DLL non viene modificata; il testo della licenza accompagna la distribuzione; la
+provenienza e l'impronta sono quelle riportate sopra, così chiunque può verificare che
+il file sia quello di NV Access.
+
+Il secondo obbligo è rispettato dalla versione 1.0.16: `BlindPhone.App.csproj` copia
+`LICENSE-nvdaControllerClient-LGPL-2.1.txt` nella cartella di uscita accanto alla DLL, e
+da lì entra nel pacchetto di installazione (verificato nella tabella dei file dell'MSI).
+
+Questa è la lettura dei testi, non un parere legale: per la pubblicazione nel catalogo
+del riuso, dove il software viene offerto ad altre amministrazioni che lo
+ridistribuiranno a loro volta, la conferma finale resta del titolare del progetto.
