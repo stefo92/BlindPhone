@@ -21,6 +21,27 @@ Tutte le combinazioni sono modificabili da *Impostazioni → Tasti rapidi*.
 - Modalità toni per i menu automatici — Locale: Control Maiusc D
 - Invia come toni quanto scritto nel campo di composizione — Locale: Control Maiusc Invio
 
+### Dai pulsanti della cuffia
+
+Con una cuffia USB da ufficio, anche con BlindPhone in secondo piano.
+Ogni pulsante fa quello che fa il tasto corrispondente, con gli stessi annunci.
+
+- Pulsante della chiamata mentre squilla: risponde, come F2. Chi era in linea
+  va in attesa
+- Pulsante della chiamata in linea: chiude, come F3. In consultazione chiude
+  con l'interno e riporta al chiamante
+- Pulsante della chiamata con la sola chiamata in attesa: la riprende, non la
+  chiude
+- Pulsante della chiamata a riposo: segnale di comando rifiutato
+- Tasto del microfono durante una chiamata: muto o attivo, come Control M
+- Tasto dell'attesa, se c'è: alterna fra due chiamate, o mette in attesa
+- Tasto di richiamata, se c'è, a riposo: richiama l'ultimo numero
+
+Si regola da *Impostazioni → Cuffia*: accesa di partenza, per qualunque cuffia
+collegata. Con la scheda aperta, un pulsante premuto viene detto nella riga di
+stato. Il tasto Play e pausa si usa solo se lo accendi lì, per le cuffie che non
+mandano altro: durante le chiamate non arriva più ai lettori multimediali.
+
 ## 2. Trasferimento — sequenza a tasto unico
 
 - F9 con chiamata attiva: mette in attesa l'esterno e chiede la destinazione

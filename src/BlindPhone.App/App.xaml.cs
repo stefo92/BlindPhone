@@ -879,6 +879,12 @@ public partial class App : Application
         services.AddSingleton<HotkeyConflictDetector>();
         services.AddSingleton<GlobalHotkeyRegistrar>();
 
+        // Pulsanti della cuffia. Il sorvegliante e' unico perche' e' unico l'elenco
+        // delle cuffie aperte: il pannello delle impostazioni lo interroga per
+        // elencarle, la finestra principale ne riceve i pulsanti.
+        services.AddSingleton<HeadsetMonitor>();
+        services.AddSingleton<HeadsetController>();
+
         services.AddSingleton<MainWindow>();
 
         // Transitorie: il pannello impostazioni rilegge la configurazione a ogni

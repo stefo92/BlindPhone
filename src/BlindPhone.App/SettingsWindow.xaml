@@ -695,6 +695,68 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ============================ CUFFIA ============================ -->
+            <!--
+                UNA SCHEDA A SE', E NON UNA SEZIONE DELLA SCHEDA AUDIO.
+
+                La scheda Audio ha gia' quindici lettere di accesso occupate: le tre
+                caselle di qui avrebbero preso lettere senza nessun legame con il loro
+                nome, e una lettera che non si indovina e' una lettera che non si usa.
+                Per il criterio di blocco invece e' la stessa sezione: chi blocca
+                l'audio blocca anche la cuffia, che e' un dispositivo audio come gli
+                altri. Vedi ApplyPolicyToPanel.
+
+                LA PROVA DEI PULSANTI NON HA UN PULSANTE: basta premere quello della
+                cuffia con la scheda aperta, e la riga di stato dice che cosa e' arrivato.
+                E' l'unico modo, per chi non vede la spia, di sapere che la cuffia
+                scelta e' davvero quella che sta ascoltando BlindPhone.
+            -->
+            <TabItem x:Name="HeadsetTab" Header="Cuffia" AutomationProperties.Name="Pulsanti e spie della cuffia">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel Margin="16">
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
+                                   Text="Con una cuffia USB da ufficio rispondi e chiudi dal pulsante della cuffia, senza cercare la tastiera: se squilla risponde, se sei in linea chiude, se c'e' solo qualcuno in attesa lo riprende. Il tasto del microfono silenzia. Le spie della cuffia seguono la chiamata. Vale subito, senza riavviare." />
+
+                        <CheckBox x:Name="HeadsetEnabled"
+                                  Content="_Rispondi e chiudi dai pulsanti della cuffia"
+                                  AutomationProperties.Name="Rispondi e chiudi dai pulsanti della cuffia"
+                                  AutomationProperties.HelpText="Accesa di partenza. Ascolta solo i pulsanti telefonici della cuffia, quelli che nessun altro dispositivo usa: il volume e gli altri tasti restano al sistema. Spegnila se la cuffia serve a un altro programma di telefonia e i suoi pulsanti devono andare solo a lui." />
+
+                        <Label Target="{Binding ElementName=HeadsetDevice}" Content="_Quale cuffia ascoltare" Margin="0,12,0,0" />
+                        <ComboBox x:Name="HeadsetDevice" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Cuffia di cui ascoltare i pulsanti"
+                                  AutomationProperties.HelpText="Qualunque cuffia collegata va bene quasi sempre. Scegline una se ne colleghi piu' di una e solo quella deve comandare le chiamate: viene riconosciuta da marca e modello, quindi continua a funzionare anche spostandola in un'altra presa USB." />
+
+                        <Button x:Name="HeadsetRefreshButton"
+                                Content="Cerca di nuovo le cuffie colle_gate"
+                                HorizontalAlignment="Left"
+                                Margin="0,8,0,0"
+                                AutomationProperties.Name="Cerca di nuovo le cuffie collegate"
+                                AutomationProperties.HelpText="Aggiorna l'elenco dopo aver collegato una cuffia con questa finestra aperta."
+                                Click="OnHeadsetRefreshClick" />
+
+                        <TextBlock x:Name="HeadsetStatus"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Cuffie trovate e ultimo pulsante ricevuto"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <TextBlock Text="Cuffie senza pulsanti telefonici" FontWeight="Bold" Margin="0,20,0,4" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="Alcune cuffie hanno soltanto il tasto Play e pausa, quello della musica. BlindPhone puo' usarlo per rispondere e chiudere, ma mentre una chiamata squilla o e' in corso il tasto non arriva piu' ai lettori musicali e video, da qualunque tastiera venga premuto. Fra una chiamata e l'altra torna a loro." />
+
+                        <CheckBox x:Name="HeadsetMediaFallback"
+                                  Content="Usa anche il tasto _Play e pausa per rispondere e chiudere"
+                                  AutomationProperties.Name="Usa anche il tasto Play e pausa per rispondere e chiudere"
+                                  AutomationProperties.HelpText="Spenta di partenza. Accendila solo se la tua cuffia non ha il pulsante telefonico: durante le chiamate il tasto Play e pausa smette di comandare la musica." />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- ============================ ACCESSIBILITA' ============================ -->
             <TabItem x:Name="AccessibilityTab" Header="Accessibilita" AutomationProperties.Name="Impostazioni di accessibilita">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
