@@ -53,7 +53,7 @@ progetti, e questo è verificato dal compilatore: targetta `net10.0` e non
 | `BlindPhone.Audio` | `net10.0-windows` | `IAudioEngine` su WASAPI, earcon a sintesi, percorso RTP della conversazione, ponte della conferenza |
 | `BlindPhone.Pbx.Yeastar` | `net10.0` | `IQueueProvider` e `IContactSource` su Open API |
 | `BlindPhone.Contacts` | `net10.0-windows` | Archivio SQLite, importazione CSV |
-| `BlindPhone.Infrastructure` | `net10.0-windows` | Impostazioni JSON, segreti DPAPI, scorciatoie globali, rapporti di errore, pacchetto per l'assistenza |
+| `BlindPhone.Infrastructure` | `net10.0-windows` | Impostazioni JSON, segreti DPAPI, scorciatoie globali, pulsanti e spie della cuffia (HID), rapporti di errore, pacchetto per l'assistenza |
 | `BlindPhone.App` | `net10.0-windows` | Shell WPF e composizione delle dipendenze |
 
 ---

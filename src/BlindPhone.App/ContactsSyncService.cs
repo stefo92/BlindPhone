@@ -1,4 +1,6 @@
 using BlindPhone.Contacts;
+using BlindPhone.Contacts.Ldap;
+using BlindPhone.Contacts.Outlook;
 using BlindPhone.Contacts.SqlBackup;
 using BlindPhone.Contacts.SqlServer;
 using BlindPhone.Core.Abstractions;
@@ -15,7 +17,8 @@ namespace BlindPhone.App;
 public sealed record ContactsSyncResult(bool Success, string Message, int Written = 0);
 
 /// <summary>
-/// Tiene allineata la copia locale della rubrica con la tabella sul server.
+/// Tiene allineata la copia locale della rubrica con la sua fonte: una tabella di SQL
+/// Server, una directory LDAP o i contatti di Outlook.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -40,6 +43,8 @@ public sealed class ContactsSyncService : IDisposable
     private readonly Func<bool> _isBusyWithCall;
     private readonly ILogger<ContactsSyncService> _log;
     private readonly ILogger<SqlServerContactSource> _sourceLog;
+    private readonly ILogger<LdapContactSource>? _ldapLog;
+    private readonly ILogger<OutlookContactSource>? _outlookLog;
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Timer? _timer;
@@ -50,14 +55,18 @@ public sealed class ContactsSyncService : IDisposable
     /// <param name="settings">Impostazioni correnti, rilette a ogni giro.</param>
     /// <param name="isBusyWithCall">Dice se c'è una chiamata in corso.</param>
     /// <param name="logger">Log diagnostico.</param>
-    /// <param name="sourceLogger">Log della sorgente.</param>
+    /// <param name="sourceLogger">Log della sorgente SQL Server.</param>
+    /// <param name="ldapLogger">Log della sorgente LDAP.</param>
+    /// <param name="outlookLogger">Log della sorgente Outlook.</param>
     public ContactsSyncService(
         IContactRepository contacts,
         SecretStore secrets,
         Func<AppSettings> settings,
         Func<bool> isBusyWithCall,
         ILogger<ContactsSyncService> logger,
-        ILogger<SqlServerContactSource> sourceLogger)
+        ILogger<SqlServerContactSource> sourceLogger,
+        ILogger<LdapContactSource>? ldapLogger = null,
+        ILogger<OutlookContactSource>? outlookLogger = null)
     {
         _contacts = contacts;
         _secrets = secrets;
@@ -65,6 +74,8 @@ public sealed class ContactsSyncService : IDisposable
         _isBusyWithCall = isBusyWithCall;
         _log = logger;
         _sourceLog = sourceLogger;
+        _ldapLog = ldapLogger;
+        _outlookLog = outlookLogger;
     }
 
     /// <summary>Avvia il riallineamento periodico, se configurato.</summary>
@@ -72,13 +83,13 @@ public sealed class ContactsSyncService : IDisposable
     {
         var impostazioni = _settings().Contacts;
 
-        if (impostazioni.Mode != ContactsMode.SqlServer || !impostazioni.SqlServer.IsConfigured)
+        if (DescribeIncomplete(impostazioni) is { } motivo)
         {
-            _log.LogInformation("Rubrica locale: nessun riallineamento da server");
+            _log.LogInformation("Rubrica locale: nessun riallineamento automatico ({Motivo})", motivo);
             return;
         }
 
-        var minuti = impostazioni.SqlServer.SyncIntervalMinutes;
+        var minuti = IntervalOf(impostazioni);
 
         // Il primo allineamento parte dopo mezzo minuto e non subito: all'avvio la
         // postazione sta gia' registrandosi al centralino e aprendo i dispositivi
@@ -90,9 +101,42 @@ public sealed class ContactsSyncService : IDisposable
             minuti > 0 ? TimeSpan.FromMinutes(minuti) : Timeout.InfiniteTimeSpan);
 
         _log.LogInformation(
-            "Rubrica collegata a {Server}, riallineamento ogni {Minuti} minuti",
-            impostazioni.SqlServer.Server, minuti);
+            "Rubrica collegata a {Fonte}, riallineamento ogni {Minuti} minuti",
+            DescribeOrigin(impostazioni), minuti);
     }
+
+    /// <summary>
+    /// Perché la provenienza configurata non si può riallineare, oppure <c>null</c>.
+    /// </summary>
+    /// <param name="settings">Impostazioni della rubrica.</param>
+    /// <remarks>
+    /// Una frase sola per il riallineamento periodico e per il pulsante: le due strade
+    /// devono rifiutare le stesse configurazioni con le stesse parole.
+    /// </remarks>
+    public static string? DescribeIncomplete(ContactsSettings settings) => settings.Mode switch
+    {
+        ContactsMode.SqlServer when !settings.SqlServer.IsConfigured => "Il collegamento al server non e' completo",
+        ContactsMode.Ldap when !settings.Ldap.IsConfigured =>
+            "Il collegamento alla directory non e' completo: servono il server e la base della ricerca",
+        ContactsMode.SqlServer or ContactsMode.Ldap or ContactsMode.Outlook => null,
+        _ => "La rubrica non e' collegata a un server",
+    };
+
+    /// <summary>Ogni quanti minuti riallineare, secondo la provenienza scelta.</summary>
+    private static int IntervalOf(ContactsSettings settings) => settings.Mode switch
+    {
+        ContactsMode.Ldap => settings.Ldap.SyncIntervalMinutes,
+        ContactsMode.Outlook => settings.Outlook.SyncIntervalMinutes,
+        _ => settings.SqlServer.SyncIntervalMinutes,
+    };
+
+    /// <summary>La provenienza, per il registro: mai credenziali, mai utenze.</summary>
+    private static string DescribeOrigin(ContactsSettings settings) => settings.Mode switch
+    {
+        ContactsMode.Ldap => ToLdapOptions(settings.Ldap).Describe(),
+        ContactsMode.Outlook => "Outlook",
+        _ => settings.SqlServer.Server,
+    };
 
     /// <summary>
     /// Riallinea la copia locale adesso.
@@ -102,11 +146,8 @@ public sealed class ContactsSyncService : IDisposable
     {
         var impostazioni = _settings().Contacts;
 
-        if (impostazioni.Mode != ContactsMode.SqlServer)
-            return new ContactsSyncResult(false, "La rubrica non e' collegata a un server");
-
-        if (!impostazioni.SqlServer.IsConfigured)
-            return new ContactsSyncResult(false, "Il collegamento al server non e' completo");
+        if (DescribeIncomplete(impostazioni) is { } motivo)
+            return new ContactsSyncResult(false, motivo);
 
         if (_isBusyWithCall())
         {
@@ -119,7 +160,7 @@ public sealed class ContactsSyncService : IDisposable
 
         try
         {
-            var sorgente = BuildSource(impostazioni.SqlServer);
+            var sorgente = BuildConfiguredSource(impostazioni);
 
             var contatti = await sorgente.LoadAsync(cancellationToken).ConfigureAwait(false);
 
@@ -128,21 +169,29 @@ public sealed class ContactsSyncService : IDisposable
                 // Non si svuota la rubrica su una lettura vuota: una tabella
                 // temporaneamente vuota, o un permesso revocato che restituisce zero
                 // righe, lascerebbe il centralino senza rubrica per un guasto altrui.
-                _log.LogWarning("Il server ha restituito zero contatti: la copia locale resta invariata");
-                return new ContactsSyncResult(false, "Il server non ha restituito contatti: la rubrica resta quella di prima");
+                _log.LogWarning("La fonte ha restituito zero contatti: la copia locale resta invariata");
+                return new ContactsSyncResult(false, "La fonte non ha restituito contatti: la rubrica resta quella di prima");
             }
 
             var scritti = await WriteAsync(sorgente, contatti, replace: true, cancellationToken)
                 .ConfigureAwait(false);
 
-            _log.LogInformation("Rubrica riallineata dal server: {Conteggio} contatti", scritti);
+            _log.LogInformation("Rubrica riallineata da {Fonte}: {Conteggio} contatti", sorgente.Name, scritti);
 
             return new ContactsSyncResult(true, $"Rubrica riallineata: {Describe(contatti)}", scritti);
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Riallineamento della rubrica non riuscito");
-            return new ContactsSyncResult(false, "Riallineamento non riuscito: la rubrica resta quella di prima");
+
+            // Il motivo si dice, quando lo si sa: «riallineamento non riuscito» e
+            // basta manda a cercare il guasto ovunque, mentre «la password
+            // dell'utenza e' scaduta» dice gia' chi chiamare.
+            return new ContactsSyncResult(
+                false,
+                DescribeFailure(ex, impostazioni) is { } perche
+                    ? $"Riallineamento non riuscito. {perche}. La rubrica resta quella di prima"
+                    : "Riallineamento non riuscito: la rubrica resta quella di prima");
         }
         finally
         {
@@ -231,6 +280,115 @@ public sealed class ContactsSyncService : IDisposable
             ? $"{contacts.Count - brevi} contatti e {brevi} numeri brevi"
             : $"{contacts.Count} contatti";
     }
+
+    /// <summary>La sorgente che corrisponde alla provenienza configurata.</summary>
+    /// <param name="settings">Impostazioni della rubrica, già verificate complete.</param>
+    public IContactSource BuildConfiguredSource(ContactsSettings settings) => settings.Mode switch
+    {
+        ContactsMode.Ldap => BuildLdapSource(settings.Ldap),
+        ContactsMode.Outlook => BuildOutlookSource(settings.Outlook),
+        _ => BuildSource(settings.SqlServer),
+    };
+
+    /// <summary>
+    /// Traduce l'errore di un riallineamento in una frase, quando la si sa dire.
+    /// </summary>
+    /// <param name="exception">Errore ricevuto.</param>
+    /// <param name="settings">Impostazioni con cui si è tentato.</param>
+    /// <returns>La frase, oppure <c>null</c> se l'errore non è di quelli riconosciuti.</returns>
+    public static string? DescribeFailure(Exception exception, ContactsSettings settings) => settings.Mode switch
+    {
+        ContactsMode.Ldap => LdapContactSource.DescribeFailure(exception, ToLdapOptions(settings.Ldap)),
+        ContactsMode.Outlook => OutlookContactSource.DescribeFailure(exception),
+        _ when exception is Microsoft.Data.SqlClient.SqlException sql => SqlServerContactSource.DescribeSqlFailure(sql),
+        _ => null,
+    };
+
+    /// <summary>Come si chiama la password della directory quando va reinserita.</summary>
+    public const string LdapPasswordDescription = "la password della directory della rubrica";
+
+    /// <summary>Costruisce la sorgente LDAP dalle impostazioni salvate.</summary>
+    /// <param name="settings">Collegamento configurato.</param>
+    public LdapContactSource BuildLdapSource(ContactsLdapSettings settings)
+        => new(ToLdapOptions(settings), ResolveLdapPassword(settings), _ldapLog);
+
+    /// <summary>
+    /// La password dell'utenza della directory, solo se vale per il server configurato.
+    /// </summary>
+    /// <param name="settings">Collegamento configurato.</param>
+    /// <returns>
+    /// La password, oppure <c>null</c> con l'utenza di Windows o l'accesso anonimo, che
+    /// non ne usano; stringa vuota se manca o appartiene a un altro server.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// È il meccanismo dei segreti legati all'host della 1.0.17, e qui conta più che
+    /// altrove: con l'accesso semplice la password parte verso il server così com'è,
+    /// e su un collegamento in chiaro chiunque sia in ascolto la legge. Spostare il
+    /// nome del server in <c>settings.json</c> non deve bastare a mandarla a una
+    /// macchina che l'ente non ha scelto.
+    /// </para>
+    /// <para>
+    /// Una password negata produce un errore di accesso che dice che cosa manca, e
+    /// l'annuncio dei segreti negati dice perché: è la stessa strada delle altre
+    /// credenziali, vedi <see cref="SecretStore.GetForHost"/>.
+    /// </para>
+    /// </remarks>
+    public string? ResolveLdapPassword(ContactsLdapSettings settings)
+        => settings.Bind != ContactsLdapBind.Simple
+            ? null
+            : _secrets.GetForHost(settings.PasswordSecretKey, settings.Server, LdapPasswordDescription);
+
+    /// <summary>Costruisce la sorgente Outlook dalle impostazioni salvate.</summary>
+    /// <param name="settings">Lettura configurata.</param>
+    public OutlookContactSource BuildOutlookSource(ContactsOutlookSettings settings)
+        => new(settings.IncludeSubfolders, _outlookLog);
+
+    /// <summary>Traduce le impostazioni salvate nei parametri del collegamento alla directory.</summary>
+    /// <param name="settings">Collegamento configurato.</param>
+    public static LdapOptions ToLdapOptions(ContactsLdapSettings settings) => new()
+    {
+        Server = settings.Server.Trim(),
+        Port = settings.Port,
+        Security = settings.Security switch
+        {
+            ContactsLdapSecurity.StartTls => LdapSecurity.StartTls,
+            ContactsLdapSecurity.Plain => LdapSecurity.Plain,
+            _ => LdapSecurity.Ldaps,
+        },
+        Bind = settings.Bind switch
+        {
+            ContactsLdapBind.Simple => LdapBind.Simple,
+            ContactsLdapBind.Anonymous => LdapBind.Anonymous,
+            _ => LdapBind.Windows,
+        },
+        BindUser = settings.BindUser,
+        PasswordSecretKey = settings.PasswordSecretKey,
+        BaseDn = settings.BaseDn.Trim(),
+
+        // Un filtro cancellato non vuol dire «tutto»: vuol dire che non lo si e'
+        // voluto cambiare. Cercare tutto porterebbe in rubrica computer, gruppi e
+        // account di servizio.
+        Filter = string.IsNullOrWhiteSpace(settings.Filter) ? LdapOptions.ActiveDirectoryFilter : settings.Filter.Trim(),
+        Scope = settings.OneLevelOnly ? LdapScope.OneLevel : LdapScope.Subtree,
+        SyncIntervalMinutes = settings.SyncIntervalMinutes,
+        Attributes = new LdapAttributeMapping
+        {
+            DisplayName = settings.Attributes.DisplayName,
+            FirstName = settings.Attributes.FirstName,
+            LastName = settings.Attributes.LastName,
+            Extension = settings.Attributes.Extension,
+            WorkPhone = settings.Attributes.WorkPhone,
+            MobilePhone = settings.Attributes.MobilePhone,
+            Email = settings.Attributes.Email,
+            Organization = settings.Attributes.Organization,
+            Department = settings.Attributes.Department,
+            JobTitle = settings.Attributes.JobTitle,
+            Building = settings.Attributes.Building,
+            EntryKey = settings.Attributes.EntryKey,
+            UpdatedAt = settings.Attributes.UpdatedAt,
+        },
+    };
 
     /// <summary>Costruisce la sorgente dalle impostazioni salvate.</summary>
     /// <param name="settings">Collegamento configurato.</param>

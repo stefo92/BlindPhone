@@ -282,6 +282,41 @@
                                    AutomationProperties.Name="Come verificare il numero presentato in uscita" />
 
                         <!--
+                            NUMERO DELLA SEGRETERIA
+
+                            Sta nell'account come il numero presentato: due enti hanno due
+                            codici diversi, e quello giusto deve seguire il cambio di account.
+
+                            Alt+H, da "c_hiamare": nella scheda le lettere di "segreteria"
+                            e di "numero" sono gia' tutte prese, e quelle di Salva, Annulla
+                            e Sblocca non si possono riusare.
+
+                            La proposta del centralino compare sotto, con il suo pulsante,
+                            solo quando c'e' e quando e' diversa da quello che c'e' scritto.
+                            Non entra da sola nel campo: un valore che compare da se' in un
+                            modulo finisce salvato senza che nessuno l'abbia letto.
+                        -->
+                        <Label Target="{Binding ElementName=SipVoicemailNumber}" Content="Segreteria: numero da c_hiamare" />
+                        <TextBox x:Name="SipVoicemailNumber"
+                                 AutomationProperties.Name="Numero da chiamare per ascoltare la segreteria"
+                                 AutomationProperties.HelpText="Il codice con cui il centralino ti fa ascoltare i messaggi di questo interno, ad esempio asterisco 97. Lo compone il tasto della segreteria, Control Alt V. Se il centralino ne indica uno, compare qui sotto come proposta. Lascialo vuoto se il tuo interno non ha la segreteria." />
+
+                        <TextBlock x:Name="SipVoicemailProposal"
+                                   Visibility="Collapsed"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Numero della segreteria indicato dal centralino" />
+
+                        <Button x:Name="UseVoicemailProposalButton"
+                                Content="Usa il numero proposto"
+                                Visibility="Collapsed"
+                                HorizontalAlignment="Left"
+                                Margin="0,6,0,0"
+                                AutomationProperties.Name="Usa come segreteria il numero indicato dal centralino"
+                                Click="OnUseVoicemailProposalClick" />
+
+                        <!--
                             LAVORO AGILE
 
                             Due campi dell'ACCOUNT e non della postazione, come il numero
@@ -684,6 +719,68 @@
                                    Text=""
                                    AutomationProperties.Name="Effetto previsto della configurazione del buffer"
                                    AutomationProperties.LiveSetting="Polite" />
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- ============================ CUFFIA ============================ -->
+            <!--
+                UNA SCHEDA A SE', E NON UNA SEZIONE DELLA SCHEDA AUDIO.
+
+                La scheda Audio ha gia' quindici lettere di accesso occupate: le tre
+                caselle di qui avrebbero preso lettere senza nessun legame con il loro
+                nome, e una lettera che non si indovina e' una lettera che non si usa.
+                Per il criterio di blocco invece e' la stessa sezione: chi blocca
+                l'audio blocca anche la cuffia, che e' un dispositivo audio come gli
+                altri. Vedi ApplyPolicyToPanel.
+
+                LA PROVA DEI PULSANTI NON HA UN PULSANTE: basta premere quello della
+                cuffia con la scheda aperta, e la riga di stato dice che cosa e' arrivato.
+                E' l'unico modo, per chi non vede la spia, di sapere che la cuffia
+                scelta e' davvero quella che sta ascoltando BlindPhone.
+            -->
+            <TabItem x:Name="HeadsetTab" Header="Cuffia" AutomationProperties.Name="Pulsanti e spie della cuffia">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Focusable="False">
+                    <StackPanel Margin="16">
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
+                                   Text="Con una cuffia USB da ufficio rispondi e chiudi dal pulsante della cuffia, senza cercare la tastiera: se squilla risponde, se sei in linea chiude, se c'e' solo qualcuno in attesa lo riprende. Il tasto del microfono silenzia. Le spie della cuffia seguono la chiamata. Vale subito, senza riavviare." />
+
+                        <CheckBox x:Name="HeadsetEnabled"
+                                  Content="_Rispondi e chiudi dai pulsanti della cuffia"
+                                  AutomationProperties.Name="Rispondi e chiudi dai pulsanti della cuffia"
+                                  AutomationProperties.HelpText="Accesa di partenza. Ascolta solo i pulsanti telefonici della cuffia, quelli che nessun altro dispositivo usa: il volume e gli altri tasti restano al sistema. Spegnila se la cuffia serve a un altro programma di telefonia e i suoi pulsanti devono andare solo a lui." />
+
+                        <Label Target="{Binding ElementName=HeadsetDevice}" Content="_Quale cuffia ascoltare" Margin="0,12,0,0" />
+                        <ComboBox x:Name="HeadsetDevice" FontSize="16" MinHeight="36"
+                                  AutomationProperties.Name="Cuffia di cui ascoltare i pulsanti"
+                                  AutomationProperties.HelpText="Qualunque cuffia collegata va bene quasi sempre. Scegline una se ne colleghi piu' di una e solo quella deve comandare le chiamate: viene riconosciuta da marca e modello, quindi continua a funzionare anche spostandola in un'altra presa USB." />
+
+                        <Button x:Name="HeadsetRefreshButton"
+                                Content="Cerca di nuovo le cuffie colle_gate"
+                                HorizontalAlignment="Left"
+                                Margin="0,8,0,0"
+                                AutomationProperties.Name="Cerca di nuovo le cuffie collegate"
+                                AutomationProperties.HelpText="Aggiorna l'elenco dopo aver collegato una cuffia con questa finestra aperta."
+                                Click="OnHeadsetRefreshClick" />
+
+                        <TextBlock x:Name="HeadsetStatus"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Cuffie trovate e ultimo pulsante ricevuto"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <TextBlock Text="Cuffie senza pulsanti telefonici" FontWeight="Bold" Margin="0,20,0,4" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                                   Text="Alcune cuffie hanno soltanto il tasto Play e pausa, quello della musica. BlindPhone puo' usarlo per rispondere e chiudere, ma mentre una chiamata squilla o e' in corso il tasto non arriva piu' ai lettori musicali e video, da qualunque tastiera venga premuto. Fra una chiamata e l'altra torna a loro." />
+
+                        <CheckBox x:Name="HeadsetMediaFallback"
+                                  Content="Usa anche il tasto _Play e pausa per rispondere e chiudere"
+                                  AutomationProperties.Name="Usa anche il tasto Play e pausa per rispondere e chiudere"
+                                  AutomationProperties.HelpText="Spenta di partenza. Accendila solo se la tua cuffia non ha il pulsante telefonico: durante le chiamate il tasto Play e pausa smette di comandare la musica." />
 
                     </StackPanel>
                 </ScrollViewer>
@@ -1544,7 +1641,7 @@
                             nomi.
                         -->
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
-                                   Text="Importa una rubrica da file CSV, da un backup di banca dati oppure da una tabella di Microsoft SQL Server. Le rubriche di gestionale riconosciute vengono abbinate da sole; sulle altre l'abbinamento si ricava dai titoli delle colonne. In tutti i casi puoi correggere ogni abbinamento, e l'anteprima mostra come verranno importate le voci." />
+                                   Text="Importa una rubrica da file CSV, da un backup di banca dati, da una tabella di Microsoft SQL Server, dalla directory LDAP o Active Directory dell'ente oppure dai contatti di Outlook. Le rubriche di gestionale riconosciute vengono abbinate da sole; sulle altre l'abbinamento si ricava dai titoli delle colonne. In tutti i casi puoi correggere ogni abbinamento, e l'anteprima mostra come verranno importate le voci." />
 
                         <!-- ============ CAMPI MOSTRATI NELLA RICERCA RAPIDA ============ -->
                         <Separator Margin="0,8,0,16" />
@@ -1638,10 +1735,12 @@
                         <Label Target="{Binding ElementName=ContactsSourceMode}" Content="_Da dove arrivano i contatti" />
                         <ComboBox x:Name="ContactsSourceMode" MinHeight="34" FontSize="15" Margin="0,0,0,10"
                                   AutomationProperties.Name="Provenienza della rubrica"
-                                  AutomationProperties.HelpText="Da file importati a mano, oppure da una tabella di Microsoft SQL Server riallineata periodicamente."
+                                  AutomationProperties.HelpText="Da file importati a mano, da una tabella di Microsoft SQL Server, dalla directory LDAP o Active Directory dell'ente, oppure dai contatti di Outlook su questa postazione. Le ultime tre si riallineano periodicamente."
                                   SelectionChanged="OnContactsModeChanged">
                             <ComboBoxItem Content="Solo file importati a mano" Tag="LocalFile" />
                             <ComboBoxItem Content="Collegata a Microsoft SQL Server" Tag="SqlServer" />
+                            <ComboBoxItem Content="Collegata alla directory LDAP o Active Directory" Tag="Ldap" />
+                            <ComboBoxItem Content="Contatti di Outlook su questa postazione" Tag="Outlook" />
                         </ComboBox>
 
                         <StackPanel x:Name="SqlServerPanel" Visibility="Collapsed" Margin="0,0,0,16">
@@ -1715,6 +1814,281 @@
 
                             <TextBlock x:Name="SqlServerStatusText" Margin="0,10,0,0" TextWrapping="Wrap"
                                        AutomationProperties.Name="Esito del collegamento al server"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+
+                        <!--
+                            DIRECTORY LDAP O ACTIVE DIRECTORY.
+
+                            Nella PA e' spesso la rubrica piu' aggiornata che c'e': il
+                            personale ci crea l'utenza il primo giorno e la disattiva
+                            l'ultimo. Come per il server, la directory e' la fonte e la
+                            copia locale cifrata e' cio' che si interroga mentre il
+                            telefono squilla.
+
+                            POCHI TASTI DI ACCESSO, E NON E' UNA DIMENTICANZA.
+
+                            La scheda li ha quasi finiti, e un tasto doppio porta al
+                            primo dei due elementi e non al secondo. Lo hanno solo il
+                            server e il pulsante che prova il collegamento; il resto si
+                            raggiunge con Tab, nell'ordine in cui si compila.
+
+                            IN CHIARO SOLO PER SCELTA, E CON UN AVVISO CHE SI SENTE.
+
+                            La voce "in chiaro" esiste perche' qualche directory interna
+                            non offre altro, ma e' l'ultima e dice "sconsigliato". Quando
+                            la si sceglie compare un avviso che lo screen reader legge
+                            subito, e l'avviso torna a ogni prova del collegamento.
+                        -->
+                        <StackPanel x:Name="LdapPanel" Visibility="Collapsed" Margin="0,0,0,16">
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                       Text="I contatti vengono letti dalla directory dell'ente e copiati nell'archivio cifrato della postazione. La directory non viene mai modificata, e a rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito." />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+
+                                <Label Grid.Row="0" Grid.Column="0" Content="Server della director_y" Target="{Binding ElementName=LdapServer}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="0" Grid.Column="1" x:Name="LdapServer" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Nome del server della directory o del dominio"
+                                         AutomationProperties.HelpText="Con Active Directory basta il nome del dominio, per esempio ente.local: il sistema trova da solo un server raggiungibile." />
+
+                                <Label Grid.Row="1" Grid.Column="0" Content="Porta" Target="{Binding ElementName=LdapPort}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="LdapPort" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Porta della directory"
+                                         AutomationProperties.HelpText="Lascia vuoto per la porta predefinita: 636 con LDAPS, 389 con StartTLS o in chiaro." />
+
+                                <Label Grid.Row="2" Grid.Column="0" Content="Protezione" Target="{Binding ElementName=LdapSecurityChoice}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" x:Name="LdapSecurityChoice" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Come proteggere il collegamento alla directory"
+                                          AutomationProperties.HelpText="LDAPS e StartTLS cifrano il collegamento. In chiaro nomi, numeri e la password dell'utenza dedicata viaggiano leggibili sulla rete: sceglilo solo se la directory non offre altro."
+                                          SelectionChanged="OnLdapSecurityChanged">
+                                    <ComboBoxItem Content="LDAPS, cifrato fin dal primo collegamento" Tag="Ldaps" />
+                                    <ComboBoxItem Content="StartTLS, cifrato subito dopo il collegamento" Tag="StartTls" />
+                                    <ComboBoxItem Content="In chiaro, senza cifratura: sconsigliato" Tag="Plain" />
+                                </ComboBox>
+
+                                <Label Grid.Row="3" Grid.Column="0" Content="Base della ricerca" Target="{Binding ElementName=LdapBaseDn}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="3" Grid.Column="1" x:Name="LdapBaseDn" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Base della ricerca nella directory"
+                                         AutomationProperties.HelpText="Il nome distinto da cui cominciare a cercare, con le parti separate da virgole: per esempio OU=Personale,DC=ente,DC=local." />
+
+                                <Label Grid.Row="4" Grid.Column="0" Content="Filtro" Target="{Binding ElementName=LdapFilter}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="4" Grid.Column="1" x:Name="LdapFilter" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Filtro della ricerca nella directory"
+                                         AutomationProperties.HelpText="Quali voci leggere. Quello proposto prende gli utenti attivi e i contatti di Active Directory che hanno almeno un numero. Se lo svuoti torna quello proposto." />
+
+                                <Label Grid.Row="5" Grid.Column="0" Content="Ambito" Target="{Binding ElementName=LdapScopeChoice}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="5" Grid.Column="1" x:Name="LdapScopeChoice" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Quanto in profondita' cercare sotto la base"
+                                          AutomationProperties.HelpText="Di solito tutto il sottoalbero. Solo il primo livello serve quando sotto la base ci sono unita' da non leggere.">
+                                    <ComboBoxItem Content="In tutto il sottoalbero sotto la base" Tag="Subtree" />
+                                    <ComboBoxItem Content="Solo al primo livello sotto la base" Tag="OneLevel" />
+                                </ComboBox>
+
+                                <Label Grid.Row="6" Grid.Column="0" Content="Accesso" Target="{Binding ElementName=LdapBindChoice}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="6" Grid.Column="1" x:Name="LdapBindChoice" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Come presentarsi alla directory"
+                                          AutomationProperties.HelpText="Con l'utenza di Windows la directory riconosce chi ha aperto BlindPhone e non serve nessuna password. L'utenza dedicata ha bisogno di nome e password, conservata nel deposito protetto di Windows. L'accesso anonimo funziona solo sulle directory che lo permettono."
+                                          SelectionChanged="OnLdapBindChanged">
+                                    <ComboBoxItem Content="Utenza di Windows di questa postazione" Tag="Windows" />
+                                    <ComboBoxItem Content="Utenza dedicata, con password" Tag="Simple" />
+                                    <ComboBoxItem Content="Accesso anonimo" Tag="Anonymous" />
+                                </ComboBox>
+
+                                <Label Grid.Row="7" Grid.Column="0" Content="Utenza" Target="{Binding ElementName=LdapUser}" VerticalAlignment="Center" />
+                                <TextBox Grid.Row="7" Grid.Column="1" x:Name="LdapUser" Margin="8,3" MinHeight="34" FontSize="15"
+                                         AutomationProperties.Name="Utenza dedicata per la directory"
+                                         AutomationProperties.HelpText="Active Directory accetta utente chiocciola dominio, oppure dominio barra rovesciata utente. Le altre directory di solito vogliono il nome distinto." />
+
+                                <Label Grid.Row="8" Grid.Column="0" Content="Password" Target="{Binding ElementName=LdapPassword}" VerticalAlignment="Center" />
+                                <PasswordBox Grid.Row="8" Grid.Column="1" x:Name="LdapPassword" Margin="8,3" MinHeight="34" FontSize="15"
+                                             AutomationProperties.Name="Password dell'utenza dedicata per la directory"
+                                             AutomationProperties.HelpText="Viene conservata nel deposito protetto di Windows, legata a questo server, mai nel file delle impostazioni. Se il server cambia va reinserita." />
+
+                                <Label Grid.Row="9" Grid.Column="0" Content="Riallineamento" Target="{Binding ElementName=LdapInterval}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="9" Grid.Column="1" x:Name="LdapInterval" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Ogni quanto riallineare la copia locale dalla directory"
+                                          AutomationProperties.HelpText="BlindPhone tiene una copia locale della rubrica e la riallinea alla directory con questa frequenza. Solo quando lo chiedo: la copia si aggiorna soltanto con il pulsante Riallinea adesso.">
+                                    <ComboBoxItem Content="Ogni 15 minuti" Tag="15" />
+                                    <ComboBoxItem Content="Ogni ora" Tag="60" />
+                                    <ComboBoxItem Content="Ogni 4 ore" Tag="240" />
+                                    <ComboBoxItem Content="Una volta al giorno" Tag="1440" />
+                                    <ComboBoxItem Content="Solo quando lo chiedo" Tag="0" />
+                                </ComboBox>
+                            </Grid>
+
+                            <TextBlock x:Name="LdapPlainWarning" Visibility="Collapsed" Margin="0,8,0,0" TextWrapping="Wrap" FontWeight="Bold"
+                                       Text="Attenzione: in chiaro nomi e numeri viaggiano leggibili sulla rete, e con un'utenza dedicata anche la sua password. Sceglilo solo se la directory non offre LDAPS ne' StartTLS."
+                                       AutomationProperties.Name="Avviso sul collegamento in chiaro"
+                                       AutomationProperties.LiveSetting="Assertive" />
+
+                            <!--
+                                GLI ATTRIBUTI STANNO IN UNA SEZIONE CHE SI APRE A RICHIESTA.
+
+                                Con Active Directory i valori proposti sono gia' quelli
+                                giusti, e undici caselle in piu' da attraversare con Tab
+                                costerebbero a chi ascolta per niente. Restano raggiungibili
+                                per le directory diverse, e un attributo svuotato non viene
+                                letto: e' il modo per non portare sulla postazione un dato,
+                                per esempio i cellulari di servizio.
+                            -->
+                            <Expander x:Name="LdapAttributesExpander" Margin="0,10,0,0"
+                                      Header="Attributi della directory letti per ogni campo"
+                                      AutomationProperties.Name="Attributi della directory letti per ogni campo"
+                                      AutomationProperties.HelpText="Spazio per aprire. I valori proposti sono quelli di Active Directory. Un attributo svuotato non viene letto.">
+                                <StackPanel Margin="0,6,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+
+                                        <Label Grid.Row="0" Grid.Column="0" Content="Interno" Target="{Binding ElementName=LdapAttrExtension}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="LdapAttrExtension" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo dell'interno"
+                                                 AutomationProperties.HelpText="In Active Directory e' ipPhone, il campo Telefono IP. Diventa il recapito predefinito del contatto." />
+
+                                        <Label Grid.Row="1" Grid.Column="0" Content="Telefono di ufficio" Target="{Binding ElementName=LdapAttrWorkPhone}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="LdapAttrWorkPhone" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo del telefono di ufficio"
+                                                 AutomationProperties.HelpText="In Active Directory e' telephoneNumber. Se il numero porta l'interno in coda, per esempio int. 4021, l'interno viene riconosciuto." />
+
+                                        <Label Grid.Row="2" Grid.Column="0" Content="Cellulare" Target="{Binding ElementName=LdapAttrMobile}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="LdapAttrMobile" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo del cellulare"
+                                                 AutomationProperties.HelpText="In Active Directory e' mobile. Svuotalo se i cellulari non devono arrivare sulla postazione." />
+
+                                        <Label Grid.Row="3" Grid.Column="0" Content="Nominativo" Target="{Binding ElementName=LdapAttrDisplayName}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="LdapAttrDisplayName" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo del nominativo"
+                                                 AutomationProperties.HelpText="In Active Directory e' displayName." />
+
+                                        <Label Grid.Row="4" Grid.Column="0" Content="Nome" Target="{Binding ElementName=LdapAttrFirstName}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="4" Grid.Column="1" x:Name="LdapAttrFirstName" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo del nome"
+                                                 AutomationProperties.HelpText="In Active Directory e' givenName." />
+
+                                        <Label Grid.Row="5" Grid.Column="0" Content="Cognome" Target="{Binding ElementName=LdapAttrLastName}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="5" Grid.Column="1" x:Name="LdapAttrLastName" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo del cognome"
+                                                 AutomationProperties.HelpText="In Active Directory e' sn." />
+
+                                        <Label Grid.Row="6" Grid.Column="0" Content="Reparto" Target="{Binding ElementName=LdapAttrDepartment}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="6" Grid.Column="1" x:Name="LdapAttrDepartment" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo del reparto"
+                                                 AutomationProperties.HelpText="In Active Directory e' department." />
+
+                                        <Label Grid.Row="7" Grid.Column="0" Content="Qualifica" Target="{Binding ElementName=LdapAttrJobTitle}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="7" Grid.Column="1" x:Name="LdapAttrJobTitle" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo della qualifica"
+                                                 AutomationProperties.HelpText="In Active Directory e' title." />
+
+                                        <Label Grid.Row="8" Grid.Column="0" Content="Collocazione" Target="{Binding ElementName=LdapAttrBuilding}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="8" Grid.Column="1" x:Name="LdapAttrBuilding" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo della collocazione"
+                                                 AutomationProperties.HelpText="In Active Directory e' physicalDeliveryOfficeName, il campo Ufficio. Viene letto come il padiglione del contatto." />
+
+                                        <Label Grid.Row="9" Grid.Column="0" Content="Ente" Target="{Binding ElementName=LdapAttrOrganization}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="9" Grid.Column="1" x:Name="LdapAttrOrganization" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo dell'ente o della societa'"
+                                                 AutomationProperties.HelpText="In Active Directory e' company." />
+
+                                        <Label Grid.Row="10" Grid.Column="0" Content="Posta elettronica" Target="{Binding ElementName=LdapAttrEmail}" VerticalAlignment="Center" />
+                                        <TextBox Grid.Row="10" Grid.Column="1" x:Name="LdapAttrEmail" Margin="8,3" MinHeight="30" FontSize="15"
+                                                 AutomationProperties.Name="Attributo della posta elettronica"
+                                                 AutomationProperties.HelpText="In Active Directory e' mail." />
+                                    </Grid>
+
+                                    <Button x:Name="LdapAttributesResetButton" Content="Rimetti gli attributi di Active Directory"
+                                            HorizontalAlignment="Left" Margin="0,8,0,0"
+                                            AutomationProperties.Name="Rimetti gli attributi proposti per Active Directory"
+                                            Click="OnLdapAttributesResetClick" />
+                                </StackPanel>
+                            </Expander>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button x:Name="LdapTestButton" Content="C_hiedi i contatti alla directory"
+                                        AutomationProperties.Name="Collegati alla directory, verifica l'accesso e mostra l'anteprima dei contatti"
+                                        AutomationProperties.HelpText="Usa quello che vedi a schermo. L'esito si sente subito, e le prime voci compaiono al passo Anteprima."
+                                        Click="OnLdapTestClick" />
+
+                                <Button x:Name="LdapSyncButton" Content="Riallinea adesso" Margin="8,0,0,0"
+                                        AutomationProperties.Name="Riallinea adesso la copia locale dalla directory"
+                                        AutomationProperties.HelpText="Usa la configurazione gia' salvata, la stessa del riallineamento periodico."
+                                        Click="OnLdapSyncClick" />
+                            </StackPanel>
+
+                            <TextBlock x:Name="LdapStatusText" Margin="0,10,0,0" TextWrapping="Wrap"
+                                       AutomationProperties.Name="Esito del collegamento alla directory"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+
+                        <!--
+                            CONTATTI DI OUTLOOK CLASSICO.
+
+                            Spesso i numeri che il centralinista usa davvero stanno qui,
+                            inseriti negli anni da chi c'era prima. Il nuovo Outlook non si
+                            lascia leggere da altri programmi: il pulsante lo riconosce e
+                            lo dice, con l'alternativa praticabile.
+                        -->
+                        <StackPanel x:Name="OutlookPanel" Visibility="Collapsed" Margin="0,0,0,16">
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                       Text="I contatti vengono letti dalle cartelle Contatti di Outlook classico su questa postazione e copiati nell'archivio cifrato. Outlook non viene modificato. Serve Outlook classico: il nuovo Outlook non permette ad altri programmi di leggere i contatti. Se Outlook e' chiuso, la lettura lo avvia senza mostrarlo." />
+
+                            <CheckBox x:Name="OutlookIncludeSubfolders" Margin="0,4,0,0"
+                                      Content="Leggi anche le sottocartelle dei contatti"
+                                      AutomationProperties.Name="Leggi anche le sottocartelle delle cartelle Contatti"
+                                      AutomationProperties.HelpText="Le sottocartelle sono quelle create dentro Contatti, per esempio Fornitori o Reperibili." />
+
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Label Grid.Column="0" Content="Riallineamento" Target="{Binding ElementName=OutlookInterval}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Column="1" x:Name="OutlookInterval" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Ogni quanto riallineare la copia locale dai contatti di Outlook"
+                                          AutomationProperties.HelpText="Ogni lettura sveglia Outlook, o lo avvia se e' chiuso. I contatti di Outlook cambiano di rado: ogni quattro ore di solito basta.">
+                                    <ComboBoxItem Content="Ogni ora" Tag="60" />
+                                    <ComboBoxItem Content="Ogni 4 ore" Tag="240" />
+                                    <ComboBoxItem Content="Una volta al giorno" Tag="1440" />
+                                    <ComboBoxItem Content="Solo quando lo chiedo" Tag="0" />
+                                </ComboBox>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                <Button x:Name="OutlookTestButton" Content="Leggi i contatti di Outloo_k"
+                                        AutomationProperties.Name="Leggi i contatti di Outlook e mostra l'anteprima"
+                                        AutomationProperties.HelpText="L'esito si sente subito, e le prime voci compaiono al passo Anteprima. Se Outlook mostra una finestra, per esempio un avviso di sicurezza, la lettura aspetta che venga chiusa."
+                                        Click="OnOutlookTestClick" />
+
+                                <Button x:Name="OutlookSyncButton" Content="Riallinea adesso" Margin="8,0,0,0"
+                                        AutomationProperties.Name="Riallinea adesso la copia locale dai contatti di Outlook"
+                                        AutomationProperties.HelpText="Usa la configurazione gia' salvata, la stessa del riallineamento periodico."
+                                        Click="OnOutlookSyncClick" />
+                            </StackPanel>
+
+                            <TextBlock x:Name="OutlookStatusText" Margin="0,10,0,0" TextWrapping="Wrap"
+                                       AutomationProperties.Name="Esito della lettura dei contatti di Outlook"
                                        AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
 

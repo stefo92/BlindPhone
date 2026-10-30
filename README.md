@@ -448,6 +448,15 @@ quel requisito è contrattuale.
   riconnessione, interrogazione adattiva, correlazione SIP/API con degrado sicuro
 - Segnalazione SIP: registrazione, chiamate, attesa, REFER cieco e con Replaces,
   DTMF, interpretazione dei NOTIFY di esito
+- Segreteria telefonica con avviso dei messaggi in attesa (MWI, RFC 3842):
+  sottoscrizione `message-summary` per l'account in uso, con rinnovo anticipato
+  quando il centralino concede meno tempo, e lettura dei NOTIFY non sollecitati.
+  L'avviso vocale («2 nuovi messaggi in segreteria») parte solo quando i messaggi
+  nuovi aumentano, non a ogni rinnovo; lo stato compare nella finestra principale,
+  nell'icona dell'area di notifica e nel riepilogo dello stato. Numero della
+  segreteria per account in *Impostazioni → Account SIP*, con la proposta del
+  centralino da confermare, e chiamata con `Ctrl+Alt+V`. Collaudata con un
+  centralino simulato sul trasporto SIP vero; manca la prova su un centralino reale
 - Scelta e ordinamento dei codec audio, con riordino da tastiera e avviso di
   conformità (vedi sotto)
 - Audio a quattro vie con gestione del collegamento a caldo, earcon a sintesi con
@@ -455,9 +464,23 @@ quel requisito è contrattuale.
 - Bridge NVDA e JAWS, voce interna SAPI su dispositivo dedicato, disattivabile da
   *Impostazioni → Accessibilità* quando duplicherebbe lo screen reader
 - Scorciatoie locali e globali, rilevamento conflitti a tre livelli
-- Rubrica SQLite con ricerca testuale e T9, importazione CSV, sorgente Yeastar
+- Controllo delle chiamate dai pulsanti della cuffia USB (pagina Telefonia HID:
+  gancio, microfono, attesa, richiamata), con le spie di squillo, linea e muto
+  tenute allineate, collegamento a caldo e ripiego facoltativo sul tasto Play e
+  pausa. Accesso diretto con `hid.dll` e CfgMgr32, senza SDK di produttori: vedi
+  sotto
+- Rubrica SQLite con ricerca testuale e T9, importazione CSV e da backup SQL,
+  sorgente Yeastar, collegamento a SQL Server
+- Sorgenti rubrica LDAP / Active Directory e Outlook classico, con riallineamento
+  periodico nella copia locale cifrata (vedi *Directory e Outlook* sotto)
 - Elenco delle ultime chiamate su archivio separato, diviso in perse, ricevute ed
   effettuate, con conservazione configurabile e cancellazione manuale
+- Link di chiamata `tel:` (RFC 3966), `sip:` e `sips:` (RFC 3261) e `callto:` da
+  gestionali, pagine web e posta: il numero arriva nel campo di composizione della
+  copia già aperta, la voce lo legge e la chiamata parte **solo con Invio**. Codici
+  di servizio, intestazioni SIP e caratteri di controllo vengono rifiutati. BlindPhone
+  si candida nelle App predefinite di Windows; come sceglierlo, anche per criterio
+  di gruppo, è in [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md)
 - Archivi locali cifrati a riposo con SQLCipher, chiave sotto DPAPI, conversione
   automatica di quelli nati in chiaro
 - Shell WPF accessibile con regioni dinamiche UI Automation
@@ -474,16 +497,29 @@ quel requisito è contrattuale.
 
 **Da completare**
 
+- Collaudo dal vivo dei pulsanti della cuffia su più modelli. Su una Sennheiser USB
+  headset (1395:0024) sono verificati il riconoscimento, l'apertura in ascolto e la
+  chiusura; la pressione dei pulsanti e il comando delle spie sono verificati solo
+  dai test, perché quella cuffia non ha spie e la prova è stata fatta senza
+  nessuno a premere
 - Storico annunci come finestra WPF: il comando è assegnato (`Ctrl+Shift+A`) ma
   risponde «funzione non ancora disponibile»
-- Sorgenti rubrica LDAP e ripristino da backup SQL
+- Collaudo sul campo delle sorgenti LDAP e Outlook: abbinamento, numeri ed errori
+  sono provati senza server, il collegamento vero (LDAPS, StartTLS, lettura a
+  pagine oltre le mille voci, COM di Outlook) va verificato presso un ente
+- Rubrica dalla casella di Microsoft 365 tramite Microsoft Graph, l'unica strada
+  per i contatti del nuovo Outlook
 - Parcheggio, risposta per assente
+- Prova sul campo dei link di chiamata con i browser, i client di posta e i
+  gestionali dell'ente: interpretazione, consegna alla copia aperta e registrazione
+  nell'installatore sono verificate dai test e dal pacchetto costruito, non ancora
+  da un'installazione su una postazione reale
 - Decisione su RTT (EN 301 549 §6.2): implementarlo o dichiarare lo scostamento
   nell'Accessibility Conformance Report
 - ICE e TURN non ci sono, per scelta motivata: in SIPSorcery 10 l'ICE esiste solo per
   WebRTC, e il client TURN parla con il relè solo su UDP, che è proprio il caso in cui
   il relè serve meno. Che cosa servirebbe e quando conviene un SBC è in
-  [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7
+  [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7-bis
 
 ## Rubrica
 
@@ -556,6 +592,57 @@ Per provare l'abbinamento su un file senza aprire l'applicazione:
 ```bash
 dotnet run --project tools/BlindPhone.Diagnostics -- rubrica C:\rubrica.csv
 ```
+
+### Directory e Outlook
+
+Oltre ai file e a SQL Server, *Da dove arrivano i contatti* offre due provenienze
+che si riallineano da sole, sempre nella copia locale cifrata: il nome di chi chiama
+si cerca mentre il telefono squilla, e non può dipendere da un giro di rete.
+
+**Directory LDAP o Active Directory.** Bastano il server — con Active Directory il
+nome del dominio — e la base della ricerca. Filtro e attributi proposti sono quelli
+di Active Directory:
+
+| Campo | Attributo |
+|---|---|
+| Interno (recapito predefinito) | `ipPhone` |
+| Telefono di ufficio | `telephoneNumber` |
+| Cellulare | `mobile` |
+| Nominativo, nome, cognome | `displayName`, `givenName`, `sn` |
+| Reparto, qualifica, ente | `department`, `title`, `company` |
+| Collocazione | `physicalDeliveryOfficeName` |
+| Posta | `mail` |
+| Identità stabile, ultima modifica | `objectGUID`, `whenChanged` |
+
+Il filtro prende gli utenti attivi e i contatti con almeno un numero. Al server si
+chiedono solo gli attributi abbinati (un attributo svuotato non viene letto: è il
+modo per non portare sulla postazione, per esempio, i cellulari). La lettura è a
+pagine, perché Active Directory non restituisce più di mille voci per richiesta, e
+ogni pagina ha un tempo massimo. I rinvii ad altri server non si seguono.
+
+Il collegamento è cifrato con LDAPS (predefinito, porta 636) o StartTLS; *in chiaro*
+è l'ultima voce, dice «sconsigliato» e lo ripete a ogni prova. L'accesso è con
+l'utenza di Windows della postazione (nessuna password), con un'utenza dedicata o
+anonimo. La password dell'utenza dedicata sta in `secrets.dat`, **legata al server**
+come le altre credenziali dalla 1.0.17: cambiare il server in `settings.json` non la
+manda altrove. Gli errori si sentono in italiano, distinguendo le risposte di Active
+Directory che si risolvono in modi diversi — password scaduta, utenza bloccata,
+utenza disattivata, credenziali sbagliate.
+
+**Contatti di Outlook.** Si leggono le cartelle Contatti di ogni archivio del
+profilo di Outlook classico, sottocartelle comprese a scelta, con COM a collegamento
+tardivo: nessuna dipendenza dagli assembly di interoperabilità di Office, e nessun
+problema su una postazione senza Outlook. Il **nuovo Outlook** non espone COM: viene
+riconosciuto e l'operatore sente l'alternativa (esportare un CSV da Outlook sul web).
+Posta elettronica e note non si leggono perché il controllo di sicurezza di Outlook
+potrebbe mostrare un avviso; il numero di casa non si legge per minimizzazione.
+Outlook non viene mai chiuso da BlindPhone.
+
+**I numeri** di entrambe le provenienze li scrive una persona — «+39 (0521)
+703-111 int. 4021» — e vengono ridotti alla forma componibile: spazi, parentesi e
+trattini tolti, `(0)` gestito secondo il prefisso, l'interno in coda riconosciuto e
+reso recapito predefinito. Un campo con due numeri o con una nota non si compone e
+finisce nelle note del contatto.
 
 ## Ultime chiamate
 
@@ -868,7 +955,7 @@ raggiungono da collegamenti diversi, e quando il server vede la postazione con i
 stesso indirizzo. La ragione della scelta si legge nella scheda Diagnostica.
 
 Porte da aprire, quando serve TURN e che cosa fare sul centralino: vedi
-[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7.
+[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7-bis.
 
 ## Segnalazione cifrata e certificati
 
@@ -1161,6 +1248,69 @@ Il pulsante **Salva la configurazione dei tasti** offre quattro destinazioni:
 
 L'applicazione a caldo è deliberata: una scorciatoia si verifica provandola, e
 chiedere un riavvio a ogni tentativo renderebbe la configurazione impraticabile.
+
+## Pulsanti della cuffia
+
+*Impostazioni → Cuffia*
+
+Con una cuffia USB da ufficio l'operatore risponde e chiude dal pulsante della
+cuffia, senza cercare la tastiera, anche con BlindPhone in secondo piano. Ogni
+pulsante diventa uno dei comandi del catalogo dei tasti e passa dalla stessa
+strada di `F2` e `F3`: stesso effetto, stessi annunci, stessa riga di registro.
+
+| Pulsante | Squilla | In linea | Solo in attesa | A riposo |
+|---|---|---|---|---|
+| Chiamata (Hook Switch) | Risponde, chi era in linea va in attesa | Chiude | Riprende | Rifiutato |
+| Microfono (Phone Mute) | Rifiutato | Muto o attivo | Muto o attivo | Rifiutato |
+| Attesa (Flash) | Risponde | Alterna o mette in attesa | Riprende | Rifiutato |
+| Richiamata (Redial) | Rifiutato | Rifiutato | Rifiutato | Richiama l'ultimo numero |
+
+Con la sola chiamata in attesa il pulsante **riprende e non chiude**, a
+differenza di `F3`: il pulsante della cuffia si tocca anche per sbaglio, e
+chiudere il telefono in faccia a chi aspetta è il danno peggiore che possa fare.
+La tabella completa è in `PulsantiDellaCuffiaTests`.
+
+### Le spie non sono solo luci
+
+Squillo, linea e microfono muto si accendono secondo lo stato della postazione. Sulle
+cuffie da ufficio la spia della linea è anche lo stato del pulsante: la cuffia si
+considera «in linea» finché è accesa, e la pressione successiva manda
+«riagganciato». Senza allinearla, una chiamata risposta da tastiera lascerebbe la
+cuffia convinta di essere a riposo. Il valore che la cuffia rimanda dopo
+l'allineamento è un'eco e non una pressione; un pulsante dichiarato come stato che
+torna indietro entro 700 ms è un impulso dichiarato male, e da lì in poi si legge
+come impulso. Le regole e i casi sono in `HeadsetSignalInterpreter` e
+`SegnaliDellaCuffiaTests`.
+
+A riposo BlindPhone non scrive niente sulla cuffia: può essere in uso da un altro
+programma di telefonia.
+
+### Come si parla alla cuffia
+
+Il protocollo è la pagina Telefonia dello standard HID (0x0B), con le spie nella
+pagina LED (0x08): è quello che parlano le cuffie da ufficio di qualunque marca e gli
+adattatori USB di quelle senza filo. L'accesso è diretto, con `hid.dll` per i
+rapporti e CfgMgr32 per l'elenco dei dispositivi e l'avviso di collegamento a caldo.
+
+- **Non `Windows.Devices.HumanInterfaceDevice`.** Richiederebbe un target con la
+  versione dell'SDK di Windows, diverso da quello di tutta la soluzione, e la
+  proiezione WinRT nel pacchetto; in cambio darebbe un accesso pensato per le
+  applicazioni impacchettate, che in un programma desktop funziona solo in parte.
+- **Non gli SDK di Jabra o di Poly.** Valgono per una marca sola, chiedono una
+  licenza e una libreria nativa da distribuire, e un ente compra le cuffie a gara.
+- **Non in esclusiva.** Il canale telefonico lo leggono anche il programma del
+  produttore e gli altri programmi di telefonia, e continuano a riceverlo.
+
+Una cuffia si riconosce dal gancio o dal muto della pagina Telefonia, ovunque sia
+dichiarato: sulla Sennheiser USB headset il gancio sta dentro la collezione dei
+tasti multimediali, e una regola più stretta l'avrebbe scartata.
+
+### Il ripiego sul tasto Play e pausa
+
+Per le cuffie che non hanno i pulsanti telefonici. È **spento di partenza**: il
+tasto si prende con `RegisterHotKey` solo mentre una chiamata squilla o è in corso,
+e in quel tempo non arriva ai lettori multimediali, da qualunque tastiera venga
+premuto. Torna a loro appena la postazione è a riposo.
 
 ## Elaborazione del microfono
 

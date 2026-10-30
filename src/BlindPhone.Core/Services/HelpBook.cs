@@ -70,6 +70,15 @@ public static class HelpBook
     /// <summary>Argomento della modalità semplificata da tastierino numerico.</summary>
     public const string KeypadTopicId = "tastierino";
 
+    /// <summary>Argomento dei pulsanti della cuffia.</summary>
+    public const string HeadsetTopicId = "cuffia";
+
+    /// <summary>Argomento della segreteria telefonica.</summary>
+    public const string VoicemailTopicId = "segreteria";
+
+    /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
+    public const string CallLinksTopicId = "link-di-chiamata";
+
     /// <summary>
     /// Costruisce la guida sulle combinazioni attualmente assegnate.
     /// </summary>
@@ -80,6 +89,7 @@ public static class HelpBook
         Topic(DefaultTopicId, "Il posto operatore", PostoOperatore(profile)),
         Topic("chiamata", "Rispondere e gestire una chiamata", Chiamata(profile)),
         Topic(KeypadTopicId, "Il tastierino: la modalita' semplificata", Tastierino(profile)),
+        Topic(HeadsetTopicId, "Rispondere dal pulsante della cuffia", Cuffia(profile)),
         Topic("trasferimento", "Trasferire una chiamata", Trasferimento(profile)),
         Topic(ConferenceTopicId, "Parlare in tre: la conferenza", Conferenza(profile)),
         Topic(DialerTopicId, "Comporre un numero o cercare un nome", Composizione(profile)),
@@ -87,7 +97,9 @@ public static class HelpBook
         Topic(ColleaguesTopicId, "Sapere chi e' in turno", Colleghi(profile)),
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
+        Topic(VoicemailTopicId, "La segreteria telefonica", Segreteria(profile)),
         Topic("riunioni", "Entrare in una riunione Zoom", Riunioni(profile)),
+        Topic(CallLinksTopicId, "Chiamare da un link nel gestionale o in una pagina", LinkDiChiamata(profile)),
         Topic("stato", "Sapere come sta andando", Stato(profile)),
         Topic("voce", "La voce, i segnali acustici e il braille", Voce(profile)),
         Topic("finestra", "Chiudere, riaprire, secondo piano", Finestra(profile)),
@@ -153,6 +165,34 @@ public static class HelpBook
         Questa guida si riapre in qualunque momento con {K(profile, HotkeyCommand.OpenHelp)}, e si apre sull'argomento che riguarda il punto in cui ti trovi.
         """;
 
+    private static string Cuffia(HotkeyProfile profile) =>
+        $"""
+        Con una cuffia USB da ufficio rispondi e chiudi dal pulsante della cuffia, senza cercare la tastiera. Funziona con BlindPhone in primo piano e in secondo piano, come le scorciatoie globali.
+
+        Il pulsante della chiamata fa una cosa sola per ogni momento, quella che farebbe la cornetta di un telefono da tavolo.
+
+        - Se squilla, risponde. Se eri già in linea con qualcuno, lo mette in attesa e risponde, come {K(profile, HotkeyCommand.Answer)}.
+        - Se sei in linea, chiude, come {K(profile, HotkeyCommand.HangUp)}. Durante un trasferimento chiude la linea con l'interno e ti riporta al chiamante.
+        - Se c'è soltanto qualcuno in attesa, lo riprende. Non lo chiude: il pulsante si tocca anche per sbaglio, e chi aspetta sta aspettando te.
+        - A riposo non fa niente, e senti il segnale di comando rifiutato.
+
+        Il tasto del microfono silenzia e riattiva, come {K(profile, HotkeyCommand.ToggleMute)}. Funziona solo durante una chiamata: a riposo farebbe partire muta quella dopo.
+
+        Se la cuffia li ha, il tasto dell'attesa alterna fra le due chiamate o mette in attesa, e quello di richiamata, a riposo, richiama l'ultimo numero composto.
+
+        Ogni pulsante fa esattamente quello che fa il tasto corrispondente della tastiera, e senti gli stessi annunci.
+
+        Le spie della cuffia seguono la chiamata: squillo mentre squilla, linea mentre parli, microfono muto quando sei silenziato. Non sono solo luci. La cuffia si considera in linea finché la spia è accesa, e così il suo pulsante resta d'accordo con BlindPhone anche quando hai risposto dalla tastiera.
+
+        Quando colleghi o scolleghi la cuffia con BlindPhone acceso te lo dice. Se la stacchi durante una chiamata, per chiudere usa {K(profile, HotkeyCommand.HangUp)}.
+
+        La funzione si regola da Impostazioni, scheda Cuffia. È accesa di partenza e vale per qualunque cuffia collegata. Lì puoi sceglierne una sola, se ne colleghi più di una, e provarla: con la scheda aperta premi un pulsante della cuffia e la riga di stato ti dice che cosa è arrivato.
+
+        Cuffie con il solo tasto Play e pausa. Alcune cuffie non hanno il pulsante telefonico e mandano soltanto il tasto della musica. Nella stessa scheda puoi far usare anche quello: mentre una chiamata squilla o è in corso il tasto risponde e chiude, e non arriva più ai lettori musicali e video, da qualunque tastiera tu lo prema. Fra una chiamata e l'altra torna a loro. È spento di partenza per questo motivo.
+
+        Funziona con le cuffie che seguono lo standard USB per la telefonia, cioè quasi tutte quelle da ufficio, di qualunque marca, e con gli adattatori USB delle cuffie senza filo. Se la stessa cuffia serve anche a un altro programma di telefonia, i suoi pulsanti arrivano a tutti e due: in quel caso spegni la funzione in uno dei due.
+        """;
+
     private static string Tastierino(HotkeyProfile profile) =>
         $"""
         La modalità semplificata governa l'intera chiamata con quattro tasti del tastierino numerico. Si attiva da Impostazioni, scheda Accessibilità, alla voce «modalità di interazione».
@@ -216,6 +256,7 @@ public static class HelpBook
         - Fai parlare tutti e due insieme con te: {K(profile, HotkeyCommand.Conference)}
         - Microfono muto o attivo: {K(profile, HotkeyCommand.ToggleMute)}
         - Richiama l'ultimo numero composto: {K(profile, HotkeyCommand.RedialLast)}
+        - Chiama la segreteria per ascoltare i messaggi: {K(profile, HotkeyCommand.CallVoicemail)}
 
         Con il microfono muto l'interlocutore resta in linea e non ti sente: serve per parlare con un collega senza chiudere e senza mettere in attesa.
 
@@ -424,13 +465,23 @@ public static class HelpBook
 
         Le parole si possono scrivere in qualunque ordine e possono stare in campi diversi: «ambulatorio cardiologia» trova «Ambulatorio di Cardiologia», e trova anche una voce descritta «Ambulatorio» che sta nel reparto di Cardiologia. Ogni parola in piu' restringe il risultato invece di allargarlo, quindi se i risultati sono troppi basta aggiungere una parola che ricordi.
 
-        I contatti arrivano dal centralino, se collegato, da file importati e dal gestionale dell'ente: si sceglie da Impostazioni, scheda Rubrica, alla voce «da dove arrivano i contatti».
+        I contatti arrivano dal centralino, se collegato, da file importati, dal gestionale dell'ente, dalla directory dell'ente o dai contatti di Outlook: si sceglie da Impostazioni, scheda Rubrica, alla voce «da dove arrivano i contatti».
 
         Con la rubrica collegata a Microsoft SQL Server, BlindPhone legge una tabella o una vista del gestionale e ne copia il contenuto nell'archivio cifrato della postazione, riallineandolo ogni tanto. Il server non viene mai modificato: si legge soltanto.
 
         La copia locale non e' un ripiego, e' il motivo per cui il collegamento si puo' usare: il nome di chi chiama viene cercato mentre il telefono squilla, e se quella ricerca dovesse attraversare la rete un rallentamento ti lascerebbe senza sapere chi risponde. Con la copia, a rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito e continui a lavorare. Preferiti e numeri rapidi restano tuoi e restano sulla postazione.
 
         La procedura e' la stessa dei file: ci si collega, si sceglie la tabella dallo stesso elenco, si abbinano le stesse colonne e si controlla l'anteprima. Il pulsante «Riallinea adesso» aggiorna la copia quando serve; il riallineamento automatico non parte durante una chiamata.
+
+        Con la rubrica collegata alla directory LDAP o ad Active Directory vale lo stesso: la directory si legge soltanto e i contatti finiscono nella copia locale. Servono il server, che con Active Directory puo' essere il nome del dominio, e la base della ricerca. Filtro e attributi proposti sono gia' quelli di Active Directory: prendono gli utenti attivi e i contatti con almeno un numero, e l'interno dal campo Telefono IP. Il pulsante «Chiedi i contatti alla directory», Alt H, prova il collegamento, dice quanti contatti ha trovato e mostra le prime voci nell'anteprima.
+
+        Il collegamento e' cifrato con LDAPS o StartTLS. In chiaro si puo' scegliere solo se la directory non offre altro, e lo senti dire ogni volta che provi il collegamento: nomi e numeri viaggerebbero leggibili sulla rete, e con un'utenza dedicata anche la sua password. Con l'utenza di Windows non serve nessuna password; quella dell'utenza dedicata sta nel deposito protetto di Windows, legata al server per cui l'hai inserita, e se il server cambia va reinserita.
+
+        Se la directory rifiuta l'accesso senti il motivo: credenziali sbagliate, password scaduta, utenza bloccata o disattivata. Sono quattro cose da risolvere in quattro modi diversi, e riprovare la password su un'utenza bloccata non serve.
+
+        Con i contatti di Outlook, BlindPhone legge le cartelle Contatti di Outlook classico su questa postazione, sottocartelle comprese se lo scegli. Il pulsante «Leggi i contatti di Outlook», Alt K, li conta e mostra l'anteprima. Il nuovo Outlook non permette ad altri programmi di leggere i contatti: se c'e' solo quello, BlindPhone te lo dice, e l'alternativa e' esportare i contatti in un file CSV da Outlook sul web e importare quel file. Posta elettronica, numero di casa e note dei contatti non vengono letti.
+
+        Directory e Outlook scrivono i numeri come li ha scritti una persona, con spazi, parentesi e trattini: BlindPhone li riduce alla forma che si puo' comporre. Se un numero porta l'interno in coda, per esempio «int. 4021», l'interno diventa il recapito predefinito. Quello che non e' un numero, come una nota scritta nel campo del telefono, finisce fra le note del contatto.
 
         Si importa da file CSV e da backup di banca dati: file SQLite, oppure esportazioni SQL in formato testo prodotte da MySQL, MariaDB, PostgreSQL e SQL Server. Il formato viene riconosciuto dal contenuto e non dall'estensione, quindi non conta come si chiama il file: punto sql, punto bak, punto bkp, punto dmp o senza estensione, se dentro c'e' un backup leggibile viene letto.
 
@@ -469,11 +520,28 @@ public static class HelpBook
         Il pulsante «Svuota l'elenco» chiede se eliminare solo il pannello aperto o tutto quanto, e dice quante voci sta per eliminare. Lo stesso si può fare dalle impostazioni, senza aprire l'elenco.
         """;
 
+    private static string Segreteria(HotkeyProfile profile) =>
+        $"""
+        Sul telefono da tavolo i messaggi in segreteria si vedono: c'è una spia che lampeggia. Qui la spia diventa una frase. Quando arrivano messaggi nuovi la voce dice, per esempio, «2 nuovi messaggi in segreteria», e se qualcuno è urgente lo dice subito dopo.
+
+        Lo dice una volta. Il centralino rimanda lo stato della casella ogni pochi minuti anche quando non è cambiato niente, e ripetere la stessa frase a ogni rinnovo la trasformerebbe in un rumore da ignorare: la voce parla di nuovo solo quando i messaggi nuovi aumentano. All'avvio della postazione senti i messaggi lasciati mentre eri via, se ce ne sono.
+
+        Per ascoltarli premi {K(profile, HotkeyCommand.CallVoicemail)}: BlindPhone chiama la segreteria del tuo account. Da lì è una chiamata come le altre. Per muoverti nel menu della casella — «premi 1 per ascoltare» — usa la modalità toni, {K(profile, HotkeyCommand.ToggleDtmfMode)}, e riaggancia con {K(profile, HotkeyCommand.HangUp)}.
+
+        Il numero della segreteria si scrive in Impostazioni, scheda Account SIP, alla voce «Segreteria: numero da chiamare», che si raggiunge con Alt H. Di solito è un codice come asterisco 97: chiedilo a chi amministra il centralino. Molti centralini lo indicano da sé nei loro avvisi, e in quel caso lo trovi già proposto sotto il campo, con il pulsante «Usa il numero proposto». Non entra da solo nel campo: va confermato e salvato, perché su alcuni centralini quel valore non è il numero da comporre. Ogni account ha il suo numero, e quello giusto segue il cambio di account.
+
+        Se premi il tasto della segreteria senza aver impostato il numero, la voce ti dice dove impostarlo e, se il centralino l'ha indicato, quale numero propone.
+
+        Lo stato della casella si legge anche nella finestra, sotto lo stato della registrazione: «Segreteria: 2 nuovi messaggi. 5 messaggi già ascoltati». La riga non parla da sola, per non ripetere l'avviso a ogni rinnovo: la trovi con il cursore virtuale quando la vai a cercare. Compare solo dopo il primo avviso del centralino, perché prima non si sa niente. Con la finestra riposta i messaggi nuovi compaiono nel testo dell'icona nell'area di notifica, e il riepilogo dello stato con {K(profile, HotkeyCommand.AnnounceStatusSummary)} li nomina quando ce ne sono.
+
+        Se gli avvisi non arrivano mai, la scheda Diagnostica dice alla riga «Segreteria» se il centralino accetta la sottoscrizione, se la rifiuta, e se manda gli avvisi da sé. Alcuni centralini non mandano niente finché l'amministratore non associa una casella all'interno.
+        """;
+
     private static string Stato(HotkeyProfile profile) =>
         $"""
         Sono i comandi con cui si riprende il filo, per esempio dopo essersi allontanati dalla postazione. Non cambiano nulla: chiedono soltanto.
 
-        - Riepilogo completo: {K(profile, HotkeyCommand.AnnounceStatusSummary)}. Dice registrazione, chiamata attiva, chiamate in attesa, coda e stato agente.
+        - Riepilogo completo: {K(profile, HotkeyCommand.AnnounceStatusSummary)}. Dice registrazione, chiamata attiva, chiamate in attesa, coda e stato agente, e i messaggi nuovi in segreteria quando ce ne sono.
         - Durata della chiamata: {K(profile, HotkeyCommand.AnnounceCallDuration)}
         - Qualità della linea e cifratura: {K(profile, HotkeyCommand.AnnounceLineQuality)}
         - Chiamate in coda: {K(profile, HotkeyCommand.AnnounceQueueCount)}
@@ -570,6 +638,8 @@ public static class HelpBook
 
         Audio. Quattro vie separate: microfono, conversazione, suoneria, annunci. Assegnare dispositivi diversi è la configurazione che fa più differenza nell'uso quotidiano, perché evita che la voce degli annunci e la suoneria finiscano nello stesso orecchio dell'interlocutore. Dalla via «suoneria» escono il segnale di chiamata in arrivo, gli eventi di coda e gli allarmi; dalla «conversazione» escono la voce dell'interlocutore e i riscontri di quello che hai appena fatto. Dispositivi e volumi valgono da subito, senza riavviare — solo una chiamata già in corso resta sui dispositivi con cui è cominciata. Qui stanno anche la suoneria personalizzata, la regolazione del buffer audio e l'ordine dei codec.
 
+        Cuffia. I pulsanti della cuffia che rispondono e chiudono, la scelta della cuffia se ne colleghi più di una, e il ripiego sul tasto Play e pausa per le cuffie che non hanno altro. Vale subito, senza riavviare. Vedi l'argomento dedicato.
+
         Accessibilità. Modalità di interazione — standard o semplificata da tastierino, vedi l'argomento dedicato — voce, quantità di dettaglio, lettura dei numeri, segnali acustici, braille, e la sezione Finestra e area di notifica.
 
         Chiamate. Modalità del tasto di trasferimento, tempo di attesa della consultazione, conferme.
@@ -578,7 +648,7 @@ public static class HelpBook
 
         Tasti rapidi. Vedi l'argomento dedicato.
 
-        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima.
+        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima; collegamento a SQL Server, alla directory LDAP o Active Directory e ai contatti di Outlook classico.
 
         Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
         """;
@@ -596,6 +666,8 @@ public static class HelpBook
         Una impostazione non si lascia cambiare. La postazione è configurata dall'amministratore: le schede bloccate lo dicono nel titolo — «Account SIP (bloccata)» — e restano leggibili, così puoi comunque riferire come è configurata quando chiami l'assistenza. Il messaggio che senti aprendo le impostazioni dice a chi rivolgersi. Se hai la password dell'amministratore, il pulsante «Sblocca o riblocca» le apre per questa sessione soltanto.
 
         Chi chiamo mi richiama sulla postazione invece che al centralino. In Impostazioni, scheda Account SIP, c'è «Numero presentato in uscita»: indica lì il recapito pubblico dell'ente e chi riceve le tue chiamate vedrà quello al posto del tuo interno. Verifica con una chiamata di prova verso un telefono di cui vedi il display, perché l'ultima parola è del centralino: quasi tutti sostituiscono il numero dichiarato da un interno con quello configurato per quell'interno, ed è una protezione contro la falsificazione del chiamante, non un difetto. Se la prova mostra ancora l'interno, l'autorizzazione va data dall'amministratore del centralino.
+
+        Il pulsante della cuffia non fa niente. Apri Impostazioni, scheda Cuffia, e premi il pulsante: la riga di stato dice se è arrivato. Se non arriva niente, la cuffia non ha il pulsante telefonico o non è quella scelta nell'elenco; se la scheda dice che non ne ha trovata nessuna, la cuffia manda solo il tasto Play e pausa, e puoi accendere il ripiego nella stessa scheda. Se arriva e non succede niente, in quel momento il pulsante non ha niente da fare: a riposo, per esempio, si sente il segnale di comando rifiutato.
 
         Un tasto non fa niente. Verifica che sia ancora assegnato: {K(profile, HotkeyCommand.AnnounceHotkeyList)} legge le combinazioni attive. Se è una combinazione globale, può essere occupata da un altro programma. Se è un tasto singolo senza modificatori, mentre il cursore è nel campo di composizione serve a comporre il numero e non esegue il comando: è normale, e in quel caso vale la versione con i modificatori.
 
@@ -673,6 +745,27 @@ public static class HelpBook
         Il codice d'accesso non viene mai riletto a voce e non resta nelle ultime chiamate: in un centralino dove ci sono altre persone, un codice pronunciato ad alta voce è un codice diffuso.
 
         Quello che non c'è, perché passa da Zoom e non dal telefono: la chat, la mano alzata, l'elenco dei partecipanti e il comando del microfono dal lato riunione. Hai l'audio e i comandi del tuo telefono.
+        """;
+
+    private static string LinkDiChiamata(HotkeyProfile profile) =>
+        $"""
+        Nel gestionale, in una pagina web o in un messaggio di posta i numeri possono essere link: tel, sip o callto. Se BlindPhone è il programma scelto per quei link, il clic sul numero, o Invio sul link, lo porta a BlindPhone.
+
+        Il link non compone da solo. Il numero va nel campo di composizione, la finestra di BlindPhone viene davanti e la voce lo legge: «Numero da link: zero sei, uno due, e così via. Premi Invio per chiamare». La chiamata parte solo quando premi Invio.
+
+        È una scelta di sicurezza: chiunque può scrivere una pagina con un link di chiamata, e una pagina non deve poter far partire telefonate dal tuo centralino. Prima di premere Invio ascolta il numero: il link l'ha scritto qualcun altro.
+
+        Se sei in conversazione nessuno viene messo in attesa. Il numero resta nel campo e la voce ti dice come procedere: metti in attesa con {K(profile, HotkeyCommand.ToggleHold)} e poi premi Invio per chiamarlo, oppure premi {K(profile, HotkeyCommand.Transfer)} per passargli il chiamante.
+
+        Durante un trasferimento il numero del link diventa la destinazione, come se l'avessi scritto tu. In modalità semplificata, con un chiamante in linea, Invio chiama il numero del link per passargli il chiamante, come per un interno digitato.
+
+        Se il link indica anche un interno, la voce lo dice: va chiesto a chi risponde, oppure digitato con i toni quando il risponditore automatico lo chiede.
+
+        Alcuni link vengono scartati, e la voce dice perché. Quelli con asterisco o cancelletto, che sono i codici dei servizi del centralino, come la deviazione di tutte le chiamate. Quelli con lettere o con caratteri che non fanno parte di un numero. I numeri locali di un altro paese, che composti da qui chiamerebbero un'altra persona.
+
+        In pausa, e in modalità semplificata mentre squilla una chiamata, il link non entra nel campo, come non ci entrerebbero le cifre digitate. La voce dice come procedere.
+
+        Per scegliere BlindPhone come programma dei link: Impostazioni di Windows, App, App predefinite, cerca BlindPhone e assegnagli tel, sip, sips e callto. Su una postazione gestita può averlo già fatto l'ufficio IT.
         """;
 
     private static string Mancante() =>

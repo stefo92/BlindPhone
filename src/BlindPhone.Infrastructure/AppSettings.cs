@@ -71,6 +71,25 @@ public sealed record SipSettings
     public string OutboundCallerId { get; init; } = string.Empty;
 
     /// <summary>
+    /// Numero da chiamare per ascoltare la segreteria di questo account, per esempio
+    /// <c>*97</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sta nell'account per la stessa ragione del numero presentato in uscita: due enti
+    /// hanno due centralini con due codici diversi, e il codice giusto deve seguire il
+    /// cambio di account senza che l'operatore se ne ricordi.
+    /// </para>
+    /// <para>
+    /// Vuoto significa «non impostato», e il tasto della segreteria lo dice invece di
+    /// comporre qualcosa a caso. Il centralino può suggerirlo nelle sue notifiche, ma il
+    /// suggerimento resta una proposta nella scheda dell'account finché l'operatore non
+    /// lo salva: vedi <see cref="Core.Services.VoicemailNumbers"/>.
+    /// </para>
+    /// </remarks>
+    public string VoicemailNumber { get; init; } = string.Empty;
+
+    /// <summary>
     /// Cifratura della voce: Disabled, Preferred, Required.
     /// </summary>
     /// <remarks>
@@ -858,6 +877,14 @@ public sealed record AppSettings
     /// partenza è «nessuna elaborazione». Vedi <see cref="MicrophoneProcessing"/>.
     /// </remarks>
     public MicrophoneProcessing MicrophoneProcessing { get; init; } = new();
+
+    /// <summary>Controllo delle chiamate dai pulsanti della cuffia.</summary>
+    /// <remarks>
+    /// Un file scritto da una versione che non lo conosceva non ha la proprietà, e la
+    /// funzione parte accesa con il ripiego multimediale spento: sono i valori di
+    /// <see cref="HeadsetSettings"/>.
+    /// </remarks>
+    public HeadsetSettings Headset { get; init; } = new();
 
     // Il profilo di scorciatoie attivo NON sta qui.
     //

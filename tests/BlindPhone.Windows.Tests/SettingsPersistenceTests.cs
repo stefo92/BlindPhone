@@ -89,6 +89,46 @@ public sealed class SettingsPersistenceTests
         }
     }
 
+    [Fact]
+    public void IlNumeroDellaSegreteriaRestaLegatoAlSuoAccount()
+    {
+        var cartella = CreaCartella();
+
+        try
+        {
+            var servizio = new SettingsService(cartella);
+            var iniziali = servizio.Load();
+
+            // Due enti, due codici: ognuno deve ritrovare il proprio, asterisco compreso.
+            Assert.True(servizio.Save(iniziali with
+            {
+                SipAccounts =
+                [
+                    new SipSettings { Id = "comune", Name = "Comune", Username = "200", Domain = "pbx.comune.it", VoicemailNumber = "*97" },
+                    new SipSettings { Id = "asl", Name = "ASL", Username = "4001", Domain = "pbx.asl.it", VoicemailNumber = "8500#" },
+                ],
+                DefaultSipAccountId = "comune",
+            }));
+
+            var riletto = new SettingsService(cartella).Load();
+
+            Assert.Equal("*97", riletto.SipAccounts.Single(a => a.Id == "comune").VoicemailNumber);
+            Assert.Equal("8500#", riletto.SipAccounts.Single(a => a.Id == "asl").VoicemailNumber);
+        }
+        finally
+        {
+            Pulisci(cartella);
+        }
+    }
+
+    [Fact]
+    public void UnaConfigurazioneSenzaSegreteriaLaLasciaNonImpostata()
+    {
+        // Le postazioni gia' in servizio non hanno la chiave: il tasto della segreteria
+        // deve dire che il numero manca, non comporre qualcosa.
+        Assert.Equal(string.Empty, new SipSettings().VoicemailNumber);
+    }
+
     private static string CreaCartella()
     {
         var cartella = Path.Combine(Path.GetTempPath(), "BlindPhone.Test", $"impostazioni-{Guid.NewGuid():N}");

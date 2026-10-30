@@ -17,8 +17,30 @@ Tutte le combinazioni sono modificabili da *Impostazioni → Tasti rapidi*.
 - Trasferimento (cieco e con annuncio) — Locale: F9 — Globale: Control Maiusc F9
 - Microfono muto o attivo — Locale: Control M — Globale: Control Maiusc M
 - Richiama ultimo numero — Locale: Control R
+- Chiama la segreteria per ascoltare i messaggi — Locale: Control Alt V
 - Modalità toni per i menu automatici — Locale: Control Maiusc D
 - Invia come toni quanto scritto nel campo di composizione — Locale: Control Maiusc Invio
+
+### Dai pulsanti della cuffia
+
+Con una cuffia USB da ufficio, anche con BlindPhone in secondo piano.
+Ogni pulsante fa quello che fa il tasto corrispondente, con gli stessi annunci.
+
+- Pulsante della chiamata mentre squilla: risponde, come F2. Chi era in linea
+  va in attesa
+- Pulsante della chiamata in linea: chiude, come F3. In consultazione chiude
+  con l'interno e riporta al chiamante
+- Pulsante della chiamata con la sola chiamata in attesa: la riprende, non la
+  chiude
+- Pulsante della chiamata a riposo: segnale di comando rifiutato
+- Tasto del microfono durante una chiamata: muto o attivo, come Control M
+- Tasto dell'attesa, se c'è: alterna fra due chiamate, o mette in attesa
+- Tasto di richiamata, se c'è, a riposo: richiama l'ultimo numero
+
+Si regola da *Impostazioni → Cuffia*: accesa di partenza, per qualunque cuffia
+collegata. Con la scheda aperta, un pulsante premuto viene detto nella riga di
+stato. Il tasto Play e pausa si usa solo se lo accendi lì, per le cuffie che non
+mandano altro: durante le chiamate non arriva più ai lettori multimediali.
 
 ## 2. Trasferimento — sequenza a tasto unico
 
@@ -51,6 +73,18 @@ riletto cifra per cifra prima che parta qualunque cosa — è il momento in cui
 correggere un errore, perché da lì in avanti il chiamante è in attesa e non può
 più ripetertelo. Da quel punto la sequenza è quella di sempre: F9 per chiamare
 l'interno, doppio F9 per trasferire subito, ESC per annullare.
+
+### La segreteria
+
+Quando arrivano messaggi nuovi la voce lo dice una volta: «2 nuovi messaggi in
+segreteria». Non lo ripete a ogni rinnovo: torna a parlare solo se ne arrivano altri.
+
+- Control Alt V: chiama la segreteria del tuo account. Nel menu della casella ci si
+  muove con la modalità toni, Control Maiusc D
+- Il numero si scrive in *Impostazioni → Account SIP*, campo «Segreteria: numero da
+  chiamare» (Alt H). Se il centralino ne indica uno, compare lì sotto come proposta
+  da confermare
+- Control F5, il riepilogo dello stato, nomina i messaggi nuovi quando ce ne sono
 
 ## 3. Conferenza a tre — sequenza
 
