@@ -11,6 +11,8 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using BlindPhone.Accessibility;
 using BlindPhone.Contacts;
+using BlindPhone.Contacts.Ldap;
+using BlindPhone.Contacts.Outlook;
 using BlindPhone.Contacts.SqlBackup;
 using BlindPhone.Contacts.SqlServer;
 using BlindPhone.Core.Abstractions;
@@ -2892,6 +2894,19 @@ public partial class SettingsWindow : Window
                 spostamenti);
         }
 
+        // La password della directory, con la stessa condizione e lo stesso legame:
+        // solo l'utenza dedicata ne usa una, e da qui in poi parte soltanto verso il
+        // server indicato in questo momento.
+        if (LdapPassword.Password.Length > 0 && updated.Contacts.Ldap.Bind == ContactsLdapBind.Simple)
+        {
+            SaveSecretForHost(
+                updated.Contacts.Ldap.PasswordSecretKey,
+                LdapPassword.Password,
+                updated.Contacts.Ldap.Server,
+                "La password della directory della rubrica",
+                spostamenti);
+        }
+
         var secretNote = spostamenti.Count == 0 ? string.Empty : " " + string.Join(" ", spostamenti);
 
         if (!_settingsService.Save(updated))
@@ -4185,6 +4200,8 @@ public partial class SettingsWindow : Window
         Csv,
         Backup,
         SqlServer,
+        Ldap,
+        Outlook,
     }
 
     private ImportKind _importKind = ImportKind.Csv;
@@ -4203,7 +4220,12 @@ public partial class SettingsWindow : Window
     /// <param name="settings">Impostazioni della rubrica.</param>
     private void CaricaRubricaCollegata(ContactsSettings settings)
     {
-        SelectByTag(ContactsSourceMode, settings.Mode == ContactsMode.SqlServer ? "SqlServer" : "LocalFile");
+        // Il valore di ogni voce e' il nome della modalita': una modalita' che questa
+        // versione non conosce ricade sui file, che e' la scelta che non tocca niente.
+        SelectByTag(ContactsSourceMode, Enum.IsDefined(settings.Mode) ? settings.Mode.ToString() : nameof(ContactsMode.LocalFile));
+        CaricaDirectory(settings.Ldap);
+        CaricaOutlook(settings.Outlook);
+        MostraPannelloProvenienza(settings.Mode);
 
         var server = settings.SqlServer;
 
@@ -4217,10 +4239,6 @@ public partial class SettingsWindow : Window
             "la password del server della rubrica");
         SqlServerTrustCertificate.IsChecked = server.TrustServerCertificate;
         SelectByTag(SqlServerInterval, server.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture));
-
-        SqlServerPanel.Visibility = settings.Mode == ContactsMode.SqlServer
-            ? Visibility.Visible
-            : Visibility.Collapsed;
 
         // Le colonne strutturali salvate tornano in memoria anche se le caselle
         // restano vuote: non hanno una casella, e senza questo un salvataggio fatto
@@ -4247,7 +4265,6 @@ public partial class SettingsWindow : Window
     /// </remarks>
     private ContactsSettings ComponiRubricaCollegata(ContactsSettings precedenti)
     {
-        var collegata = string.Equals(SelectedTag(ContactsSourceMode), "SqlServer", StringComparison.Ordinal);
         var corrente = CurrentSqlServerSettings();
 
         var server = _importKind == ImportKind.SqlServer
@@ -4264,8 +4281,13 @@ public partial class SettingsWindow : Window
 
         return new ContactsSettings
         {
-            Mode = collegata ? ContactsMode.SqlServer : ContactsMode.LocalFile,
+            Mode = SelectedContactsMode(),
             SqlServer = server,
+
+            // Directory e Outlook non hanno passi di procedura guidata da conservare:
+            // quello che si salva e' quello che si vede a schermo.
+            Ldap = CurrentLdapSettings(),
+            Outlook = CurrentOutlookSettings(),
 
             // Le spunte tolte tutte sono una scelta legittima — solo nominativo e
             // interno — e vanno salvate come elenco vuoto, non come "mai deciso".
@@ -4275,11 +4297,11 @@ public partial class SettingsWindow : Window
 
     private void OnContactsModeChanged(object sender, SelectionChangedEventArgs e)
     {
-        var collegata = string.Equals(SelectedTag(ContactsSourceMode), "SqlServer", StringComparison.Ordinal);
+        var modalita = SelectedContactsMode();
 
-        SqlServerPanel.Visibility = collegata ? Visibility.Visible : Visibility.Collapsed;
+        MostraPannelloProvenienza(modalita);
 
-        if (!collegata && _importKind == ImportKind.SqlServer)
+        if (modalita != ContactsMode.SqlServer && _importKind == ImportKind.SqlServer)
         {
             // Tornando alla rubrica da file l'elenco delle tabelle del server non ha
             // piu' significato: lasciarlo a schermo inviterebbe a importare da un
@@ -4287,6 +4309,31 @@ public partial class SettingsWindow : Window
             ShowBackupTables([]);
             _importKind = ImportKind.Csv;
         }
+
+        // Lo stesso per directory e Outlook: il pulsante di importazione non deve
+        // continuare a leggere da una provenienza che non e' piu' quella scelta.
+        if ((modalita != ContactsMode.Ldap && _importKind == ImportKind.Ldap)
+            || (modalita != ContactsMode.Outlook && _importKind == ImportKind.Outlook))
+        {
+            _importKind = ImportKind.Csv;
+        }
+    }
+
+    /// <summary>La provenienza scelta nella casella, come valore delle impostazioni.</summary>
+    private ContactsMode SelectedContactsMode()
+        => ParseEnum(SelectedTag(ContactsSourceMode), ContactsMode.LocalFile);
+
+    /// <summary>Mostra il solo pannello della provenienza scelta.</summary>
+    /// <remarks>
+    /// Un pannello alla volta, e non tutti e tre: chi scorre la scheda con Tab
+    /// attraverserebbe altrimenti una trentina di campi che non riguardano la
+    /// provenienza scelta, senza poter sapere a quale appartengano.
+    /// </remarks>
+    private void MostraPannelloProvenienza(ContactsMode modalita)
+    {
+        SqlServerPanel.Visibility = modalita == ContactsMode.SqlServer ? Visibility.Visible : Visibility.Collapsed;
+        LdapPanel.Visibility = modalita == ContactsMode.Ldap ? Visibility.Visible : Visibility.Collapsed;
+        OutlookPanel.Visibility = modalita == ContactsMode.Outlook ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void OnSqlServerAuthChanged(object sender, SelectionChangedEventArgs e)
@@ -4453,6 +4500,289 @@ public partial class SettingsWindow : Window
         await RefreshPreviewAsync((righe, token) => Task.Run(
             () => sorgente.PreviewAsync(righe, token), token)).ConfigureAwait(true);
     }
+
+    // -----------------------------------------------------------------------
+    // Rubrica collegata a una directory LDAP o Active Directory
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Il collegamento salvato, per i valori che non hanno un campo a schermo.
+    /// </summary>
+    /// <remarks>
+    /// L'identificativo stabile e la data di modifica sono fatti della directory e non
+    /// scelte dell'operatore, come le colonne strutturali delle tabelle: non hanno una
+    /// casella, e senza questo un salvataggio li riporterebbe ai valori predefiniti.
+    /// </remarks>
+    private ContactsLdapSettings _ldapSalvata = new();
+
+    /// <summary>Evita che il caricamento delle impostazioni pronunci l'avviso sul chiaro.</summary>
+    private bool _caricamentoDirectory;
+
+    /// <summary>Riporta a schermo il collegamento alla directory salvato.</summary>
+    private void CaricaDirectory(ContactsLdapSettings settings)
+    {
+        _ldapSalvata = settings;
+        _caricamentoDirectory = true;
+
+        try
+        {
+            LdapServer.Text = settings.Server;
+            LdapPort.Text = settings.Port > 0 ? settings.Port.ToString(CultureInfo.InvariantCulture) : string.Empty;
+            SelectByTag(LdapSecurityChoice, settings.Security.ToString());
+            LdapBaseDn.Text = settings.BaseDn;
+            LdapFilter.Text = settings.Filter;
+            SelectByTag(LdapScopeChoice, settings.OneLevelOnly ? "OneLevel" : "Subtree");
+            SelectByTag(LdapBindChoice, settings.Bind.ToString());
+            LdapUser.Text = settings.BindUser ?? string.Empty;
+            LdapPassword.Password = _settingsService.Secrets.GetForHost(
+                settings.PasswordSecretKey,
+                settings.Server,
+                ContactsSyncService.LdapPasswordDescription);
+            SelectByTag(LdapInterval, settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture));
+            MostraAttributi(settings.Attributes);
+        }
+        finally
+        {
+            _caricamentoDirectory = false;
+        }
+
+        OnLdapBindChanged(this, null!);
+        LdapPlainWarning.Visibility = settings.Security == ContactsLdapSecurity.Plain
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    private void MostraAttributi(ContactsLdapAttributes attributi)
+    {
+        LdapAttrExtension.Text = attributi.Extension ?? string.Empty;
+        LdapAttrWorkPhone.Text = attributi.WorkPhone ?? string.Empty;
+        LdapAttrMobile.Text = attributi.MobilePhone ?? string.Empty;
+        LdapAttrDisplayName.Text = attributi.DisplayName ?? string.Empty;
+        LdapAttrFirstName.Text = attributi.FirstName ?? string.Empty;
+        LdapAttrLastName.Text = attributi.LastName ?? string.Empty;
+        LdapAttrDepartment.Text = attributi.Department ?? string.Empty;
+        LdapAttrJobTitle.Text = attributi.JobTitle ?? string.Empty;
+        LdapAttrBuilding.Text = attributi.Building ?? string.Empty;
+        LdapAttrOrganization.Text = attributi.Organization ?? string.Empty;
+        LdapAttrEmail.Text = attributi.Email ?? string.Empty;
+    }
+
+    /// <summary>Collegamento alla directory come sta a schermo.</summary>
+    /// <remarks>
+    /// Una porta fuori dall'intervallo valido vale «predefinita»: tentare la porta
+    /// settantamila produrrebbe un errore di rete che non dice dove sta lo sbaglio.
+    /// </remarks>
+    private ContactsLdapSettings CurrentLdapSettings()
+    {
+        var porta = ParseInt(LdapPort.Text.Trim(), 0);
+
+        return _ldapSalvata with
+        {
+            Server = LdapServer.Text.Trim(),
+            Port = porta is > 0 and <= 65535 ? porta : 0,
+            Security = ParseEnum(SelectedTag(LdapSecurityChoice), ContactsLdapSecurity.Ldaps),
+            Bind = ParseEnum(SelectedTag(LdapBindChoice), ContactsLdapBind.Windows),
+            BindUser = NullIfEmpty(LdapUser.Text),
+            BaseDn = LdapBaseDn.Text.Trim(),
+
+            // Svuotato vuol dire «quello proposto», non «tutto»: vedi
+            // ContactsSyncService.ToLdapOptions.
+            Filter = string.IsNullOrWhiteSpace(LdapFilter.Text) ? new ContactsLdapSettings().Filter : LdapFilter.Text.Trim(),
+            OneLevelOnly = string.Equals(SelectedTag(LdapScopeChoice), "OneLevel", StringComparison.Ordinal),
+            SyncIntervalMinutes = ParseInt(SelectedTag(LdapInterval), 60),
+            Attributes = _ldapSalvata.Attributes with
+            {
+                Extension = NullIfEmpty(LdapAttrExtension.Text),
+                WorkPhone = NullIfEmpty(LdapAttrWorkPhone.Text),
+                MobilePhone = NullIfEmpty(LdapAttrMobile.Text),
+                DisplayName = NullIfEmpty(LdapAttrDisplayName.Text),
+                FirstName = NullIfEmpty(LdapAttrFirstName.Text),
+                LastName = NullIfEmpty(LdapAttrLastName.Text),
+                Department = NullIfEmpty(LdapAttrDepartment.Text),
+                JobTitle = NullIfEmpty(LdapAttrJobTitle.Text),
+                Building = NullIfEmpty(LdapAttrBuilding.Text),
+                Organization = NullIfEmpty(LdapAttrOrganization.Text),
+                Email = NullIfEmpty(LdapAttrEmail.Text),
+            },
+        };
+    }
+
+    private void OnLdapSecurityChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var inChiaro = string.Equals(SelectedTag(LdapSecurityChoice), nameof(ContactsLdapSecurity.Plain), StringComparison.Ordinal);
+
+        LdapPlainWarning.Visibility = inChiaro ? Visibility.Visible : Visibility.Collapsed;
+
+        // L'avviso si pronuncia quando la scelta la fa una persona, non quando la
+        // finestra si apre: in apertura lo si legge comunque arrivando al campo.
+        if (inChiaro && !_caricamentoDirectory) Report(LdapContactSource.PlainTextWarning);
+    }
+
+    private void OnLdapBindChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var dedicata = string.Equals(SelectedTag(LdapBindChoice), nameof(ContactsLdapBind.Simple), StringComparison.Ordinal);
+
+        LdapUser.IsEnabled = dedicata;
+        LdapPassword.IsEnabled = dedicata;
+    }
+
+    private void OnLdapAttributesResetClick(object sender, RoutedEventArgs e)
+    {
+        var predefiniti = new ContactsLdapAttributes();
+
+        MostraAttributi(predefiniti);
+        _ldapSalvata = _ldapSalvata with
+        {
+            Attributes = _ldapSalvata.Attributes with
+            {
+                EntryKey = predefiniti.EntryKey,
+                UpdatedAt = predefiniti.UpdatedAt,
+            },
+        };
+
+        Report("Rimessi gli attributi di Active Directory. Salva per conservarli");
+    }
+
+    /// <summary>
+    /// Si collega alla directory, conta i contatti e mostra l'anteprima.
+    /// </summary>
+    /// <remarks>
+    /// La password digitata viene depositata prima del tentativo, legata al server
+    /// appena indicato: la prova è la richiesta esplicita di usarla verso quel server,
+    /// come per SQL Server.
+    /// </remarks>
+    private async void OnLdapTestClick(object sender, RoutedEventArgs e)
+    {
+        var impostazioni = CurrentLdapSettings();
+
+        if (!impostazioni.IsConfigured)
+        {
+            Report("Indica prima il server della directory e la base della ricerca");
+            (string.IsNullOrWhiteSpace(impostazioni.Server) ? LdapServer : LdapBaseDn).Focus();
+            return;
+        }
+
+        if (impostazioni.Bind == ContactsLdapBind.Simple && LdapPassword.Password.Length > 0)
+        {
+            _settingsService.Secrets.SetForHost(
+                impostazioni.PasswordSecretKey, LdapPassword.Password, impostazioni.Server);
+        }
+
+        LdapTestButton.IsEnabled = false;
+        Report("Collegamento alla directory in corso");
+
+        try
+        {
+            var sorgente = _contactsSync.BuildLdapSource(impostazioni);
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var esito = await sorgente.TestAsync(timeout.Token).ConfigureAwait(true);
+
+            LiveRegion.Update(LdapStatusText, esito.Message);
+            Report(esito.Message);
+
+            if (!esito.Success) return;
+
+            _importKind = ImportKind.Ldap;
+            ShowBackupTables([]);
+
+            await RefreshPreviewAsync((righe, token) => sorgente.PreviewAsync(righe, token)).ConfigureAwait(true);
+        }
+        finally
+        {
+            LdapTestButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnLdapSyncClick(object sender, RoutedEventArgs e)
+        => await SyncNowAsync(LdapSyncButton, LdapStatusText).ConfigureAwait(true);
+
+    /// <summary>
+    /// Riallinea adesso con la configurazione salvata e riferisce l'esito.
+    /// </summary>
+    /// <param name="button">Pulsante premuto, da disattivare durante il lavoro.</param>
+    /// <param name="status">Riga di esito del pannello.</param>
+    private async Task SyncNowAsync(Button button, TextBlock status)
+    {
+        button.IsEnabled = false;
+        Report("Riallineamento della rubrica in corso");
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var esito = await _contactsSync.SyncAsync(timeout.Token).ConfigureAwait(true);
+
+            LiveRegion.Update(status, esito.Message);
+            Report(esito.Message);
+
+            await RefreshContactCountAsync().ConfigureAwait(true);
+        }
+        finally
+        {
+            button.IsEnabled = true;
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Rubrica dai contatti di Outlook
+    // -----------------------------------------------------------------------
+
+    private void CaricaOutlook(ContactsOutlookSettings settings)
+    {
+        OutlookIncludeSubfolders.IsChecked = settings.IncludeSubfolders;
+        SelectByTag(OutlookInterval, settings.SyncIntervalMinutes.ToString(CultureInfo.InvariantCulture));
+    }
+
+    private ContactsOutlookSettings CurrentOutlookSettings() => new()
+    {
+        IncludeSubfolders = OutlookIncludeSubfolders.IsChecked == true,
+        SyncIntervalMinutes = ParseInt(SelectedTag(OutlookInterval), 240),
+    };
+
+    /// <summary>
+    /// Legge i contatti di Outlook, li conta e mostra l'anteprima.
+    /// </summary>
+    /// <remarks>
+    /// Prima di tutto si guarda che cosa c'è di Outlook sulla postazione: se c'è solo
+    /// il nuovo, o nessuno, la frase lo dice subito invece di far aspettare un
+    /// tentativo destinato a fallire.
+    /// </remarks>
+    private async void OnOutlookTestClick(object sender, RoutedEventArgs e)
+    {
+        if (OutlookContactReader.Explain(OutlookContactReader.Probe()) is { } assente)
+        {
+            LiveRegion.Update(OutlookStatusText, assente);
+            Report(assente);
+            return;
+        }
+
+        OutlookTestButton.IsEnabled = false;
+        Report("Lettura dei contatti di Outlook in corso");
+
+        try
+        {
+            var sorgente = _contactsSync.BuildOutlookSource(CurrentOutlookSettings());
+
+            var esito = await sorgente.TestAsync(CancellationToken.None).ConfigureAwait(true);
+
+            LiveRegion.Update(OutlookStatusText, esito.Message);
+            Report(esito.Message);
+
+            if (!esito.Success) return;
+
+            _importKind = ImportKind.Outlook;
+            ShowBackupTables([]);
+
+            await RefreshPreviewAsync((righe, token) => sorgente.PreviewAsync(righe, token)).ConfigureAwait(true);
+        }
+        finally
+        {
+            OutlookTestButton.IsEnabled = true;
+        }
+    }
+
+    private async void OnOutlookSyncClick(object sender, RoutedEventArgs e)
+        => await SyncNowAsync(OutlookSyncButton, OutlookStatusText).ConfigureAwait(true);
 
     // -----------------------------------------------------------------------
     // Importazione da backup di banca dati
@@ -4931,7 +5261,11 @@ public partial class SettingsWindow : Window
     /// </remarks>
     private async void OnImportCsvClick(object sender, RoutedEventArgs e)
     {
-        if (SelectedTag(MapNumber) is null)
+        // Directory e Outlook non passano dall'abbinamento delle colonne: i loro
+        // campi hanno gia' un nome, e la casella del numero resta vuota di proposito.
+        var conColonne = _importKind is ImportKind.Csv or ImportKind.Backup or ImportKind.SqlServer;
+
+        if (conColonne && SelectedTag(MapNumber) is null)
         {
             // Senza numero un contatto non serve a un centralino, e importarne
             // migliaia di inutilizzabili riempirebbe i risultati di ricerca. Il
@@ -4960,9 +5294,13 @@ public partial class SettingsWindow : Window
 
             if (contacts.Count == 0)
             {
-                Report(_importKind == ImportKind.Csv
-                    ? "Nessun contatto con numero telefonico trovato nel file"
-                    : "Nessun contatto con numero telefonico trovato nella tabella scelta");
+                Report(_importKind switch
+                {
+                    ImportKind.Csv => "Nessun contatto con numero telefonico trovato nel file",
+                    ImportKind.Ldap => "Nessun contatto con numero telefonico trovato nella directory",
+                    ImportKind.Outlook => "Nessun contatto con numero telefonico trovato in Outlook",
+                    _ => "Nessun contatto con numero telefonico trovato nella tabella scelta",
+                });
                 return;
             }
 
@@ -4983,6 +5321,16 @@ public partial class SettingsWindow : Window
         {
             _log.LogError(ex, "Importazione della rubrica dal server non riuscita");
             Report(SqlServerContactSource.DescribeSqlFailure(ex));
+        }
+        catch (Exception ex) when (_importKind == ImportKind.Ldap)
+        {
+            _log.LogError(ex, "Importazione della rubrica dalla directory non riuscita");
+            Report(LdapContactSource.DescribeFailure(ex, ContactsSyncService.ToLdapOptions(CurrentLdapSettings())));
+        }
+        catch (Exception ex) when (_importKind == ImportKind.Outlook)
+        {
+            _log.LogError(ex, "Importazione dei contatti di Outlook non riuscita");
+            Report(OutlookContactSource.DescribeFailure(ex));
         }
         catch (Exception ex)
         {
@@ -5017,6 +5365,9 @@ public partial class SettingsWindow : Window
 
             return _contactsSync.BuildSource(collegamento);
         }
+
+        if (_importKind == ImportKind.Ldap) return _contactsSync.BuildLdapSource(CurrentLdapSettings());
+        if (_importKind == ImportKind.Outlook) return _contactsSync.BuildOutlookSource(CurrentOutlookSettings());
 
         var path = CsvPath.Text.Trim();
 

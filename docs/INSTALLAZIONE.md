@@ -282,6 +282,29 @@ msiexec /a BlindPhone-0.1.0-x64.msi /qn TARGETDIR=%TEMP%\verifica
 È il modo per controllare il contenuto di un pacchetto, o per far provare
 l'applicazione a qualcuno che non ha i privilegi di amministratore.
 
+### Rubrica dalla directory o da Outlook
+
+Il pacchetto non installa niente in più per queste due provenienze, ma la postazione
+deve offrire alcune cose che il pacchetto non può portare con sé.
+
+| Provenienza | Che cosa serve sulla postazione |
+|---|---|
+| **Directory con LDAPS** | Il certificato del server (o dell'autorità di certificazione dell'ente) fra quelli attendibili di Windows. Sulle postazioni nel dominio con Servizi certificati di Active Directory c'è già; altrimenti va distribuito per criteri di gruppo. Senza, il collegamento fallisce con «il server non risponde in modo protetto» |
+| **Directory con StartTLS** | Lo stesso certificato, e la porta 389 aperta verso il server |
+| **Utenza di Windows** | Postazione nel dominio e operatore che accede con un'utenza di dominio: è Kerberos a presentarlo alla directory, senza password da conservare |
+| **Utenza dedicata** | Un'utenza di sola lettura sulla directory. La password si inserisce dalle impostazioni e resta nel deposito protetto di quel profilo, legata al server |
+| **Contatti di Outlook** | Outlook classico (Microsoft 365 Apps o Office 2016 e successivi) con un profilo configurato per l'operatore. L'architettura non conta: BlindPhone a 64 bit legge anche un Outlook a 32 bit. Il nuovo Outlook non basta, perché non si lascia leggere da altri programmi |
+
+Porte in uscita verso il server della directory: **636** per LDAPS, **389** per
+StartTLS. La scelta «in chiaro» esiste per le directory che non offrono altro, ma
+manda sulla rete nomi, numeri e — con un'utenza dedicata — la sua password: in
+un ente che deve dimostrare la cifratura dei dati personali in transito non va
+usata.
+
+BlindPhone e Outlook devono girare **con gli stessi privilegi**: se Outlook è
+aperto come amministratore e BlindPhone no, Windows non li lascia parlare e la
+lettura fallisce con un invito a riaprire Outlook normalmente.
+
 ---
 
 ## 5. Accessibilità della procedura

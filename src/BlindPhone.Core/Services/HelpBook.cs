@@ -427,13 +427,23 @@ public static class HelpBook
 
         Le parole si possono scrivere in qualunque ordine e possono stare in campi diversi: «ambulatorio cardiologia» trova «Ambulatorio di Cardiologia», e trova anche una voce descritta «Ambulatorio» che sta nel reparto di Cardiologia. Ogni parola in piu' restringe il risultato invece di allargarlo, quindi se i risultati sono troppi basta aggiungere una parola che ricordi.
 
-        I contatti arrivano dal centralino, se collegato, da file importati e dal gestionale dell'ente: si sceglie da Impostazioni, scheda Rubrica, alla voce «da dove arrivano i contatti».
+        I contatti arrivano dal centralino, se collegato, da file importati, dal gestionale dell'ente, dalla directory dell'ente o dai contatti di Outlook: si sceglie da Impostazioni, scheda Rubrica, alla voce «da dove arrivano i contatti».
 
         Con la rubrica collegata a Microsoft SQL Server, BlindPhone legge una tabella o una vista del gestionale e ne copia il contenuto nell'archivio cifrato della postazione, riallineandolo ogni tanto. Il server non viene mai modificato: si legge soltanto.
 
         La copia locale non e' un ripiego, e' il motivo per cui il collegamento si puo' usare: il nome di chi chiama viene cercato mentre il telefono squilla, e se quella ricerca dovesse attraversare la rete un rallentamento ti lascerebbe senza sapere chi risponde. Con la copia, a rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito e continui a lavorare. Preferiti e numeri rapidi restano tuoi e restano sulla postazione.
 
         La procedura e' la stessa dei file: ci si collega, si sceglie la tabella dallo stesso elenco, si abbinano le stesse colonne e si controlla l'anteprima. Il pulsante «Riallinea adesso» aggiorna la copia quando serve; il riallineamento automatico non parte durante una chiamata.
+
+        Con la rubrica collegata alla directory LDAP o ad Active Directory vale lo stesso: la directory si legge soltanto e i contatti finiscono nella copia locale. Servono il server, che con Active Directory puo' essere il nome del dominio, e la base della ricerca. Filtro e attributi proposti sono gia' quelli di Active Directory: prendono gli utenti attivi e i contatti con almeno un numero, e l'interno dal campo Telefono IP. Il pulsante «Chiedi i contatti alla directory», Alt H, prova il collegamento, dice quanti contatti ha trovato e mostra le prime voci nell'anteprima.
+
+        Il collegamento e' cifrato con LDAPS o StartTLS. In chiaro si puo' scegliere solo se la directory non offre altro, e lo senti dire ogni volta che provi il collegamento: nomi e numeri viaggerebbero leggibili sulla rete, e con un'utenza dedicata anche la sua password. Con l'utenza di Windows non serve nessuna password; quella dell'utenza dedicata sta nel deposito protetto di Windows, legata al server per cui l'hai inserita, e se il server cambia va reinserita.
+
+        Se la directory rifiuta l'accesso senti il motivo: credenziali sbagliate, password scaduta, utenza bloccata o disattivata. Sono quattro cose da risolvere in quattro modi diversi, e riprovare la password su un'utenza bloccata non serve.
+
+        Con i contatti di Outlook, BlindPhone legge le cartelle Contatti di Outlook classico su questa postazione, sottocartelle comprese se lo scegli. Il pulsante «Leggi i contatti di Outlook», Alt K, li conta e mostra l'anteprima. Il nuovo Outlook non permette ad altri programmi di leggere i contatti: se c'e' solo quello, BlindPhone te lo dice, e l'alternativa e' esportare i contatti in un file CSV da Outlook sul web e importare quel file. Posta elettronica, numero di casa e note dei contatti non vengono letti.
+
+        Directory e Outlook scrivono i numeri come li ha scritti una persona, con spazi, parentesi e trattini: BlindPhone li riduce alla forma che si puo' comporre. Se un numero porta l'interno in coda, per esempio «int. 4021», l'interno diventa il recapito predefinito. Quello che non e' un numero, come una nota scritta nel campo del telefono, finisce fra le note del contatto.
 
         Si importa da file CSV e da backup di banca dati: file SQLite, oppure esportazioni SQL in formato testo prodotte da MySQL, MariaDB, PostgreSQL e SQL Server. Il formato viene riconosciuto dal contenuto e non dall'estensione, quindi non conta come si chiama il file: punto sql, punto bak, punto bkp, punto dmp o senza estensione, se dentro c'e' un backup leggibile viene letto.
 
@@ -581,7 +591,7 @@ public static class HelpBook
 
         Tasti rapidi. Vedi l'argomento dedicato.
 
-        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima.
+        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima; collegamento a SQL Server, alla directory LDAP o Active Directory e ai contatti di Outlook classico.
 
         Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
         """;
