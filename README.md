@@ -452,6 +452,12 @@ quel requisito è contrattuale.
 - Rubrica SQLite con ricerca testuale e T9, importazione CSV, sorgente Yeastar
 - Elenco delle ultime chiamate su archivio separato, diviso in perse, ricevute ed
   effettuate, con conservazione configurabile e cancellazione manuale
+- Link di chiamata `tel:` (RFC 3966), `sip:` e `sips:` (RFC 3261) e `callto:` da
+  gestionali, pagine web e posta: il numero arriva nel campo di composizione della
+  copia già aperta, la voce lo legge e la chiamata parte **solo con Invio**. Codici
+  di servizio, intestazioni SIP e caratteri di controllo vengono rifiutati. BlindPhone
+  si candida nelle App predefinite di Windows; come sceglierlo, anche per criterio
+  di gruppo, è in [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md)
 - Archivi locali cifrati a riposo con SQLCipher, chiave sotto DPAPI, conversione
   automatica di quelli nati in chiaro
 - Shell WPF accessibile con regioni dinamiche UI Automation
@@ -472,6 +478,10 @@ quel requisito è contrattuale.
   risponde «funzione non ancora disponibile»
 - Sorgenti rubrica LDAP e ripristino da backup SQL
 - Parcheggio, risposta per assente
+- Prova sul campo dei link di chiamata con i browser, i client di posta e i
+  gestionali dell'ente: interpretazione, consegna alla copia aperta e registrazione
+  nell'installatore sono verificate dai test e dal pacchetto costruito, non ancora
+  da un'installazione su una postazione reale
 - Decisione su RTT (EN 301 549 §6.2): implementarlo o dichiarare lo scostamento
   nell'Accessibility Conformance Report
 

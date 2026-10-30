@@ -3731,6 +3731,126 @@ public partial class MainWindow : Window
     }
 
     // -----------------------------------------------------------------------
+    // Link di chiamata
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Mette nel campo di composizione il numero di un link <c>tel:</c>, <c>sip:</c> o
+    /// <c>callto:</c> cliccato in un gestionale, in una pagina o in un messaggio.
+    /// </summary>
+    /// <param name="raw">Link così come è arrivato sulla riga di comando.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Il link non compone, e questa è la regola da cui dipende tutto il resto.</b>
+    /// Chiunque può scrivere una pagina con un link di chiamata, e una pagina può far
+    /// aprire un link senza che nessuno lo clicchi. Se il link componesse, una pagina
+    /// web potrebbe far partire telefonate dal centralino dell'ente — verso numeri a
+    /// pagamento, verso chiunque — e su un posto operatore la telefonata partirebbe
+    /// con l'operatore in linea con qualcun altro. Il numero va nel campo, la voce lo
+    /// legge, e Invio lo preme l'operatore dopo averlo sentito.
+    /// </para>
+    /// <para>
+    /// <b>Il campo si comporta come se il numero fosse stato digitato.</b> Durante un
+    /// trasferimento diventa la destinazione, con qualcuno in linea Invio non compone:
+    /// sono le regole del campo, e il link non ne ha di sue. In particolare <b>non
+    /// mette in attesa nessuno</b>: chi è in conversazione lo resta, e l'annuncio dice
+    /// quale tasto premere se vuole chiamare il numero del link.
+    /// </para>
+    /// <para>
+    /// <b>Dove il campo è bloccato, il link non entra.</b> In pausa e, in modalità
+    /// semplificata, mentre squilla una chiamata il campo non accetta testo per ragioni
+    /// che valgono anche per un numero arrivato da fuori; il link lo dice e spiega
+    /// come procedere invece di aggirare il blocco.
+    /// </para>
+    /// <para>
+    /// <b>Il registro non porta il numero.</b> Dice da che schema arriva il link e che
+    /// cosa ne è stato: è quello che serve davanti a «ho cliccato e non è successo
+    /// niente», e un numero di telefono preso da una pratica è un dato personale che il
+    /// registro non ha bisogno di conservare.
+    /// </para>
+    /// </remarks>
+    public void ReceiveCallLink(string raw)
+    {
+        var now = DateTimeOffset.Now;
+
+        // La finestra viene davanti in ogni caso, anche se il link va scartato:
+        // l'operatore ha appena cliccato, e deve sentire la risposta dal programma che
+        // l'ha data, con il cursore li' dove puo' fare qualcosa.
+        var primoPiano = RestoreWindow(null);
+
+        if (!CallLinkParser.TryParse(raw, out var link, out var errore))
+        {
+            _log.LogWarning("Link di chiamata scartato: {Motivo}", errore);
+            _announcer.Announce(Announcement.High(
+                CallLinkTexts.Rejected(errore!), now, EarconKind.CommandRejected, coalesceKey: "link:chiamata"));
+            return;
+        }
+
+        if (_duty.IsPaused)
+        {
+            _log.LogInformation("Link di chiamata {Schema} non usato: postazione in pausa", link!.Scheme);
+            _announcer.Announce(Announcement.High(
+                CallLinkTexts.WhilePaused(LocalKeyName(_hotkeys, HotkeyCommand.ToggleServicePause, "Control Alt Pausa")),
+                now,
+                EarconKind.CommandRejected,
+                coalesceKey: "link:chiamata"));
+            return;
+        }
+
+        if (IsSimplifiedMode && _calls.RingingCall is not null)
+        {
+            _log.LogInformation("Link di chiamata {Schema} non usato: chiamata entrante in modalita' semplificata", link!.Scheme);
+            _announcer.Announce(Announcement.High(
+                CallLinkTexts.WhileRinging(), now, EarconKind.CommandRejected, coalesceKey: "link:chiamata"));
+            return;
+        }
+
+        // Il proprio centralino si riconosce sia dal dominio sia dal registrar: in
+        // molti enti il link del gestionale usa il nome del server, non il dominio.
+        var account = _settingsService.Current.ActiveSipAccount;
+        var campo = link!.Dial([account.Domain, account.EffectiveRegistrar]);
+
+        DialerBox.Text = campo;
+
+        // L'assegnazione qui sopra passa dal gestore della digitazione, che dichiara
+        // l'operatore al lavoro sul campo e zittisce per qualche secondo gli annunci
+        // non critici: compreso quello che legge il numero, che e' il solo modo di
+        // sapere che cosa e' arrivato. Il link non e' una battitura e va detto subito.
+        //
+        // La ricerca in rubrica che lo stesso gestore ha messo in coda si annulla per
+        // la ragione opposta: un terzo di secondo dopo direbbe «nessun contatto» o
+        // «tre voci su questo interno» sopra il numero ancora in lettura.
+        _context.StopTyping();
+        CancelSuggestionSearch();
+        HideSuggestions();
+
+        DialerBox.Focus();
+        DialerBox.CaretIndex = DialerBox.Text.Length;
+
+        var effetto = CallLinkTexts.EffectOf(CurrentActionContext(), IsSimplifiedMode);
+
+        _log.LogInformation(
+            "Link di chiamata {Schema} messo nel campo di composizione, primo piano {PrimoPiano}: Invio -> {Effetto}",
+            link.Scheme, primoPiano ? "ottenuto" : "negato", effetto);
+
+        var testo = CallLinkTexts.Inserted(
+            campo,
+            link.Extension,
+            effetto,
+            _settingsService.Current.Accessibility.DigitGrouping,
+            LocalKeyName(_hotkeys, HotkeyCommand.ToggleHold, "F4"),
+            _transferOptions.TransferKeyName);
+
+        if (!primoPiano)
+        {
+            testo = CallLinkTexts.WithForegroundDenied(
+                testo, _hotkeys.Get(HotkeyCommand.ShowWindow, HotkeyScope.Global)?.SpeechText);
+        }
+
+        _announcer.Announce(Announcement.CommandResponse(testo, now, CallLinkTexts.Braille(campo)));
+    }
+
+    // -----------------------------------------------------------------------
     // Composizione
     // -----------------------------------------------------------------------
 

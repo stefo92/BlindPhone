@@ -189,6 +189,8 @@ public sealed class HelpBookTests
     [InlineData("Elaborazione del microfono", "non e' detto dove si accendono il controllo del livello e la riduzione del rumore")]
     [InlineData("anche sulla chiamata in corso", "non e' detto che le due funzioni del microfono valgono subito")]
     [InlineData("finché non rispondi", "non e' detto che la suoneria dura fino alla risposta")]
+    [InlineData("Il link non compone da solo", "non e' detto che un link di chiamata non fa partire la telefonata")]
+    [InlineData("App predefinite", "non e' detto dove si sceglie BlindPhone come programma dei link di chiamata")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza

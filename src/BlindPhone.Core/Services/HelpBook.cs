@@ -70,6 +70,9 @@ public static class HelpBook
     /// <summary>Argomento della modalità semplificata da tastierino numerico.</summary>
     public const string KeypadTopicId = "tastierino";
 
+    /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
+    public const string CallLinksTopicId = "link-di-chiamata";
+
     /// <summary>
     /// Costruisce la guida sulle combinazioni attualmente assegnate.
     /// </summary>
@@ -88,6 +91,7 @@ public static class HelpBook
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
         Topic("riunioni", "Entrare in una riunione Zoom", Riunioni(profile)),
+        Topic(CallLinksTopicId, "Chiamare da un link nel gestionale o in una pagina", LinkDiChiamata(profile)),
         Topic("stato", "Sapere come sta andando", Stato(profile)),
         Topic("voce", "La voce, i segnali acustici e il braille", Voce(profile)),
         Topic("finestra", "Chiudere, riaprire, secondo piano", Finestra(profile)),
@@ -659,6 +663,27 @@ public static class HelpBook
         Il codice d'accesso non viene mai riletto a voce e non resta nelle ultime chiamate: in un centralino dove ci sono altre persone, un codice pronunciato ad alta voce è un codice diffuso.
 
         Quello che non c'è, perché passa da Zoom e non dal telefono: la chat, la mano alzata, l'elenco dei partecipanti e il comando del microfono dal lato riunione. Hai l'audio e i comandi del tuo telefono.
+        """;
+
+    private static string LinkDiChiamata(HotkeyProfile profile) =>
+        $"""
+        Nel gestionale, in una pagina web o in un messaggio di posta i numeri possono essere link: tel, sip o callto. Se BlindPhone è il programma scelto per quei link, il clic sul numero, o Invio sul link, lo porta a BlindPhone.
+
+        Il link non compone da solo. Il numero va nel campo di composizione, la finestra di BlindPhone viene davanti e la voce lo legge: «Numero da link: zero sei, uno due, e così via. Premi Invio per chiamare». La chiamata parte solo quando premi Invio.
+
+        È una scelta di sicurezza: chiunque può scrivere una pagina con un link di chiamata, e una pagina non deve poter far partire telefonate dal tuo centralino. Prima di premere Invio ascolta il numero: il link l'ha scritto qualcun altro.
+
+        Se sei in conversazione nessuno viene messo in attesa. Il numero resta nel campo e la voce ti dice come procedere: metti in attesa con {K(profile, HotkeyCommand.ToggleHold)} e poi premi Invio per chiamarlo, oppure premi {K(profile, HotkeyCommand.Transfer)} per passargli il chiamante.
+
+        Durante un trasferimento il numero del link diventa la destinazione, come se l'avessi scritto tu. In modalità semplificata, con un chiamante in linea, Invio chiama il numero del link per passargli il chiamante, come per un interno digitato.
+
+        Se il link indica anche un interno, la voce lo dice: va chiesto a chi risponde, oppure digitato con i toni quando il risponditore automatico lo chiede.
+
+        Alcuni link vengono scartati, e la voce dice perché. Quelli con asterisco o cancelletto, che sono i codici dei servizi del centralino, come la deviazione di tutte le chiamate. Quelli con lettere o con caratteri che non fanno parte di un numero. I numeri locali di un altro paese, che composti da qui chiamerebbero un'altra persona.
+
+        In pausa, e in modalità semplificata mentre squilla una chiamata, il link non entra nel campo, come non ci entrerebbero le cifre digitate. La voce dice come procedere.
+
+        Per scegliere BlindPhone come programma dei link: Impostazioni di Windows, App, App predefinite, cerca BlindPhone e assegnagli tel, sip, sips e callto. Su una postazione gestita può averlo già fatto l'ufficio IT.
         """;
 
     private static string Mancante() =>
