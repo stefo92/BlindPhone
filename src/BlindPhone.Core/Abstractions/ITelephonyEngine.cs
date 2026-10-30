@@ -42,6 +42,19 @@ public interface ITelephonyEngine : IAsyncDisposable
     IReadOnlyList<DiagnosticCounter> DiagnosticCounters { get; }
 
     /// <summary>
+    /// Pacchetti audio di una chiamata nelle due direzioni, se il motore li conta.
+    /// </summary>
+    /// <param name="callId">Chiamata da interrogare.</param>
+    /// <returns>I contatori, oppure <c>null</c> se la chiamata non ha un percorso audio reale.</returns>
+    /// <remarks>
+    /// Ha un corpo qui, e non è una scorciatoia: il motore simulato e quelli dei collaudi
+    /// non hanno pacchetti da contare, e «nessun dato» è la loro risposta onesta. Chi li
+    /// conta davvero — il motore SIP — la sostituisce, e chi ne avvolge un altro la
+    /// inoltra.
+    /// </remarks>
+    MediaFlowSnapshot? GetMediaFlow(string callId) => null;
+
+    /// <summary>
     /// Sorgente dello stato degli interni per via SIP, se il motore la offre.
     /// </summary>
     /// <remarks>

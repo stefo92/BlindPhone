@@ -242,6 +242,13 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
     public IReadOnlyList<DiagnosticCounter> DiagnosticCounters => _inner.DiagnosticCounters;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Va inoltrato per esteso: il corpo dell'interfaccia risponde «nessun dato», e senza
+    /// questa riga il rilevamento dell'audio a senso unico non vedrebbe mai un pacchetto.
+    /// </remarks>
+    public MediaFlowSnapshot? GetMediaFlow(string callId) => _inner.GetMediaFlow(callId);
+
+    /// <inheritdoc />
     public IPresenceSource? PresenceSource => _inner.PresenceSource;
 
     /// <inheritdoc />

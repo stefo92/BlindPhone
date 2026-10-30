@@ -94,6 +94,7 @@ public static class HelpBook
         Topic(HotkeysTopicId, "Cambiare i tasti rapidi", CambiareTasti(profile)),
         Topic(SettingsTopicId, "Impostazioni e prima configurazione", Impostazioni(profile)),
         Topic("problemi", "Quando qualcosa non funziona", Problemi(profile)),
+        Topic("lavoro-agile", "Lavorare da casa: router, VPN e voce che non arriva", LavoroAgile(profile)),
         Topic(AccountsTopicId, "Piu' account SIP sulla stessa postazione", Account(profile)),
         Topic("mancante", "Cosa non c'è ancora", Mancante()),
 
@@ -621,6 +622,19 @@ public static class HelpBook
         Il disco si sta riempiendo. Nella stessa scheda Diagnostica, in fondo, «Calcola lo spazio recuperabile» ti dice quanto occupano i file che BlindPhone può buttare, e «Libera spazio su disco» li elimina dopo averteli elencati uno per uno. Spariscono i registri dei giorni scorsi, le copie anonimizzate, i rapporti di errore già segnalati e i pacchetti di aggiornamento già scaricati. Non si toccano la configurazione, la rubrica, l'elenco delle chiamate, le registrazioni e il registro di oggi.
 
         Pensaci prima di premerlo dopo una segnalazione: i registri eliminati non tornano, e se il guasto è di venerdì il registro di venerdì è l'unica traccia che ne resta. Il pulsante serve quando il disco è pieno, non come pulizia di routine — a quella pensano già i giorni di conservazione.
+        """;
+
+    private static string LavoroAgile(HotkeyProfile profile) =>
+        $"""
+        Da casa la postazione lavora dietro il router, e a volte dietro una VPN che porta in ufficio solo una parte del traffico. Le chiamate funzionano come in sede, con due differenze possibili.
+
+        La voce dell'interlocutore non arriva. Tu parli e dall'altra parte ti sentono, ma tu senti silenzio. Dopo sei secondi di conversazione così BlindPhone te lo dice a voce: «non arriva la voce dell'interlocutore». Non è l'interlocutore che tace, è la sua voce che si perde fra il centralino e il tuo router. Conviene dirlo all'interlocutore, richiamarlo da un altro telefono se la chiamata è importante, e segnalarlo all'assistenza con {K(profile, HotkeyCommand.SendSupportPackage)}: i dati che servono sono già pronti.
+
+        Le chiamate smettono di arrivare dopo un po' che non telefoni. La postazione risulta registrata, ma il router ha chiuso il passaggio da cui il centralino ti cerca. Per evitarlo BlindPhone manda un piccolo segnale al centralino ogni venticinque secondi. È già acceso: lo trovi in Impostazioni, scheda Account SIP, sezione Lavoro agile, alla voce «Segnale di mantenimento». Non spegnerlo se lavori da casa.
+
+        Nella stessa sezione c'è «Server STUN per l'indirizzo pubblico». Serve quando la voce dell'interlocutore non arriva: BlindPhone chiede a quel server con quale indirizzo pubblico ti vede, e lo comunica al centralino. Il nome del server lo decide l'ente e te lo dà chi amministra il centralino: non ce n'è uno già scritto, perché mandare traffico a un server esterno è una scelta dell'ente. In sede il campo non fa nulla, quindi puoi lasciarlo compilato.
+
+        Per riferire all'assistenza come stanno le cose, apri {K(profile, HotkeyCommand.OpenDiagnostics)}: le righe «NAT fra postazione e centralino», «Indirizzo pubblico scoperto» e, durante una chiamata, «Verso dell'audio» dicono se c'è un router in mezzo e se la voce viaggia nelle due direzioni.
         """;
 
     private static string Account(HotkeyProfile profile) =>

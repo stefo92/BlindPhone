@@ -218,6 +218,12 @@ internal sealed class FakeEngine : ITelephonyEngine
     public void PlayToRemote(string callId, short[] pcm, int sampleRate)
         => RemoteAnnouncements.Add($"{callId}:{pcm.Length}@{sampleRate}");
 
+    /// <summary>Pacchetti audio per chiamata, scritti dai collaudi.</summary>
+    public Dictionary<string, MediaFlowSnapshot> MediaFlows { get; } = [];
+
+    public MediaFlowSnapshot? GetMediaFlow(string callId)
+        => MediaFlows.TryGetValue(callId, out var flow) ? flow : null;
+
     // -------- comandi di simulazione --------
 
     public string SimulateIncoming(string number, string? name = null, string? queue = null)

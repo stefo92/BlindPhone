@@ -338,6 +338,8 @@ public partial class SettingsWindow : Window
             SelectByTag(SipTransport, account.Transport);
             SelectByTag(SipSrtp, account.Srtp);
             UpdateSrtpHint();
+            SipStunServer.Text = account.StunServer ?? string.Empty;
+            SipKeepAlive.Text = account.KeepAliveSeconds.ToString(CultureInfo.InvariantCulture);
 
             var password = _sipPasswords.GetValueOrDefault(account.Id, string.Empty);
             SipPassword.Password = password;
@@ -378,6 +380,11 @@ public partial class SettingsWindow : Window
             Transport = SelectedTag(SipTransport) ?? "Udp",
             Srtp = SelectedTag(SipSrtp) ?? "Disabled",
             CodecPreference = [.. _codecs.Where(c => c.IsEnabled).Select(c => c.Info.ShortName)],
+            StunServer = NullIfEmpty(SipStunServer.Text),
+
+            // Un valore che non si legge lascia quello di prima: e' Validate a dirlo
+            // all'operatore, al salvataggio, invece di cambiarlo senza avvisare.
+            KeepAliveSeconds = ParseInt(SipKeepAlive.Text, account.KeepAliveSeconds),
         };
 
         _sipPasswords[account.Id] = ShowSipPassword.IsChecked == true
@@ -3085,6 +3092,19 @@ public partial class SettingsWindow : Window
         {
             if (string.IsNullOrWhiteSpace(SipUsername.Text)) errors.Add("Manca l'interno SIP");
             if (string.IsNullOrWhiteSpace(SipDomain.Text)) errors.Add("Manca il dominio del centralino");
+        }
+
+        // Si verificano i campi dell'account mostrato, come per l'interno e il dominio:
+        // sono quelli che l'operatore ha davanti e puo' correggere senza cambiare scelta.
+        if (!StunServerAddress.TryParse(SipStunServer.Text, out _, out var stunError)) errors.Add(stunError);
+
+        const int MinKeepAlive = Telephony.SipAccountOptions.MinKeepAliveSeconds;
+        const int MaxKeepAlive = Telephony.SipAccountOptions.MaxKeepAliveSeconds;
+
+        if (!int.TryParse(SipKeepAlive.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var keepAlive)
+            || (keepAlive != 0 && keepAlive is < MinKeepAlive or > MaxKeepAlive))
+        {
+            errors.Add($"Il segnale di mantenimento deve essere fra {MinKeepAlive} e {MaxKeepAlive} secondi, oppure zero per spegnerlo");
         }
 
         // A collegamento disattivato i campi del centralino non vengono verificati:

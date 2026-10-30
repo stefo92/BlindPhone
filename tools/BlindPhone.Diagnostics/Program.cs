@@ -1,7 +1,11 @@
+using System.Net;
+using System.Net.Sockets;
 using BlindPhone.Audio;
 using BlindPhone.Contacts;
 using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Domain;
+using BlindPhone.Core.Services;
+using BlindPhone.Core.Speech;
 using BlindPhone.Infrastructure;
 using BlindPhone.Pbx.Yeastar;
 using BlindPhone.Telephony;
@@ -66,6 +70,10 @@ switch (command.ToLowerInvariant())
         await TestSipRegistrationAsync();
         break;
 
+    case "nat":
+        await TestNatAsync();
+        break;
+
     case "chiamata":
         await TestCallAsync(args.SkipWhile(a => a != "chiamata").Skip(1).FirstOrDefault(a => !a.StartsWith("--")));
         break;
@@ -89,6 +97,7 @@ void PrintHelp()
     Console.WriteLine();
     Console.WriteLine("  audio                  elenca i dispositivi e verifica l'assegnazione delle quattro vie");
     Console.WriteLine("  sip                    verifica la registrazione presso il centralino");
+    Console.WriteLine("  nat                    dice se la postazione e' dietro NAT e qual e' l'indirizzo pubblico");
     Console.WriteLine("  pbx                    verifica il collegamento all'Open API del centralino");
     Console.WriteLine("  chiamata <numero>      chiama un numero e misura il flusso RTP nelle due direzioni");
     Console.WriteLine("  rubrica <file.csv>     analizza un file CSV e mostra come verrebbe importato");
@@ -200,9 +209,191 @@ async Task TestSipRegistrationAsync()
         Console.WriteLine(state.IsReachable
             ? "ESITO: registrazione riuscita. Il posto operatore e' raggiungibile."
             : $"ESITO: registrazione non riuscita. {state.FailureReason}");
+
+        if (state.IsReachable)
+        {
+            Console.WriteLine();
+            PrintNat(engine);
+        }
     }
 
     await engine.StopAsync(CancellationToken.None);
+}
+
+// -----------------------------------------------------------------------------
+// NAT e indirizzo pubblico
+// -----------------------------------------------------------------------------
+
+// Risponde alla domanda che precede ogni chiamata muta dal lavoro agile: la postazione
+// e' dietro un router, e il centralino lo sa? Le fonti sono due e si dicono separate,
+// perche' non sono la stessa prova:
+//
+//   - la risposta alla registrazione: il centralino dice da quale indirizzo vede
+//     arrivare la postazione (RFC 3581). Non serve nessun server esterno;
+//   - il server STUN dell'account, se c'e': dice l'indirizzo pubblico visto da fuori.
+//
+// Il server STUN si interroga da un socket a parte, quindi la porta pubblica che torna
+// non e' quella che avra' l'audio di una chiamata: l'indirizzo e la presenza del NAT
+// invece si'. La porta vera si legge nella scheda Diagnostica durante una chiamata, o
+// con 'blindphone-diag chiamata'.
+async Task TestNatAsync()
+{
+    var account = BuildAccount();
+    if (account is null) return;
+
+    Console.WriteLine($"Interno    : {account.Username}");
+    Console.WriteLine($"Centralino : {account.Domain}");
+    Console.WriteLine($"Trasporto  : {account.Transport}");
+    Console.WriteLine($"Server STUN: {(string.IsNullOrWhiteSpace(account.StunServer) ? "non configurato" : account.StunServer)}");
+    Console.WriteLine();
+    Console.WriteLine("Registrazione in corso, attendere fino a 15 secondi...");
+
+    await using var engine = new SipTelephonyEngine(
+        account,
+        audioEngine: null,
+        clock: null,
+        logger: loggerFactory.CreateLogger<SipTelephonyEngine>());
+
+    var registered = new TaskCompletionSource<bool>();
+
+    engine.RegistrationStateChanged += (_, state) =>
+    {
+        if (state.Status == RegistrationStatus.Registered) registered.TrySetResult(true);
+        else if (state.Status == RegistrationStatus.Failed) registered.TrySetResult(false);
+    };
+
+    await engine.StartAsync(CancellationToken.None);
+
+    var ok = await Task.WhenAny(registered.Task, Task.Delay(TimeSpan.FromSeconds(15))) == registered.Task
+             && await registered.Task;
+
+    Console.WriteLine();
+
+    if (!ok)
+    {
+        Console.WriteLine("Registrazione non riuscita: senza la risposta del centralino il NAT verso di lui");
+        Console.WriteLine("non si puo' misurare. Esegui 'blindphone-diag sip' per il dettaglio.");
+    }
+    else
+    {
+        PrintNat(engine);
+    }
+
+    if (StunServerAddress.TryParse(account.StunServer, out var stun, out var stunError) && stun is not null)
+    {
+        Console.WriteLine();
+        Console.WriteLine($"Interrogazione del server STUN {stun}...");
+
+        var (esito, server) = await QueryStunAsync(stun);
+        Console.WriteLine($"  {esito.Describe()}");
+
+        var peer = engine.RegistrarEndPoint?.Address;
+        var decisione = MediaAddressPolicy.Decide(
+            esito,
+            peer,
+            peer is null ? null : SIPSorcery.Sys.NetServices.GetLocalAddressForRemote(peer),
+            server is null ? null : SIPSorcery.Sys.NetServices.GetLocalAddressForRemote(server.Address));
+
+        Console.WriteLine();
+        Console.WriteLine("Su una chiamata verso questo centralino la postazione farebbe cosi':");
+        Console.WriteLine($"  {decisione.Reason}");
+    }
+    else if (!string.IsNullOrWhiteSpace(stunError))
+    {
+        Console.WriteLine();
+        Console.WriteLine($"Server STUN non utilizzabile: {stunError}");
+    }
+
+    await engine.StopAsync(CancellationToken.None);
+}
+
+/// <summary>Le righe della diagnostica che parlano di NAT e mantenimento.</summary>
+static void PrintNat(SipTelephonyEngine engine)
+{
+    string[] righe =
+    [
+        "NAT fra postazione e centralino",
+        "Indirizzo pubblico scoperto",
+        "Server STUN",
+        "Segnale di mantenimento",
+        "Indirizzo annunciato per l'audio",
+        "Verso dell'audio",
+    ];
+
+    foreach (var counter in engine.DiagnosticCounters.Where(c => righe.Contains(c.Label)))
+    {
+        Console.WriteLine($"{counter.Label}: {counter.Value}");
+    }
+}
+
+/// <summary>
+/// Una richiesta STUN da un socket nuovo, con tre tentativi in tre secondi.
+/// </summary>
+/// <remarks>
+/// Piu' paziente di quella che il motore fa a ogni chiamata: qui nessuno sta aspettando
+/// che una chiamata parta, e un «non risponde» deve voler dire che il server non c'e'.
+/// </remarks>
+static async Task<(StunBindingResult Result, IPEndPoint? Server)> QueryStunAsync(StunServerAddress stun)
+{
+    IPEndPoint server;
+
+    try
+    {
+        var indirizzi = IPAddress.TryParse(stun.Host, out var diretto)
+            ? [diretto]
+            : await Dns.GetHostAddressesAsync(stun.Host);
+
+        var scelto = indirizzi.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) ?? indirizzi.FirstOrDefault();
+        if (scelto is null) return (StunBindingResult.NoResponse($"il nome {stun.Host} non si risolve"), null);
+
+        server = new IPEndPoint(scelto, stun.Port);
+    }
+    catch (SocketException)
+    {
+        return (StunBindingResult.NoResponse($"il nome {stun.Host} non si risolve"), null);
+    }
+
+    using var udp = new UdpClient(server.AddressFamily);
+    using var limite = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+    var transazione = StunBinding.NewTransactionId();
+    var richiesta = StunBinding.CreateRequest(transazione);
+
+    var invii = Task.Run(async () =>
+    {
+        foreach (var attesa in new[] { 0, 500, 1000 })
+        {
+            await Task.Delay(attesa, limite.Token);
+            await udp.SendAsync(richiesta, server, limite.Token);
+        }
+    });
+
+    try
+    {
+        while (true)
+        {
+            var arrivato = await udp.ReceiveAsync(limite.Token);
+            var esito = StunBinding.Parse(arrivato.Buffer, transazione);
+
+            if (esito.Outcome != StunOutcome.OtherTransaction) return (esito, server);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        return (StunBindingResult.NoResponse("nessuna risposta in tre secondi"), server);
+    }
+    catch (SocketException ex)
+    {
+        return (StunBindingResult.NoResponse(ex.Message), server);
+    }
+    finally
+    {
+        // Arrivata la risposta, i tentativi che restano non servono piu'.
+        limite.Cancel();
+
+        try { await invii; }
+        catch (Exception ex) when (ex is OperationCanceledException or SocketException) { }
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -325,10 +516,15 @@ async Task TestCallAsync(string? destination)
     // completa sembra monca.
     var ended = new TaskCompletionSource<CallEndReason?>();
 
+    // Da quando la chiamata e' in conversazione: l'avviso di audio a senso unico conta
+    // da li', con la stessa regola dell'applicazione (OneWayAudio).
+    DateTimeOffset? answeredAt = null;
+
     engine.CallProgress += (_, e) =>
     {
         Console.WriteLine($"  [{e.At:HH:mm:ss}] {e.Trigger}  {e.EndReason}  codec {e.NegotiatedCodec}");
 
+        if (e.Trigger == CallTrigger.RemoteAnswered) answeredAt ??= DateTimeOffset.Now;
         if (e.EndReason is not null) ended.TrySetResult(e.EndReason);
     };
 
@@ -380,6 +576,7 @@ async Task TestCallAsync(string? destination)
     endPoint?.StartRecording(recordingPath);
 
     var observedSeconds = 0;
+    var oneWayWarned = false;
 
     for (var second = 1; second <= 40; second++)
     {
@@ -395,6 +592,15 @@ async Task TestCallAsync(string? destination)
         var received = endPoint?.RtpFramesReceived ?? 0;
         var buffered = endPoint?.BufferedMilliseconds ?? 0;
         var underruns = endPoint?.RenderUnderruns ?? 0;
+
+        if (!oneWayWarned
+            && answeredAt is { } risposta
+            && OneWayAudio.IsOneWay(new MediaFlowSnapshot(0, 0), new MediaFlowSnapshot(sent, received), DateTimeOffset.Now - risposta))
+        {
+            // E' il momento in cui l'applicazione avviserebbe l'operatore a voce.
+            oneWayWarned = true;
+            Console.WriteLine($"  >>> AUDIO A SENSO UNICO: qui BlindPhone direbbe «{AnnouncementTexts.OneWayAudio}»");
+        }
 
         if (second % 5 == 0 || second <= 3)
         {
@@ -415,6 +621,9 @@ async Task TestCallAsync(string? destination)
     Console.WriteLine($"Pacchetti inviati : {finalSent}");
     Console.WriteLine($"Pacchetti ricevuti: {finalReceived}");
     Console.WriteLine($"Pacchetti scartati: {endPoint?.RtpFramesDiscarded ?? 0}");
+    Console.WriteLine($"Indirizzo audio   : {engine.GetMediaAddress(callId)?.Reason ?? "non scelto"}");
+    Console.WriteLine();
+    PrintNat(engine);
     Console.WriteLine();
     Console.WriteLine(Diagnosis(finalSent, finalReceived));
 
@@ -614,7 +823,9 @@ static string Diagnosis(long sent, long received) => (sent, received) switch
     (> 0, 0) =>
         "TRASMETTIAMO ma NON RICEVIAMO.\n"
         + "Il softphone sta funzionando: il problema e' a valle. Guarda in quest'ordine:\n"
-        + "  1. NAT e firewall sulle porte RTP verso questa postazione\n"
+        + "  1. NAT e firewall sulle porte RTP verso questa postazione: da casa e' il caso\n"
+        + "     piu' probabile. 'blindphone-diag nat' dice se il NAT c'e'; se c'e', serve un\n"
+        + "     server STUN nell'account oppure la gestione del NAT sul centralino\n"
         + "  2. configurazione del trunk o dell'interno sul centralino\n"
         + "  3. eventuale politica di media relay del PBX",
 
@@ -670,6 +881,8 @@ SipAccountOptions? BuildAccount()
         LocalPort = sip.LocalPort,
         RegistrationExpiry = sip.RegistrationExpiry,
         CodecPreference = sip.CodecPreference,
+        StunServer = sip.StunServer,
+        KeepAliveSeconds = sip.KeepAliveSeconds,
     };
 }
 

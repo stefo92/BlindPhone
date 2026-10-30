@@ -438,6 +438,12 @@ quel requisito è contrattuale.
 - Preconfigurazione esportabile e blocco delle impostazioni a due livelli
 - Segnalazione all'assistenza in un gesto, con cattura automatica degli errori gravi
 - Segnalazione SIP su TLS con richiesta di fiducia sui certificati non verificabili
+- Lavoro agile dietro NAT: segnale di mantenimento verso il centralino (doppio a
+  capo ogni 25 secondi, su UDP, TCP e TLS), server STUN facoltativo per account
+  interrogato dal socket audio, indirizzo pubblico nell'SDP solo quando la postazione
+  è davvero dietro NAT, indirizzo del collegamento verso il centralino nella prima
+  offerta per la VPN parziale, NAT letto da `received` e `rport` (RFC 3581), avviso
+  vocale dopo sei secondi di audio a senso unico
 - Connettore Yeastar: token con rinnovo proattivo, WebSocket con heartbeat e
   riconnessione, interrogazione adattiva, correlazione SIP/API con degrado sicuro
 - Segnalazione SIP: registrazione, chiamate, attesa, REFER cieco e con Replaces,
@@ -474,6 +480,10 @@ quel requisito è contrattuale.
 - Parcheggio, risposta per assente
 - Decisione su RTT (EN 301 549 §6.2): implementarlo o dichiarare lo scostamento
   nell'Accessibility Conformance Report
+- ICE e TURN non ci sono, per scelta motivata: in SIPSorcery 10 l'ICE esiste solo per
+  WebRTC, e il client TURN parla con il relè solo su UDP, che è proprio il caso in cui
+  il relè serve meno. Che cosa servirebbe e quando conviene un SBC è in
+  [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7
 
 ## Rubrica
 
@@ -823,6 +833,42 @@ non lo invia, e viene eliminato solo dopo un invio riuscito.
 **Nessun recapito è fornito con il prodotto**, e non è una dimenticanza: un softphone
 che spedisce da solo i registri di traffico a un indirizzo scelto dal fornitore è un
 trasferimento di dati personali che nessuno ha autorizzato. Lo configura l'ente.
+
+## Lavoro agile: postazioni dietro NAT
+
+*Impostazioni → Account SIP → Lavoro agile: da casa o con la VPN*
+
+Da casa la postazione sta dietro il router e ha un indirizzo privato. Il sintomo tipico
+è **l'audio a senso unico**: l'interlocutore sente l'operatore, l'operatore sente
+silenzio, perché il centralino manda la voce all'indirizzo privato scritto nell'SDP. Il
+secondo sintomo arriva qualche minuto dopo l'ultima chiamata: la postazione risulta
+registrata e non squilla, perché il router ha chiuso il passaggio da cui il centralino
+dovrebbe mandare l'INVITE.
+
+| Che cosa | Come | Acceso di partenza |
+|---|---|---|
+| `rport` nelle richieste (RFC 3581) | Lo aggiunge la libreria SIP a ogni `Via`: il centralino risponde dove vede arrivare la richiesta | Sì, da sempre |
+| RTP simmetrico | La voce parte e arriva sullo stesso socket: il centralino che «aggancia» la sorgente risponde lì | Sì, da sempre |
+| Segnale di mantenimento | Doppio a capo verso il server della registrazione, ogni 25 secondi, su UDP, TCP e TLS | **Sì**: sono quattro byte verso il proprio centralino |
+| Server STUN | Interrogato dal socket audio di ogni chiamata verso un centralino fuori dalla rete interna | **No**: nessun server predefinito |
+| Indirizzo pubblico nell'SDP | Righe `c=` e `m=`, solo se il NAT c'è davvero e il server STUN vede la stessa uscita del centralino | Segue il server STUN |
+| VPN parziale | La prima offerta usa l'indirizzo della scheda che porta al centralino, non quello verso Internet | Sì |
+| Avviso di audio a senso unico | Dopo sei secondi di conversazione con cento pacchetti partiti e nessuno arrivato, una volta per chiamata | Sì |
+
+**Nessun server STUN predefinito**, ed è una scelta: interrogarlo a ogni chiamata dice
+al gestore del server l'indirizzo della postazione e l'ora della telefonata. Su un
+prodotto per la PA mandare quel traffico a Google o a chiunque altro va deciso
+dall'ente, non trovato già scritto.
+
+L'indirizzo pubblico **non si annuncia sempre**, e la regola è nel core
+(`MediaAddressPolicy`) perché si possa collaudare senza rete: resta quello della
+postazione con il centralino in rete interna o in VPN, con un server STUN che non
+risponde o che sta in rete privata, quando il centralino e il server STUN si
+raggiungono da collegamenti diversi, e quando il server vede la postazione con il suo
+stesso indirizzo. La ragione della scelta si legge nella scheda Diagnostica.
+
+Porte da aprire, quando serve TURN e che cosa fare sul centralino: vedi
+[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7.
 
 ## Segnalazione cifrata e certificati
 
@@ -1230,8 +1276,17 @@ dotnet run --project tools/BlindPhone.Diagnostics -- pbx
 ```
 
 ```bash
+dotnet run --project tools/BlindPhone.Diagnostics -- nat
+```
+
+```bash
 dotnet run --project tools/BlindPhone.Diagnostics -- chiamata 200
 ```
+
+Il comando `nat` si registra e dice se fra la postazione e il centralino c'è un NAT,
+leggendo l'indirizzo che il centralino dichiara di vedere; se l'account ha un server
+STUN lo interroga e dice che cosa la postazione annuncerebbe in una chiamata. È il
+primo da eseguire su una postazione in lavoro agile con l'audio a senso unico.
 
 Il comando `chiamata` compone il numero, osserva per 40 secondi e conta i pacchetti
 inviati e ricevuti. I quattro esiti possibili puntano a cause diverse:
@@ -1239,7 +1294,7 @@ inviati e ricevuti. I quattro esiti possibili puntano a cause diverse:
 | Inviati | Ricevuti | Dove guardare |
 |---|---|---|
 | > 0 | > 0 | Il percorso RTP funziona. Se non si sente, è instradamento sul dispositivo sbagliato |
-| > 0 | 0 | Il softphone trasmette: NAT, firewall sulle porte RTP, o configurazione del trunk sul PBX |
+| > 0 | 0 | Il softphone trasmette: NAT, firewall sulle porte RTP, o configurazione del trunk sul PBX. Da casa, esegui `nat` |
 | 0 | > 0 | Cattura locale: microfono occupato da un altro programma o permesso negato nelle impostazioni privacy di Windows |
 | 0 | 0 | Nessun flusso. La chiamata cadrà per timeout di inattività |
 

@@ -214,6 +214,20 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         => _calls.TryGetValue(callId, out var context) ? context.AudioEndPoint : null;
 
     /// <inheritdoc />
+    public MediaFlowSnapshot? GetMediaFlow(string callId)
+        => GetAudioEndPoint(callId) is { } endPoint
+            ? new MediaFlowSnapshot(endPoint.RtpFramesSent, endPoint.RtpFramesReceived)
+            : null;
+
+    /// <summary>
+    /// Quale indirizzo è stato annunciato per l'audio di una chiamata, e perché.
+    /// </summary>
+    /// <param name="callId">Identificativo locale della chiamata.</param>
+    /// <remarks>Esposto per lo strumento di diagnostica, che lo stampa durante la misura.</remarks>
+    public MediaAddressDecision? GetMediaAddress(string callId)
+        => _calls.TryGetValue(callId, out var context) ? context.MediaAddress : null;
+
+    /// <inheritdoc />
     public IPresenceSource? PresenceSource => _presenceSource;
 
     /// <inheritdoc />
@@ -253,6 +267,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 new("Chiamate in corso", _calls.Count.ToString(CultureInfo.CurrentCulture)),
             };
 
+            var attiva = _calls.Values.FirstOrDefault(c => c.AudioEndPoint is not null);
+
+            // Le righe del NAT stanno con quelle della segnalazione, prima dei contatori
+            // audio: da casa sono la spiegazione piu' probabile di quello che i contatori
+            // mostrano, e conviene averle lette prima.
+            counters.AddRange(DescribeNat(attiva));
+
             // La conferenza cambia il significato di tutti i contatori che seguono: i
             // pacchetti inviati contengono anche la voce dell'altro partecipante, e
             // "la prima chiamata con audio attivo" ne descrive una su due. Va detto
@@ -266,7 +287,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                     "Conferenza", $"aperta su {conference.LegCount} linee, missaggio locale"));
             }
 
-            var endPoint = _calls.Values.Select(c => c.AudioEndPoint).FirstOrDefault(e => e is not null);
+            var endPoint = attiva?.AudioEndPoint;
 
             if (endPoint is null)
             {
@@ -368,6 +389,8 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
         await ResolveOutboundProxyAsync(cancellationToken).ConfigureAwait(false);
 
+        ConfigureStun();
+
         _transport = new SIPTransport();
 
         var localPort = _account.LocalPort > 0 ? _account.LocalPort : 0;
@@ -398,6 +421,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // a cui chiedere. E' la strada che resta quando le sottoscrizioni vengono
         // rifiutate, ed e' l'unica che il quadro dei turni possa usare su questo impianto.
         _optionsProbe = new SipOptionsProbe(_transport, _account, _probeLogger, () => CurrentProxy);
+
+        // Parte prima della registrazione ma non manda nulla finche' una registrazione
+        // non e' stata accettata: e' la risposta a dire verso chi tenere aperto il
+        // passaggio.
+        _keepAlive = new SipKeepAlive(
+            _transport, _account.KeepAliveInterval, () => (_registrarLocal, _registrarRemote), _log);
+        _keepAlive.Start();
 
         StartRegistration();
     }
@@ -478,6 +508,304 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _log.LogWarning("Registrazione senza risposta: provo il proxy {Proxy}", CurrentProxy);
 
         return true;
+    }
+
+    // -----------------------------------------------------------------------
+    // Lavoro agile: NAT, STUN e segnale di mantenimento
+    // -----------------------------------------------------------------------
+
+    /// <summary>Server STUN dell'account, <c>null</c> se non ne ha uno o se è scritto male.</summary>
+    private StunServerLocator? _stunLocator;
+
+    /// <summary>Segnale che tiene aperto il passaggio nel router fra una chiamata e l'altra.</summary>
+    private SipKeepAlive? _keepAlive;
+
+    /// <summary>
+    /// Socket locale e server dell'ultima registrazione accettata.
+    /// </summary>
+    /// <remarks>
+    /// Sono la coppia che il centralino userà per la prossima chiamata entrante, e quindi
+    /// quella da tenere aperta. Si prendono dalla risposta e non dalla configurazione:
+    /// dopo un cambio di server dell'elenco SRV, o con un dominio che si risolve in più
+    /// indirizzi, è l'unico modo di sapere con chi si è davvero registrati.
+    /// </remarks>
+    private volatile SIPEndPoint? _registrarLocal;
+
+    private volatile SIPEndPoint? _registrarRemote;
+
+    private volatile SignallingNatObservation _signallingNat = SignallingNatObservation.NotYet;
+    private volatile StunBindingResult? _lastStun;
+    private volatile MediaAddressDecision? _lastMediaAddress;
+
+    /// <summary>Legge il server STUN dell'account, una volta, all'avvio del motore.</summary>
+    /// <remarks>
+    /// Un server scritto male non ferma la registrazione: la postazione telefona come
+    /// avrebbe fatto senza, e il registro dice perché l'indirizzo pubblico non c'è. Il
+    /// pannello delle impostazioni impedisce di salvarlo, ma la configurazione può
+    /// arrivare anche da un pacchetto distribuito.
+    /// </remarks>
+    private void ConfigureStun()
+    {
+        _stunLocator = null;
+
+        if (!StunServerAddress.TryParse(_account.StunServer, out var server, out var error))
+        {
+            _log.LogWarning("Server STUN {Server} non utilizzabile: {Errore}", _account.StunServer, error);
+            return;
+        }
+
+        if (server is null) return;
+
+        _stunLocator = new StunServerLocator(server);
+
+        _log.LogInformation(
+            "Server STUN {Server}: interrogato a ogni chiamata verso un centralino fuori dalla rete interna",
+            server);
+    }
+
+    /// <summary>
+    /// Annota quello che la risposta alla registrazione dice del NAT.
+    /// </summary>
+    /// <remarks>
+    /// Vedi <see cref="SignallingNat"/>. Il parametro <c>rport</c> si legge a mano invece
+    /// che dalla proprietà della libreria, che lo converte senza controlli e solleva
+    /// un'eccezione sul valore vuoto con cui un centralino che non applica la RFC 3581 lo
+    /// rimanda indietro.
+    /// </remarks>
+    private void ObserveRegistration(SIPEndPoint local, SIPEndPoint remote, SIPResponse response)
+    {
+        try
+        {
+            if (response.Header?.CSeqMethod != SIPMethodsEnum.REGISTER) return;
+            if ((int)response.StatusCode is < 200 or >= 300) return;
+
+            _registrarLocal = local;
+            _registrarRemote = remote;
+
+            var via = response.Header.Vias?.TopViaHeader;
+            var rport = SignallingNat.ParsePort(via?.ViaParameters?.Get("rport"));
+
+            var locale = local.GetIPEndPoint();
+
+            if (locale.Address.Equals(IPAddress.Any) || locale.Address.Equals(IPAddress.IPv6Any))
+            {
+                // Il canale ascolta su tutte le schede: l'indirizzo vero e' quello della
+                // scheda su cui passa la strada verso il centralino.
+                if (LocalAddressFor(remote.Address) is { } scheda) locale = new IPEndPoint(scheda, locale.Port);
+            }
+
+            var osservato = SignallingNat.Observe(locale, via?.ReceivedFromIPAddress, rport);
+
+            if (osservato.Description != _signallingNat.Description)
+                _log.LogInformation("NAT fra postazione e centralino {Descrizione}", osservato.Description);
+
+            _signallingNat = osservato;
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Lettura dell'indirizzo visto dal centralino non riuscita");
+        }
+    }
+
+    /// <summary>Indirizzo del centralino per le chiamate uscenti: quello che ha accettato la registrazione.</summary>
+    private IPAddress? SignallingPeer() => _registrarRemote?.Address ?? CurrentProxy?.Address;
+
+    /// <summary>
+    /// Il server che ha accettato l'ultima registrazione, <c>null</c> se nessuna è riuscita.
+    /// </summary>
+    /// <remarks>Esposto per lo strumento di diagnostica, che ci confronta il server STUN.</remarks>
+    public IPEndPoint? RegistrarEndPoint => _registrarRemote?.GetIPEndPoint();
+
+    /// <summary>
+    /// Indirizzo del centralino per una chiamata entrante: quello a cui va mandata la voce.
+    /// </summary>
+    /// <remarks>
+    /// Si guarda la descrizione di sessione dell'offerta e non la sorgente dell'INVITE:
+    /// segnalazione e audio possono passare da apparati diversi, e quello che conta per la
+    /// scelta dell'indirizzo è dove andrà la voce.
+    /// </remarks>
+    private static IPAddress? OfferPeer(SIPRequest request, SIPEndPoint remote)
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(request.Body))
+            {
+                var sdp = SDP.ParseSDPDescription(request.Body);
+                var testo = sdp.Media.FirstOrDefault(m => m.Media == SDPMediaTypesEnum.audio)?.Connection?.ConnectionAddress
+                            ?? sdp.Connection?.ConnectionAddress;
+
+                if (IPAddress.TryParse(testo, out var indirizzo)
+                    && !indirizzo.Equals(IPAddress.Any)
+                    && !indirizzo.Equals(IPAddress.IPv6Any))
+                {
+                    return indirizzo;
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Un'offerta che non si legge qui la rifiutera' la libreria, con il suo
+            // messaggio: per la scelta dell'indirizzo basta la sorgente della richiesta.
+        }
+
+        return remote.Address;
+    }
+
+    /// <summary>Indirizzo della postazione sul collegamento che porta a <paramref name="remote"/>.</summary>
+    private static IPAddress? LocalAddressFor(IPAddress remote)
+    {
+        try
+        {
+            return SIPSorcery.Sys.NetServices.GetLocalAddressForRemote(remote);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Sceglie l'indirizzo da annunciare per l'audio di una chiamata, interrogando il
+    /// server STUN quando serve.
+    /// </summary>
+    /// <param name="context">Chiamata appena creata, con il suo socket audio già aperto.</param>
+    /// <param name="peer">Indirizzo del centralino, vedi <see cref="SignallingPeer"/> e <see cref="OfferPeer"/>.</param>
+    /// <remarks>
+    /// Non solleva mai: qualunque cosa vada storta, la chiamata parte con l'indirizzo della
+    /// postazione, che è il comportamento di sempre.
+    /// </remarks>
+    private async Task PrepareMediaAddressAsync(CallContext context, IPAddress? peer)
+    {
+        try
+        {
+            var versoCentralino = peer is null ? null : LocalAddressFor(peer);
+
+            if (context.Media is AudioOnlyMediaSession session) session.PreferredLocalAddress = versoCentralino;
+
+            if (_stunLocator is not { } locator)
+            {
+                context.MediaAddress = MediaAddressPolicy.Decide(null, peer, versoCentralino, null);
+                return;
+            }
+
+            if (!MediaAddressPolicy.ShouldQuery(peer))
+            {
+                context.MediaAddress = MediaAddressPolicy.Decide(
+                    StunBindingResult.NoResponse("non interrogato"), peer, versoCentralino, null);
+                return;
+            }
+
+            var channel = context.Media.AudioStream?.GetRTPChannel();
+            if (channel is null) return;
+
+            using var limite = new CancellationTokenSource(StunMediaProbe.Budget + TimeSpan.FromSeconds(1));
+
+            var server = await locator.ResolveAsync(limite.Token).ConfigureAwait(false);
+
+            var esito = server is null
+                ? StunBindingResult.NoResponse($"il nome {locator.Server.Host} non si risolve")
+                : await StunMediaProbe.QueryAsync(channel, server, limite.Token).ConfigureAwait(false);
+
+            var versoStun = server is null ? null : LocalAddressFor(server.Address);
+            var decisione = MediaAddressPolicy.Decide(esito, peer, versoCentralino, versoStun);
+
+            // Messo sul canale, l'indirizzo pubblico vale per tutte le descrizioni di
+            // sessione della chiamata, comprese quelle dell'attesa e della ripresa, e la
+            // libreria lo scrive sia nella riga c= sia nella porta della riga m=.
+            if (decisione.PublicEndPoint is { } pubblico) channel.RTPSrflxEndPoint = pubblico;
+
+            context.MediaAddress = decisione;
+            _lastStun = esito;
+            _lastMediaAddress = decisione;
+
+            _log.LogInformation(
+                "Chiamata {CallId}: socket audio {Locale}, {Esito}. Scelta: {Decisione}",
+                context.CallId, channel.RTPLocalEndPoint, esito.Describe(), decisione.Reason);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Chiamata {CallId}: scelta dell'indirizzo per l'audio non riuscita", context.CallId);
+        }
+    }
+
+    /// <summary>
+    /// Avvia una chiamata uscente dopo aver scelto l'indirizzo per l'audio.
+    /// </summary>
+    /// <param name="context">Chiamata già registrata nel dizionario.</param>
+    /// <param name="call">L'avvio vero e proprio.</param>
+    /// <remarks>
+    /// <para>
+    /// L'interrogazione STUN deve finire prima dell'INVITE, perché è l'INVITE a portare
+    /// l'indirizzo. Quasi sempre è questione di un viaggio di andata e ritorno; nel caso
+    /// peggiore, server muto, di un secondo e mezzo. Il tasto dell'operatore non aspetta
+    /// comunque: l'identificativo della chiamata torna subito.
+    /// </para>
+    /// <para>
+    /// <b>La chiamata può essere chiusa mentre si aspetta.</b> Se l'operatore rinuncia in
+    /// quel secondo e mezzo l'INVITE non deve partire più: lo dice il contesto, che non è
+    /// più nel dizionario oppure è stato sostituito.
+    /// </para>
+    /// </remarks>
+    private async Task PlaceCallAsync(CallContext context, Func<Task<bool>> call)
+    {
+        await PrepareMediaAddressAsync(context, SignallingPeer()).ConfigureAwait(false);
+
+        if (context.ClosedLocally
+            || !_calls.TryGetValue(context.CallId, out var attuale)
+            || !ReferenceEquals(attuale, context))
+        {
+            _log.LogDebug("Chiamata {CallId}: chiusa prima di partire, l'INVITE non viene spedito", context.CallId);
+            return;
+        }
+
+        // Come prima: l'esito arriva dagli eventi dell'agente, non dal risultato.
+        _ = call();
+    }
+
+    /// <summary>
+    /// Righe della scheda Diagnostica sul lavoro agile.
+    /// </summary>
+    /// <param name="active">Chiamata con audio attivo, se ce n'è una.</param>
+    private IEnumerable<DiagnosticCounter> DescribeNat(CallContext? active)
+    {
+        yield return new DiagnosticCounter("NAT fra postazione e centralino", _signallingNat.Description);
+        yield return new DiagnosticCounter("Indirizzo pubblico scoperto", DescribePublicAddress());
+
+        yield return new DiagnosticCounter(
+            "Server STUN",
+            _stunLocator is not { } locator
+                ? "non configurato: nessuna interrogazione verso server esterni"
+                : $"{locator.Server}, ultimo esito: {_lastStun?.Describe() ?? "nessuna chiamata verso l'esterno finora"}");
+
+        yield return new DiagnosticCounter(
+            "Segnale di mantenimento",
+            _keepAlive?.Describe() ?? "non avviato: il motore non è collegato");
+
+        if (active?.MediaAddress is { } scelta)
+            yield return new DiagnosticCounter("Indirizzo annunciato per l'audio", scelta.Reason);
+
+        if (active?.AudioEndPoint is { } endPoint)
+        {
+            yield return new DiagnosticCounter(
+                "Verso dell'audio",
+                OneWayAudio.Describe(new MediaFlowSnapshot(endPoint.RtpFramesSent, endPoint.RtpFramesReceived)));
+        }
+    }
+
+    /// <summary>L'indirizzo pubblico, da qualunque fonte si sappia, con la fonte.</summary>
+    private string DescribePublicAddress()
+    {
+        if (_lastMediaAddress?.PublicEndPoint is { } pubblico)
+            return $"{MediaAddressPolicy.Describe(pubblico)}, dal server STUN all'ultima chiamata";
+
+        var nat = _signallingNat;
+
+        return nat.BehindNat switch
+        {
+            true when nat.SeenAs is { } visto => $"{visto.Address}, come lo vede il centralino",
+            false => "nessuno: fra la postazione e il centralino non c'è NAT",
+            _ => "non determinato",
+        };
     }
 
     /// <summary>
@@ -640,6 +968,11 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             _registration = null;
         }
 
+        _keepAlive?.Dispose();
+        _keepAlive = null;
+        _registrarLocal = null;
+        _registrarRemote = null;
+
         if (_transport is not null)
         {
             _transport.SIPTransportRequestReceived -= OnTransportRequestReceived;
@@ -705,7 +1038,10 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             TraceRequest("inviato", remote, request);
 
         transport.SIPResponseInTraceEvent += (local, remote, response) =>
+        {
             TraceResponse("ricevuta", remote, response);
+            ObserveRegistration(local, remote, response);
+        };
 
         transport.SIPResponseOutTraceEvent += (local, remote, response) =>
             TraceResponse("inviata", remote, response);
@@ -891,15 +1227,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // Call() ritorna quando il dialogo e' instaurato o fallito; l'esito arriva
         // comunque dagli eventi, che sono l'unica fonte usata per far avanzare la
         // macchina a stati. Non si attende qui per non bloccare il tasto premuto
-        // dall'operatore.
-        if (BuildCallDescriptor(target, destination) is { } descriptor)
-        {
-            _ = agent.Call(descriptor, media);
-        }
-        else
-        {
-            _ = agent.Call(target, _account.Username, _account.Password, media);
-        }
+        // dall'operatore, e per la stessa ragione non si attende la scelta
+        // dell'indirizzo per l'audio: vedi PlaceCallAsync.
+        var descriptor = BuildCallDescriptor(target, destination);
+
+        _ = PlaceCallAsync(context, () => descriptor is not null
+            ? agent.Call(descriptor, media)
+            : agent.Call(target, _account.Username, _account.Password, media));
 
         await Task.CompletedTask.ConfigureAwait(false);
         return callId;
@@ -979,7 +1313,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // popolata con l'identita' dichiarata: ci si aggiunge, non la si sostituisce.
         descriptor.CustomHeaders = [.. descriptor.CustomHeaders ?? [], $"Join: {join}"];
 
-        _ = agent.Call(descriptor, media);
+        _ = PlaceCallAsync(context, () => agent.Call(descriptor, media));
 
         await Task.CompletedTask.ConfigureAwait(false);
         return callId;
@@ -1101,9 +1435,11 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             SrtpDowngraded?.Invoke(this, destination);
 
             var target = BuildTargetUri(destination);
+            var descriptor = BuildCallDescriptor(target, destination);
 
-            if (BuildCallDescriptor(target, destination) is { } descriptor) _ = agent.Call(descriptor, media);
-            else _ = agent.Call(target, _account.Username, _account.Password, media);
+            _ = PlaceCallAsync(context, () => descriptor is not null
+                ? agent.Call(descriptor, media)
+                : agent.Call(target, _account.Username, _account.Password, media));
         }
         catch (Exception ex)
         {
@@ -1304,6 +1640,11 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
             _calls[callId] = context;
             WireCallEvents(context);
+
+            // L'indirizzo per l'audio si sceglie mentre squilla, non alla risposta: la
+            // risposta deve portarlo, e l'interrogazione STUN fatta adesso e' gia'
+            // conclusa quando l'operatore solleva.
+            context.MediaReady = PrepareMediaAddressAsync(context, OfferPeer(request, remoteEndPoint));
 
             // Da questo momento la chiamata squilla, e finche' squilla va detto al
             // proxy che sta ancora squillando. Va avviata DOPO la registrazione nel
@@ -1600,6 +1941,9 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // Da qui in poi la chiamata non squilla piu': ripetere il 180 dopo il 200 OK
         // manderebbe una risposta provvisoria su una transazione gia' conclusa.
         StopRingingRefresh(context);
+
+        // Quasi sempre gia' conclusa: e' partita all'arrivo dell'INVITE. Non solleva.
+        await context.MediaReady.ConfigureAwait(false);
 
         await context.Agent.Answer(context.ServerUserAgent, context.Media).ConfigureAwait(false);
     }
@@ -2925,5 +3269,20 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         /// Comanda la ripetizione del <c>180 Ringing</c> mentre la chiamata squilla.
         /// </summary>
         public CancellationTokenSource? RingingKeepAlive { get; set; }
+
+        /// <summary>
+        /// Quale indirizzo è stato annunciato per l'audio, e perché.
+        /// </summary>
+        /// <remarks>
+        /// È la riga che chi indaga una chiamata muta legge per prima nella scheda
+        /// Diagnostica: dice se la postazione si è presentata con l'indirizzo pubblico o
+        /// con il proprio, e la ragione della scelta.
+        /// </remarks>
+        public MediaAddressDecision? MediaAddress { get; set; }
+
+        /// <summary>
+        /// Scelta dell'indirizzo per l'audio di una chiamata entrante, avviata all'arrivo.
+        /// </summary>
+        public Task MediaReady { get; set; } = Task.CompletedTask;
     }
 }

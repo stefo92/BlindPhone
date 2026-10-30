@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using SIPSorcery.Media;
@@ -63,6 +64,36 @@ public sealed class AudioOnlyMediaSession : VoIPMediaSession
     public AudioOnlyMediaSession(VoIPMediaSessionConfig config, ILogger? logger = null)
         : base(config)
         => _log = logger ?? NullLogger.Instance;
+
+    /// <summary>
+    /// Indirizzo della postazione sul collegamento che porta al centralino, da usare
+    /// nelle offerte quando chi le chiede non ne indica uno.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>È la correzione dell'audio a senso unico con la VPN parziale.</b> Senza
+    /// indicazioni la libreria SIP scrive nella prima offerta l'indirizzo della scheda di
+    /// rete su cui passa la strada verso Internet. In sede è quello giusto; da casa, con
+    /// una VPN che porta in ufficio solo il traffico per la rete dell'ente, è l'indirizzo
+    /// della rete di casa, che il centralino non raggiunge: la voce dell'operatore parte
+    /// dal tunnel e arriva, quella dell'interlocutore viene mandata a un indirizzo
+    /// domestico e si perde.
+    /// </para>
+    /// <para>
+    /// Le offerte successive — l'attesa, la ripresa — non avevano il problema, perché a
+    /// quel punto la libreria conosce già l'indirizzo della controparte e sceglie da sé il
+    /// collegamento giusto. Riguarda la sola prima offerta delle chiamate uscenti.
+    /// </para>
+    /// <para>
+    /// Se l'interrogazione STUN ha stabilito che va annunciato l'indirizzo pubblico, quello
+    /// sta sul canale audio e la libreria gli dà la precedenza: questo resta il ripiego.
+    /// </para>
+    /// </remarks>
+    public IPAddress? PreferredLocalAddress { get; set; }
+
+    /// <inheritdoc />
+    public override SDP CreateOffer(IPAddress? connectionAddress = null)
+        => base.CreateOffer(connectionAddress ?? PreferredLocalAddress);
 
     /// <inheritdoc />
     public override SetDescriptionResultEnum SetRemoteDescription(SdpType sdpType, SDP sessionDescription)
