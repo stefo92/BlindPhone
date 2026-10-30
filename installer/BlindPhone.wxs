@@ -136,6 +136,7 @@
       <ComponentGroupRef Id="Collegamenti" />
       <ComponentGroupRef Id="CartellaDatiDiMacchina" />
       <ComponentGroupRef Id="CriterioDiPostazione" />
+      <ComponentGroupRef Id="LinkDiChiamata" />
     </Feature>
 
     <!--==================== Dove va installato ====================-->
@@ -341,6 +342,183 @@
 
         <RegistryValue Root="HKLM" Key="SOFTWARE\BlindPhone" Name="Configurazione"
                        Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!--==================== Link di chiamata ====================-->
+
+    <!--
+        BLINDPHONE SI CANDIDA PER I LINK tel:, sip:, sips: E callto:, MA NON SI
+        IMPONE.
+
+        Windows 10 e 11 non lasciano che un programma diventi da solo il gestore
+        predefinito di un tipo di link: la scelta e' dell'utente, in Impostazioni,
+        App, App predefinite, oppure di chi amministra la postazione con un file di
+        associazioni predefinite distribuito per criterio di gruppo. Tutti e due i
+        percorsi sono in docs\INSTALLAZIONE.md. Quello che l'installatore puo' fare
+        e' presentare BlindPhone come candidato, ed e' quello che fanno le tre parti
+        che seguono:
+
+          1. un ProgID tutto di BlindPhone, BlindPhone.LinkChiamata, con il comando
+             che avvia il programma passandogli il link sulla riga di comando;
+          2. le Capabilities, che dicono a Windows quali tipi di link BlindPhone sa
+             gestire e con quale ProgID;
+          3. la voce in RegisteredApplications, che fa comparire BlindPhone nelle
+             App predefinite.
+
+        Il link non compone mai: arriva nel campo di composizione e la voce lo
+        legge. La ragione sta in MainWindow.ReceiveCallLink.
+
+        TUTTO SPARISCE ALLA DISINSTALLAZIONE, PERCHE' TUTTO E' NOSTRO.
+
+        Il ProgID e le Capabilities si cancellano per intero
+        (ForceDeleteOnUninstall): sono chiavi che nessun altro programma ha motivo di
+        toccare. La voce di RegisteredApplications e' un valore solo, e se ne va con
+        il suo componente. La scelta dell'utente, invece, resta nel suo profilo e
+        punta a un ProgID che non esiste piu': Windows la tratta come una scelta
+        assente e alla prossima apertura di un link chiede di nuovo con che cosa
+        aprirlo.
+    -->
+
+    <!--
+        LA CHIAVE DELLO SCHEMA SI CREA SOLO DOVE NON C'E'.
+
+        Perche' Windows riconosca tel: come un tipo di link deve esistere la chiave
+        HKCR\tel con il valore "URL Protocol". Su quasi tutte le postazioni della PA
+        c'e' gia', messa da Teams, da Collegamento al telefono o dal softphone di
+        prima, e allora non si tocca: sovrascriverla porterebbe via il link a quel
+        programma, e la disinstallazione di BlindPhone lo lascerebbe senza.
+
+        Dove manca la si crea, con un valore "BlindPhone" che la marca come nostra.
+        La marca serve agli aggiornamenti: la ricerca qui sotto avviene prima che la
+        versione vecchia venga tolta, e senza la marca la nuova troverebbe la chiave
+        della vecchia, la crederebbe di qualcun altro e non la reinstallerebbe.
+
+        La chiave creata non porta un comando: chi apre il link quando nessuno e'
+        stato scelto si vede chiedere da Windows con quale programma aprirlo, e
+        BlindPhone e' fra quelli proposti. E' lo stesso percorso della scelta in
+        Impostazioni, e nessuno diventa predefinito per il solo fatto di essere
+        stato installato per ultimo.
+
+        La ricerca guarda HKLM\SOFTWARE\Classes e non HKCR. Un'installazione per
+        macchina scrive li', ed e' li' che una chiave di un altro programma verrebbe
+        sovrascritta; una registrazione fatta per un solo utente sta nel suo profilo,
+        vince comunque su questa per quell'utente, e non viene toccata.
+
+        UN CASO RESTA SCOPERTO, E VA DETTO: la ricerca legge il valore predefinito
+        della chiave, perche' l'installatore di Windows non sa chiedere se una chiave
+        esiste e basta. Un programma che avesse creato HKLM\SOFTWARE\Classes\tel
+        senza valore predefinito - la convenzione e' "URL:tel", e tutti la seguono -
+        si vedrebbe aggiungere la nostra marca e, alla disinstallazione, togliere il
+        suo "URL Protocol".
+    -->
+    <Property Id="SCHEMATEL">
+      <RegistrySearch Id="CercaSchemaTel" Root="HKLM" Key="SOFTWARE\Classes\tel" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMATELNOSTRO">
+      <RegistrySearch Id="CercaSchemaTelNostro" Root="HKLM" Key="SOFTWARE\Classes\tel" Name="BlindPhone" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMASIP">
+      <RegistrySearch Id="CercaSchemaSip" Root="HKLM" Key="SOFTWARE\Classes\sip" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMASIPNOSTRO">
+      <RegistrySearch Id="CercaSchemaSipNostro" Root="HKLM" Key="SOFTWARE\Classes\sip" Name="BlindPhone" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMASIPS">
+      <RegistrySearch Id="CercaSchemaSips" Root="HKLM" Key="SOFTWARE\Classes\sips" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMASIPSNOSTRO">
+      <RegistrySearch Id="CercaSchemaSipsNostro" Root="HKLM" Key="SOFTWARE\Classes\sips" Name="BlindPhone" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMACALLTO">
+      <RegistrySearch Id="CercaSchemaCallto" Root="HKLM" Key="SOFTWARE\Classes\callto" Type="raw" Bitness="always64" />
+    </Property>
+    <Property Id="SCHEMACALLTONOSTRO">
+      <RegistrySearch Id="CercaSchemaCalltoNostro" Root="HKLM" Key="SOFTWARE\Classes\callto" Name="BlindPhone" Type="raw" Bitness="always64" />
+    </Property>
+
+    <ComponentGroup Id="LinkDiChiamata" Directory="INSTALLFOLDER">
+
+      <!--
+          Il ProgID. Le virgolette intorno a "%1" non sono un dettaglio: un link con
+          uno spazio codificato male arriverebbe spezzato in due argomenti, e
+          BlindPhone ne vedrebbe solo la prima meta'.
+
+          Il sottoramo Application e' quello da cui Windows 10 e 11 prendono il nome
+          e l'icona da mostrare nella finestra "Con che cosa vuoi aprire".
+      -->
+      <Component Id="LinkDiChiamataProgId">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\BlindPhone.LinkChiamata" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="Link di chiamata BlindPhone" KeyPath="yes" />
+          <RegistryValue Name="FriendlyTypeName" Type="string" Value="Link di chiamata BlindPhone" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLFOLDER]BlindPhone.App.exe&quot;,0" />
+          <RegistryValue Key="shell\open\command" Type="string"
+                         Value="&quot;[INSTALLFOLDER]BlindPhone.App.exe&quot; &quot;%1&quot;" />
+          <RegistryValue Key="Application" Name="ApplicationName" Type="string" Value="BlindPhone" />
+          <RegistryValue Key="Application" Name="ApplicationDescription" Type="string"
+                         Value="Mette il numero nel campo di composizione di BlindPhone; la chiamata parte con Invio" />
+          <RegistryValue Key="Application" Name="ApplicationIcon" Type="string"
+                         Value="&quot;[INSTALLFOLDER]BlindPhone.App.exe&quot;,0" />
+          <RegistryValue Key="Application" Name="ApplicationCompany" Type="string" Value="BlindPhone" />
+        </RegistryKey>
+      </Component>
+
+      <!--
+          Le Capabilities e la loro voce in RegisteredApplications. ApplicationName
+          deve coincidere con il nome del valore in RegisteredApplications, ed e' il
+          nome con cui BlindPhone compare in Impostazioni; ApplicationDescription e'
+          obbligatoria, perche' senza Windows non mostra il programma fra quelli
+          selezionabili.
+      -->
+      <Component Id="LinkDiChiamataCapacita">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\BlindPhone\Capabilities" ForceDeleteOnUninstall="yes">
+          <RegistryValue Name="ApplicationName" Type="string" Value="BlindPhone" KeyPath="yes" />
+          <RegistryValue Name="ApplicationDescription" Type="string"
+                         Value="Posto operatore telefonico accessibile. I link di chiamata mettono il numero nel campo di composizione, e la chiamata parte solo con Invio." />
+          <RegistryValue Name="ApplicationIcon" Type="string"
+                         Value="&quot;[INSTALLFOLDER]BlindPhone.App.exe&quot;,0" />
+          <RegistryValue Key="URLAssociations" Name="tel" Type="string" Value="BlindPhone.LinkChiamata" />
+          <RegistryValue Key="URLAssociations" Name="sip" Type="string" Value="BlindPhone.LinkChiamata" />
+          <RegistryValue Key="URLAssociations" Name="sips" Type="string" Value="BlindPhone.LinkChiamata" />
+          <RegistryValue Key="URLAssociations" Name="callto" Type="string" Value="BlindPhone.LinkChiamata" />
+        </RegistryKey>
+        <RegistryValue Root="HKLM" Key="SOFTWARE\RegisteredApplications" Name="BlindPhone"
+                       Type="string" Value="SOFTWARE\BlindPhone\Capabilities" />
+      </Component>
+
+      <!-- Le chiavi degli schemi, solo dove mancano o sono gia' nostre. -->
+      <Component Id="SchemaTel" Condition="NOT SCHEMATEL OR SCHEMATELNOSTRO">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\tel">
+          <RegistryValue Type="string" Value="URL:tel" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryValue Name="BlindPhone" Type="integer" Value="1" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="SchemaSip" Condition="NOT SCHEMASIP OR SCHEMASIPNOSTRO">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\sip">
+          <RegistryValue Type="string" Value="URL:sip" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryValue Name="BlindPhone" Type="integer" Value="1" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="SchemaSips" Condition="NOT SCHEMASIPS OR SCHEMASIPSNOSTRO">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\sips">
+          <RegistryValue Type="string" Value="URL:sips" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryValue Name="BlindPhone" Type="integer" Value="1" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Id="SchemaCallto" Condition="NOT SCHEMACALLTO OR SCHEMACALLTONOSTRO">
+        <RegistryKey Root="HKLM" Key="SOFTWARE\Classes\callto">
+          <RegistryValue Type="string" Value="URL:callto" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryValue Name="BlindPhone" Type="integer" Value="1" KeyPath="yes" />
+        </RegistryKey>
       </Component>
 
     </ComponentGroup>

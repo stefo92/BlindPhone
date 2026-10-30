@@ -43,6 +43,16 @@ public sealed class SingleInstanceGuard : IDisposable
 
     private const int HwndBroadcast = 0xFFFF;
 
+    /// <summary>
+    /// Quanto aspettare che la copia attiva accetti il link.
+    /// </summary>
+    /// <remarks>
+    /// Una copia viva risponde in pochi millisecondi. L'attesa intera la paga solo chi
+    /// ha ancora accesa una versione senza il canale: un secondo e mezzo, prima che la
+    /// finestra torni davanti per la strada di sempre.
+    /// </remarks>
+    private static readonly TimeSpan LinkDeliveryTimeout = TimeSpan.FromMilliseconds(1500);
+
     private readonly Mutex? _mutex;
     private bool _disposed;
 
@@ -64,8 +74,18 @@ public sealed class SingleInstanceGuard : IDisposable
     /// subito, e l'attesa che segue non la vede nessuno perché avviene in un processo
     /// che sta per chiudersi comunque.
     /// </para>
+    /// <para>
+    /// <b>Con un link di chiamata la segnalazione è il link stesso.</b> Lo riceve la
+    /// copia attiva attraverso <see cref="CallLinkChannel"/>, e a portare avanti la
+    /// finestra ci pensa lei, con l'annuncio del numero. Mandare anche il messaggio di
+    /// finestra farebbe sentire due frasi, la seconda delle quali — «era già in
+    /// esecuzione» — coprirebbe il numero. Il messaggio resta il ripiego: se la copia
+    /// attiva non risponde sul canale la finestra torna comunque davanti, e il link
+    /// viene ripreso da questo processo nel caso in cui il posto si liberi.
+    /// </para>
     /// </remarks>
-    public SingleInstanceGuard()
+    /// <param name="callLink">Link di chiamata arrivato sulla riga di comando, se c'è.</param>
+    public SingleInstanceGuard(string? callLink = null)
     {
         try
         {
@@ -79,8 +99,12 @@ public sealed class SingleInstanceGuard : IDisposable
                 return;
             }
 
-            // 2. C'e' gia' qualcuno: gli si chiede di mostrarsi.
-            SignalExistingInstance();
+            // 2. C'e' gia' qualcuno: gli si consegna il link, se c'e', oppure gli si
+            //    chiede di mostrarsi.
+            if (callLink is null || !CallLinkChannel.TrySend(callLink, LinkDeliveryTimeout))
+            {
+                SignalExistingInstance();
+            }
 
             // 3. Se entro il tempo di cortesia il posto si libera, quella copia stava
             //    chiudendo: si prende il suo posto e si parte normalmente.

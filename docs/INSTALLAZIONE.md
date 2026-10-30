@@ -119,6 +119,7 @@ l'elevazione dei privilegi: Windows chiede conferma all'avvio.
 | Programma | `C:\Program Files\BlindPhone` |
 | Collegamento nel menu Start | direttamente fra i programmi, senza cartella |
 | Collegamento sul desktop | creato salvo `DESKTOP=0` |
+| Candidatura per i link `tel:`, `sip:`, `sips:`, `callto:` | Registro di sistema, vedi §7 |
 | Dati dell'operatore | `%APPDATA%\BlindPhone` (per utente) |
 
 Nella cartella dei dati l'applicazione crea, alla prima esecuzione e poi via via che
@@ -345,6 +346,165 @@ accetta di entranti sul canale TLS, quindi in uscita basta permettere l'eseguibi
 ### Preparare una postazione senza toccarla
 
 Vedi il §8, che è la via completa.
+
+---
+
+## 7. Link di chiamata: `tel:`, `sip:` e `callto:`
+
+Nei gestionali, nelle pagine web e nei messaggi di posta i numeri possono essere
+link. BlindPhone li gestisce, con una regola che non ha eccezioni: **il link non
+compone mai da solo**. Il numero va nel campo di composizione, la finestra viene
+portata davanti e la voce lo legge — «Numero da link: zero sei, uno due, …
+Premi Invio per chiamare» — e la chiamata parte quando l'operatore preme Invio.
+
+È una regola di sicurezza. Chiunque può scrivere una pagina con un link di
+chiamata, e una pagina può far aprire un link senza che nessuno lo clicchi: se il
+link componesse, una pagina web potrebbe far partire telefonate dal centralino
+dell'ente.
+
+### Che cosa registra l'installatore
+
+| Cosa | Dove |
+|---|---|
+| ProgID `BlindPhone.LinkChiamata`, con il comando `BlindPhone.App.exe "%1"` | `HKLM\SOFTWARE\Classes\BlindPhone.LinkChiamata` |
+| Capacità: `tel`, `sip`, `sips`, `callto` | `HKLM\SOFTWARE\BlindPhone\Capabilities\URLAssociations` |
+| Voce nelle App predefinite | `HKLM\SOFTWARE\RegisteredApplications`, valore `BlindPhone` |
+| Chiave dello schema, **solo se manca** | `HKLM\SOFTWARE\Classes\tel`, `sip`, `sips`, `callto` |
+
+BlindPhone si **candida**, non si impone: Windows 10 e 11 non permettono a un
+programma di diventare da solo il gestore predefinito di un tipo di link, e la
+scelta resta all'operatore o a chi amministra la postazione (paragrafi seguenti).
+
+La chiave dello schema (`HKLM\SOFTWARE\Classes\tel` e le altre) serve a Windows per
+riconoscere `tel:` come un tipo di link. Su quasi tutte le postazioni esiste già,
+creata da Teams, da Collegamento al telefono o dal softphone usato prima, e in quel
+caso **non viene toccata**. Dove manca, l'installatore la crea senza alcun comando
+dentro — nessuno diventa predefinito per il solo fatto di essere stato installato —
+e la marca con un valore `BlindPhone` per riconoscerla agli aggiornamenti.
+
+### Che cosa succede quando l'operatore clicca un link
+
+1. Windows avvia `BlindPhone.App.exe` con il link sulla riga di comando.
+2. Se BlindPhone è già acceso, ed è il caso normale, il nuovo avvio consegna il link
+   alla copia aperta ed esce: non si apre una seconda finestra. Il passaggio avviene
+   su una pipe con nome **propria della sessione di Windows e dell'utente**, quindi su
+   un terminal server il link cliccato da un operatore non arriva mai a un altro.
+3. La copia aperta interpreta il link, porta la finestra davanti, mette il numero
+   nel campo di composizione e lo annuncia, dicendo che cosa farà Invio in quel
+   momento.
+
+Con una chiamata in corso **nessuno viene messo in attesa**: il numero resta nel
+campo e l'annuncio dice come procedere. Durante un trasferimento il numero diventa
+la destinazione, come se fosse stato digitato. In pausa, e in modalità semplificata
+mentre squilla una chiamata, il link non entra nel campo e la voce lo spiega.
+
+Vengono **rifiutati**, con l'annuncio del motivo: i codici di servizio del centralino
+(asterisco e cancelletto, con cui si attivano per esempio le deviazioni), i caratteri
+di controllo e le codifiche malformate, i numeri con lettere, i numeri locali
+dichiarati di un altro paese. Dei link `sip:` si tengono utente e dominio: le
+intestazioni dopo il `?` e i parametri come `maddr` o `transport` si ignorano,
+perché deciderebbero al posto della configurazione dell'account dove e come far
+passare la chiamata. Un indirizzo verso il proprio centralino si riduce al solo
+numero, e un numero italiano in forma internazionale torna nazionale: `+39 06 1234`
+diventa `06 1234`.
+
+### Come lo sceglie l'operatore
+
+Su Windows 11: **Impostazioni** (Windows+I), **App**, **App predefinite**. Nella
+casella di ricerca delle applicazioni si scrive *BlindPhone* e si apre la sua
+pagina: compaiono le voci `TEL`, `SIP`, `SIPS` e `CALLTO`, e su ciascuna si sceglie
+BlindPhone. In fondo alla pagina App predefinite c'è anche la scelta **per tipo di
+collegamento**, che elenca i tipi uno per uno: lì si cercano `TEL`, `SIP`, `SIPS` e
+`CALLTO`.
+
+Su Windows 10 il percorso è **Impostazioni**, **App**, **App predefinite**,
+**Scegli le app predefinite per protocollo**.
+
+C'è anche la strada più breve: al primo clic su un link `tel:` Windows chiede con
+quale programma aprirlo, se nessuno è stato scelto, e BlindPhone è fra quelli
+proposti. Si sceglie BlindPhone e si conferma che la scelta valga sempre, non una
+volta sola.
+
+I browser chiedono conferma prima di aprire un programma esterno, una volta per
+sito. Edge e Chrome offrono la casella *Consenti sempre*; chi amministra può
+evitare la domanda per i soli indirizzi del gestionale con il criterio
+`AutoLaunchProtocolsFromOrigins`, che esiste con lo stesso nome in entrambi:
+
+```json
+[{ "protocol": "tel", "allowed_origins": ["https://gestionale.ente.example.it"] }]
+```
+
+È un permesso che si può concedere a cuor leggero proprio perché il link non
+compone: il peggio che una pagina può ottenere è un numero letto ad alta voce.
+
+### Come lo imposta un amministratore
+
+Per tutte le postazioni insieme si usa un **file di associazioni predefinite**. Basta
+che contenga le quattro righe che riguardano BlindPhone:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<DefaultAssociations>
+  <Association Identifier="tel"    ProgId="BlindPhone.LinkChiamata" ApplicationName="BlindPhone" />
+  <Association Identifier="sip"    ProgId="BlindPhone.LinkChiamata" ApplicationName="BlindPhone" />
+  <Association Identifier="sips"   ProgId="BlindPhone.LinkChiamata" ApplicationName="BlindPhone" />
+  <Association Identifier="callto" ProgId="BlindPhone.LinkChiamata" ApplicationName="BlindPhone" />
+</DefaultAssociations>
+```
+
+Le strade per distribuirlo sono tre.
+
+- **Criterio di gruppo.** Configurazione computer, Modelli amministrativi,
+  Componenti di Windows, Esplora file, **Imposta un file di configurazione delle
+  associazioni predefinite**: si attiva e si indica il percorso del file, locale o di
+  rete (`\\server\deploy\associazioni-blindphone.xml`). Windows lo applica
+  all'accesso dell'utente, **a ogni accesso**: una scelta diversa fatta
+  dall'operatore torna com'era al successivo. È il comportamento giusto su una
+  postazione gestita, e va saputo prima di ricevere la segnalazione «l'ho cambiato e
+  si è rimesso da solo».
+- **Intune.** Il catalogo delle impostazioni ha la voce *Default Associations
+  Configuration*, che vuole lo stesso file codificato in Base64.
+- **Immagine di sistema.** `Dism /Online /Import-DefaultAppAssociations:C:\percorso\associazioni-blindphone.xml`
+  vale per i profili utente creati **dopo**: chi ha già un profilo sulla postazione
+  non ne è toccato.
+
+Il file funziona solo dove BlindPhone è installato: un ProgID che non esiste viene
+ignorato, e Windows lascia l'associazione com'era.
+
+### Verificarlo
+
+Dopo l'installazione, da PowerShell:
+
+```powershell
+reg query HKLM\SOFTWARE\RegisteredApplications /v BlindPhone
+reg query HKLM\SOFTWARE\BlindPhone\Capabilities\URLAssociations
+Start-Process "tel:0612345678"
+```
+
+L'ultima riga fa esattamente quello che fa il clic su un link: con BlindPhone scelto
+come predefinito, il numero arriva nel campo di composizione e la voce lo legge, e
+non parte nessuna chiamata. Il registro diagnostico riporta da che schema arrivava
+il link e che cosa ne è stato; il numero non c'è, perché un numero preso da una
+pratica è un dato personale che il registro non ha bisogno di conservare.
+
+### Che cosa toglie la disinstallazione
+
+Tutto quello che l'installatore ha scritto: il ProgID, le capacità, la voce in
+RegisteredApplications e le chiavi degli schemi che aveva creato lui, riconosciute
+dalla marca `BlindPhone`. Le chiavi degli schemi che appartenevano già a un altro
+programma non sono mai state toccate e restano.
+
+Restano anche, perché non sono dell'installatore, la scelta fatta dall'operatore —
+sta nel suo profilo e punta a un ProgID che non esiste più: Windows la tratta come
+assente, e al clic successivo chiede di nuovo con che cosa aprire il link — e il
+file di associazioni del criterio di gruppo, che va tolto dal criterio.
+
+C'è un solo caso limite, e riguarda la ricerca delle chiavi esistenti: l'installatore
+di Windows sa leggere il valore predefinito di una chiave ma non sa chiedere se la
+chiave esiste. Un programma che avesse creato `HKLM\SOFTWARE\Classes\tel` senza il
+valore predefinito — la convenzione è `URL:tel`, e la seguono tutti quelli
+conosciuti — si vedrebbe aggiungere la marca di BlindPhone e, alla disinstallazione,
+togliere il valore `URL Protocol`.
 
 ---
 
