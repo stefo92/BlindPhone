@@ -71,7 +71,22 @@
     <Version>1.0.17</Version>
     <InformationalVersion>1.0.17 beta</InformationalVersion>
     <NeutralLanguage>it-IT</NeutralLanguage>
-    <Copyright>Copyright © 2026</Copyright>
+
+    <!--
+      IL TITOLARE VA NOMINATO, E LA LICENZA ANCHE.
+
+      "Copyright © 2026" senza un nome non e' un avviso di copyright: non dice a chi
+      appartiene l'opera, ed e' proprio il dato che serve a chi riceve il programma per
+      sapere con chi ha a che fare. Il titolare e' lo stesso dichiarato in
+      publiccode.yml alla voce mainCopyrightOwner, e le due righe vanno tenute
+      allineate.
+
+      La licenza compare qui perche' queste proprieta' finiscono nelle proprieta' del
+      file dei binari: chi si ritrova un eseguibile senza il repository intorno legge
+      li' sotto quale licenza gli e' arrivato. Il testo integrale resta in LICENSE,
+      alla radice, ed e' quello che fa fede.
+    -->
+    <Copyright>Copyright © 2026 stefo92. Licenza GPL-3.0-only, vedi LICENSE.</Copyright>
   </PropertyGroup>
 
 </Project>

@@ -105,9 +105,11 @@ e il nome è esplicito apposta: i due pacchetti non vanno confusi in distribuzio
 ## 2. Che cosa fa
 
 La procedura guidata ha quattro pagine: benvenuto, scelta della cartella,
-conferma, esito. Non c'è la pagina del contratto di licenza — il prodotto non ha
-ancora un testo di licenza, e mostrarne uno inventato sarebbe peggio che non
-mostrarne alcuno (vedi §6 per rimetterla).
+conferma, esito. Non c'è la pagina del contratto di licenza, ed è una scelta: il
+prodotto è GPL-3.0-only e il testo sta in [LICENSE](../LICENSE), ma la GPL non è un
+contratto da accettare per installare — non pone condizioni sull'uso, solo sulla
+ridistribuzione — e una pagina in meno è una pagina in meno da ascoltare per chi
+installa senza vedere lo schermo (vedi §6 per rimetterla comunque).
 
 L'installazione è **per tutti gli utenti della postazione** e richiede quindi
 l'elevazione dei privilegi: Windows chiede conferma all'avvio.
@@ -309,9 +311,10 @@ togliere le due righe `Publish` che saltano `LicenseAgreementDlg`, e aggiungere
 <WixVariable Id="WixUILicenseRtf" Value="percorso\licenza.rtf" />
 ```
 
-Il testo va deciso prima: vedi [CONFORMITA-PA-ITALIANA.md §3.2](../CONFORMITA-PA-ITALIANA.md),
-perché la scelta della licenza incide sulla valutazione comparativa dell'art. 68
-CAD.
+Il testo c'è già ed è quello di [LICENSE](../LICENSE), la GPL-3.0: va convertito in
+RTF, perché WiX non accetta il testo semplice. Vale la pena ricordare che la pagina
+non è obbligatoria — la GPL non chiede che l'utente accetti nulla per installare — e
+che aggiungerla significa una pagina in più da ascoltare.
 
 ### Cambiare la grafica
 
