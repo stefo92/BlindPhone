@@ -316,6 +316,35 @@
                                 AutomationProperties.Name="Usa come segreteria il numero indicato dal centralino"
                                 Click="OnUseVoicemailProposalClick" />
 
+                        <!--
+                            LAVORO AGILE
+
+                            Due campi dell'ACCOUNT e non della postazione, come il numero
+                            presentato: lo stesso portatile lavora in sede su un account e
+                            da casa su un altro, e il server STUN giusto dipende dall'ente.
+
+                            Tasti di accesso B e Q: sono le sole lettere ancora libere in
+                            questa scheda che stiano in parole dette ad alta voce, e una
+                            lettera sottolineata in una sigla come STUN non si sente.
+                        -->
+                        <Separator Margin="0,20,0,12" />
+
+                        <TextBlock Text="Lavoro agile: da casa o con la VPN" FontWeight="Bold" FontSize="17" />
+
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Servono quando la postazione lavora dietro il router di casa. In sede si possono lasciare come sono: il server STUN viene interrogato solo per le chiamate verso un centralino fuori dalla rete interna." />
+
+                        <Label Target="{Binding ElementName=SipStunServer}" Content="Server STUN per l'indirizzo pu_bblico (facoltativo)" />
+                        <TextBox x:Name="SipStunServer"
+                                 AutomationProperties.Name="Server STUN per scoprire l'indirizzo pubblico"
+                                 AutomationProperties.HelpText="Serve se da casa l'interlocutore ti sente e tu non senti lui. Indica il server STUN scelto dall'ente, per esempio stun.ente.it oppure stun.ente.it:3478. A ogni chiamata la postazione gli chiede da quale indirizzo pubblico la vede, e lo comunica al centralino solo se scopre di essere davvero dietro un router. Vuoto: nessuna domanda a nessun server. Non c'e' un server predefinito perche' mandare traffico a un server esterno e' una scelta dell'ente." />
+
+                        <Label Target="{Binding ElementName=SipKeepAlive}" Content="Segnale di mantenimento: ogni _quanti secondi" />
+                        <TextBox x:Name="SipKeepAlive"
+                                 MaxWidth="120" HorizontalAlignment="Left"
+                                 AutomationProperties.Name="Segnale di mantenimento, ogni quanti secondi"
+                                 AutomationProperties.HelpText="Tiene aperto il passaggio nel router di casa fra una chiamata e l'altra, cosi' le chiamate entranti continuano ad arrivare. Il valore consigliato e' 25. Accetta da 10 a 300 secondi; zero lo spegne." />
+
                         <Button x:Name="TestSipButton"
                                 Content="Veri_fica la registrazione"
                                 HorizontalAlignment="Left"

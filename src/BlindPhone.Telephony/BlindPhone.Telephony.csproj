@@ -57,4 +57,13 @@
     <PackageReference Include="SIPSorcery" Version="10.0.17" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Come per BlindPhone.Audio: la sonda STUN sul socket audio e' un dettaglio interno
+      del motore, ma e' anche il punto in cui ritrasmissioni e risposte estranee si
+      collaudano davvero, con un server finto sull'indirizzo di loopback.
+    -->
+    <InternalsVisibleTo Include="BlindPhone.Windows.Tests" />
+  </ItemGroup>
+
 </Project>

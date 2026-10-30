@@ -365,6 +365,7 @@ Le porte da aprire dipendono dal trasporto configurato: UDP o TCP 5060 per la
 segnalazione in chiaro, **TCP 5061 per quella su TLS**, più l'intervallo RTP che il
 centralino richiede. BlindPhone apre le connessioni verso il centralino e non ne
 accetta di entranti sul canale TLS, quindi in uscita basta permettere l'eseguibile.
+Per le postazioni in lavoro agile vedi il §7-bis.
 
 ### Preparare una postazione senza toccarla
 
@@ -528,6 +529,126 @@ chiave esiste. Un programma che avesse creato `HKLM\SOFTWARE\Classes\tel` senza 
 valore predefinito — la convenzione è `URL:tel`, e la seguono tutti quelli
 conosciuti — si vedrebbe aggiungere la marca di BlindPhone e, alla disinstallazione,
 togliere il valore `URL Protocol`.
+
+## 7-bis. Lavoro agile: postazioni dietro NAT
+
+Da casa la postazione è dietro un router domestico, a volte con una VPN che porta in
+ufficio solo il traffico per la rete dell'ente. I due guasti tipici:
+
+- **audio a senso unico**: l'interlocutore sente l'operatore, l'operatore sente
+  silenzio. Il centralino manda la voce all'indirizzo privato della postazione;
+- **chiamate entranti che smettono di arrivare** qualche minuto dopo l'ultima
+  telefonata, con la postazione che risulta registrata. Il router ha chiuso il
+  passaggio aperto dalla registrazione.
+
+### Che cosa fa la postazione
+
+| Meccanismo | Comportamento | Va configurato? |
+|---|---|---|
+| `rport` (RFC 3581) | Ogni richiesta lo porta; il centralino risponde all'indirizzo e alla porta da cui la vede arrivare | No |
+| RTP simmetrico | La voce parte e arriva dallo stesso socket | No |
+| Segnale di mantenimento | Doppio a capo (RFC 5626) ogni 25 secondi verso il server che ha accettato la registrazione, dentro la connessione su TCP e TLS | Già acceso; si regola per account da 10 a 300 secondi, zero lo spegne |
+| VPN parziale | La prima offerta SDP porta l'indirizzo della scheda che raggiunge il centralino, non quello della strada verso Internet | No |
+| Server STUN | Interrogato dal socket audio di ogni chiamata, solo se il centralino non è in rete interna | **Sì**, per account. Nessun valore predefinito |
+| Indirizzo pubblico nell'SDP | Righe `c=` e `m=` riscritte con quello che vede il server STUN, solo se il NAT c'è davvero | Segue il server STUN |
+
+Il server STUN si indica in *Impostazioni → Account SIP → Server STUN per l'indirizzo
+pubblico*, come `stun.ente.it`, `stun.ente.it:3478` o `stun:stun.ente.it`. Le forme
+`stuns:` e `turn:` vengono rifiutate: la postazione interroga solo su UDP e non è un
+client TURN. Nel pacchetto di configurazione (§8) i campi sono `stunServer` e
+`keepAliveSeconds` di ciascun account.
+
+**Perché nessun server predefinito.** A ogni chiamata il server STUN riceve
+l'indirizzo pubblico della postazione e l'ora: è un dato di traffico. Un server
+dell'ente — coturn in modalità solo STUN basta, senza credenziali — lo tiene in casa;
+un server pubblico di terzi è una scelta da documentare nel registro dei trattamenti.
+
+**Quando l'indirizzo pubblico non viene usato** anche con il server configurato, e
+la scheda Diagnostica dice perché:
+
+- il centralino ha un indirizzo privato, cioè si raggiunge in sede o in VPN;
+- il server STUN non risponde entro un secondo e mezzo, o sta in rete privata;
+- il centralino e il server STUN si raggiungono da collegamenti diversi (VPN parziale
+  con il centralino pubblico raggiunto dal tunnel);
+- il server STUN vede la postazione con il suo stesso indirizzo: non c'è NAT.
+
+Il ritardo che lo STUN aggiunge è un viaggio di andata e ritorno verso il server per
+le chiamate uscenti; sulle entranti l'interrogazione parte mentre squilla e di solito
+è finita quando l'operatore risponde. Con il server muto la chiamata parte con un
+secondo e mezzo di ritardo e con l'indirizzo della postazione.
+
+### Porte da aprire
+
+| Dove | Che cosa | Perché |
+|---|---|---|
+| Firewall dell'ente, verso il centralino | Porta SIP dell'account: UDP o TCP 5060, **TCP 5061 per TLS** | Registrazione e chiamate dall'esterno, se non si usa una VPN |
+| Firewall dell'ente, verso il centralino | L'intervallo RTP configurato sul centralino, UDP | La voce. Senza, l'audio non passa in nessuna direzione |
+| Server STUN dell'ente | UDP 3478 in ingresso | Le interrogazioni delle postazioni |
+| Router di casa | **Niente in ingresso** | Il passaggio lo apre la postazione uscendo, e il segnale di mantenimento lo tiene aperto |
+| Postazione | In uscita: porta SIP, intervallo RTP del centralino, UDP 3478 verso il server STUN | Windows chiede l'autorizzazione alla prima chiamata |
+
+**Il SIP ALG del router di casa va spento**, oppure si usa TLS. È la funzione con
+cui molti router «correggono» i messaggi SIP su UDP 5060 riscrivendo indirizzi e
+porte: lo fanno spesso male, e il risultato è proprio l'audio a senso unico o la
+registrazione che cade. Su TLS il router non può leggere i messaggi e non li tocca.
+
+### Che cosa impostare sul centralino
+
+La soluzione più robusta sta dalla parte del centralino, e non chiede nulla alla
+postazione: sull'interno usato da casa va attivata la gestione del NAT — rispondere
+all'indirizzo e alla porta da cui arrivano le richieste, e mandare la voce da dove
+arriva quella della postazione. I nomi cambiano da prodotto a prodotto («NAT», «force
+rport», «comedia», «symmetric RTP»). Con quella attiva il server STUN non è nemmeno
+necessario; senza, il server STUN risolve i casi dei router domestici comuni.
+
+### Quando serve TURN, e perché non c'è
+
+Il server STUN funziona con i router che assegnano a un socket la **stessa porta
+pubblica qualunque sia la destinazione**, che sono la grande maggioranza dei router
+domestici. Non basta con:
+
+- il **NAT simmetrico**, che cambia porta per ogni destinazione: lo usano alcuni
+  operatori mobili e alcune reti di alberghi e di ospiti. La porta che vede il server
+  STUN non è quella che vedrà il centralino;
+- le reti che **bloccano UDP** in uscita e lasciano passare solo HTTPS.
+
+In questi casi serve un relè: TURN (RFC 8656), oppure — meglio, per un ente — un SBC
+in DMZ o la gestione del NAT sul centralino, che fanno da relè senza chiedere nulla
+alle postazioni. BlindPhone **non include un client TURN né ICE**, per tre ragioni:
+
+1. in SIPSorcery 10.0.17 ICE (RFC 8445) è costruito per WebRTC: richiede RTP e RTCP
+   sullo stesso socket e una sessione `RTCPeerConnection`, e non si applica alle
+   sessioni SIP del posto operatore. Molti centralini, inoltre, rifiutano un'offerta
+   con i candidati ICE;
+2. il client TURN della libreria parla con il relè solo su UDP: copre il NAT simmetrico
+   ma non le reti che bloccano UDP, cioè il caso in cui TURN serve di più. Gestisce un
+   solo permesso per volta, e RTCP resterebbe fuori dal relè;
+3. richiederebbe un server TURN dell'ente con credenziali da distribuire, per un caso
+   che un SBC o la gestione del NAT sul centralino risolvono per tutte le postazioni
+   insieme.
+
+Servirebbe, per farlo bene: un client TURN su TCP e TLS (porta 443), i permessi
+rinnovati per l'indirizzo della voce che il centralino comunica nella risposta, e una
+prova su un centralino reale. Se una rete dell'ente lo richiede, è un lavoro a sé.
+
+### Come si verifica
+
+- *Impostazioni → Diagnostica*: righe «NAT fra postazione e centralino», «Indirizzo
+  pubblico scoperto», «Server STUN», «Segnale di mantenimento» e, durante una chiamata,
+  «Indirizzo annunciato per l'audio» e «Verso dell'audio».
+- `blindphone-diag nat` dalla postazione: si registra, dice se il NAT c'è, interroga il
+  server STUN e dice che cosa la postazione annuncerebbe in una chiamata.
+- Durante una chiamata con l'audio a senso unico, dopo sei secondi BlindPhone lo dice a
+  voce all'operatore. Il registro riporta pacchetti partiti, tempo e indirizzo
+  annunciato.
+
+### Che cosa cambia aggiornando
+
+Il segnale di mantenimento si accende da solo, anche sulle postazioni in sede: quattro
+byte ogni 25 secondi verso il centralino a cui la postazione è già registrata, che i
+centralini ignorano. La prima offerta SDP delle chiamate uscenti usa l'indirizzo della
+scheda che raggiunge il centralino: con una sola scheda di rete è lo stesso di prima.
+Il server STUN resta vuoto finché qualcuno non lo indica.
 
 ---
 

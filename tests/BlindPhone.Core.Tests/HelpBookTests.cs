@@ -198,6 +198,9 @@ public sealed class HelpBookTests
     [InlineData("Control Alt V", "non e' detto con quale tasto si chiama la segreteria")]
     [InlineData("Il link non compone da solo", "non e' detto che un link di chiamata non fa partire la telefonata")]
     [InlineData("App predefinite", "non e' detto dove si sceglie BlindPhone come programma dei link di chiamata")]
+    [InlineData("non arriva la voce dell'interlocutore", "non e' spiegato l'avviso dell'audio a senso unico")]
+    [InlineData("Server STUN", "non e' detto dove si configura il server STUN per il lavoro agile")]
+    [InlineData("Segnale di mantenimento", "non e' detto perche' da casa le chiamate entranti possono smettere di arrivare")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza

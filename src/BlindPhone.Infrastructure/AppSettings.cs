@@ -134,6 +134,26 @@ public sealed record SipSettings
     public int RegistrationExpiry { get; init; } = 300;
 
     /// <summary>
+    /// Server STUN per scoprire l'indirizzo pubblico dal lavoro agile. Vuoto: nessuno.
+    /// </summary>
+    /// <remarks>
+    /// Vuoto di partenza, e resta vuoto finché l'ente non ne sceglie uno: mandare a un
+    /// server di terzi l'indirizzo della postazione a ogni chiamata è una decisione da
+    /// prendere, non un valore da trovare già scritto.
+    /// </remarks>
+    public string? StunServer { get; init; }
+
+    /// <summary>
+    /// Ogni quanti secondi tenere aperto il passaggio nel router; zero lo spegne.
+    /// </summary>
+    /// <remarks>
+    /// Acceso di partenza, a differenza del server STUN: sono quattro byte verso il
+    /// centralino a cui la postazione è già registrata, non traffico verso terzi, e senza
+    /// da casa le chiamate entranti smettono di arrivare.
+    /// </remarks>
+    public int KeepAliveSeconds { get; init; } = 25;
+
+    /// <summary>
     /// Ordine di preferenza dei codec, dal più desiderato al meno.
     /// </summary>
     /// <remarks>

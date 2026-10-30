@@ -111,6 +111,71 @@ public sealed record SipAccountOptions
     /// <summary>Registrar di riserva, usato in caso di fallimento del primario.</summary>
     public string? BackupRegistrar { get; init; }
 
+    /// <summary>
+    /// Server STUN con cui scoprire l'indirizzo pubblico del flusso audio, come lo
+    /// scrive chi configura: <c>stun.ente.it</c>, <c>stun.ente.it:3478</c>,
+    /// <c>stun:stun.ente.it</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Vuoto, che è il predefinito, significa nessuna interrogazione e nessun pacchetto
+    /// verso server esterni: è una decisione dell'ente, non del programma. Vedi
+    /// <see cref="StunServerAddress"/>.
+    /// </para>
+    /// <para>
+    /// Anche configurato, l'indirizzo pubblico finisce nella descrizione di sessione
+    /// solo quando la postazione è davvero dietro NAT rispetto al centralino. Vedi
+    /// <see cref="BlindPhone.Core.Services.MediaAddressPolicy"/>.
+    /// </para>
+    /// </remarks>
+    public string? StunServer { get; init; }
+
+    /// <summary>
+    /// Ogni quanti secondi mandare il segnale che tiene aperto il passaggio nel router;
+    /// zero lo spegne.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Senza, da casa le chiamate entranti smettono di arrivare</b> qualche minuto
+    /// dopo l'ultima telefonata. Il router domestico ricorda il passaggio aperto dalla
+    /// registrazione per un tempo che su UDP va da mezzo minuto a pochi minuti, mentre la
+    /// registrazione si rinnova ogni cinque: nel mezzo il centralino manda l'INVITE a una
+    /// porta che il router ha già dimenticato. La postazione risulta registrata, e non
+    /// squilla.
+    /// </para>
+    /// <para>
+    /// Venticinque secondi stanno sotto il tempo più breve che i router domestici usano.
+    /// Il segnale è un doppio a capo: quello che la RFC 5626 prevede su TCP e TLS, e che
+    /// i softphone usano da sempre anche su UDP perché ogni centralino lo ignora. Sono
+    /// quattro byte ogni venticinque secondi. Vale per tutti e tre i trasporti, perché
+    /// anche una connessione TCP o TLS ferma viene chiusa dai router e dai concentratori
+    /// VPN, solo più tardi.
+    /// </para>
+    /// </remarks>
+    public int KeepAliveSeconds { get; init; } = DefaultKeepAliveSeconds;
+
+    /// <summary>Intervallo predefinito del segnale di mantenimento, in secondi.</summary>
+    public const int DefaultKeepAliveSeconds = 25;
+
+    /// <summary>Intervallo più breve accettato: sotto, il segnale non serve a niente di più.</summary>
+    public const int MinKeepAliveSeconds = 10;
+
+    /// <summary>Intervallo più lungo accettato: sopra, quasi ogni router ha già chiuso il passaggio.</summary>
+    public const int MaxKeepAliveSeconds = 300;
+
+    /// <summary>
+    /// L'intervallo che il motore usa davvero, riportato nei limiti.
+    /// </summary>
+    /// <remarks>
+    /// Il pannello rifiuta i valori fuori dai limiti, ma la configurazione può arrivare
+    /// anche da un file scritto a mano o da un pacchetto distribuito: un intervallo di un
+    /// secondo non deve diventare un pacchetto al secondo verso il centralino da ogni
+    /// postazione dell'ente.
+    /// </remarks>
+    public TimeSpan KeepAliveInterval => KeepAliveSeconds <= 0
+        ? TimeSpan.Zero
+        : TimeSpan.FromSeconds(Math.Clamp(KeepAliveSeconds, MinKeepAliveSeconds, MaxKeepAliveSeconds));
+
     /// <summary>Verifica che i parametri obbligatori siano valorizzati.</summary>
     /// <param name="error">Messaggio in linguaggio naturale, pronunciabile.</param>
     /// <returns><c>true</c> se la configurazione è utilizzabile.</returns>

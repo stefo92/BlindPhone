@@ -772,6 +772,14 @@ public partial class App : Application
             sp.GetRequiredService<IClock>(),
             sp.GetRequiredService<ILogger<IntrusionMonitor>>()));
 
+        // Dice all'operatore che la voce dell'interlocutore non arriva: da casa, dietro
+        // il router, e' il guasto piu' probabile e il piu' muto. Vedi OneWayAudioMonitor.
+        services.AddSingleton(sp => new OneWayAudioMonitor(
+            sp.GetRequiredService<ITelephonyEngine>(),
+            sp.GetRequiredService<CallSessionManager>(),
+            sp.GetRequiredService<IAnnouncer>(),
+            sp.GetRequiredService<ILogger<OneWayAudioMonitor>>()));
+
         services.AddSingleton(sp => new TransferOrchestrator(
             sp.GetRequiredService<ITelephonyEngine>(),
             sp.GetRequiredService<CallSessionManager>(),
@@ -1010,6 +1018,8 @@ public partial class App : Application
         LocalPort = sip.LocalPort,
         RegistrationExpiry = sip.RegistrationExpiry,
         CodecPreference = sip.CodecPreference,
+        StunServer = sip.StunServer,
+        KeepAliveSeconds = sip.KeepAliveSeconds,
     };
 
     /// <summary>
@@ -1165,6 +1175,7 @@ public partial class App : Application
         var intrusion = Services.GetRequiredService<IntrusionMonitor>();
         var queue = Services.GetRequiredService<QueueMonitorService>();
         var shift = Services.GetRequiredService<ShiftBoardService>();
+        var oneWayAudio = Services.GetRequiredService<OneWayAudioMonitor>();
         var telephony = Services.GetRequiredService<ITelephonyEngine>();
         var logSwitch = Services.GetRequiredService<LogLevelSwitch>();
 
@@ -1198,6 +1209,10 @@ public partial class App : Application
             // tutto il resto: una sorgente di tempo sola, e nessun timer che possa
             // restare acceso per conto suo. Decide da se' quando e' ora.
             shift.Pump(now);
+
+            // Prima degli annunci, per la stessa ragione del trasferimento: l'avviso
+            // dell'audio a senso unico va consegnato nello stesso ciclo in cui nasce.
+            oneWayAudio.Pump(now);
             announcements.Pump(now);
 
             DumpCountersIfDebugging(now);

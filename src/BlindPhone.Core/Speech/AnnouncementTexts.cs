@@ -948,6 +948,26 @@ public static class AnnouncementTexts
     public static string SrtpDowngraded(string destination)
         => $"Attenzione: {destination} non accetta la voce cifrata. La chiamata riparte in chiaro";
 
+    /// <summary>
+    /// La voce dell'operatore parte, quella dell'interlocutore non arriva.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Dice le due metà del fatto, nell'ordine in cui servono: prima che cosa succede,
+    /// perché l'operatore lo sta vivendo come un silenzio e deve sapere che non lo è;
+    /// poi che l'interlocutore lo sente, perché è quello che decide che cosa dirgli.
+    /// La causa probabile e il posto dove guardare chiudono la frase, così chi richiama
+    /// l'assistenza sa già dove sono i dati.
+    /// </para>
+    /// <para>
+    /// Niente sigle: «NAT» detto da una voce sintetica è una parola che non si capisce.
+    /// </para>
+    /// </remarks>
+    public static string OneWayAudio
+        => "Attenzione: non arriva la voce dell'interlocutore. La tua invece parte, e probabilmente "
+           + "dall'altra parte ti sentono. Di solito dipende dal router o dal firewall: i dettagli sono "
+           + "nella scheda Diagnostica delle impostazioni";
+
     /// <summary>Comando non valido nello stato corrente.</summary>
     public static string CommandNotAvailable => "Comando non disponibile adesso";
 
