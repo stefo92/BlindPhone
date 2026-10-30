@@ -71,12 +71,14 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private readonly ILogger<SipAudioEndPoint> _audioEndPointLogger;
     private readonly ILogger<SipPresenceSource> _presenceLogger;
     private readonly ILogger<SipOptionsProbe> _probeLogger;
+    private readonly ILogger<SipMessageWaitingSource> _messageWaitingLogger;
 
     private readonly ConcurrentDictionary<string, CallContext> _calls = new();
 
     private SIPTransport? _transport;
     private SipPresenceSource? _presenceSource;
     private SipOptionsProbe? _optionsProbe;
+    private SipMessageWaitingSource? _messageWaiting;
     private SIPRegistrationUserAgent? _registration;
     private SipRegistrationState _registrationState;
     private int _callCounter;
@@ -165,6 +167,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// vale la verifica di sistema e basta: un certificato autofirmato viene
     /// rifiutato senza appello.
     /// </param>
+    /// <param name="messageWaitingLogger">Log della segreteria telefonica.</param>
     public SipTelephonyEngine(
         SipAccountOptions account,
         NAudioEngine? audioEngine = null,
@@ -174,7 +177,8 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         ILogger<SipAudioEndPoint>? audioEndPointLogger = null,
         ILogger<SipPresenceSource>? presenceLogger = null,
         ILogger<SipOptionsProbe>? probeLogger = null,
-        CertificateTrustService? certificateTrust = null)
+        CertificateTrustService? certificateTrust = null,
+        ILogger<SipMessageWaitingSource>? messageWaitingLogger = null)
     {
         _account = account;
         _audioEngine = audioEngine;
@@ -185,6 +189,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _audioEndPointLogger = audioEndPointLogger ?? NullLogger<SipAudioEndPoint>.Instance;
         _presenceLogger = presenceLogger ?? NullLogger<SipPresenceSource>.Instance;
         _probeLogger = probeLogger ?? NullLogger<SipOptionsProbe>.Instance;
+        _messageWaitingLogger = messageWaitingLogger ?? NullLogger<SipMessageWaitingSource>.Instance;
         _registrationState = new SipRegistrationState(RegistrationStatus.Unregistered, account.Name);
     }
 
@@ -250,6 +255,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 new("Proxy in uscita", CurrentProxy is { } proxy
                     ? $"{proxy} (da {_account.OutboundProxy}, {_proxyCandidates.Count} disponibili)"
                     : "nessuno"),
+                new("Segreteria", _messageWaiting?.Status ?? "trasporto SIP non ancora avviato"),
                 new("Chiamate in corso", _calls.Count.ToString(CultureInfo.CurrentCulture)),
             };
 
@@ -353,6 +359,9 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// <inheritdoc />
     public event EventHandler<TransferProgressEventArgs>? TransferProgress;
 
+    /// <inheritdoc />
+    public event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
+
     // -----------------------------------------------------------------------
     // Ciclo di vita
     // -----------------------------------------------------------------------
@@ -398,6 +407,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // a cui chiedere. E' la strada che resta quando le sottoscrizioni vengono
         // rifiutate, ed e' l'unica che il quadro dei turni possa usare su questo impianto.
         _optionsProbe = new SipOptionsProbe(_transport, _account, _probeLogger, () => CurrentProxy);
+
+        // La segreteria ascolta dal primo istante, perche' alcuni centralini mandano lo
+        // stato della casella appena ricevono la registrazione; la sottoscrizione invece
+        // parte a registrazione riuscita, vedi StartRegistration.
+        _messageWaiting = new SipMessageWaitingSource(_transport, _account, _messageWaitingLogger, () => CurrentProxy);
+        _messageWaiting.SummaryReceived += (_, stato) =>
+            MessageWaitingChanged?.Invoke(this, new MessageWaitingEventArgs(_account.Name, stato, _clock.Now));
 
         StartRegistration();
     }
@@ -600,7 +616,14 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         var registration = _registration;
 
         registration.RegistrationSuccessful += (_, _) =>
+        {
             SetRegistrationState(RegistrationStatus.Registered, null);
+
+            // A ogni registrazione riuscita, non solo alla prima: dopo un'interruzione
+            // della rete la sottoscrizione puo' essere andata persa, e la chiamata non
+            // fa niente se c'e' ancora.
+            _messageWaiting?.Start();
+        };
 
         registration.RegistrationFailed += (_, _, message) =>
             SetRegistrationState(RegistrationStatus.Failed, TranslateRegistrationError(message));
@@ -633,6 +656,11 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         foreach (var context in _calls.Values) CloseCall(context);
 
         _calls.Clear();
+
+        // Prima del trasporto: la chiusura della sottoscrizione e' un messaggio, e senza
+        // trasporto non partirebbe.
+        _messageWaiting?.Dispose();
+        _messageWaiting = null;
 
         if (_registration is not null)
         {
@@ -1223,7 +1251,8 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
         // Le notifiche di stato degli interni (NOTIFY) arrivano sullo stesso trasporto,
         // ma non passano di qui: ogni sottoscrizione si aggancia da se' al trasporto e
-        // riconosce le proprie dal Call-ID. Vedi SipPresenceSource.
+        // riconosce le proprie dal Call-ID. Vedi SipPresenceSource. Quelle della
+        // segreteria, comprese le non sollecitate, le riconosce SipMessageWaitingSource.
         if (request.Method != SIPMethodsEnum.INVITE) return;
         if (_transport is null) return;
 

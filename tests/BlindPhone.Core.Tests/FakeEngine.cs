@@ -66,6 +66,19 @@ internal sealed class FakeEngine : ITelephonyEngine
 
     public event EventHandler<TransferProgressEventArgs>? TransferProgress;
 
+    public event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
+
+    /// <summary>Simula una notifica della segreteria arrivata dal centralino.</summary>
+    public void SimulateMessageWaiting(MessageSummary summary, string account = "test")
+        => MessageWaitingChanged?.Invoke(this, new MessageWaitingEventArgs(account, summary, DateTimeOffset.Now));
+
+    /// <summary>Simula la registrazione su un altro account, come dopo un cambio di account.</summary>
+    public void SimulateAccountRegistration(string account)
+    {
+        RegistrationState = new SipRegistrationState(RegistrationStatus.Registered, account, null, DateTimeOffset.Now);
+        RegistrationStateChanged?.Invoke(this, RegistrationState);
+    }
+
     public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;

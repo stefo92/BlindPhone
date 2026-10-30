@@ -17,6 +17,7 @@ Tutte le combinazioni sono modificabili da *Impostazioni → Tasti rapidi*.
 - Trasferimento (cieco e con annuncio) — Locale: F9 — Globale: Control Maiusc F9
 - Microfono muto o attivo — Locale: Control M — Globale: Control Maiusc M
 - Richiama ultimo numero — Locale: Control R
+- Chiama la segreteria per ascoltare i messaggi — Locale: Control Alt V
 - Modalità toni per i menu automatici — Locale: Control Maiusc D
 - Invia come toni quanto scritto nel campo di composizione — Locale: Control Maiusc Invio
 
@@ -72,6 +73,18 @@ riletto cifra per cifra prima che parta qualunque cosa — è il momento in cui
 correggere un errore, perché da lì in avanti il chiamante è in attesa e non può
 più ripetertelo. Da quel punto la sequenza è quella di sempre: F9 per chiamare
 l'interno, doppio F9 per trasferire subito, ESC per annullare.
+
+### La segreteria
+
+Quando arrivano messaggi nuovi la voce lo dice una volta: «2 nuovi messaggi in
+segreteria». Non lo ripete a ogni rinnovo: torna a parlare solo se ne arrivano altri.
+
+- Control Alt V: chiama la segreteria del tuo account. Nel menu della casella ci si
+  muove con la modalità toni, Control Maiusc D
+- Il numero si scrive in *Impostazioni → Account SIP*, campo «Segreteria: numero da
+  chiamare» (Alt H). Se il centralino ne indica uno, compare lì sotto come proposta
+  da confermare
+- Control F5, il riepilogo dello stato, nomina i messaggi nuovi quando ce ne sono
 
 ## 3. Conferenza a tre — sequenza
 

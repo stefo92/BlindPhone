@@ -192,6 +192,12 @@ public sealed class HelpBookTests
     [InlineData("pulsante della cuffia", "non e' detto che si risponde e si chiude dalla cuffia")]
     [InlineData("Play e pausa", "non e' detto che cosa fare con una cuffia che manda solo il tasto della musica")]
     [InlineData("lo riprende", "non e' detto che con la sola chiamata in attesa il pulsante riprende e non chiude")]
+    [InlineData("nuovi messaggi in segreteria", "non e' detto che la voce avvisa dei messaggi in segreteria")]
+    [InlineData("Segreteria: numero da chiamare", "non e' detto dove si scrive il numero della segreteria")]
+    [InlineData("Usa il numero proposto", "non e' detto che il numero indicato dal centralino va confermato")]
+    [InlineData("Control Alt V", "non e' detto con quale tasto si chiama la segreteria")]
+    [InlineData("Il link non compone da solo", "non e' detto che un link di chiamata non fa partire la telefonata")]
+    [InlineData("App predefinite", "non e' detto dove si sceglie BlindPhone come programma dei link di chiamata")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza

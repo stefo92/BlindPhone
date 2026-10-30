@@ -72,6 +72,9 @@ public partial class App : Application
     private DispatcherTimer? _pumpTimer;
     private SingleInstanceGuard? _singleInstance;
 
+    /// <summary>Canale da cui arrivano i link di chiamata dei secondi avvii.</summary>
+    private CallLinkChannel? _callLinks;
+
     /// <summary>
     /// Riferimenti catturati all'avvio, per il gestore degli errori.
     /// </summary>
@@ -123,7 +126,13 @@ public partial class App : Application
         // Va fatto prima di costruire i servizi, e non dopo: costruirli significa
         // aprire il file di registro, il deposito dei segreti e l'archivio della
         // rubrica, cioe' toccare risorse che appartengono gia' alla copia attiva.
-        _singleInstance = new SingleInstanceGuard();
+        //
+        // Se l'avvio viene da un link di chiamata la guardia lo consegna alla copia
+        // attiva invece di chiederle solo di mostrarsi. Qui si riconosce e basta: la
+        // verifica vera la fa la finestra principale, che sa dire perche' un link
+        // non va.
+        var linkDiChiamata = e.Args.FirstOrDefault(CallLinkParser.LooksLikeCallLink);
+        _singleInstance = new SingleInstanceGuard(linkDiChiamata);
 
         // La segnalazione alla copia attiva l'ha gia' inviata la guardia, che poi ha
         // atteso il tempo di cortesia per il caso "chiusa e riaperta subito".
@@ -239,6 +248,24 @@ public partial class App : Application
 
         AnnouncePendingCrashReports();
         AnnounceRejectedSecrets();
+
+        // LINK DI CHIAMATA: QUELLI DEI SECONDI AVVII E QUELLO DI QUESTO.
+        //
+        // Il canale si apre adesso e non prima perche' prima non c'e' una finestra a
+        // cui dare il numero. Il link con cui e' partito questo processo si consegna
+        // a finestra disegnata: prima il campo di composizione non c'e', e
+        // l'annuncio partirebbe sopra quello dell'avvio.
+        _callLinks = CallLinkChannel.Listen(
+            link => Dispatcher.BeginInvoke(() =>
+            {
+                if (!_shuttingDown) window.ReceiveCallLink(link);
+            }),
+            _services.GetService<ILogger<CallLinkChannel>>());
+
+        if (linkDiChiamata is not null)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => window.ReceiveCallLink(linkDiChiamata));
+        }
 
         // Da qui in avanti vale di nuovo la regola normale: chiudere l'ultima finestra
         // spegne il programma. La finestra principale, quando l'area di notifica e'
@@ -623,7 +650,9 @@ public partial class App : Application
                 return sessioni.ActiveCall is not null || sessioni.RingingCall is not null;
             },
             sp.GetRequiredService<ILogger<ContactsSyncService>>(),
-            sp.GetRequiredService<ILogger<SqlServerContactSource>>()));
+            sp.GetRequiredService<ILogger<SqlServerContactSource>>(),
+            sp.GetRequiredService<ILogger<BlindPhone.Contacts.Ldap.LdapContactSource>>(),
+            sp.GetRequiredService<ILogger<BlindPhone.Contacts.Outlook.OutlookContactSource>>()));
 
         // Archivio separato da quello della rubrica: il registro delle chiamate
         // contiene dati di traffico con un periodo di conservazione, la rubrica no.
@@ -801,6 +830,18 @@ public partial class App : Application
         // altrove.
         services.AddSingleton(sp => new DutyStatusService(sp.GetRequiredService<IClock>()));
 
+        // SEGRETERIA TELEFONICA.
+        //
+        // Si aggancia al motore e non all'account: il motore e' l'involucro che resta
+        // lo stesso quando l'operatore cambia account, e da li' arrivano le notifiche
+        // di qualunque account sia in uso. La finestra principale lo prende al
+        // momento della costruzione, cioe' prima che il motore parta, e per questo non
+        // perde la prima notifica — quella che dice i messaggi lasciati di notte.
+        services.AddSingleton(sp => new VoicemailService(
+            sp.GetRequiredService<ITelephonyEngine>(),
+            sp.GetRequiredService<IAnnouncer>(),
+            sp.GetRequiredService<ILogger<VoicemailService>>()));
+
         // Voce degli avvisi destinati a chi e' in linea. Distinta da quella degli
         // annunci: quella parla all'operatore e obbedisce alla sua configurazione,
         // questa parla all'interlocutore e non ha nulla da configurare.
@@ -922,7 +963,8 @@ public partial class App : Application
             // La politica di fiducia sui certificati e' la stessa del connettore
             // dell'API: un certificato gia' approvato per il centralino non va
             // riapprovato quando la stessa macchina si presenta sulla porta SIP.
-            sp.GetRequiredService<CertificateTrustService>());
+            sp.GetRequiredService<CertificateTrustService>(),
+            messageWaitingLogger: sp.GetRequiredService<ILogger<SipMessageWaitingSource>>());
     }
 
     /// <summary>
@@ -1374,6 +1416,13 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _shuttingDown = true;
+
+        // Il canale dei link si chiude per primo. Un link cliccato mentre la chiusura
+        // e' in corso deve trovare la porta chiusa, non una finestra che sta per
+        // sparire: chi lo manda ripiega sull'attesa del posto libero e lo prende in
+        // carico lui, appena questo processo ha finito.
+        _callLinks?.Dispose();
+        _callLinks = null;
 
         _pumpTimer?.Stop();
         _pumpTimer = null;

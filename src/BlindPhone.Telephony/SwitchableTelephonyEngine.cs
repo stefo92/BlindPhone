@@ -188,6 +188,7 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
         engine.CallProgress += OnCallProgress;
         engine.TransferProgress += OnTransferProgress;
         engine.SrtpDowngraded += OnSrtpDowngraded;
+        engine.MessageWaitingChanged += OnMessageWaitingChanged;
     }
 
     private void Detach(ITelephonyEngine engine)
@@ -197,6 +198,7 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
         engine.CallProgress -= OnCallProgress;
         engine.TransferProgress -= OnTransferProgress;
         engine.SrtpDowngraded -= OnSrtpDowngraded;
+        engine.MessageWaitingChanged -= OnMessageWaitingChanged;
     }
 
     // Il mittente riportato ai sottoscrittori e' questo involucro e non il motore
@@ -216,6 +218,9 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
 
     private void OnSrtpDowngraded(object? sender, string e) => SrtpDowngraded?.Invoke(this, e);
 
+    private void OnMessageWaitingChanged(object? sender, MessageWaitingEventArgs e)
+        => MessageWaitingChanged?.Invoke(this, e);
+
     /// <inheritdoc />
     public event EventHandler<SipRegistrationState>? RegistrationStateChanged;
 
@@ -230,6 +235,9 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public event EventHandler<TransferProgressEventArgs>? TransferProgress;
+
+    /// <inheritdoc />
+    public event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
 
     // -----------------------------------------------------------------------
     // Inoltro del contratto

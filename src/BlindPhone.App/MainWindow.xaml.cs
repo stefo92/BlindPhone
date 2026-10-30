@@ -189,6 +189,9 @@ public partial class MainWindow : Window
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
 
+    /// <summary>Segreteria telefonica dell'account in uso, se il servizio c'è.</summary>
+    private readonly VoicemailService? _voicemail;
+
     private readonly ObservableCollection<QueueRow> _queueRows = [];
     private readonly ObservableCollection<ColleagueRow> _colleagueRows = [];
     private readonly ObservableCollection<DialerSuggestion> _suggestions = [];
@@ -384,6 +387,11 @@ public partial class MainWindow : Window
         _hotkeyStore.ActiveProfileChanged += OnHotkeyProfileChanged;
         _settingsService.SettingsChanged += OnSettingsChanged;
 
+        // Dal contenitore e non dal costruttore, come le finestre secondarie: la
+        // segreteria e' un servizio in piu', e la finestra deve partire anche senza.
+        _voicemail = _serviceProvider.GetService<VoicemailService>();
+        if (_voicemail is not null) _voicemail.Changed += OnVoicemailChanged;
+
         // La gestione a livello di finestra intercetta i tasti prima dei controlli:
         // e' cio' che permette a F2 di rispondere anche mentre il focus e' nel campo
         // di composizione, senza costringere l'operatore a spostarsi.
@@ -432,6 +440,7 @@ public partial class MainWindow : Window
         await ApplyColleaguesSettingsAsync(_settingsService.Current).ConfigureAwait(true);
 
         UpdateRegistrationText();
+        UpdateVoicemailText();
         UpdateStatus();
         DialerBox.Focus();
 
@@ -1956,6 +1965,10 @@ public partial class MainWindow : Window
                     await RedialAsync().ConfigureAwait(true);
                     break;
 
+                case HotkeyCommand.CallVoicemail:
+                    await CallVoicemailAsync().ConfigureAwait(true);
+                    break;
+
                 case HotkeyCommand.JoinMeeting:
                     await JoinMeetingAsync().ConfigureAwait(true);
                     break;
@@ -2649,7 +2662,8 @@ public partial class MainWindow : Window
             _queueProvider.AgentState,
             _telephony.RegistrationState,
             DateTimeOffset.Now,
-            _calls.ConferencedCalls);
+            _calls.ConferencedCalls,
+            _voicemail?.Current);
 
         _announcer.Announce(Announcement.CommandResponse(text, DateTimeOffset.Now));
     }
@@ -3222,6 +3236,108 @@ public partial class MainWindow : Window
         await _calls.DialAsync(_lastDialedNumber).ConfigureAwait(true);
     }
 
+    // -----------------------------------------------------------------------
+    // Segreteria telefonica
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Chiama la segreteria dell'account su cui la postazione è registrata.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Compone soltanto il numero confermato dall'operatore.</b> Quello che il
+    /// centralino indica nelle notifiche può essere il nome del servizio o l'interno
+    /// stesso, e comporlo d'ufficio farebbe partire una chiamata che non porta ai
+    /// messaggi: vedi <see cref="VoicemailNumbers"/>. Se manca, la risposta dice dove
+    /// impostarlo e quale numero propone il centralino.
+    /// </para>
+    /// <para>
+    /// Da lì in poi è una chiamata come le altre, con l'annuncio e i tasti di sempre:
+    /// i toni per muoversi nel menu della casella si mandano con la modalità toni.
+    /// </para>
+    /// </remarks>
+    private async Task CallVoicemailAsync()
+    {
+        var account = ActiveSipSettings();
+        var numero = VoicemailNumbers.Normalize(account?.VoicemailNumber);
+
+        if (numero.Length == 0)
+        {
+            var proposta = account is null ? null : _voicemail?.ProposedNumber(account.Name, account.Username);
+
+            _announcer.Announce(Announcement.CommandResponse(
+                AnnouncementTexts.VoicemailNumberMissing(proposta), DateTimeOffset.Now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        _log.LogInformation("Chiamata alla segreteria dell'account {Account}", account!.Name);
+
+        await _calls.DialAsync(numero).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Impostazioni dell'account con cui la postazione lavora adesso.
+    /// </summary>
+    /// <remarks>
+    /// Dal motore e non dall'account predefinito: dopo un cambio di account la
+    /// segreteria da chiamare è quella dell'ente su cui si è registrati, non quella con
+    /// cui la postazione partirà domani mattina.
+    /// </remarks>
+    private SipSettings? ActiveSipSettings()
+    {
+        var attivo = _serviceProvider.GetService<SipAccountSwitcher>()?.ActiveAccountId;
+        var accounts = _settingsService.Current.SipAccounts;
+
+        return accounts.FirstOrDefault(a => a.Id == attivo)
+               ?? (attivo is null ? null : _settingsService.Current.ActiveSipAccount);
+    }
+
+    private void OnVoicemailChanged(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(() =>
+        {
+            UpdateVoicemailText();
+
+            // Anche l'icona: con la finestra riposta e' l'unico posto in cui la spia dei
+            // messaggi si possa vedere.
+            UpdateRegistrationText();
+        });
+
+    /// <summary>
+    /// Aggiorna la riga della segreteria sotto lo stato della registrazione.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Non parla da sola</b>, come le altre righe di riepilogo: l'avviso dei
+    /// messaggi nuovi passa dalla pipeline degli annunci, una volta, e una regione
+    /// dinamica lo farebbe ripetere allo screen reader a ogni rinnovo. La riga resta da
+    /// leggere con il cursore virtuale, quando la si va a cercare.
+    /// </para>
+    /// <para>
+    /// <b>Sparisce quando non si sa niente.</b> Prima della prima notifica, o su un
+    /// centralino che non le manda, una riga «nessun messaggio» affermerebbe una cosa
+    /// che nessuno ha detto.
+    /// </para>
+    /// </remarks>
+    private void UpdateVoicemailText()
+    {
+        if (_voicemail?.Current is not { } stato)
+        {
+            VoicemailText.Text = string.Empty;
+            VoicemailText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var testo = AnnouncementTexts.VoicemailStatus(stato);
+
+        // Il nome accessibile e' la frase intera, che comincia gia' con «Segreteria»:
+        // con un nome fisso lo screen reader direbbe «messaggi in segreteria» e non
+        // quanti, cioe' proprio la parte che si e' andati a cercare.
+        VoicemailText.Text = testo;
+        AutomationProperties.SetName(VoicemailText, testo);
+        VoicemailText.Visibility = Visibility.Visible;
+    }
+
     /// <summary>
     /// Entra in una riunione Zoom componendo quello che c'è nel campo di composizione.
     /// </summary>
@@ -3743,6 +3859,126 @@ public partial class MainWindow : Window
             _announcer.Announce(Announcement.CommandResponse("Prelievo non riuscito", DateTimeOffset.Now));
             _announcer.PlayEarcon(EarconKind.CommandRejected);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Link di chiamata
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Mette nel campo di composizione il numero di un link <c>tel:</c>, <c>sip:</c> o
+    /// <c>callto:</c> cliccato in un gestionale, in una pagina o in un messaggio.
+    /// </summary>
+    /// <param name="raw">Link così come è arrivato sulla riga di comando.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Il link non compone, e questa è la regola da cui dipende tutto il resto.</b>
+    /// Chiunque può scrivere una pagina con un link di chiamata, e una pagina può far
+    /// aprire un link senza che nessuno lo clicchi. Se il link componesse, una pagina
+    /// web potrebbe far partire telefonate dal centralino dell'ente — verso numeri a
+    /// pagamento, verso chiunque — e su un posto operatore la telefonata partirebbe
+    /// con l'operatore in linea con qualcun altro. Il numero va nel campo, la voce lo
+    /// legge, e Invio lo preme l'operatore dopo averlo sentito.
+    /// </para>
+    /// <para>
+    /// <b>Il campo si comporta come se il numero fosse stato digitato.</b> Durante un
+    /// trasferimento diventa la destinazione, con qualcuno in linea Invio non compone:
+    /// sono le regole del campo, e il link non ne ha di sue. In particolare <b>non
+    /// mette in attesa nessuno</b>: chi è in conversazione lo resta, e l'annuncio dice
+    /// quale tasto premere se vuole chiamare il numero del link.
+    /// </para>
+    /// <para>
+    /// <b>Dove il campo è bloccato, il link non entra.</b> In pausa e, in modalità
+    /// semplificata, mentre squilla una chiamata il campo non accetta testo per ragioni
+    /// che valgono anche per un numero arrivato da fuori; il link lo dice e spiega
+    /// come procedere invece di aggirare il blocco.
+    /// </para>
+    /// <para>
+    /// <b>Il registro non porta il numero.</b> Dice da che schema arriva il link e che
+    /// cosa ne è stato: è quello che serve davanti a «ho cliccato e non è successo
+    /// niente», e un numero di telefono preso da una pratica è un dato personale che il
+    /// registro non ha bisogno di conservare.
+    /// </para>
+    /// </remarks>
+    public void ReceiveCallLink(string raw)
+    {
+        var now = DateTimeOffset.Now;
+
+        // La finestra viene davanti in ogni caso, anche se il link va scartato:
+        // l'operatore ha appena cliccato, e deve sentire la risposta dal programma che
+        // l'ha data, con il cursore li' dove puo' fare qualcosa.
+        var primoPiano = RestoreWindow(null);
+
+        if (!CallLinkParser.TryParse(raw, out var link, out var errore))
+        {
+            _log.LogWarning("Link di chiamata scartato: {Motivo}", errore);
+            _announcer.Announce(Announcement.High(
+                CallLinkTexts.Rejected(errore!), now, EarconKind.CommandRejected, coalesceKey: "link:chiamata"));
+            return;
+        }
+
+        if (_duty.IsPaused)
+        {
+            _log.LogInformation("Link di chiamata {Schema} non usato: postazione in pausa", link!.Scheme);
+            _announcer.Announce(Announcement.High(
+                CallLinkTexts.WhilePaused(LocalKeyName(_hotkeys, HotkeyCommand.ToggleServicePause, "Control Alt Pausa")),
+                now,
+                EarconKind.CommandRejected,
+                coalesceKey: "link:chiamata"));
+            return;
+        }
+
+        if (IsSimplifiedMode && _calls.RingingCall is not null)
+        {
+            _log.LogInformation("Link di chiamata {Schema} non usato: chiamata entrante in modalita' semplificata", link!.Scheme);
+            _announcer.Announce(Announcement.High(
+                CallLinkTexts.WhileRinging(), now, EarconKind.CommandRejected, coalesceKey: "link:chiamata"));
+            return;
+        }
+
+        // Il proprio centralino si riconosce sia dal dominio sia dal registrar: in
+        // molti enti il link del gestionale usa il nome del server, non il dominio.
+        var account = _settingsService.Current.ActiveSipAccount;
+        var campo = link!.Dial([account.Domain, account.EffectiveRegistrar]);
+
+        DialerBox.Text = campo;
+
+        // L'assegnazione qui sopra passa dal gestore della digitazione, che dichiara
+        // l'operatore al lavoro sul campo e zittisce per qualche secondo gli annunci
+        // non critici: compreso quello che legge il numero, che e' il solo modo di
+        // sapere che cosa e' arrivato. Il link non e' una battitura e va detto subito.
+        //
+        // La ricerca in rubrica che lo stesso gestore ha messo in coda si annulla per
+        // la ragione opposta: un terzo di secondo dopo direbbe «nessun contatto» o
+        // «tre voci su questo interno» sopra il numero ancora in lettura.
+        _context.StopTyping();
+        CancelSuggestionSearch();
+        HideSuggestions();
+
+        DialerBox.Focus();
+        DialerBox.CaretIndex = DialerBox.Text.Length;
+
+        var effetto = CallLinkTexts.EffectOf(CurrentActionContext(), IsSimplifiedMode);
+
+        _log.LogInformation(
+            "Link di chiamata {Schema} messo nel campo di composizione, primo piano {PrimoPiano}: Invio -> {Effetto}",
+            link.Scheme, primoPiano ? "ottenuto" : "negato", effetto);
+
+        var testo = CallLinkTexts.Inserted(
+            campo,
+            link.Extension,
+            effetto,
+            _settingsService.Current.Accessibility.DigitGrouping,
+            LocalKeyName(_hotkeys, HotkeyCommand.ToggleHold, "F4"),
+            _transferOptions.TransferKeyName);
+
+        if (!primoPiano)
+        {
+            testo = CallLinkTexts.WithForegroundDenied(
+                testo, _hotkeys.Get(HotkeyCommand.ShowWindow, HotkeyScope.Global)?.SpeechText);
+        }
+
+        _announcer.Announce(Announcement.CommandResponse(testo, now, CallLinkTexts.Braille(campo)));
     }
 
     // -----------------------------------------------------------------------
@@ -4508,13 +4744,21 @@ public partial class MainWindow : Window
         // e' proprio con la finestra riposta che si rischia di restare fuori servizio
         // senza ricordarsene, e il suggerimento dell'icona e' l'unico posto in cui
         // guardare per accorgersene.
+        //
+        // I messaggi in segreteria vengono subito dopo il nome del programma e prima
+        // della registrazione: Windows taglia il testo a 63 caratteri, e a cadere deve
+        // essere il nome dell'account, non la notizia. La pausa resta da sola, perche'
+        // e' l'unica cosa che con la finestra riposta non si deve poter perdere.
+        var segreteria = AnnouncementTexts.VoicemailTrayHint(_voicemail?.Current);
+        var prefisso = segreteria is null ? "BlindPhone - " : $"BlindPhone - {segreteria} - ";
+
         _tray?.UpdateStatus(_duty.IsPaused
             ? "BlindPhone - FUORI SERVIZIO, non riceve chiamate"
             : _telephony.IsSimulated
                 ? "BlindPhone - modalita' simulata"
                 : state.IsReachable
-                    ? $"BlindPhone - registrato ({state.AccountName})"
-                    : "BlindPhone - NON registrato");
+                    ? $"{prefisso}registrato ({state.AccountName})"
+                    : $"{prefisso}NON registrato");
     }
 
     private void UpdateStatus()
@@ -5109,6 +5353,7 @@ public partial class MainWindow : Window
         _globalHotkeys.HotkeyPressed -= OnGlobalHotkeyPressed;
         _hotkeyStore.ActiveProfileChanged -= OnHotkeyProfileChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
+        if (_voicemail is not null) _voicemail.Changed -= OnVoicemailChanged;
 
         _globalHotkeys.Dispose();
         _headset?.Dispose();

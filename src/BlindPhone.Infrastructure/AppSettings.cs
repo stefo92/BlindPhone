@@ -71,6 +71,25 @@ public sealed record SipSettings
     public string OutboundCallerId { get; init; } = string.Empty;
 
     /// <summary>
+    /// Numero da chiamare per ascoltare la segreteria di questo account, per esempio
+    /// <c>*97</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sta nell'account per la stessa ragione del numero presentato in uscita: due enti
+    /// hanno due centralini con due codici diversi, e il codice giusto deve seguire il
+    /// cambio di account senza che l'operatore se ne ricordi.
+    /// </para>
+    /// <para>
+    /// Vuoto significa «non impostato», e il tasto della segreteria lo dice invece di
+    /// comporre qualcosa a caso. Il centralino può suggerirlo nelle sue notifiche, ma il
+    /// suggerimento resta una proposta nella scheda dell'account finché l'operatore non
+    /// lo salva: vedi <see cref="Core.Services.VoicemailNumbers"/>.
+    /// </para>
+    /// </remarks>
+    public string VoicemailNumber { get; init; } = string.Empty;
+
+    /// <summary>
     /// Cifratura della voce: Disabled, Preferred, Required.
     /// </summary>
     /// <remarks>

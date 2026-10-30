@@ -442,6 +442,15 @@ quel requisito è contrattuale.
   riconnessione, interrogazione adattiva, correlazione SIP/API con degrado sicuro
 - Segnalazione SIP: registrazione, chiamate, attesa, REFER cieco e con Replaces,
   DTMF, interpretazione dei NOTIFY di esito
+- Segreteria telefonica con avviso dei messaggi in attesa (MWI, RFC 3842):
+  sottoscrizione `message-summary` per l'account in uso, con rinnovo anticipato
+  quando il centralino concede meno tempo, e lettura dei NOTIFY non sollecitati.
+  L'avviso vocale («2 nuovi messaggi in segreteria») parte solo quando i messaggi
+  nuovi aumentano, non a ogni rinnovo; lo stato compare nella finestra principale,
+  nell'icona dell'area di notifica e nel riepilogo dello stato. Numero della
+  segreteria per account in *Impostazioni → Account SIP*, con la proposta del
+  centralino da confermare, e chiamata con `Ctrl+Alt+V`. Collaudata con un
+  centralino simulato sul trasporto SIP vero; manca la prova su un centralino reale
 - Scelta e ordinamento dei codec audio, con riordino da tastiera e avviso di
   conformità (vedi sotto)
 - Audio a quattro vie con gestione del collegamento a caldo, earcon a sintesi con
@@ -454,9 +463,18 @@ quel requisito è contrattuale.
   tenute allineate, collegamento a caldo e ripiego facoltativo sul tasto Play e
   pausa. Accesso diretto con `hid.dll` e CfgMgr32, senza SDK di produttori: vedi
   sotto
-- Rubrica SQLite con ricerca testuale e T9, importazione CSV, sorgente Yeastar
+- Rubrica SQLite con ricerca testuale e T9, importazione CSV e da backup SQL,
+  sorgente Yeastar, collegamento a SQL Server
+- Sorgenti rubrica LDAP / Active Directory e Outlook classico, con riallineamento
+  periodico nella copia locale cifrata (vedi *Directory e Outlook* sotto)
 - Elenco delle ultime chiamate su archivio separato, diviso in perse, ricevute ed
   effettuate, con conservazione configurabile e cancellazione manuale
+- Link di chiamata `tel:` (RFC 3966), `sip:` e `sips:` (RFC 3261) e `callto:` da
+  gestionali, pagine web e posta: il numero arriva nel campo di composizione della
+  copia già aperta, la voce lo legge e la chiamata parte **solo con Invio**. Codici
+  di servizio, intestazioni SIP e caratteri di controllo vengono rifiutati. BlindPhone
+  si candida nelle App predefinite di Windows; come sceglierlo, anche per criterio
+  di gruppo, è in [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md)
 - Archivi locali cifrati a riposo con SQLCipher, chiave sotto DPAPI, conversione
   automatica di quelli nati in chiaro
 - Shell WPF accessibile con regioni dinamiche UI Automation
@@ -480,8 +498,16 @@ quel requisito è contrattuale.
   nessuno a premere
 - Storico annunci come finestra WPF: il comando è assegnato (`Ctrl+Shift+A`) ma
   risponde «funzione non ancora disponibile»
-- Sorgenti rubrica LDAP e ripristino da backup SQL
+- Collaudo sul campo delle sorgenti LDAP e Outlook: abbinamento, numeri ed errori
+  sono provati senza server, il collegamento vero (LDAPS, StartTLS, lettura a
+  pagine oltre le mille voci, COM di Outlook) va verificato presso un ente
+- Rubrica dalla casella di Microsoft 365 tramite Microsoft Graph, l'unica strada
+  per i contatti del nuovo Outlook
 - Parcheggio, risposta per assente
+- Prova sul campo dei link di chiamata con i browser, i client di posta e i
+  gestionali dell'ente: interpretazione, consegna alla copia aperta e registrazione
+  nell'installatore sono verificate dai test e dal pacchetto costruito, non ancora
+  da un'installazione su una postazione reale
 - Decisione su RTT (EN 301 549 §6.2): implementarlo o dichiarare lo scostamento
   nell'Accessibility Conformance Report
 
@@ -556,6 +582,57 @@ Per provare l'abbinamento su un file senza aprire l'applicazione:
 ```bash
 dotnet run --project tools/BlindPhone.Diagnostics -- rubrica C:\rubrica.csv
 ```
+
+### Directory e Outlook
+
+Oltre ai file e a SQL Server, *Da dove arrivano i contatti* offre due provenienze
+che si riallineano da sole, sempre nella copia locale cifrata: il nome di chi chiama
+si cerca mentre il telefono squilla, e non può dipendere da un giro di rete.
+
+**Directory LDAP o Active Directory.** Bastano il server — con Active Directory il
+nome del dominio — e la base della ricerca. Filtro e attributi proposti sono quelli
+di Active Directory:
+
+| Campo | Attributo |
+|---|---|
+| Interno (recapito predefinito) | `ipPhone` |
+| Telefono di ufficio | `telephoneNumber` |
+| Cellulare | `mobile` |
+| Nominativo, nome, cognome | `displayName`, `givenName`, `sn` |
+| Reparto, qualifica, ente | `department`, `title`, `company` |
+| Collocazione | `physicalDeliveryOfficeName` |
+| Posta | `mail` |
+| Identità stabile, ultima modifica | `objectGUID`, `whenChanged` |
+
+Il filtro prende gli utenti attivi e i contatti con almeno un numero. Al server si
+chiedono solo gli attributi abbinati (un attributo svuotato non viene letto: è il
+modo per non portare sulla postazione, per esempio, i cellulari). La lettura è a
+pagine, perché Active Directory non restituisce più di mille voci per richiesta, e
+ogni pagina ha un tempo massimo. I rinvii ad altri server non si seguono.
+
+Il collegamento è cifrato con LDAPS (predefinito, porta 636) o StartTLS; *in chiaro*
+è l'ultima voce, dice «sconsigliato» e lo ripete a ogni prova. L'accesso è con
+l'utenza di Windows della postazione (nessuna password), con un'utenza dedicata o
+anonimo. La password dell'utenza dedicata sta in `secrets.dat`, **legata al server**
+come le altre credenziali dalla 1.0.17: cambiare il server in `settings.json` non la
+manda altrove. Gli errori si sentono in italiano, distinguendo le risposte di Active
+Directory che si risolvono in modi diversi — password scaduta, utenza bloccata,
+utenza disattivata, credenziali sbagliate.
+
+**Contatti di Outlook.** Si leggono le cartelle Contatti di ogni archivio del
+profilo di Outlook classico, sottocartelle comprese a scelta, con COM a collegamento
+tardivo: nessuna dipendenza dagli assembly di interoperabilità di Office, e nessun
+problema su una postazione senza Outlook. Il **nuovo Outlook** non espone COM: viene
+riconosciuto e l'operatore sente l'alternativa (esportare un CSV da Outlook sul web).
+Posta elettronica e note non si leggono perché il controllo di sicurezza di Outlook
+potrebbe mostrare un avviso; il numero di casa non si legge per minimizzazione.
+Outlook non viene mai chiuso da BlindPhone.
+
+**I numeri** di entrambe le provenienze li scrive una persona — «+39 (0521)
+703-111 int. 4021» — e vengono ridotti alla forma componibile: spazi, parentesi e
+trattini tolti, `(0)` gestito secondo il prefisso, l'interno in coda riconosciuto e
+reso recapito predefinito. Un campo con due numeri o con una nota non si compone e
+finisce nelle note del contatto.
 
 ## Ultime chiamate
 

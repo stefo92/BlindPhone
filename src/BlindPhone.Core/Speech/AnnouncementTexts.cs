@@ -773,6 +773,103 @@ public static class AnnouncementTexts
            + $"Premi {pauseKeyName} per tornare in servizio";
 
     // ---------------------------------------------------------------------
+    // Segreteria telefonica
+    // ---------------------------------------------------------------------
+
+    /// <summary>Messaggi nuovi arrivati in segreteria.</summary>
+    /// <param name="summary">Stato della casella riportato dal centralino.</param>
+    /// <remarks>
+    /// <para>
+    /// Il numero viene per primo, perché è l'informazione che decide se interrompere
+    /// quello che si sta facendo: «2 nuovi messaggi in segreteria» si capisce anche
+    /// fermando la voce alla terza parola.
+    /// </para>
+    /// <para>
+    /// Quando il centralino accende la spia senza dire quanti sono, si dice che ci sono
+    /// e basta: un numero inventato sarebbe peggio di nessun numero.
+    /// </para>
+    /// </remarks>
+    public static string VoicemailArrived(MessageSummary summary)
+    {
+        if (summary.NewToAnnounce is not { } nuovi) return "Nuovi messaggi in segreteria";
+        if (nuovi == 0) return "Nessun messaggio nuovo in segreteria";
+
+        var (messaggi, urgenti) = NewMessagesPhrase(nuovi, summary.UrgentToAnnounce);
+        return $"{messaggi} in segreteria{urgenti}";
+    }
+
+    /// <summary>«2 nuovi messaggi» e, a parte, «, di cui 1 urgente».</summary>
+    /// <remarks>
+    /// Le due parti restano separate perché il luogo va fra l'una e l'altra:
+    /// «2 nuovi messaggi in segreteria, di cui 1 urgente», non «di cui 1 urgente in
+    /// segreteria».
+    /// </remarks>
+    private static (string Messages, string Urgent) NewMessagesPhrase(int nuovi, int urgenti)
+    {
+        // Tutti urgenti: lo si dice nel sostantivo, invece di «2 nuovi messaggi, di
+        // cui 2 urgenti», che costringe ad ascoltare il numero due volte.
+        if (urgenti == nuovi)
+        {
+            return (nuovi == 1 ? "1 nuovo messaggio urgente" : $"{nuovi} nuovi messaggi urgenti", string.Empty);
+        }
+
+        var messaggi = nuovi == 1 ? "1 nuovo messaggio" : $"{nuovi} nuovi messaggi";
+
+        return urgenti > 0
+            ? (messaggi, $", di cui {SpeechFormatter.Count(urgenti, "urgente", "urgenti")}")
+            : (messaggi, string.Empty);
+    }
+
+    /// <summary>
+    /// Riga di stato della segreteria, per la finestra principale.
+    /// </summary>
+    /// <param name="summary">Stato della casella riportato dal centralino.</param>
+    /// <remarks>
+    /// Comincia sempre con «Segreteria», perché si legge con il cursore virtuale fuori
+    /// da ogni contesto: «nessun messaggio nuovo» da solo non direbbe di che cosa.
+    /// </remarks>
+    public static string VoicemailStatus(MessageSummary summary)
+    {
+        var vecchi = summary.OldMessages is > 0 ? summary.OldMessages.Value : 0;
+        var giaAscoltati = vecchi == 0
+            ? string.Empty
+            : $". {SpeechFormatter.Count(vecchi, "messaggio già ascoltato", "messaggi già ascoltati")}";
+
+        if (summary.NewToAnnounce is not { } nuovi) return $"Segreteria: nuovi messaggi da ascoltare{giaAscoltati}";
+        if (nuovi == 0) return $"Segreteria: nessun messaggio nuovo{giaAscoltati}";
+
+        var (messaggi, urgenti) = NewMessagesPhrase(nuovi, summary.UrgentToAnnounce);
+        return $"Segreteria: {messaggi}{urgenti}{giaAscoltati}";
+    }
+
+    /// <summary>
+    /// Indicazione breve per il testo dell'icona nell'area di notifica.
+    /// </summary>
+    /// <param name="summary">Stato della casella, se il centralino l'ha riportato.</param>
+    /// <returns>Il testo, oppure <c>null</c> se non c'è niente da ascoltare.</returns>
+    /// <remarks>
+    /// Breve per necessità: Windows tronca il testo dell'icona a 63 caratteri, e deve
+    /// starci accanto lo stato della registrazione.
+    /// </remarks>
+    public static string? VoicemailTrayHint(MessageSummary? summary) => summary?.NewToAnnounce switch
+    {
+        null when summary is not null => "messaggi in segreteria",
+        null or 0 => null,
+        var nuovi => SpeechFormatter.Count(nuovi.Value, "messaggio in segreteria", "messaggi in segreteria"),
+    };
+
+    /// <summary>Il comando della segreteria non sa che numero chiamare.</summary>
+    /// <param name="proposal">Numero indicato dal centralino, se ce n'è uno componibile.</param>
+    /// <remarks>
+    /// Dice dove si imposta, e se il centralino ha suggerito qualcosa lo dice: è la
+    /// risposta che risparmia una telefonata all'amministratore del centralino.
+    /// </remarks>
+    public static string VoicemailNumberMissing(string? proposal) => proposal is null
+        ? "Numero della segreteria non impostato. Si scrive in Impostazioni, scheda Account SIP."
+        : $"Numero della segreteria non impostato. Il centralino indica {SpeechFormatter.Digits(proposal)}: "
+          + "per usarlo confermalo in Impostazioni, scheda Account SIP.";
+
+    // ---------------------------------------------------------------------
     // Sistema
     // ---------------------------------------------------------------------
 
@@ -866,6 +963,11 @@ public static class AnnouncementTexts
     /// chiamata attiva: in conferenza la domanda «con chi sono in linea» ha due
     /// risposte, e darne una sola sarebbe la metà sbagliata.
     /// </param>
+    /// <param name="voicemail">
+    /// Stato della segreteria, se il centralino l'ha riportato. Entra nel riepilogo
+    /// solo quando ci sono messaggi nuovi: «nessun messaggio» detto a ogni riepilogo
+    /// sarebbe una frase in più da ascoltare per non sapere niente.
+    /// </param>
     /// <remarks>
     /// È il comando più usato dopo il conteggio della coda: serve a ricostruire in
     /// una frase il quadro che un operatore vedente ricava con un'occhiata allo
@@ -878,7 +980,8 @@ public static class AnnouncementTexts
         AgentState agent,
         SipRegistrationState registration,
         DateTimeOffset now,
-        IReadOnlyList<Call>? conferencedCalls = null)
+        IReadOnlyList<Call>? conferencedCalls = null,
+        MessageSummary? voicemail = null)
     {
         var parts = new List<string>();
 
@@ -914,6 +1017,8 @@ public static class AnnouncementTexts
             AgentStatus.LoggedOut => "Stato agente: disconnesso",
             _ => "Stato agente: occupato",
         });
+
+        if (voicemail is not null && voicemail.NewToAnnounce != 0) parts.Add(VoicemailArrived(voicemail));
 
         if (!registration.IsReachable) parts.Add("Attenzione: telefono non registrato");
 

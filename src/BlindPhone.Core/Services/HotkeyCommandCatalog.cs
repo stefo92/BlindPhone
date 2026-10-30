@@ -70,6 +70,11 @@ public static class HotkeyCommandCatalog
         new(HotkeyCommand.RedialLast, HotkeyCategory.CallControl, "Richiama l'ultimo numero",
             "Ricompone l'ultimo numero chiamato."),
 
+        new(HotkeyCommand.CallVoicemail, HotkeyCategory.CallControl, "Chiama la segreteria",
+            "Chiama la segreteria telefonica dell'account in uso, per ascoltare i messaggi. Il numero si scrive "
+            + "in Impostazioni, scheda Account SIP: se il centralino ne indica uno, lo trovi gia' proposto li'. "
+            + "Quando arrivano messaggi nuovi la voce lo dice da sola, una volta."),
+
         new(HotkeyCommand.JoinMeeting, HotkeyCategory.CallControl, "Entra in riunione Zoom",
             "Scrivi l'identificativo della riunione nel campo di composizione e premi questo tasto. Se la "
             + "riunione ha un codice d'accesso, scrivilo dopo un punto: 812345678 punto 4321. Il codice da "
