@@ -8,6 +8,38 @@ public enum ContactsMode
 
     /// <summary>Da una tabella di Microsoft SQL Server, riallineata periodicamente.</summary>
     SqlServer,
+
+    /// <summary>Da una directory LDAP o Active Directory, riallineata periodicamente.</summary>
+    Ldap,
+
+    /// <summary>Dalle cartelle Contatti di Outlook classico sulla postazione.</summary>
+    Outlook,
+}
+
+/// <summary>Come proteggere il collegamento alla directory.</summary>
+public enum ContactsLdapSecurity
+{
+    /// <summary>LDAP su TLS dal primo byte, di norma sulla porta 636.</summary>
+    Ldaps,
+
+    /// <summary>Porta ordinaria, cifrata subito dopo con StartTLS.</summary>
+    StartTls,
+
+    /// <summary>Nessuna cifratura: solo per scelta esplicita, con un avviso.</summary>
+    Plain,
+}
+
+/// <summary>Con quale identità presentarsi alla directory.</summary>
+public enum ContactsLdapBind
+{
+    /// <summary>Con l'utenza di Windows già connessa alla postazione.</summary>
+    Windows,
+
+    /// <summary>Con un'utenza dedicata, nome e password.</summary>
+    Simple,
+
+    /// <summary>Senza identità.</summary>
+    Anonymous,
 }
 
 /// <summary>
@@ -34,6 +66,12 @@ public sealed record ContactsSettings
 
     /// <summary>Collegamento al server, usato quando la modalità lo prevede.</summary>
     public ContactsSqlServerSettings SqlServer { get; init; } = new();
+
+    /// <summary>Collegamento alla directory, usato quando la modalità lo prevede.</summary>
+    public ContactsLdapSettings Ldap { get; init; } = new();
+
+    /// <summary>Lettura dei contatti di Outlook, usata quando la modalità lo prevede.</summary>
+    public ContactsOutlookSettings Outlook { get; init; } = new();
 
     /// <summary>
     /// Campi della rubrica mostrati accanto ai contatti proposti sopra il campo di
@@ -167,4 +205,131 @@ public sealed record ContactsColumnMapping
 
     /// <summary>Colonna con la data dell'ultima modifica nella sorgente.</summary>
     public string? UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// Collegamento alla rubrica su una directory LDAP o Active Directory.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>La password non sta qui.</b> Questo oggetto finisce in <c>settings.json</c>, che
+/// è testo in chiaro sul disco della postazione: si conserva la sola chiave con cui
+/// ritrovarla nel deposito protetto di Windows, dove è legata al server per cui è
+/// stata inserita. Cambiare il server in questo file non la manda altrove.
+/// </para>
+/// <para>
+/// I valori predefiniti sono quelli di Active Directory e coincidono con quelli della
+/// sorgente, <c>LdapOptions</c>: una prova lo verifica, perché le due definizioni
+/// stanno in due progetti che non si vedono.
+/// </para>
+/// </remarks>
+public sealed record ContactsLdapSettings
+{
+    /// <summary>Nome o indirizzo del server, oppure il nome del dominio.</summary>
+    public string Server { get; init; } = string.Empty;
+
+    /// <summary>Porta; zero per quella predefinita del tipo di protezione scelto.</summary>
+    public int Port { get; init; }
+
+    /// <summary>Come proteggere il collegamento.</summary>
+    public ContactsLdapSecurity Security { get; init; } = ContactsLdapSecurity.Ldaps;
+
+    /// <summary>Con quale identità presentarsi.</summary>
+    public ContactsLdapBind Bind { get; init; } = ContactsLdapBind.Windows;
+
+    /// <summary>Utenza dedicata, quando non si usa quella di Windows.</summary>
+    public string? BindUser { get; init; }
+
+    /// <summary>Chiave della password nel deposito protetto.</summary>
+    public string PasswordSecretKey { get; init; } = "contacts.ldap.password";
+
+    /// <summary>Da dove cominciare a cercare.</summary>
+    public string BaseDn { get; init; } = string.Empty;
+
+    /// <summary>Quali voci prendere: utenti attivi e contatti con almeno un numero.</summary>
+    public string Filter { get; init; } =
+        "(&(|(&(objectCategory=person)(objectClass=user)"
+        + "(!(userAccountControl:1.2.840.113556.1.4.803:=2)))(objectClass=contact))"
+        + "(|(telephoneNumber=*)(ipPhone=*)(mobile=*)))";
+
+    /// <summary>Cercare solo al primo livello sotto la base, invece che in tutto il sottoalbero.</summary>
+    public bool OneLevelOnly { get; init; }
+
+    /// <summary>Ogni quanti minuti riallineare la copia locale. Zero per non farlo da sé.</summary>
+    public int SyncIntervalMinutes { get; init; } = 60;
+
+    /// <summary>Quale attributo riempie quale campo del contatto.</summary>
+    public ContactsLdapAttributes Attributes { get; init; } = new();
+
+    /// <summary>Il collegamento è configurato quanto basta per tentarlo.</summary>
+    public bool IsConfigured
+        => !string.IsNullOrWhiteSpace(Server) && !string.IsNullOrWhiteSpace(BaseDn);
+}
+
+/// <summary>
+/// Quale attributo della directory riempie quale campo del contatto.
+/// </summary>
+/// <remarks>
+/// Un attributo lasciato vuoto non viene letto: è il modo in cui un ente decide di
+/// non portare sulla postazione un dato che la directory contiene.
+/// </remarks>
+public sealed record ContactsLdapAttributes
+{
+    /// <summary>Nominativo per esteso.</summary>
+    public string? DisplayName { get; init; } = "displayName";
+
+    /// <summary>Nome.</summary>
+    public string? FirstName { get; init; } = "givenName";
+
+    /// <summary>Cognome.</summary>
+    public string? LastName { get; init; } = "sn";
+
+    /// <summary>Interno del centralino.</summary>
+    public string? Extension { get; init; } = "ipPhone";
+
+    /// <summary>Telefono di ufficio.</summary>
+    public string? WorkPhone { get; init; } = "telephoneNumber";
+
+    /// <summary>Cellulare.</summary>
+    public string? MobilePhone { get; init; } = "mobile";
+
+    /// <summary>Posta elettronica.</summary>
+    public string? Email { get; init; } = "mail";
+
+    /// <summary>Ente o società.</summary>
+    public string? Organization { get; init; } = "company";
+
+    /// <summary>Reparto.</summary>
+    public string? Department { get; init; } = "department";
+
+    /// <summary>Qualifica.</summary>
+    public string? JobTitle { get; init; } = "title";
+
+    /// <summary>Collocazione.</summary>
+    public string? Building { get; init; } = "physicalDeliveryOfficeName";
+
+    /// <summary>Identificativo stabile della voce: un fatto della directory, non una scelta.</summary>
+    public string? EntryKey { get; init; } = "objectGUID";
+
+    /// <summary>Data dell'ultima modifica: un fatto della directory, non una scelta.</summary>
+    public string? UpdatedAt { get; init; } = "whenChanged";
+}
+
+/// <summary>
+/// Lettura dei contatti di Outlook classico sulla postazione.
+/// </summary>
+public sealed record ContactsOutlookSettings
+{
+    /// <summary>Leggere anche le sottocartelle delle cartelle Contatti.</summary>
+    public bool IncludeSubfolders { get; init; } = true;
+
+    /// <summary>
+    /// Ogni quanti minuti riallineare la copia locale. Zero per non farlo da sé.
+    /// </summary>
+    /// <remarks>
+    /// Ogni quattro ore e non ogni ora: i contatti di Outlook cambiano di rado, e ogni
+    /// lettura sveglia Outlook — o lo avvia, se era chiuso — sulla postazione su cui
+    /// l'operatore sta lavorando.
+    /// </remarks>
+    public int SyncIntervalMinutes { get; init; } = 240;
 }

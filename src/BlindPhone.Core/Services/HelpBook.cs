@@ -73,6 +73,9 @@ public static class HelpBook
     /// <summary>Argomento della segreteria telefonica.</summary>
     public const string VoicemailTopicId = "segreteria";
 
+    /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
+    public const string CallLinksTopicId = "link-di-chiamata";
+
     /// <summary>
     /// Costruisce la guida sulle combinazioni attualmente assegnate.
     /// </summary>
@@ -92,6 +95,7 @@ public static class HelpBook
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
         Topic(VoicemailTopicId, "La segreteria telefonica", Segreteria(profile)),
         Topic("riunioni", "Entrare in una riunione Zoom", Riunioni(profile)),
+        Topic(CallLinksTopicId, "Chiamare da un link nel gestionale o in una pagina", LinkDiChiamata(profile)),
         Topic("stato", "Sapere come sta andando", Stato(profile)),
         Topic("voce", "La voce, i segnali acustici e il braille", Voce(profile)),
         Topic("finestra", "Chiudere, riaprire, secondo piano", Finestra(profile)),
@@ -428,13 +432,23 @@ public static class HelpBook
 
         Le parole si possono scrivere in qualunque ordine e possono stare in campi diversi: «ambulatorio cardiologia» trova «Ambulatorio di Cardiologia», e trova anche una voce descritta «Ambulatorio» che sta nel reparto di Cardiologia. Ogni parola in piu' restringe il risultato invece di allargarlo, quindi se i risultati sono troppi basta aggiungere una parola che ricordi.
 
-        I contatti arrivano dal centralino, se collegato, da file importati e dal gestionale dell'ente: si sceglie da Impostazioni, scheda Rubrica, alla voce «da dove arrivano i contatti».
+        I contatti arrivano dal centralino, se collegato, da file importati, dal gestionale dell'ente, dalla directory dell'ente o dai contatti di Outlook: si sceglie da Impostazioni, scheda Rubrica, alla voce «da dove arrivano i contatti».
 
         Con la rubrica collegata a Microsoft SQL Server, BlindPhone legge una tabella o una vista del gestionale e ne copia il contenuto nell'archivio cifrato della postazione, riallineandolo ogni tanto. Il server non viene mai modificato: si legge soltanto.
 
         La copia locale non e' un ripiego, e' il motivo per cui il collegamento si puo' usare: il nome di chi chiama viene cercato mentre il telefono squilla, e se quella ricerca dovesse attraversare la rete un rallentamento ti lascerebbe senza sapere chi risponde. Con la copia, a rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito e continui a lavorare. Preferiti e numeri rapidi restano tuoi e restano sulla postazione.
 
         La procedura e' la stessa dei file: ci si collega, si sceglie la tabella dallo stesso elenco, si abbinano le stesse colonne e si controlla l'anteprima. Il pulsante «Riallinea adesso» aggiorna la copia quando serve; il riallineamento automatico non parte durante una chiamata.
+
+        Con la rubrica collegata alla directory LDAP o ad Active Directory vale lo stesso: la directory si legge soltanto e i contatti finiscono nella copia locale. Servono il server, che con Active Directory puo' essere il nome del dominio, e la base della ricerca. Filtro e attributi proposti sono gia' quelli di Active Directory: prendono gli utenti attivi e i contatti con almeno un numero, e l'interno dal campo Telefono IP. Il pulsante «Chiedi i contatti alla directory», Alt H, prova il collegamento, dice quanti contatti ha trovato e mostra le prime voci nell'anteprima.
+
+        Il collegamento e' cifrato con LDAPS o StartTLS. In chiaro si puo' scegliere solo se la directory non offre altro, e lo senti dire ogni volta che provi il collegamento: nomi e numeri viaggerebbero leggibili sulla rete, e con un'utenza dedicata anche la sua password. Con l'utenza di Windows non serve nessuna password; quella dell'utenza dedicata sta nel deposito protetto di Windows, legata al server per cui l'hai inserita, e se il server cambia va reinserita.
+
+        Se la directory rifiuta l'accesso senti il motivo: credenziali sbagliate, password scaduta, utenza bloccata o disattivata. Sono quattro cose da risolvere in quattro modi diversi, e riprovare la password su un'utenza bloccata non serve.
+
+        Con i contatti di Outlook, BlindPhone legge le cartelle Contatti di Outlook classico su questa postazione, sottocartelle comprese se lo scegli. Il pulsante «Leggi i contatti di Outlook», Alt K, li conta e mostra l'anteprima. Il nuovo Outlook non permette ad altri programmi di leggere i contatti: se c'e' solo quello, BlindPhone te lo dice, e l'alternativa e' esportare i contatti in un file CSV da Outlook sul web e importare quel file. Posta elettronica, numero di casa e note dei contatti non vengono letti.
+
+        Directory e Outlook scrivono i numeri come li ha scritti una persona, con spazi, parentesi e trattini: BlindPhone li riduce alla forma che si puo' comporre. Se un numero porta l'interno in coda, per esempio «int. 4021», l'interno diventa il recapito predefinito. Quello che non e' un numero, come una nota scritta nel campo del telefono, finisce fra le note del contatto.
 
         Si importa da file CSV e da backup di banca dati: file SQLite, oppure esportazioni SQL in formato testo prodotte da MySQL, MariaDB, PostgreSQL e SQL Server. Il formato viene riconosciuto dal contenuto e non dall'estensione, quindi non conta come si chiama il file: punto sql, punto bak, punto bkp, punto dmp o senza estensione, se dentro c'e' un backup leggibile viene letto.
 
@@ -599,7 +613,7 @@ public static class HelpBook
 
         Tasti rapidi. Vedi l'argomento dedicato.
 
-        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima.
+        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima; collegamento a SQL Server, alla directory LDAP o Active Directory e ai contatti di Outlook classico.
 
         Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
         """;
@@ -681,6 +695,27 @@ public static class HelpBook
         Il codice d'accesso non viene mai riletto a voce e non resta nelle ultime chiamate: in un centralino dove ci sono altre persone, un codice pronunciato ad alta voce è un codice diffuso.
 
         Quello che non c'è, perché passa da Zoom e non dal telefono: la chat, la mano alzata, l'elenco dei partecipanti e il comando del microfono dal lato riunione. Hai l'audio e i comandi del tuo telefono.
+        """;
+
+    private static string LinkDiChiamata(HotkeyProfile profile) =>
+        $"""
+        Nel gestionale, in una pagina web o in un messaggio di posta i numeri possono essere link: tel, sip o callto. Se BlindPhone è il programma scelto per quei link, il clic sul numero, o Invio sul link, lo porta a BlindPhone.
+
+        Il link non compone da solo. Il numero va nel campo di composizione, la finestra di BlindPhone viene davanti e la voce lo legge: «Numero da link: zero sei, uno due, e così via. Premi Invio per chiamare». La chiamata parte solo quando premi Invio.
+
+        È una scelta di sicurezza: chiunque può scrivere una pagina con un link di chiamata, e una pagina non deve poter far partire telefonate dal tuo centralino. Prima di premere Invio ascolta il numero: il link l'ha scritto qualcun altro.
+
+        Se sei in conversazione nessuno viene messo in attesa. Il numero resta nel campo e la voce ti dice come procedere: metti in attesa con {K(profile, HotkeyCommand.ToggleHold)} e poi premi Invio per chiamarlo, oppure premi {K(profile, HotkeyCommand.Transfer)} per passargli il chiamante.
+
+        Durante un trasferimento il numero del link diventa la destinazione, come se l'avessi scritto tu. In modalità semplificata, con un chiamante in linea, Invio chiama il numero del link per passargli il chiamante, come per un interno digitato.
+
+        Se il link indica anche un interno, la voce lo dice: va chiesto a chi risponde, oppure digitato con i toni quando il risponditore automatico lo chiede.
+
+        Alcuni link vengono scartati, e la voce dice perché. Quelli con asterisco o cancelletto, che sono i codici dei servizi del centralino, come la deviazione di tutte le chiamate. Quelli con lettere o con caratteri che non fanno parte di un numero. I numeri locali di un altro paese, che composti da qui chiamerebbero un'altra persona.
+
+        In pausa, e in modalità semplificata mentre squilla una chiamata, il link non entra nel campo, come non ci entrerebbero le cifre digitate. La voce dice come procedere.
+
+        Per scegliere BlindPhone come programma dei link: Impostazioni di Windows, App, App predefinite, cerca BlindPhone e assegnagli tel, sip, sips e callto. Su una postazione gestita può averlo già fatto l'ufficio IT.
         """;
 
     private static string Mancante() =>

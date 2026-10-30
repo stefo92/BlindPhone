@@ -193,6 +193,8 @@ public sealed class HelpBookTests
     [InlineData("Segreteria: numero da chiamare", "non e' detto dove si scrive il numero della segreteria")]
     [InlineData("Usa il numero proposto", "non e' detto che il numero indicato dal centralino va confermato")]
     [InlineData("Control Alt V", "non e' detto con quale tasto si chiama la segreteria")]
+    [InlineData("Il link non compone da solo", "non e' detto che un link di chiamata non fa partire la telefonata")]
+    [InlineData("App predefinite", "non e' detto dove si sceglie BlindPhone come programma dei link di chiamata")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza
