@@ -166,6 +166,7 @@ public partial class SettingsWindow : Window
 
         LoadDevices();
         LoadSettings(_settingsService.Current);
+        LoadHeadset(_settingsService.Current.Headset);
         LoadHotkeys();
         LoadProvisioning(_settingsService.Current);
         ApplyPolicyToPanel();
@@ -231,6 +232,109 @@ public partial class SettingsWindow : Window
 
         combo.SelectedIndex = 0;
     }
+
+    // -----------------------------------------------------------------------
+    // Cuffia
+    // -----------------------------------------------------------------------
+
+    /// <summary>Sorveglianza delle cuffie, condivisa con la finestra principale.</summary>
+    private HeadsetMonitor? _headsetMonitor;
+
+    /// <summary>
+    /// Nome di ogni cuffia elencata, per marca e modello.
+    /// </summary>
+    /// <remarks>
+    /// Il testo della voce porta anche che cosa sa fare la cuffia, o che non è
+    /// collegata: è quello che serve sentire scorrendo l'elenco, ma non è il nome da
+    /// conservare per dirla più tardi.
+    /// </remarks>
+    private readonly Dictionary<string, string> _headsetNames = new(StringComparer.OrdinalIgnoreCase);
+
+    private void LoadHeadset(HeadsetSettings settings)
+    {
+        _headsetMonitor = _serviceProvider.GetService(typeof(HeadsetMonitor)) as HeadsetMonitor;
+
+        HeadsetEnabled.IsChecked = settings.Enabled;
+        HeadsetMediaFallback.IsChecked = settings.MediaKeyFallback;
+        HeadsetStatus.Text = FillHeadsetCombo(settings.DeviceKey, settings.DeviceName);
+
+        if (_headsetMonitor is null) return;
+
+        _headsetMonitor.ButtonPressed += OnHeadsetButtonPressed;
+        Closed += (_, _) => _headsetMonitor.ButtonPressed -= OnHeadsetButtonPressed;
+    }
+
+    /// <summary>
+    /// Elenca le cuffie collegate, e restituisce la frase che dice che cosa si è
+    /// trovato.
+    /// </summary>
+    /// <param name="chosenKey">Cuffia scelta, da tenere selezionata.</param>
+    /// <param name="chosenName">Nome con cui dirla se non è collegata.</param>
+    private string FillHeadsetCombo(string? chosenKey, string? chosenName)
+    {
+        // Una cuffia sola puo' esporre piu' di un canale telefonico, e due cuffie
+        // dello stesso modello sono, per questa scelta, la stessa cuffia.
+        var trovate = (_headsetMonitor?.Detect() ?? [])
+            .GroupBy(c => c.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .ToList();
+
+        HeadsetDevice.Items.Clear();
+        _headsetNames.Clear();
+        HeadsetDevice.Items.Add(new ComboBoxItem { Content = "Qualunque cuffia collegata", Tag = null });
+
+        foreach (var cuffia in trovate)
+        {
+            _headsetNames[cuffia.Key] = cuffia.Name;
+            HeadsetDevice.Items.Add(new ComboBoxItem
+            {
+                Content = $"{cuffia.Name}: {cuffia.Capabilities.Describe()}",
+                Tag = cuffia.Key,
+            });
+        }
+
+        // LA CUFFIA SCELTA RESTA NELL'ELENCO ANCHE SE NON E' COLLEGATA.
+        //
+        // Toglierla farebbe ricadere la scelta su «qualunque cuffia», e il primo
+        // salvataggio — magari fatto per cambiare tutt'altro — la cancellerebbe senza
+        // che l'operatore l'abbia toccata.
+        if (chosenKey is not null && !_headsetNames.ContainsKey(chosenKey))
+        {
+            var nome = string.IsNullOrWhiteSpace(chosenName) ? $"cuffia {chosenKey}" : chosenName;
+            _headsetNames[chosenKey] = nome;
+            HeadsetDevice.Items.Add(new ComboBoxItem { Content = $"{nome}: non collegata", Tag = chosenKey });
+        }
+
+        SelectByTag(HeadsetDevice, chosenKey);
+
+        return trovate.Count switch
+        {
+            0 => "Nessuna cuffia con pulsanti telefonici collegata. Se la tua cuffia ha solo il tasto Play e pausa, "
+                 + "accendi la casella qui sotto.",
+            1 => $"Trovata una cuffia: {trovate[0].Name}. Premi un suo pulsante per provarla.",
+            _ => $"Trovate {trovate.Count} cuffie: {string.Join(", ", trovate.Select(c => c.Name))}. "
+                 + "Premi un pulsante per provarle.",
+        };
+    }
+
+    private void OnHeadsetRefreshClick(object sender, RoutedEventArgs e)
+        => LiveRegion.Update(HeadsetStatus, FillHeadsetCombo(SelectedTag(HeadsetDevice), SelectedHeadsetName()));
+
+    /// <summary>
+    /// Dice quale pulsante è arrivato, mentre il pannello è aperto.
+    /// </summary>
+    /// <remarks>
+    /// Il pulsante intanto fa il suo lavoro: a riposo si sente il segnale di comando
+    /// rifiutato, e qui si legge il perché. Se la cuffia è spenta o non è quella scelta,
+    /// qui non arriva niente, ed è esattamente la cosa da scoprire.
+    /// </remarks>
+    private void OnHeadsetButtonPressed(object? sender, HeadsetButtonPressedEventArgs e)
+        => Dispatcher.InvokeAsync(() => LiveRegion.Update(
+            HeadsetStatus,
+            $"Ricevuto dalla cuffia {e.Device.Name}: {HeadsetButtons.Describe(e.Button)}."));
+
+    private string? SelectedHeadsetName()
+        => SelectedTag(HeadsetDevice) is { } chiave ? _headsetNames.GetValueOrDefault(chiave) : null;
 
     // -----------------------------------------------------------------------
     // Account SIP multipli
@@ -2529,6 +2633,9 @@ public partial class SettingsWindow : Window
         SetSectionEnabled(SipTab, SettingsSection.SipAccounts);
         SetSectionEnabled(PbxTab, SettingsSection.Pbx);
         SetSectionEnabled(AudioTab, SettingsSection.Audio);
+
+        // La cuffia e' un dispositivo audio: chi blocca l'audio blocca anche lei.
+        SetSectionEnabled(HeadsetTab, SettingsSection.Audio);
         SetSectionEnabled(AccessibilityTab, SettingsSection.Accessibility);
         SetSectionEnabled(CallsTab, SettingsSection.Calls);
         SetSectionEnabled(HotkeyTab, SettingsSection.Hotkeys);
@@ -2780,6 +2887,13 @@ public partial class SettingsWindow : Window
             {
                 AutoGain = MicAutoGain.IsChecked == true,
                 NoiseSuppression = ParseEnum(SelectedTag(MicNoiseSuppression), NoiseSuppressionLevel.Off),
+            },
+            Headset = current.Headset with
+            {
+                Enabled = HeadsetEnabled.IsChecked == true,
+                DeviceKey = SelectedTag(HeadsetDevice),
+                DeviceName = SelectedHeadsetName(),
+                MediaKeyFallback = HeadsetMediaFallback.IsChecked == true,
             },
             Audio = current.Audio with
             {

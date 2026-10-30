@@ -795,6 +795,44 @@ public static class AnnouncementTexts
             ? $"{args.PreviousDeviceName} scollegato, audio su {args.NewDeviceName}"
             : $"Audio su {args.NewDeviceName}";
 
+    // ---------------------------------------------------------------------
+    // Pulsanti della cuffia
+    // ---------------------------------------------------------------------
+
+    /// <summary>Una cuffia con i pulsanti telefonici è stata collegata.</summary>
+    /// <param name="name">Nome della cuffia, come lo dichiara il produttore.</param>
+    /// <param name="canAnswer">La cuffia ha il pulsante con cui rispondere e chiudere.</param>
+    /// <remarks>
+    /// Dice che cosa si può fare adesso, non solo che cosa è successo: chi ha appena
+    /// infilato la cuffia vuole sapere se il pulsante risponde. Una cuffia con il solo
+    /// tasto del microfono lo dice, perché premerla mentre squilla non farebbe niente.
+    /// </remarks>
+    public static string HeadsetConnected(string name, bool canAnswer)
+        => canAnswer
+            ? $"Cuffia collegata: {name}. Il pulsante della cuffia risponde e chiude le chiamate"
+            : $"Cuffia collegata: {name}. Dalla cuffia funziona il tasto del microfono, per rispondere usa la tastiera";
+
+    /// <summary>La cuffia con i pulsanti telefonici è stata scollegata.</summary>
+    /// <param name="name">Nome della cuffia.</param>
+    /// <remarks>
+    /// Il rimedio sta nella stessa frase. Una cuffia staccata durante una chiamata
+    /// lascia l'operatore con un pulsante che non c'è più, e il tasto che lo sostituisce
+    /// è quello che gli serve nel giro di pochi secondi.
+    /// </remarks>
+    public static string HeadsetDisconnected(string name)
+        => $"Cuffia scollegata: {name}. Per rispondere e chiudere usa la tastiera";
+
+    /// <summary>
+    /// Il tasto Play e pausa non si può ascoltare perché lo ha già preso un altro
+    /// programma.
+    /// </summary>
+    /// <remarks>
+    /// Si dice nel momento in cui servirebbe, cioè con il telefono che squilla: è
+    /// l'unico modo in cui l'operatore scopre che il ripiego che ha acceso non c'è.
+    /// </remarks>
+    public static string HeadsetMediaKeyUnavailable
+        => "Tasto Play e pausa occupato da un altro programma: rispondi dalla tastiera";
+
     /// <summary>
     /// La destinazione ha rifiutato la cifratura e la chiamata riparte in chiaro.
     /// </summary>

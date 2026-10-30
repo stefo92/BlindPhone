@@ -177,6 +177,10 @@ public partial class MainWindow : Window
     private readonly TransferOptions _transferOptions;
     private readonly ConferenceOptions _conferenceOptions;
     private readonly GlobalHotkeyRegistrar _globalHotkeys;
+
+    /// <summary>Pulsanti e spie della cuffia, collegati quando la finestra è pronta.</summary>
+    private HeadsetController? _headset;
+
     private readonly CompositeSpeechOutput _speech;
     private readonly IContactRepository _contacts;
     private readonly IServiceProvider _serviceProvider;
@@ -401,6 +405,10 @@ public partial class MainWindow : Window
         var source = (HwndSource)PresentationSource.FromVisual(this)!;
         _globalHotkeys.Attach(source.Handle);
         source.AddHook(WndProcHook);
+
+        // La cuffia passa dagli stessi comandi delle scorciatoie: vedi HeadsetController.
+        _headset = _serviceProvider.GetRequiredService<HeadsetController>();
+        _headset.Start(source, CurrentActionContext, ExecuteCommandAsync);
 
         RegisterGlobalHotkeys();
         ApplyTraySettings(_settingsService.Current);
@@ -2073,7 +2081,14 @@ public partial class MainWindow : Window
     /// </remarks>
     private void UpdateCommandBar()
     {
-        var azioni = CallActionCatalog.Available(CurrentActionContext());
+        var contesto = CurrentActionContext();
+
+        // Le spie della cuffia si aggiornano qui, prima del confronto con la firma che
+        // fa uscire presto: la barra puo' restare uguale mentre la cuffia deve cambiare,
+        // come quando si silenzia il microfono durante una consultazione.
+        _headset?.Reflect(contesto);
+
+        var azioni = CallActionCatalog.Available(contesto);
 
         // Nella firma entra anche l'acceso e spento: «Registra» disponibile e
         // «Registra» spento sono lo stesso pulsante ma non lo stesso pulsante, e senza
@@ -5096,6 +5111,7 @@ public partial class MainWindow : Window
         _settingsService.SettingsChanged -= OnSettingsChanged;
 
         _globalHotkeys.Dispose();
+        _headset?.Dispose();
 
         // Senza questa riga l'icona resta nell'area di notifica dopo la chiusura,
         // finche' qualcuno non ci passa sopra il mouse: su una postazione dove

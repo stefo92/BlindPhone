@@ -839,6 +839,14 @@ public sealed record AppSettings
     /// </remarks>
     public MicrophoneProcessing MicrophoneProcessing { get; init; } = new();
 
+    /// <summary>Controllo delle chiamate dai pulsanti della cuffia.</summary>
+    /// <remarks>
+    /// Un file scritto da una versione che non lo conosceva non ha la proprietà, e la
+    /// funzione parte accesa con il ripiego multimediale spento: sono i valori di
+    /// <see cref="HeadsetSettings"/>.
+    /// </remarks>
+    public HeadsetSettings Headset { get; init; } = new();
+
     // Il profilo di scorciatoie attivo NON sta qui.
     //
     // C'era, e conviveva con la stessa informazione dentro hotkeys.json: i due file

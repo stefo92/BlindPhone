@@ -70,6 +70,9 @@ public static class HelpBook
     /// <summary>Argomento della modalità semplificata da tastierino numerico.</summary>
     public const string KeypadTopicId = "tastierino";
 
+    /// <summary>Argomento dei pulsanti della cuffia.</summary>
+    public const string HeadsetTopicId = "cuffia";
+
     /// <summary>
     /// Costruisce la guida sulle combinazioni attualmente assegnate.
     /// </summary>
@@ -80,6 +83,7 @@ public static class HelpBook
         Topic(DefaultTopicId, "Il posto operatore", PostoOperatore(profile)),
         Topic("chiamata", "Rispondere e gestire una chiamata", Chiamata(profile)),
         Topic(KeypadTopicId, "Il tastierino: la modalita' semplificata", Tastierino(profile)),
+        Topic(HeadsetTopicId, "Rispondere dal pulsante della cuffia", Cuffia(profile)),
         Topic("trasferimento", "Trasferire una chiamata", Trasferimento(profile)),
         Topic(ConferenceTopicId, "Parlare in tre: la conferenza", Conferenza(profile)),
         Topic(DialerTopicId, "Comporre un numero o cercare un nome", Composizione(profile)),
@@ -150,6 +154,34 @@ public static class HelpBook
         Sotto la riga della chiamata in corso c'è una fila di pulsanti, che compaiono solo quando la funzione è disponibile: mentre squilla ci sono «rispondi» e «rifiuta», in conversazione l'attesa, il trasferimento e la registrazione. Servono a chi usa il mouse e non tolgono niente alla tastiera: ogni pulsante esegue lo stesso comando della sua scorciatoia. Per chi si muove con il tabulatore la fila conta come una tappa sola, qualunque cosa contenga, e dentro ci si sposta con le frecce: così il numero di tabulazioni per arrivare al campo di composizione non cambia mentre le chiamate vanno e vengono.
 
         Questa guida si riapre in qualunque momento con {K(profile, HotkeyCommand.OpenHelp)}, e si apre sull'argomento che riguarda il punto in cui ti trovi.
+        """;
+
+    private static string Cuffia(HotkeyProfile profile) =>
+        $"""
+        Con una cuffia USB da ufficio rispondi e chiudi dal pulsante della cuffia, senza cercare la tastiera. Funziona con BlindPhone in primo piano e in secondo piano, come le scorciatoie globali.
+
+        Il pulsante della chiamata fa una cosa sola per ogni momento, quella che farebbe la cornetta di un telefono da tavolo.
+
+        - Se squilla, risponde. Se eri già in linea con qualcuno, lo mette in attesa e risponde, come {K(profile, HotkeyCommand.Answer)}.
+        - Se sei in linea, chiude, come {K(profile, HotkeyCommand.HangUp)}. Durante un trasferimento chiude la linea con l'interno e ti riporta al chiamante.
+        - Se c'è soltanto qualcuno in attesa, lo riprende. Non lo chiude: il pulsante si tocca anche per sbaglio, e chi aspetta sta aspettando te.
+        - A riposo non fa niente, e senti il segnale di comando rifiutato.
+
+        Il tasto del microfono silenzia e riattiva, come {K(profile, HotkeyCommand.ToggleMute)}. Funziona solo durante una chiamata: a riposo farebbe partire muta quella dopo.
+
+        Se la cuffia li ha, il tasto dell'attesa alterna fra le due chiamate o mette in attesa, e quello di richiamata, a riposo, richiama l'ultimo numero composto.
+
+        Ogni pulsante fa esattamente quello che fa il tasto corrispondente della tastiera, e senti gli stessi annunci.
+
+        Le spie della cuffia seguono la chiamata: squillo mentre squilla, linea mentre parli, microfono muto quando sei silenziato. Non sono solo luci. La cuffia si considera in linea finché la spia è accesa, e così il suo pulsante resta d'accordo con BlindPhone anche quando hai risposto dalla tastiera.
+
+        Quando colleghi o scolleghi la cuffia con BlindPhone acceso te lo dice. Se la stacchi durante una chiamata, per chiudere usa {K(profile, HotkeyCommand.HangUp)}.
+
+        La funzione si regola da Impostazioni, scheda Cuffia. È accesa di partenza e vale per qualunque cuffia collegata. Lì puoi sceglierne una sola, se ne colleghi più di una, e provarla: con la scheda aperta premi un pulsante della cuffia e la riga di stato ti dice che cosa è arrivato.
+
+        Cuffie con il solo tasto Play e pausa. Alcune cuffie non hanno il pulsante telefonico e mandano soltanto il tasto della musica. Nella stessa scheda puoi far usare anche quello: mentre una chiamata squilla o è in corso il tasto risponde e chiude, e non arriva più ai lettori musicali e video, da qualunque tastiera tu lo prema. Fra una chiamata e l'altra torna a loro. È spento di partenza per questo motivo.
+
+        Funziona con le cuffie che seguono lo standard USB per la telefonia, cioè quasi tutte quelle da ufficio, di qualunque marca, e con gli adattatori USB delle cuffie senza filo. Se la stessa cuffia serve anche a un altro programma di telefonia, i suoi pulsanti arrivano a tutti e due: in quel caso spegni la funzione in uno dei due.
         """;
 
     private static string Tastierino(HotkeyProfile profile) =>
@@ -569,6 +601,8 @@ public static class HelpBook
 
         Audio. Quattro vie separate: microfono, conversazione, suoneria, annunci. Assegnare dispositivi diversi è la configurazione che fa più differenza nell'uso quotidiano, perché evita che la voce degli annunci e la suoneria finiscano nello stesso orecchio dell'interlocutore. Dalla via «suoneria» escono il segnale di chiamata in arrivo, gli eventi di coda e gli allarmi; dalla «conversazione» escono la voce dell'interlocutore e i riscontri di quello che hai appena fatto. Dispositivi e volumi valgono da subito, senza riavviare — solo una chiamata già in corso resta sui dispositivi con cui è cominciata. Qui stanno anche la suoneria personalizzata, la regolazione del buffer audio e l'ordine dei codec.
 
+        Cuffia. I pulsanti della cuffia che rispondono e chiudono, la scelta della cuffia se ne colleghi più di una, e il ripiego sul tasto Play e pausa per le cuffie che non hanno altro. Vale subito, senza riavviare. Vedi l'argomento dedicato.
+
         Accessibilità. Modalità di interazione — standard o semplificata da tastierino, vedi l'argomento dedicato — voce, quantità di dettaglio, lettura dei numeri, segnali acustici, braille, e la sezione Finestra e area di notifica.
 
         Chiamate. Modalità del tasto di trasferimento, tempo di attesa della consultazione, conferme.
@@ -595,6 +629,8 @@ public static class HelpBook
         Una impostazione non si lascia cambiare. La postazione è configurata dall'amministratore: le schede bloccate lo dicono nel titolo — «Account SIP (bloccata)» — e restano leggibili, così puoi comunque riferire come è configurata quando chiami l'assistenza. Il messaggio che senti aprendo le impostazioni dice a chi rivolgersi. Se hai la password dell'amministratore, il pulsante «Sblocca o riblocca» le apre per questa sessione soltanto.
 
         Chi chiamo mi richiama sulla postazione invece che al centralino. In Impostazioni, scheda Account SIP, c'è «Numero presentato in uscita»: indica lì il recapito pubblico dell'ente e chi riceve le tue chiamate vedrà quello al posto del tuo interno. Verifica con una chiamata di prova verso un telefono di cui vedi il display, perché l'ultima parola è del centralino: quasi tutti sostituiscono il numero dichiarato da un interno con quello configurato per quell'interno, ed è una protezione contro la falsificazione del chiamante, non un difetto. Se la prova mostra ancora l'interno, l'autorizzazione va data dall'amministratore del centralino.
+
+        Il pulsante della cuffia non fa niente. Apri Impostazioni, scheda Cuffia, e premi il pulsante: la riga di stato dice se è arrivato. Se non arriva niente, la cuffia non ha il pulsante telefonico o non è quella scelta nell'elenco; se la scheda dice che non ne ha trovata nessuna, la cuffia manda solo il tasto Play e pausa, e puoi accendere il ripiego nella stessa scheda. Se arriva e non succede niente, in quel momento il pulsante non ha niente da fare: a riposo, per esempio, si sente il segnale di comando rifiutato.
 
         Un tasto non fa niente. Verifica che sia ancora assegnato: {K(profile, HotkeyCommand.AnnounceHotkeyList)} legge le combinazioni attive. Se è una combinazione globale, può essere occupata da un altro programma. Se è un tasto singolo senza modificatori, mentre il cursore è nel campo di composizione serve a comporre il numero e non esegue il comando: è normale, e in quel caso vale la versione con i modificatori.
 

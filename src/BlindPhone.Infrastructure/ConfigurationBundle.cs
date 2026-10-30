@@ -548,6 +548,11 @@ public sealed class ConfigurationBundleService
                     // trovato il livello di riduzione del rumore adatto ai propri
                     // uffici lo distribuisce insieme ai dispositivi.
                     MicrophoneProcessing = origine.MicrophoneProcessing,
+
+                    // La cuffia e' un dispositivo audio come gli altri: un reparto che
+                    // ha comprato lo stesso modello per tutte le postazioni lo sceglie
+                    // una volta e lo distribuisce.
+                    Headset = origine.Headset,
                 },
 
                 SettingsSection.Accessibility => risultato with { Accessibility = origine.Accessibility },

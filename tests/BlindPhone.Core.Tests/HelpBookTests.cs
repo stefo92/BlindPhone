@@ -189,6 +189,9 @@ public sealed class HelpBookTests
     [InlineData("Elaborazione del microfono", "non e' detto dove si accendono il controllo del livello e la riduzione del rumore")]
     [InlineData("anche sulla chiamata in corso", "non e' detto che le due funzioni del microfono valgono subito")]
     [InlineData("finché non rispondi", "non e' detto che la suoneria dura fino alla risposta")]
+    [InlineData("pulsante della cuffia", "non e' detto che si risponde e si chiude dalla cuffia")]
+    [InlineData("Play e pausa", "non e' detto che cosa fare con una cuffia che manda solo il tasto della musica")]
+    [InlineData("lo riprende", "non e' detto che con la sola chiamata in attesa il pulsante riprende e non chiude")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza
