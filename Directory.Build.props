@@ -68,8 +68,8 @@
       compare la parola "beta": una versione dichiarata beta nei documenti e non
       nel programma sarebbe una dichiarazione che nessuno vede.
     -->
-    <Version>1.0.17</Version>
-    <InformationalVersion>1.0.17 beta</InformationalVersion>
+    <Version>1.0.18</Version>
+    <InformationalVersion>1.0.18 beta</InformationalVersion>
     <NeutralLanguage>it-IT</NeutralLanguage>
 
     <!--
