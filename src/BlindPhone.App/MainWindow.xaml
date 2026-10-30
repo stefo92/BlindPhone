@@ -471,6 +471,21 @@
                                Text=""
                                AutomationProperties.Name="Stato della registrazione telefonica"
                                AutomationProperties.LiveSetting="Polite" />
+
+                    <!--
+                        SEGRETERIA: niente LiveSetting, di proposito. L'avviso dei
+                        messaggi nuovi lo da' la pipeline degli annunci, una volta sola;
+                        una regione dinamica lo farebbe ripetere a ogni rinnovo della
+                        sottoscrizione. Nascosta finche' il centralino non ha detto
+                        niente: vedi UpdateVoicemailText.
+                    -->
+                    <TextBlock x:Name="VoicemailText"
+                               FontSize="{StaticResource FontCaption}"
+                               Margin="0,4,0,0"
+                               Text=""
+                               Visibility="Collapsed"
+                               TextWrapping="Wrap"
+                               AutomationProperties.Name="Messaggi in segreteria" />
                 </StackPanel>
 
                 <!--

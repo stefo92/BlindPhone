@@ -344,6 +344,17 @@ public sealed class HotkeyProfile
         profile.Set(new HotkeyBinding(
             HotkeyCommand.RedialLast, "R", HotkeyModifiers.Control, HotkeyScope.Local));
 
+        // SEGRETERIA SU CONTROL ALT V, e solo locale.
+        //
+        // "V" come casella vocale. Non Control Maiusc S, che sarebbe stata l'iniziale
+        // di segreteria: e' il profilo vocale di NVDA. Non Control Alt M come
+        // messaggi: sta a un tasto da Control M, il microfono, e un dito scivolato
+        // durante una conversazione farebbe partire una seconda chiamata. Control Alt
+        // con la V non produce nessun carattere sulla tastiera italiana, dove Control
+        // Alt e' anche Alt Gr: con la E, per esempio, scriverebbe l'euro.
+        profile.Set(new HotkeyBinding(
+            HotkeyCommand.CallVoicemail, "V", HotkeyModifiers.Control | HotkeyModifiers.Alt, HotkeyScope.Local));
+
         // INGRESSO IN RIUNIONE SU ALT Z, e solo locale.
         //
         // Locale perche' non si entra in una riunione da dentro un altro programma:

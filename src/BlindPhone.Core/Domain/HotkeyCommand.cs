@@ -59,6 +59,17 @@ public enum HotkeyCommand
     RedialLast,
 
     /// <summary>
+    /// Chiama la segreteria telefonica dell'account in uso.
+    /// </summary>
+    /// <remarks>
+    /// Compone il numero della segreteria scritto nelle impostazioni dell'account. È il
+    /// gesto che sul telefono da tavolo corrisponde al tasto con la busta, e sta accanto
+    /// all'avviso dei messaggi in attesa: sentire «due nuovi messaggi» senza un modo
+    /// rapido di ascoltarli lascerebbe l'avviso a metà.
+    /// </remarks>
+    CallVoicemail,
+
+    /// <summary>
     /// Attiva o disattiva la modalità toni, per rispondere ai menu automatici.
     /// </summary>
     /// <remarks>

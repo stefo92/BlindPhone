@@ -185,6 +185,9 @@ public partial class MainWindow : Window
     private readonly SettingsService _settingsService;
     private readonly AppSettings _settings;
 
+    /// <summary>Segreteria telefonica dell'account in uso, se il servizio c'è.</summary>
+    private readonly VoicemailService? _voicemail;
+
     private readonly ObservableCollection<QueueRow> _queueRows = [];
     private readonly ObservableCollection<ColleagueRow> _colleagueRows = [];
     private readonly ObservableCollection<DialerSuggestion> _suggestions = [];
@@ -380,6 +383,11 @@ public partial class MainWindow : Window
         _hotkeyStore.ActiveProfileChanged += OnHotkeyProfileChanged;
         _settingsService.SettingsChanged += OnSettingsChanged;
 
+        // Dal contenitore e non dal costruttore, come le finestre secondarie: la
+        // segreteria e' un servizio in piu', e la finestra deve partire anche senza.
+        _voicemail = _serviceProvider.GetService<VoicemailService>();
+        if (_voicemail is not null) _voicemail.Changed += OnVoicemailChanged;
+
         // La gestione a livello di finestra intercetta i tasti prima dei controlli:
         // e' cio' che permette a F2 di rispondere anche mentre il focus e' nel campo
         // di composizione, senza costringere l'operatore a spostarsi.
@@ -424,6 +432,7 @@ public partial class MainWindow : Window
         await ApplyColleaguesSettingsAsync(_settingsService.Current).ConfigureAwait(true);
 
         UpdateRegistrationText();
+        UpdateVoicemailText();
         UpdateStatus();
         DialerBox.Focus();
 
@@ -1948,6 +1957,10 @@ public partial class MainWindow : Window
                     await RedialAsync().ConfigureAwait(true);
                     break;
 
+                case HotkeyCommand.CallVoicemail:
+                    await CallVoicemailAsync().ConfigureAwait(true);
+                    break;
+
                 case HotkeyCommand.JoinMeeting:
                     await JoinMeetingAsync().ConfigureAwait(true);
                     break;
@@ -2634,7 +2647,8 @@ public partial class MainWindow : Window
             _queueProvider.AgentState,
             _telephony.RegistrationState,
             DateTimeOffset.Now,
-            _calls.ConferencedCalls);
+            _calls.ConferencedCalls,
+            _voicemail?.Current);
 
         _announcer.Announce(Announcement.CommandResponse(text, DateTimeOffset.Now));
     }
@@ -3205,6 +3219,108 @@ public partial class MainWindow : Window
         }
 
         await _calls.DialAsync(_lastDialedNumber).ConfigureAwait(true);
+    }
+
+    // -----------------------------------------------------------------------
+    // Segreteria telefonica
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Chiama la segreteria dell'account su cui la postazione è registrata.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Compone soltanto il numero confermato dall'operatore.</b> Quello che il
+    /// centralino indica nelle notifiche può essere il nome del servizio o l'interno
+    /// stesso, e comporlo d'ufficio farebbe partire una chiamata che non porta ai
+    /// messaggi: vedi <see cref="VoicemailNumbers"/>. Se manca, la risposta dice dove
+    /// impostarlo e quale numero propone il centralino.
+    /// </para>
+    /// <para>
+    /// Da lì in poi è una chiamata come le altre, con l'annuncio e i tasti di sempre:
+    /// i toni per muoversi nel menu della casella si mandano con la modalità toni.
+    /// </para>
+    /// </remarks>
+    private async Task CallVoicemailAsync()
+    {
+        var account = ActiveSipSettings();
+        var numero = VoicemailNumbers.Normalize(account?.VoicemailNumber);
+
+        if (numero.Length == 0)
+        {
+            var proposta = account is null ? null : _voicemail?.ProposedNumber(account.Name, account.Username);
+
+            _announcer.Announce(Announcement.CommandResponse(
+                AnnouncementTexts.VoicemailNumberMissing(proposta), DateTimeOffset.Now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        _log.LogInformation("Chiamata alla segreteria dell'account {Account}", account!.Name);
+
+        await _calls.DialAsync(numero).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Impostazioni dell'account con cui la postazione lavora adesso.
+    /// </summary>
+    /// <remarks>
+    /// Dal motore e non dall'account predefinito: dopo un cambio di account la
+    /// segreteria da chiamare è quella dell'ente su cui si è registrati, non quella con
+    /// cui la postazione partirà domani mattina.
+    /// </remarks>
+    private SipSettings? ActiveSipSettings()
+    {
+        var attivo = _serviceProvider.GetService<SipAccountSwitcher>()?.ActiveAccountId;
+        var accounts = _settingsService.Current.SipAccounts;
+
+        return accounts.FirstOrDefault(a => a.Id == attivo)
+               ?? (attivo is null ? null : _settingsService.Current.ActiveSipAccount);
+    }
+
+    private void OnVoicemailChanged(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(() =>
+        {
+            UpdateVoicemailText();
+
+            // Anche l'icona: con la finestra riposta e' l'unico posto in cui la spia dei
+            // messaggi si possa vedere.
+            UpdateRegistrationText();
+        });
+
+    /// <summary>
+    /// Aggiorna la riga della segreteria sotto lo stato della registrazione.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Non parla da sola</b>, come le altre righe di riepilogo: l'avviso dei
+    /// messaggi nuovi passa dalla pipeline degli annunci, una volta, e una regione
+    /// dinamica lo farebbe ripetere allo screen reader a ogni rinnovo. La riga resta da
+    /// leggere con il cursore virtuale, quando la si va a cercare.
+    /// </para>
+    /// <para>
+    /// <b>Sparisce quando non si sa niente.</b> Prima della prima notifica, o su un
+    /// centralino che non le manda, una riga «nessun messaggio» affermerebbe una cosa
+    /// che nessuno ha detto.
+    /// </para>
+    /// </remarks>
+    private void UpdateVoicemailText()
+    {
+        if (_voicemail?.Current is not { } stato)
+        {
+            VoicemailText.Text = string.Empty;
+            VoicemailText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var testo = AnnouncementTexts.VoicemailStatus(stato);
+
+        // Il nome accessibile e' la frase intera, che comincia gia' con «Segreteria»:
+        // con un nome fisso lo screen reader direbbe «messaggi in segreteria» e non
+        // quanti, cioe' proprio la parte che si e' andati a cercare.
+        VoicemailText.Text = testo;
+        AutomationProperties.SetName(VoicemailText, testo);
+        VoicemailText.Visibility = Visibility.Visible;
     }
 
     /// <summary>
@@ -4613,13 +4729,21 @@ public partial class MainWindow : Window
         // e' proprio con la finestra riposta che si rischia di restare fuori servizio
         // senza ricordarsene, e il suggerimento dell'icona e' l'unico posto in cui
         // guardare per accorgersene.
+        //
+        // I messaggi in segreteria vengono subito dopo il nome del programma e prima
+        // della registrazione: Windows taglia il testo a 63 caratteri, e a cadere deve
+        // essere il nome dell'account, non la notizia. La pausa resta da sola, perche'
+        // e' l'unica cosa che con la finestra riposta non si deve poter perdere.
+        var segreteria = AnnouncementTexts.VoicemailTrayHint(_voicemail?.Current);
+        var prefisso = segreteria is null ? "BlindPhone - " : $"BlindPhone - {segreteria} - ";
+
         _tray?.UpdateStatus(_duty.IsPaused
             ? "BlindPhone - FUORI SERVIZIO, non riceve chiamate"
             : _telephony.IsSimulated
                 ? "BlindPhone - modalita' simulata"
                 : state.IsReachable
-                    ? $"BlindPhone - registrato ({state.AccountName})"
-                    : "BlindPhone - NON registrato");
+                    ? $"{prefisso}registrato ({state.AccountName})"
+                    : $"{prefisso}NON registrato");
     }
 
     private void UpdateStatus()
@@ -5214,6 +5338,7 @@ public partial class MainWindow : Window
         _globalHotkeys.HotkeyPressed -= OnGlobalHotkeyPressed;
         _hotkeyStore.ActiveProfileChanged -= OnHotkeyProfileChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
+        if (_voicemail is not null) _voicemail.Changed -= OnVoicemailChanged;
 
         _globalHotkeys.Dispose();
 

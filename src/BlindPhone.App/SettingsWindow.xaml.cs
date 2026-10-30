@@ -337,6 +337,8 @@ public partial class SettingsWindow : Window
             SipOutboundProxy.Text = account.OutboundProxy ?? string.Empty;
             SipDisplayName.Text = account.DisplayName;
             SipOutboundCallerId.Text = account.OutboundCallerId;
+            SipVoicemailNumber.Text = account.VoicemailNumber;
+            ShowVoicemailProposal(account);
             SelectByTag(SipTransport, account.Transport);
             SelectByTag(SipSrtp, account.Srtp);
             UpdateSrtpHint();
@@ -377,6 +379,9 @@ public partial class SettingsWindow : Window
             // La stessa pulizia la rifa' il motore telefonico, perche' la
             // configurazione puo' arrivare anche da un file scritto a mano.
             OutboundCallerId = CallerIdentity.Normalize(SipOutboundCallerId.Text),
+
+            // Qui asterisco e cancelletto restano: sono il numero, non decorazioni.
+            VoicemailNumber = VoicemailNumbers.Normalize(SipVoicemailNumber.Text),
             Transport = SelectedTag(SipTransport) ?? "Udp",
             Srtp = SelectedTag(SipSrtp) ?? "Disabled",
             CodecPreference = [.. _codecs.Where(c => c.IsEnabled).Select(c => c.Info.ShortName)],
@@ -385,6 +390,54 @@ public partial class SettingsWindow : Window
         _sipPasswords[account.Id] = ShowSipPassword.IsChecked == true
             ? SipPasswordPlain.Text
             : SipPassword.Password;
+    }
+
+    /// <summary>Numero della segreteria proposto dal centralino per l'account mostrato.</summary>
+    private string? _voicemailProposal;
+
+    /// <summary>
+    /// Mostra il numero della segreteria che il centralino indica, se è diverso da quello scritto.
+    /// </summary>
+    /// <param name="account">Account appena portato nei campi.</param>
+    /// <remarks>
+    /// Il centralino lo dice soltanto per l'account su cui la postazione è registrata, e
+    /// soltanto dopo la prima notifica: per gli altri account la riga resta nascosta, e
+    /// non è un difetto.
+    /// </remarks>
+    private void ShowVoicemailProposal(SipSettings account)
+    {
+        _voicemailProposal = _serviceProvider.GetService<VoicemailService>()
+            ?.ProposedNumber(account.Name, account.Username);
+
+        var daProporre = _voicemailProposal is not null
+                         && !string.Equals(_voicemailProposal, VoicemailNumbers.Normalize(SipVoicemailNumber.Text),
+                             StringComparison.Ordinal);
+
+        SipVoicemailProposal.Text = daProporre
+            ? $"Il centralino indica come segreteria il numero {_voicemailProposal}."
+            : string.Empty;
+
+        SipVoicemailProposal.Visibility = daProporre ? Visibility.Visible : Visibility.Collapsed;
+        UseVoicemailProposalButton.Visibility = SipVoicemailProposal.Visibility;
+    }
+
+    private void OnUseVoicemailProposalClick(object sender, RoutedEventArgs e)
+    {
+        if (_voicemailProposal is not { } numero) return;
+
+        SipVoicemailNumber.Text = numero;
+
+        SipVoicemailProposal.Visibility = Visibility.Collapsed;
+        UseVoicemailProposalButton.Visibility = Visibility.Collapsed;
+
+        // Il pulsante sparisce sotto il cursore: il fuoco va sul campo appena riempito,
+        // che e' anche il modo di rileggere il numero prima di salvare.
+        SipVoicemailNumber.Focus();
+        SipVoicemailNumber.SelectAll();
+
+        _announcer.Announce(Announcement.CommandResponse(
+            $"Numero della segreteria: {SpeechFormatter.Digits(numero)}. Salva per confermarlo.",
+            DateTimeOffset.Now));
     }
 
     private void OnSipAccountSelectionChanged(object sender, SelectionChangedEventArgs e)

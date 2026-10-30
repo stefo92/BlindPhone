@@ -442,6 +442,15 @@ quel requisito è contrattuale.
   riconnessione, interrogazione adattiva, correlazione SIP/API con degrado sicuro
 - Segnalazione SIP: registrazione, chiamate, attesa, REFER cieco e con Replaces,
   DTMF, interpretazione dei NOTIFY di esito
+- Segreteria telefonica con avviso dei messaggi in attesa (MWI, RFC 3842):
+  sottoscrizione `message-summary` per l'account in uso, con rinnovo anticipato
+  quando il centralino concede meno tempo, e lettura dei NOTIFY non sollecitati.
+  L'avviso vocale («2 nuovi messaggi in segreteria») parte solo quando i messaggi
+  nuovi aumentano, non a ogni rinnovo; lo stato compare nella finestra principale,
+  nell'icona dell'area di notifica e nel riepilogo dello stato. Numero della
+  segreteria per account in *Impostazioni → Account SIP*, con la proposta del
+  centralino da confermare, e chiamata con `Ctrl+Alt+V`. Collaudata con un
+  centralino simulato sul trasporto SIP vero; manca la prova su un centralino reale
 - Scelta e ordinamento dei codec audio, con riordino da tastiera e avviso di
   conformità (vedi sotto)
 - Audio a quattro vie con gestione del collegamento a caldo, earcon a sintesi con

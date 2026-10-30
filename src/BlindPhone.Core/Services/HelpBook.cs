@@ -70,6 +70,9 @@ public static class HelpBook
     /// <summary>Argomento della modalità semplificata da tastierino numerico.</summary>
     public const string KeypadTopicId = "tastierino";
 
+    /// <summary>Argomento della segreteria telefonica.</summary>
+    public const string VoicemailTopicId = "segreteria";
+
     /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
     public const string CallLinksTopicId = "link-di-chiamata";
 
@@ -90,6 +93,7 @@ public static class HelpBook
         Topic(ColleaguesTopicId, "Sapere chi e' in turno", Colleghi(profile)),
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
+        Topic(VoicemailTopicId, "La segreteria telefonica", Segreteria(profile)),
         Topic("riunioni", "Entrare in una riunione Zoom", Riunioni(profile)),
         Topic(CallLinksTopicId, "Chiamare da un link nel gestionale o in una pagina", LinkDiChiamata(profile)),
         Topic("stato", "Sapere come sta andando", Stato(profile)),
@@ -219,6 +223,7 @@ public static class HelpBook
         - Fai parlare tutti e due insieme con te: {K(profile, HotkeyCommand.Conference)}
         - Microfono muto o attivo: {K(profile, HotkeyCommand.ToggleMute)}
         - Richiama l'ultimo numero composto: {K(profile, HotkeyCommand.RedialLast)}
+        - Chiama la segreteria per ascoltare i messaggi: {K(profile, HotkeyCommand.CallVoicemail)}
 
         Con il microfono muto l'interlocutore resta in linea e non ti sente: serve per parlare con un collega senza chiudere e senza mettere in attesa.
 
@@ -482,11 +487,28 @@ public static class HelpBook
         Il pulsante «Svuota l'elenco» chiede se eliminare solo il pannello aperto o tutto quanto, e dice quante voci sta per eliminare. Lo stesso si può fare dalle impostazioni, senza aprire l'elenco.
         """;
 
+    private static string Segreteria(HotkeyProfile profile) =>
+        $"""
+        Sul telefono da tavolo i messaggi in segreteria si vedono: c'è una spia che lampeggia. Qui la spia diventa una frase. Quando arrivano messaggi nuovi la voce dice, per esempio, «2 nuovi messaggi in segreteria», e se qualcuno è urgente lo dice subito dopo.
+
+        Lo dice una volta. Il centralino rimanda lo stato della casella ogni pochi minuti anche quando non è cambiato niente, e ripetere la stessa frase a ogni rinnovo la trasformerebbe in un rumore da ignorare: la voce parla di nuovo solo quando i messaggi nuovi aumentano. All'avvio della postazione senti i messaggi lasciati mentre eri via, se ce ne sono.
+
+        Per ascoltarli premi {K(profile, HotkeyCommand.CallVoicemail)}: BlindPhone chiama la segreteria del tuo account. Da lì è una chiamata come le altre. Per muoverti nel menu della casella — «premi 1 per ascoltare» — usa la modalità toni, {K(profile, HotkeyCommand.ToggleDtmfMode)}, e riaggancia con {K(profile, HotkeyCommand.HangUp)}.
+
+        Il numero della segreteria si scrive in Impostazioni, scheda Account SIP, alla voce «Segreteria: numero da chiamare», che si raggiunge con Alt H. Di solito è un codice come asterisco 97: chiedilo a chi amministra il centralino. Molti centralini lo indicano da sé nei loro avvisi, e in quel caso lo trovi già proposto sotto il campo, con il pulsante «Usa il numero proposto». Non entra da solo nel campo: va confermato e salvato, perché su alcuni centralini quel valore non è il numero da comporre. Ogni account ha il suo numero, e quello giusto segue il cambio di account.
+
+        Se premi il tasto della segreteria senza aver impostato il numero, la voce ti dice dove impostarlo e, se il centralino l'ha indicato, quale numero propone.
+
+        Lo stato della casella si legge anche nella finestra, sotto lo stato della registrazione: «Segreteria: 2 nuovi messaggi. 5 messaggi già ascoltati». La riga non parla da sola, per non ripetere l'avviso a ogni rinnovo: la trovi con il cursore virtuale quando la vai a cercare. Compare solo dopo il primo avviso del centralino, perché prima non si sa niente. Con la finestra riposta i messaggi nuovi compaiono nel testo dell'icona nell'area di notifica, e il riepilogo dello stato con {K(profile, HotkeyCommand.AnnounceStatusSummary)} li nomina quando ce ne sono.
+
+        Se gli avvisi non arrivano mai, la scheda Diagnostica dice alla riga «Segreteria» se il centralino accetta la sottoscrizione, se la rifiuta, e se manda gli avvisi da sé. Alcuni centralini non mandano niente finché l'amministratore non associa una casella all'interno.
+        """;
+
     private static string Stato(HotkeyProfile profile) =>
         $"""
         Sono i comandi con cui si riprende il filo, per esempio dopo essersi allontanati dalla postazione. Non cambiano nulla: chiedono soltanto.
 
-        - Riepilogo completo: {K(profile, HotkeyCommand.AnnounceStatusSummary)}. Dice registrazione, chiamata attiva, chiamate in attesa, coda e stato agente.
+        - Riepilogo completo: {K(profile, HotkeyCommand.AnnounceStatusSummary)}. Dice registrazione, chiamata attiva, chiamate in attesa, coda e stato agente, e i messaggi nuovi in segreteria quando ce ne sono.
         - Durata della chiamata: {K(profile, HotkeyCommand.AnnounceCallDuration)}
         - Qualità della linea e cifratura: {K(profile, HotkeyCommand.AnnounceLineQuality)}
         - Chiamate in coda: {K(profile, HotkeyCommand.AnnounceQueueCount)}
