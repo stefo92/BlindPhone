@@ -214,7 +214,9 @@
                                  AutomationProperties.Name="Server di registrazione"
                                  AutomationProperties.HelpText="Da compilare solo se diverso dal dominio. In caso di dubbio lasciare vuoto." />
 
-                        <Label Target="{Binding ElementName=SipOutboundProxy}" Content="_Proxy in uscita (facoltativo)" />
+                        <!-- Alt+X e non Alt+P: la P e' gia' della password, poco sopra, e con due
+                             etichette sulla stessa lettera Alt+P portava sempre e solo alla password. -->
+                        <Label Target="{Binding ElementName=SipOutboundProxy}" Content="Pro_xy in uscita (facoltativo)" />
                         <TextBox x:Name="SipOutboundProxy"
                                  AutomationProperties.Name="Proxy in uscita"
                                  AutomationProperties.HelpText="Richiesto da alcuni operatori, ad esempio TIM. Si puo' indicare un indirizzo IP, un nome con porta, oppure solo il nome: in quel caso l'indirizzo e la porta vengono cercati con una query DNS SRV, in base al trasporto scelto. Se in dubbio lasciare vuoto." />
