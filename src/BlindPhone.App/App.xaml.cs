@@ -623,7 +623,9 @@ public partial class App : Application
                 return sessioni.ActiveCall is not null || sessioni.RingingCall is not null;
             },
             sp.GetRequiredService<ILogger<ContactsSyncService>>(),
-            sp.GetRequiredService<ILogger<SqlServerContactSource>>()));
+            sp.GetRequiredService<ILogger<SqlServerContactSource>>(),
+            sp.GetRequiredService<ILogger<BlindPhone.Contacts.Ldap.LdapContactSource>>(),
+            sp.GetRequiredService<ILogger<BlindPhone.Contacts.Outlook.OutlookContactSource>>()));
 
         // Archivio separato da quello della rubrica: il registro delle chiamate
         // contiene dati di traffico con un periodo di conservazione, la rubrica no.
