@@ -28,6 +28,7 @@ La voce avvisa dei messaggi nuovi in segreteria, e Control Alt V li fa ascoltare
 Si risponde, si chiude e si silenzia il microfono dai pulsanti della cuffia USB, e le spie della cuffia seguono la chiamata: si regola in Impostazioni, scheda Cuffia
 Da casa, dietro il router, la voce dell'interlocutore arriva e le chiamate entranti non si perdono: server STUN e segnale di mantenimento in Impostazioni, scheda Account SIP, gruppo Lavoro agile
 Nelle impostazioni dell'account SIP Alt X porta al proxy in uscita: prima Alt P portava sia li' sia alla password
+Senza collegamento all'API del centralino la riga di stato non scrive piu' "Agente: disconnesso": lo stato di agente non si conosce, e la parola faceva pensare al telefono scollegato. Control F5 e Control Alt S dicono che il collegamento non e' attivo
 
 Gia' presenti dalla 1.0.17:
 Gli aggiornamenti sono firmati: BlindPhone installa un pacchetto solo se la firma corrisponde alla chiave di chi pubblica, e nessuna impostazione lo disattiva
