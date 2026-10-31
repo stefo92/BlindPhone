@@ -187,4 +187,4 @@ I backup con estensioni non previste - punto bkp, punto dmp, punto backup o ness
 # Impronta di BlindPhone-1.0.18-x64.msi, calcolata sul pacchetto pubblicato.
 # BlindPhone la confronta con quella del file scaricato e rifiuta l'aggiornamento
 # se non corrisponde: se il pacchetto viene ricostruito, questa riga va rifatta.
-SHA256: 35757FEDC7076B24C79642F3DC0AE117DDECC70974B2FCD92EBE0EFC2B5FFCC2
+SHA256: C47135FB407243784F4E21AC211D119520F4D3A2615B661109520563F82B6B09
