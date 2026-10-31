@@ -55,4 +55,16 @@
     <!-- Intestazioni di tabella. -->
     <SolidColorBrush x:Key="HeaderBrush" Color="#2E2E2E" />
 
+    <!--
+        Fascia di stato della chiamata: gli stessi colori del tema chiaro, con gli
+        stessi rapporti (8,4 / 8,4 / 7,5 / 7,3 a 1 con il testo bianco). La fascia ha un
+        fondo suo, quindi il contrasto non dipende dalla scheda scura intorno. Lo stato
+        «libero» usa le intestazioni, con il testo a 12,1 a 1.
+    -->
+    <SolidColorBrush x:Key="LineAlertTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="LineRingingBrush" Color="#0A47A9" />
+    <SolidColorBrush x:Key="LineTalkingBrush" Color="#0B5A2A" />
+    <SolidColorBrush x:Key="LineHoldBrush" Color="#7A4A00" />
+    <SolidColorBrush x:Key="LineOutOfServiceBrush" Color="#B00020" />
+
 </ResourceDictionary>

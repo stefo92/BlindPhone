@@ -1676,6 +1676,7 @@ public sealed class CallSessionManager : IAsyncDisposable
                 PhoneticName = contact.PhoneticName,
                 IsKnownContact = true,
                 Extension = contact.ExtensionNumber,
+                Department = contact.Department,
             };
         }
         catch (Exception ex)
@@ -1707,6 +1708,7 @@ public sealed class CallSessionManager : IAsyncDisposable
                 PhoneticName = contact.PhoneticName,
                 IsKnownContact = true,
                 Extension = contact.ExtensionNumber,
+                Department = contact.Department,
             };
         }
         catch (Exception ex)

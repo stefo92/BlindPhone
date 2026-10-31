@@ -175,22 +175,27 @@ public sealed class LayoutRisultatiDialerTests
     }
 
     // -----------------------------------------------------------------------
-    // Intestazioni che vanno a capo
+    // Elenchi senza colonne fisse
     // -----------------------------------------------------------------------
 
-    [Fact]
-    public void LaColonnaPosizioneDellaCodaContieneLaPropriaIntestazione()
+    [Theory]
+    [InlineData("QueueList")]
+    [InlineData("ColleaguesList")]
+    public void GliElenchiDaSorvegliareNonHannoColonneAdAltezzaFissa(string nome)
     {
-        var colonna = Finestra().Descendants(P + "GridViewColumn")
-            .Single(c => (string?)c.Attribute("Header") == "Posizione");
+        var elenco = Nominato(Finestra(), nome);
 
-        var larghezza = double.Parse(
-            (string?)colonna.Attribute("Width") ?? "0",
-            System.Globalization.CultureInfo.InvariantCulture);
+        // Cinque colonne a larghezza fissa facevano 760 pixel: in una colonna laterale,
+        // o con lo schermo ingrandito, compariva la barra di scorrimento orizzontale e
+        // l'attesa del chiamante restava oltre il bordo. La colonna «Posizione», a 90
+        // pixel, andava perfino a capo nella propria intestazione.
+        Assert.Empty(elenco.Descendants(P + "GridView"));
+        Assert.Empty(elenco.Descendants(P + "GridViewColumn"));
 
-        // A 90 pixel «Posizione», in grassetto e con il margine dell'intestazione,
-        // andava a capo e si leggeva «Posizion / e». Sono 110 pixel misurati.
-        Assert.True(larghezza >= 105, $"Colonna di {larghezza} pixel: l'intestazione va a capo");
+        // Senza scorrimento orizzontale la voce riceve la larghezza dell'elenco e va a
+        // capo; con lo scorrimento attivo riceverebbe una larghezza infinita.
+        Assert.Equal("Disabled", (string?)elenco.Attribute("ScrollViewer.HorizontalScrollBarVisibility"));
+        Assert.NotNull(elenco.Attribute("ItemTemplate"));
     }
 
     // -----------------------------------------------------------------------

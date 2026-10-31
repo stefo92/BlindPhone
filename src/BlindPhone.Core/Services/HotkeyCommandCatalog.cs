@@ -191,8 +191,8 @@ public static class HotkeyCommandCatalog
         // riga a capo nel mezzo di una combinazione.
         new(HotkeyCommand.ToggleServicePause, HotkeyCategory.Queue, "Fuori servizio",
             "Mette la postazione in pausa: ogni chiamata entrante viene rifiutata subito e riparte verso un "
-            + "collega, invece di squillare a vuoto. Il campo di composizione si blocca e un avviso rosso "
-            + "lampeggia finche' non si rientra in servizio con la stessa combinazione. A differenza della pausa "
+            + "collega, invece di squillare a vuoto. Il campo di composizione si blocca e la fascia della chiamata "
+            + "diventa rossa finche' non si rientra in servizio con la stessa combinazione. A differenza della pausa "
             + "in coda, funziona anche senza API del centralino."),
 
         new(HotkeyCommand.AnnounceAgentState, HotkeyCategory.Queue, "Stato dell'agente",

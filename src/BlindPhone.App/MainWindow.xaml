@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BlindPhone - Posto operatore"
-        Height="700" Width="1000"
-        MinHeight="480" MinWidth="720"
+        Height="800" Width="1280"
+        MinHeight="480" MinWidth="600"
         WindowStartupLocation="CenterScreen"
         Background="{DynamicResource CanvasBrush}"
         FocusVisualStyle="{StaticResource FocusVisual}">
@@ -11,29 +11,40 @@
     <!--
         STRUTTURA E ACCESSIBILITA'
 
-        Il layout e' stabile per costruzione: le aree (stato, chiamata, coda,
-        composizione) non cambiano mai posizione ne' dimensione relativa. Per un
-        utente che naviga con il cursore virtuale dello screen reader,
-        un'interfaccia che riorganizza i propri elementi e' come una stanza in cui
-        qualcuno sposta i mobili ogni giorno.
+        Il layout e' stabile per costruzione: le aree (postazione, chiamata, coda,
+        colleghi, composizione, ultimo annuncio) stanno sempre nello stesso ordine, e
+        nessuna cambia altezza perche' squilla una chiamata. Per un utente che naviga
+        con il cursore virtuale dello screen reader, un'interfaccia che riorganizza i
+        propri elementi e' come una stanza in cui qualcuno sposta i mobili ogni giorno;
+        per chi lavora con l'ingrandimento, e' il punto che stava guardando che se ne va.
 
-        L'UNICA ECCEZIONE E' LA COMPARSA DELLA SEZIONE CODA, e non contraddice la
+        UNA O DUE COLONNE SECONDO LA LARGHEZZA, e l'ordine non cambia. Con la finestra
+        larga la chiamata sta a sinistra e coda e colleghi a destra; con la finestra
+        stretta la colonna di destra scende sotto la chiamata. Il passaggio cambia
+        soltanto riga, colonna e numero di colonne di due elementi, dal code-behind
+        (MainWindowLayout.ArrangeWorkArea): nessun elemento cambia contenitore, quindi
+        l'ordine di tabulazione e quello in cui lo screen reader legge sono sempre quelli
+        scritti qui. Il valore scritto qui sotto e' la disposizione stretta; quella
+        giusta si applica appena la finestra conosce la propria larghezza.
+
+        LE SEZIONI CODA E COLLEGHI COMPAIONO SOLO SE SERVONO, e non contraddicono la
         regola. La coda si vede o non si vede secondo il collegamento all'API del
-        centralino, che e' una impostazione che si tocca una volta in fase di
-        installazione: non e' un elemento che appare e sparisce mentre si lavora, e'
-        una parte del prodotto che su quella postazione c'e' o non c'e'. Senza
-        collegamento l'elenco resterebbe vuoto per sempre, e un elenco
-        permanentemente vuoto sul percorso di navigazione costa una tabulazione e un
-        annuncio a ogni giro, tutti i giorni, per non dire mai nulla.
+        centralino, i colleghi secondo gli interni dichiarati in Impostazioni: sono
+        impostazioni che si toccano in fase di installazione, non elementi che appaiono e
+        spariscono mentre si lavora. Senza, l'elenco resterebbe vuoto per sempre, e un
+        elenco permanentemente vuoto sul percorso di navigazione costa una tabulazione e
+        un annuncio a ogni giro, tutti i giorni, per non dire mai nulla. Se mancano tutte
+        e due la chiamata prende tutta la larghezza.
 
         Ogni elemento interattivo ha AutomationProperties.Name esplicito: e' il
         requisito 11.5 della EN 301 549 e il criterio su cui i collaudi della PA si
         fermano piu' spesso.
 
-        La barra di stato e' una regione dinamica (LiveSetting=Polite): lo screen
-        reader ne annuncia le variazioni senza che il focus si sposti, il che
-        rispetta il principio per cui il focus si muove solo per azione
-        dell'operatore.
+        La riga della registrazione e quella dell'ultimo annuncio sono regioni dinamiche
+        (LiveSetting=Polite): lo screen reader ne annuncia le variazioni senza che il
+        focus si sposti, il che rispetta il principio per cui il focus si muove solo per
+        azione dell'operatore. Tutto il resto non parla da solo, di proposito: gli
+        annunci passano dalla pipeline, una volta sola e con la priorita' giusta.
     -->
 
     <Window.Resources>
@@ -82,10 +93,13 @@
         </Style>
 
         <!--
-            LAMPEGGIO DEGLI AVVISI A TUTTA LARGHEZZA.
+            LAMPEGGIO DELLA FASCIA DI STATO.
 
-            Uno solo per i due riquadri — postazione fuori servizio e chiamata
-            entrante — perche' la cadenza e' la stessa e ha una ragione sola.
+            Solo in due stati, squilla e fuori servizio, e per la stessa ragione: il
+            primo ha una scadenza, il secondo cambia il significato di ogni altra cosa
+            nella finestra. La conversazione in corso non lampeggia piu': dura minuti, a
+            volte un'ora, e un riquadro che pulsa per tutto quel tempo accanto agli occhi
+            di chi lavora con l'ingrandimento e' un disturbo, non un avviso.
 
             Un secondo e mezzo di periodo, cioe' meno di un lampeggio al secondo. Il
             limite non e' estetico: le linee guida sulle crisi fotosensibili (WCAG
@@ -97,11 +111,8 @@
             colore lo decide Windows, e un'animazione che ci scrivesse sopra
             annullerebbe la scelta dell'utente proprio sull'elemento piu' importante
             della finestra. L'opacita' non varia fino a zero — resta il colore pieno
-            alternato a uno attenuato — cosi' il riquadro non sparisce mai del tutto e
-            chi guarda in quel mezzo secondo lo vede comunque.
-
-            Uno stesso storyboard puo' animare piu' elementi: ogni Begin(elemento)
-            crea un orologio suo, e Stop(elemento) ferma solo quello.
+            alternato a uno attenuato — cosi' la fascia non sparisce mai del tutto e
+            chi guarda in quel mezzo secondo la vede comunque.
         -->
         <Storyboard x:Key="BannerFlash" RepeatBehavior="Forever" AutoReverse="True">
             <DoubleAnimation Storyboard.TargetProperty="Opacity"
@@ -109,7 +120,7 @@
         </Storyboard>
 
         <!--
-            PULSANTE DELLA BARRA DEI COMANDI.
+            PULSANTE DELLE DUE BARRE DEI COMANDI.
 
             Sobrio per scelta: e' uno strumento di lavoro che sta aperto otto ore, e
             un'interfaccia vivace alla prima occhiata diventa faticosa alla
@@ -117,7 +128,7 @@
             si capisca dove finisce uno e comincia l'altro — angoli arrotondati,
             spaziatura generosa, un pittogramma davanti al nome.
 
-            I COLORI SONO QUELLI DI SISTEMA, non una tavolozza scritta qui. In
+            I COLORI SONO QUELLI DEL TEMA, non una tavolozza scritta qui. In
             contrasto elevato Windows li sostituisce tutti, e un pulsante con lo
             sfondo fissato a mano resterebbe l'unico elemento illeggibile della
             finestra. Il pittogramma non porta informazione da solo: accanto c'e'
@@ -215,7 +226,9 @@
             contrasto elevato, non perde nulla.
 
             E' l'unico pulsante colorato del prodotto: se diventassero due, smetterebbe
-            di significare «questo e' il gesto principale di questa schermata».
+            di significare «questo e' il gesto principale di questa schermata». La fascia
+            di stato della chiamata e' colorata ma non e' un pulsante: non si preme e non
+            si raggiunge con il tabulatore.
         -->
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource CommandButton}">
             <Setter Property="MinWidth" Value="150" />
@@ -224,241 +237,431 @@
             <Setter Property="Foreground" Value="#000000" />
             <Setter Property="BorderBrush" Value="#4E7A0F" />
         </Style>
+
+        <!--
+            UNA BARRA DEI COMANDI: una tappa sola del giro di tabulazione.
+
+            Le barre sono due — quella della postazione in alto, quella della chiamata
+            nella scheda della chiamata — e hanno la stessa regola, scritta una volta.
+
+            UNA TAPPA SOLA, ed e' la parte che conta per chi non vede. Il numero di
+            pulsanti della barra della chiamata cambia a ogni chiamata che arriva, che si
+            risponde e che si chiude: se ciascuno fosse una tappa, il numero di Tab per
+            raggiungere il campo di composizione cambierebbe sotto le dita durante la
+            conversazione. Con TabNavigation="Once" la barra vale una tappa qualunque
+            cosa contenga, e dentro ci si muove con le frecce, che girano in tondo — la
+            stessa regola che questo prodotto applica gia' alle tabelle.
+
+            La barra della chiamata non resta mai vuota, ed e' la meta' della regola che
+            non si vede: una barra senza pulsanti non e' una tappa, e la tappa
+            comparirebbe e sparirebbe con le chiamate. Senza chiamate contiene
+            «Componi». Vedi CallActionCatalog.Available.
+
+            I pannelli vanno a capo invece di allungarsi fuori dalla finestra: con la
+            finestra stretta o lo schermo ingrandito i pulsanti scendono su piu' righe,
+            e nessuno resta oltre il bordo, dove non lo vedrebbe nessuno.
+        -->
+        <Style x:Key="CommandBar" TargetType="ItemsControl">
+            <Setter Property="KeyboardNavigation.TabNavigation" Value="Once" />
+            <Setter Property="KeyboardNavigation.DirectionalNavigation" Value="Cycle" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            CASELLA DI SOLA LETTURA DELLA SCHEDA DELLA CHIAMATA.
+
+            Serve alle due caselle — chi e' in linea, chi e' in attesa — che sono
+            caselle di testo e non etichette perche' il numero che c'e' scritto si possa
+            percorrere con le frecce, selezionare e copiare altrove.
+
+            NON SONO CAMPI, E NON DEVONO SEMBRARLO. Lo stile comune delle caselle le
+            disegna con il fondo dei controlli spenti, che accanto al nome grande della
+            chiamata le faceva sembrare un modulo da compilare. Qui il fondo e'
+            trasparente e il testo e' quello della scheda: la casella si legge come il
+            resto della scheda e resta una casella per chi ci arriva con il tabulatore.
+
+            IL CONTORNO DEL FOCUS E' UN ANELLO DI TRE PIXEL, ESTERNO E SEPARATO DAL
+            BORDO. Allargare il bordo da uno a tre pixel, come fanno gli altri campi,
+            sposterebbe il testo di due pixel a ogni passaggio del cursore — su un nome a
+            corpo trentaquattro si vede — e su una casella senza bordo non ci sarebbe
+            nulla da allargare. L'anello compare dal nulla, quindi si distingue per la
+            forma e non solo per il colore.
+        -->
+        <Style x:Key="BoardBox" TargetType="TextBox">
+            <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="CaretBrush" Value="{DynamicResource TextBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource SelectionBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Grid>
+                            <Border CornerRadius="{StaticResource RadiusControl}"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    SnapsToDevicePixels="True">
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Margin="{TemplateBinding Padding}"
+                                              Focusable="False"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="Hidden" />
+                            </Border>
+
+                            <Rectangle x:Name="Contorno"
+                                       Margin="-5"
+                                       RadiusX="8" RadiusY="8"
+                                       StrokeThickness="3"
+                                       Stroke="{DynamicResource AccentBrush}"
+                                       Visibility="Collapsed"
+                                       IsHitTestVisible="False"
+                                       SnapsToDevicePixels="True" />
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Setter TargetName="Contorno" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            IL NOME GRANDE: con chi si sta parlando.
+
+            E' il dato piu' grande della finestra, ed e' voluto: e' la domanda che chi
+            passa dalla postazione si pone davvero, e deve leggersi da due metri. Quando
+            in linea non c'e' nessuno il testo si rimpicciolisce e si attenua — il
+            code-behind lo segnala con Tag="Vuota" — perche' «nessuna chiamata» a corpo
+            trentaquattro sotto una fascia che dice SQUILLA richiamerebbe l'occhio sulla
+            cosa sbagliata.
+
+            Il testo attenuato usa il pennello attenuato del tema e non l'opacita': un
+            testo all'ottanta per cento ha un contrasto che dipende da quello che ha
+            sotto e non si puo' dichiarare, mentre il pennello attenuato sta sopra il
+            7 a 1 in tutti e tre i temi.
+        -->
+        <Style x:Key="HeadlineBox" TargetType="TextBox" BasedOn="{StaticResource BoardBox}">
+            <Setter Property="FontSize" Value="{StaticResource FontHeadline}" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Style.Triggers>
+                <Trigger Property="Tag" Value="Vuota">
+                    <Setter Property="FontSize" Value="{StaticResource FontSection}" />
+                    <Setter Property="FontWeight" Value="Normal" />
+                    <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            CONTORNO DEL FOCUS SULLE VOCI DI CODA E COLLEGHI: due anelli, non uno.
+
+            La voce che ha il focus e' quasi sempre anche quella selezionata, e la
+            selezione ha il fondo del colore di evidenziazione: un anello di quel colore
+            sparirebbe proprio li'. Quello di WPF, un tratteggio nero di un pixel, su
+            quel fondo non si vede comunque.
+
+            Un anello esterno del colore del testo e uno interno del colore della scheda:
+            sulla voce selezionata si vede il secondo, su quella che non lo e' il primo,
+            in tutti e tre i temi. Sta dentro la voce e non fuori, perche' l'elenco
+            ritaglia quello che esce dai suoi bordi.
+        -->
+        <Style x:Key="ItemFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Grid>
+                            <Rectangle StrokeThickness="3"
+                                       Stroke="{DynamicResource TextBrush}"
+                                       SnapsToDevicePixels="True" />
+                            <Rectangle Margin="3"
+                                       StrokeThickness="2"
+                                       Stroke="{DynamicResource CardBrush}"
+                                       SnapsToDevicePixels="True" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            VOCE DI UN ELENCO DA SORVEGLIARE: coda e colleghi.
+
+            Il nome accessibile resta legato ad AccessibleText, ed e' la cosa che non
+            doveva cambiare: lo screen reader legge la voce esattamente come prima, tutta
+            in una volta. Cambia soltanto come si vede.
+
+            LA SELEZIONE VINCE SUL PASSAGGIO DEL MOUSE. Lo stile comune dichiara il fondo
+            di passaggio dopo quello di selezione, quindi su una voce selezionata con il
+            mouse sopra il fondo tornava chiaro mentre il testo restava bianco: testo
+            bianco su fondo quasi bianco. Qui la selezione si ridichiara per ultima.
+
+            IL MODELLO E' NOSTRO, e per la stessa ragione. Quello di Windows, quando
+            l'elenco non ha il focus, disegna la voce selezionata con un grigio
+            chiarissimo suo e ignora il fondo dello stile: il testo, che lo stile fa
+            bianco, spariva. Succedeva proprio nell'elenco della coda, che si guarda
+            senza toccarlo mentre la selezione resta sull'ultimo chiamante scelto.
+            Misurato sul banco del layout: testo bianco su #F0F0F0 nel tema chiaro.
+            Questo modello usa il fondo che lo stile dichiara, con il focus o senza.
+        -->
+        <Style x:Key="WatchedItem" TargetType="ListViewItem"
+               BasedOn="{StaticResource {x:Type ListViewItem}}">
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ItemFocusVisual}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            IL TESTO DENTRO UNA VOCE SEGUE LA VOCE.
+
+            Lo stile comune dei TextBlock dichiara il colore del tema, e uno stile
+            implicito con un colore esplicito vince sull'ereditarieta': il testo di una
+            voce selezionata restava scuro sul fondo blu. Questo stile, piu' vicino,
+            non dichiara il colore, quindi il testo eredita quello della voce — chiaro
+            quando e' selezionata, scuro quando non lo e'.
+
+            Per la stessa ragione la riga di dettaglio non usa il colore attenuato: sul
+            fondo della selezione un grigio non arriverebbe al 7 a 1. Si distingue dal
+            nome per corpo e peso, non per colore.
+        -->
+        <Style x:Key="ItemText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!--
+            IL TONDINO DELLA POSIZIONE E LA PASTIGLIA DELLO STATO hanno un fondo proprio,
+            chiaro anche sulla voce selezionata: il loro testo dichiara il colore del
+            tema invece di ereditarlo, altrimenti diventerebbe bianco su grigio chiaro.
+            Sul fondo delle intestazioni il testo sta a 14,3 a 1 nel tema chiaro e a
+            12,1 a 1 in quello scuro.
+        -->
+        <Style x:Key="ChipText" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="FontSize" Value="{StaticResource FontCaption}" />
+            <Setter Property="TextWrapping" Value="NoWrap" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!--
+            VOCE DELLA CODA.
+
+            Prima era una riga di tabella a cinque colonne di larghezza fissa, 760 pixel
+            in tutto: in una colonna laterale, o con lo schermo ingrandito, compariva la
+            barra di scorrimento orizzontale, e chi guarda doveva scorrere di lato per
+            sapere da quanto aspettava il chiamante. Adesso la voce si adatta alla
+            larghezza e va a capo.
+
+            Da sinistra: la posizione in un tondino, il chiamante in grassetto con sotto
+            coda, numero e segnalazioni, e l'attesa a destra, dove l'occhio la trova
+            scorrendo l'elenco dall'alto in basso. Il tondino c'e' solo quando la
+            posizione e' garantita: vedi YeastarOptions.WaitingListIsOrdered.
+        -->
+        <DataTemplate x:Key="QueueItemTemplate">
+            <Grid>
+                <Grid.Resources>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource ItemText}" />
+                </Grid.Resources>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0"
+                        MinWidth="28" Height="28"
+                        Margin="0,0,12,0"
+                        Padding="6,0"
+                        VerticalAlignment="Center"
+                        CornerRadius="14"
+                        Background="{DynamicResource HeaderBrush}"
+                        Visibility="{Binding PositionVisibility}">
+                    <TextBlock Style="{StaticResource ChipText}"
+                               HorizontalAlignment="Center"
+                               FontWeight="Bold"
+                               Text="{Binding Position}" />
+                </Border>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock FontWeight="Bold" Text="{Binding Caller}" />
+                    <TextBlock FontSize="{StaticResource FontCaption}"
+                               Text="{Binding Detail}"
+                               Visibility="{Binding DetailVisibility}" />
+                </StackPanel>
+
+                <TextBlock Grid.Column="2"
+                           Margin="12,0,0,0"
+                           FontWeight="Bold"
+                           TextWrapping="NoWrap"
+                           Text="{Binding WaitShown}" />
+            </Grid>
+        </DataTemplate>
+
+        <!--
+            VOCE DEI COLLEGHI.
+
+            LO STATO VIENE PRIMA DEL NOME, e l'ordine e' voluto. E' l'informazione per
+            cui si sta guardando l'elenco: scorrendo dieci colleghi per trovare chi c'e',
+            il nome prima dello stato costringe a leggere due volte tanto.
+
+            LO STATO E' UNA PAROLA PIU' UN SEGNO, MAI UN COLORE. La pastiglia ha lo
+            stesso fondo per tutti; a distinguere gli stati sono la parola e il
+            pittogramma — il segno di spunta, la cornetta, la campana, il cerchio
+            barrato — che si riconoscono anche senza distinguere i colori e in
+            contrasto elevato. Il pittogramma e' decorativo e muto: la voce si legge
+            dal suo nome accessibile, che dice gia' tutto a parole.
+
+            Le parti stanno in un pannello che va a capo: nella colonna laterale stanno
+            su una riga, a finestra stretta o con lo schermo ingrandito scendono.
+        -->
+        <DataTemplate x:Key="ColleagueItemTemplate">
+            <WrapPanel>
+                <WrapPanel.Resources>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource ItemText}" />
+                </WrapPanel.Resources>
+
+                <Border Margin="0,2,12,2"
+                        MinWidth="128"
+                        Padding="8,3"
+                        VerticalAlignment="Center"
+                        CornerRadius="12"
+                        Background="{DynamicResource HeaderBrush}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Style="{StaticResource ChipText}"
+                                   Margin="0,0,6,0"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Text="{Binding Icon}"
+                                   AutomationProperties.Name="" />
+                        <TextBlock Style="{StaticResource ChipText}"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding Status}" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock Margin="0,2,12,2" FontWeight="Bold" Text="{Binding Name}" />
+                <TextBlock Margin="0,2,12,2" Text="{Binding NumberText}" />
+                <TextBlock Margin="0,2,0,2" FontSize="{StaticResource FontCaption}" Text="{Binding Since}" />
+            </WrapPanel>
+        </DataTemplate>
     </Window.Resources>
 
     <!--
-        LA GRIGLIA HA UN NOME PERCHE' LA FINESTRA DEVE POTERSI ALLARGARE.
+        LA GRIGLIA PRINCIPALE: cinque righe e tre colonne che non cambiano mai.
 
-        Le righe sono quasi tutte ad altezza automatica: quando il nome di un chiamante
-        e' lungo il riquadro va a capo, cresce, e la somma delle righe puo' superare
-        l'altezza della finestra. WPF non lo segnala in alcun modo — la finestra taglia
-        e basta, e a sparire e' quello che sta in fondo.
+        Righe: la postazione; la chiamata quando la finestra e' stretta; l'area di
+        lavoro, l'unica elastica; la composizione; l'ultimo annuncio. Colonne: la
+        chiamata, un'intercapedine fissa di sedici pixel, coda e colleghi. Con la
+        finestra larga la riga della chiamata resta vuota e alta zero; con quella
+        stretta la chiamata ci scende e l'area di lavoro tiene la sola colonna laterale.
+        Vedi MainWindowLayout.
 
-        Il code-behind confronta la somma delle altezze delle righe con lo spazio
-        disponibile e allarga la finestra quando serve: vedi GrowToFitContent.
+        HA UN NOME PERCHE' LA FINESTRA DEVE POTERSI ALLUNGARE. La scheda della chiamata
+        non scorre — una scheda con la barra di scorrimento nasconderebbe proprio i
+        comandi — e le liste si accorciano solo fino a un pavimento. Quando nemmeno
+        cosi' il contenuto ci sta, WPF non lo segnala in alcun modo: la finestra taglia
+        e basta, e a sparire e' quello che sta in fondo. Il code-behind confronta
+        l'altezza della griglia con lo spazio disponibile e allunga la finestra fino al
+        bordo dello schermo quando serve: vedi GrowToFitContent.
     -->
     <Grid x:Name="RootGrid" Margin="{StaticResource SpaceWindow}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="3*" />
+            <ColumnDefinition Width="16" />
+            <ColumnDefinition Width="2*" />
+        </Grid.ColumnDefinitions>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
 
             <!--
-                Riga della coda. L'altezza si azzera dal code-behind quando la
-                sezione viene nascosta: lasciarla a "*" con il contenuto invisibile
-                terrebbe il vuoto in mezzo alla finestra, e il campo di composizione
-                resterebbe a meta' schermo senza che nulla lo giustifichi.
+                L'area di lavoro. Ha un'altezza minima che il code-behind tiene pari a
+                quella naturale della scheda della chiamata, quando la scheda sta qui, e
+                al pavimento delle liste: sotto, qualcosa verrebbe tagliato senza dirlo.
+                Vedi MainWindowLayout.WorkRowMinimum.
             -->
-            <RowDefinition x:Name="QueueRow" Height="*" />
+            <RowDefinition x:Name="WorkRowDefinition" Height="*" />
 
-            <!--
-                Riga dei colleghi in turno. Come quella della coda: l'altezza si azzera
-                dal code-behind quando la sezione non serve, cioe' quando l'operatore non
-                ha dichiarato nessun interno da sorvegliare.
-            -->
-            <RowDefinition x:Name="ColleaguesRow" Height="*" />
-
-            <!--
-                Riga 6: composizione. Riga 7: ultimo annuncio.
-
-                I contatti proposti dal campo di composizione NON hanno una riga: si
-                disegnano sopra le altre, ancorati al bordo alto del campo. Vedi il
-                commento sull'elenco, dentro la riga della composizione.
-            -->
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!--
-            Riga 0: gli avvisi a tutta larghezza, in cima a tutto.
+            Riga 0: LA POSTAZIONE. Come sta il telefono, il turno, e le finestre.
 
-            Sono due e stanno impilati nella stessa riga: la postazione fuori servizio
-            e la chiamata che sta squillando. Nessuno dei due occupa spazio quando non
-            serve, quindi il resto della finestra non si sposta.
+            Tutto quello che qui sta parla della postazione e non della chiamata: la
+            registrazione, la segreteria, il riepilogo, la pausa con l'orologio del
+            servizio, e la barra con rubrica, elenco delle chiamate, impostazioni e
+            account. Prima quei pulsanti stavano in coda ai comandi della chiamata, e
+            una barra che cambiava forma a ogni squillo si portava dietro quattro
+            pulsanti che non cambiano mai.
+
+            Un pannello che va a capo: a finestra larga le tre parti stanno affiancate,
+            a finestra stretta scendono una sotto l'altra, nello stesso ordine.
         -->
-        <StackPanel Grid.Row="0">
-
-            <!--
-                Avviso di postazione fuori servizio.
-
-                Compare solo in pausa: e' la condizione che cambia il significato di
-                ogni altra cosa nella finestra, e chi entra nella stanza deve poterla
-                leggere dalla porta.
-
-                Il colore non porta l'informazione da solo — la porta la parola «FUORI
-                SERVIZIO» — perche' un avviso affidato al solo rosso non arriva a chi
-                non distingue i colori, e in modalita' contrasto elevato non
-                arriverebbe a nessuno.
-            -->
-            <!--
-                L'angolo arrotondato e' l'unica cosa cambiata qui: colori, contrasto
-                e lampeggio restano quelli verificati. Il riquadro deve continuare a
-                leggersi da due metri, ed e' il punto della finestra dove "sobrio"
-                sarebbe la scelta sbagliata.
-            -->
-            <Border x:Name="PauseBanner"
-                    Visibility="Collapsed"
-                    Background="#B00020"
-                    BorderBrush="#FFFFFF"
-                    BorderThickness="2"
-                    CornerRadius="{StaticResource RadiusCard}"
-                    Padding="16,12"
-                    Margin="{StaticResource SpaceStack}">
-                <TextBlock x:Name="PauseBannerText"
-                           FontSize="{StaticResource FontBanner}"
-                           FontWeight="Bold"
-                           Foreground="#FFFFFF"
-                           Text="POSTAZIONE FUORI SERVIZIO"
-                           AutomationProperties.Name="Avviso di postazione fuori servizio" />
-            </Border>
-
-            <!--
-                Avviso di chiamata entrante.
-
-                Blu e non rosso: il rosso in questa finestra vuol dire gia' «la
-                postazione non lavora», e due significati opposti sullo stesso colore
-                si confondono proprio nel colpo d'occhio per cui il riquadro esiste.
-                Bianco su #0A47A9 sta a 8,4 a 1 di contrasto, oltre il 7 a 1 che questo
-                prodotto si e' dato.
-
-                Dice chi chiama, non solo che qualcuno chiama: e' la stessa
-                informazione dell'annuncio vocale, scritta per gli occhi — nome
-                anagrafico e numero in cifre invece di nome fonetico e cifre lette una
-                per una.
-
-                Non e' una regione dinamica di proposito. Lo screen reader riceve gia'
-                l'annuncio di chiamata entrante, che ha priorita' critica: dichiarare
-                anche questo riquadro come regione dinamica farebbe dire due volte la
-                stessa cosa, nel momento in cui l'operatore ha meno tempo per
-                ascoltare. Il riquadro serve a chi guarda lo schermo.
-            -->
-            <Border x:Name="IncomingCallBanner"
-                    Visibility="Collapsed"
-                    Background="#0A47A9"
-                    BorderBrush="#FFFFFF"
-                    BorderThickness="2"
-                    CornerRadius="{StaticResource RadiusCard}"
-                    Padding="16,12"
-                    Margin="{StaticResource SpaceStack}">
-                <!--
-                    Il cronometro dello squillo sta a sinistra, prima del nome.
-
-                    Dice da quanto sta squillando, ed e' l'informazione che decide se
-                    correre: una chiamata che squilla da due secondi e una che squilla
-                    da venticinque non chiedono la stessa cosa. A sinistra perche' e'
-                    dove l'occhio arriva per primo, e perche' la sua larghezza e'
-                    costante — il nome accanto invece cambia lunghezza a ogni
-                    chiamata, e un cronometro dopo di lui ballerebbe da una chiamata
-                    all'altra.
-
-                    NON E' UNA REGIONE DINAMICA: cambia ogni secondo, e annunciarlo
-                    farebbe parlare lo screen reader sopra la voce che sta dicendo chi
-                    chiama. Chi non vede la durata dello squillo la ha gia' nella
-                    suoneria, che continua finche' non si risponde.
-                -->
-                <!--
-                    GRIGLIA E NON PILA ORIZZONTALE, e la differenza e' tutta nel nome
-                    lungo.
-
-                    Una pila orizzontale offre ai figli larghezza infinita: dentro di
-                    lei un testo a capo automatico non va mai a capo, perche' crede di
-                    avere spazio all'infinito. Il nome proseguiva oltre il bordo del
-                    riquadro e finiva tagliato dalla finestra, senza nessun segno che
-                    mancasse qualcosa — e a mancare era la coda del nome o il numero,
-                    cioe' la parte con cui si riconosce chi chiama.
-
-                    Con una colonna a larghezza fissa per il cronometro e una elastica
-                    per il nome, il testo sa quanto spazio ha e si dispone su piu' righe
-                    quando serve.
-                -->
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-
-                    <TextBlock Grid.Column="0"
-                               x:Name="IncomingCallTimerText"
-                               FontSize="{StaticResource FontBanner}"
-                               FontWeight="Bold"
-                               Foreground="#FFFFFF"
-                               MinWidth="86"
-                               VerticalAlignment="Top"
-                               Text="0:00"
-                               AutomationProperties.Name="Da quanto sta squillando" />
-
-                    <TextBlock Grid.Column="1"
-                               x:Name="IncomingCallBannerText"
-                               FontSize="{StaticResource FontBanner}"
-                               FontWeight="Bold"
-                               Foreground="#FFFFFF"
-                               TextWrapping="Wrap"
-                               Text="Chiamata da:"
-                               AutomationProperties.Name="Avviso di chiamata entrante" />
-                </Grid>
-            </Border>
-
-            <!--
-                Avviso di conversazione in corso.
-
-                Verde e non blu: i due riquadri si susseguono sullo stesso punto dello
-                schermo — prima «Chiamata da», poi «In linea con» — e il cambio di
-                colore e' il modo piu' rapido di accorgersi che si e' passati da una
-                cosa all'altra senza dover rileggere. Bianco su #0B5A2A sta a 8,4 a 1
-                di contrasto, come il riquadro blu.
-
-                Compare mentre si parla e sparisce mettendo in attesa: «in linea con»
-                deve dire il vero anche a chi lo legge di sfuggita passando dalla
-                postazione.
-            -->
-            <Border x:Name="ActiveCallBanner"
-                    Visibility="Collapsed"
-                    Background="#0B5A2A"
-                    BorderBrush="#FFFFFF"
-                    BorderThickness="2"
-                    CornerRadius="{StaticResource RadiusCard}"
-                    Padding="16,12"
-                    Margin="{StaticResource SpaceStack}">
-                <TextBlock x:Name="ActiveCallBannerText"
-                           FontSize="{StaticResource FontBanner}"
-                           FontWeight="Bold"
-                           Foreground="#FFFFFF"
-                           TextWrapping="Wrap"
-                           Text="In linea con:"
-                           AutomationProperties.Name="Avviso di conversazione in corso" />
-            </Border>
-        </StackPanel>
-
-        <!-- Riga 1: stato generale, regione dinamica, con l'orologio del turno -->
-        <Border Grid.Row="1" Style="{StaticResource Card}">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <Border x:Name="StationCard"
+                Grid.Row="0"
+                Grid.ColumnSpan="3"
+                Style="{StaticResource Card}"
+                Padding="16,12,16,4">
+            <WrapPanel Orientation="Horizontal">
 
                 <!--
-                    LE DUE RIGHE DI RIEPILOGO NON PARLANO DA SOLE.
+                    LE RIGHE DI RIEPILOGO NON PARLANO DA SOLE, a parte la registrazione.
 
                     Erano regioni dinamiche, e a ogni variazione lo screen reader
                     leggeva il loro nome accessibile seguito dal contenuto. Il caso in
                     cui si sentiva peggio era la pausa: l'operatore premeva il tasto e
-                    sentiva «chiamata attualmente in corso, nessuna chiamata attiva» e
-                    «stato del posto operatore, in attesa uno» — due frasi che non
-                    dicono cosa e' successo, dopo l'annuncio che invece lo diceva.
+                    sentiva «stato del posto operatore, in attesa uno» — una frase che
+                    non dice cosa e' successo, dopo l'annuncio che invece lo diceva.
 
                     In questo prodotto la voce e' la pipeline degli annunci: ogni cosa
                     che succede passa di li', una volta, con la priorita' giusta e con
-                    il silenzio durante la conversazione. Due regioni che raccontano lo
-                    stesso fatto una seconda volta non aggiungono informazione,
-                    aggiungono attesa prima di poter fare la cosa successiva.
-
-                    Restano leggibili con il cursore virtuale, che e' il loro scopo:
-                    dicono «come sono messo adesso» a chi va a cercarlo, come le due
-                    caselle di riepilogo qui sotto e per la stessa ragione.
+                    il silenzio durante la conversazione. Restano leggibili con il
+                    cursore virtuale, che e' il loro scopo: dicono «come sono messo
+                    adesso» a chi va a cercarlo.
                 -->
-                <StackPanel Grid.Column="0">
+                <StackPanel Margin="0,0,32,8" MaxWidth="560">
                     <TextBlock x:Name="StatusText"
                                FontSize="{StaticResource FontSection}"
                                FontWeight="Bold"
@@ -493,23 +696,24 @@
 
                     Stanno insieme perche' parlano della stessa cosa — quanto tempo
                     sei in servizio e come uscirne — e nessuno dei due riguarda la
-                    chiamata in corso. E' il motivo per cui la pausa non sta nella
-                    barra dei comandi insieme a rispondi e trasferisci: quella barra
-                    parla di chi hai in linea, questa riga parla del tuo turno.
+                    chiamata in corso. E' il motivo per cui la pausa non sta nella barra
+                    della chiamata insieme a rispondi e trasferisci: quella barra parla
+                    di chi hai in linea, questa scheda parla del tuo turno. E non sta
+                    nemmeno nella barra della postazione qui accanto, che apre finestre:
+                    la pausa cambia lo stato della postazione, e un tasto che lo fa
+                    deve stare accanto all'orologio che lo mostra.
 
                     Il pulsante viene prima dell'orologio, a sinistra: si legge
                     «pausa» e poi «in servizio da due ore», che e' l'ordine in cui la
                     domanda si pone.
 
-                    Orologio: NON e' una regione dinamica, per la stessa ragione delle
-                    due caselle di riepilogo. Cambia ogni secondo, e notificarlo
-                    farebbe parlare lo screen reader senza sosta. Si ottiene a voce con
-                    il comando dedicato, che lo legge quando serve.
+                    Orologio: NON e' una regione dinamica. Cambia ogni secondo, e
+                    notificarlo farebbe parlare lo screen reader senza sosta. Si ottiene
+                    a voce con il comando dedicato, che lo legge quando serve.
                 -->
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
+                <StackPanel Orientation="Horizontal"
                             VerticalAlignment="Top"
-                            Margin="12,0,0,0">
+                            Margin="0,0,32,8">
 
                     <Button x:Name="ServicePauseButton"
                             Style="{StaticResource CommandButton}"
@@ -522,428 +726,573 @@
                                FontSize="{StaticResource FontSection}"
                                FontWeight="Bold"
                                VerticalAlignment="Center"
+                               TextWrapping="NoWrap"
                                Text="In servizio: 0:00:00"
                                AutomationProperties.Name="Tempo in servizio della postazione" />
                 </StackPanel>
-            </Grid>
+
+                <!--
+                    BARRA DELLA POSTAZIONE: le finestre, sempre disponibili.
+
+                    Rubrica, elenco delle chiamate, impostazioni, account SIP e, quando
+                    c'e', l'aggiornamento: il gruppo Station di CallActionCatalog. Non
+                    dipende da cosa sta succedendo, e per questo e' separata dalla barra
+                    della chiamata: chi impara dove sta la rubrica la ritrova li' anche
+                    mentre squilla, senza cercarla in mezzo a pulsanti che cambiano.
+
+                    E' una tappa in piu' del giro di tabulazione rispetto a quando le
+                    barre erano una sola. E' il prezzo della divisione, e si paga una
+                    volta: la tappa c'e' sempre, quindi il numero di Tab resta costante.
+                -->
+                <ItemsControl x:Name="StationCommandBar"
+                              Style="{StaticResource CommandBar}"
+                              VerticalAlignment="Top"
+                              AutomationProperties.Name="Comandi della postazione"
+                              AutomationProperties.HelpText="Rubrica, elenco delle chiamate, impostazioni e account: le finestre della postazione, sempre disponibili. Ci si sposta fra i pulsanti con le frecce; ogni comando ha anche una scorciatoia da tastiera, indicata nel fumetto." />
+            </WrapPanel>
         </Border>
 
         <!--
-            Riga 2: chiamata attiva e barra dei comandi.
+            Riga 1 a finestra stretta, riga 2 a sinistra a finestra larga: LA CHIAMATA.
 
             E' la sola scheda con il bordo del colore di evidenziazione, ed e' il modo
-            in cui resta l'area piu' importante della finestra ora che tutte le altre
-            hanno perso il contorno spesso. Un filo di un pixel invece di due: a
-            distinguerla adesso basta il colore, perche' le vicine non ne hanno
-            nessuno.
+            in cui resta l'area piu' importante della finestra. Un filo di un pixel: a
+            distinguerla basta il colore, perche' le vicine non ne hanno nessuno.
+
+            Dall'alto: la fascia di stato, sempre presente e sempre alta uguale; chi
+            squilla, quando squilla; con chi si e' in linea, in grande; la barra dei
+            comandi della chiamata; in fondo chi aspetta in attesa. L'ordine di
+            tabulazione e' lo stesso: la casella del nome, la barra, la casella delle
+            attese.
+
+            UNA GRIGLIA E NON UNA PILA, per due ragioni. La riga elastica prima delle
+            attese tiene la casella in fondo alla scheda quando la scheda e' piu' alta del
+            suo contenuto, cioe' quando sta accanto alla colonna di coda e colleghi. E
+            ogni riga ad altezza automatica si misura ad altezza infinita: sommandole il
+            code-behind conosce l'altezza naturale della scheda anche quando la riga che
+            la contiene gliene da' meno, che e' cio' che serve per non tagliarla.
         -->
-        <Border Grid.Row="2"
+        <Border x:Name="CallCard"
+                Grid.Row="1"
+                Grid.Column="0"
+                Grid.ColumnSpan="3"
                 Style="{StaticResource Card}"
-                Padding="24"
+                Padding="0"
                 BorderBrush="{DynamicResource AccentBrush}">
-            <StackPanel>
-                <!--
-                    L'ETICHETTA E' ATTENUATA CON UN COLORE, NON CON L'OPACITA'.
+            <Grid x:Name="CallCardContent">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                    Un testo al'80 per cento di opacita' ha un contrasto che dipende da
-                    quello che ha sotto e non si puo' dichiarare: cambiando tema
-                    diventa un numero diverso, e nessuno se ne accorge. Il pennello
-                    attenuato dei temi sta sopra il 7 a 1 in tutti e tre.
+                <!--
+                    LA FASCIA DI STATO: una parola, un pittogramma, un cronometro.
+
+                    Prende il posto dei tre avvisi a tutta larghezza — postazione fuori
+                    servizio, chiamata entrante, conversazione in corso — che comparivano
+                    in cima alla finestra e la spingevano giu' a ogni chiamata. La fascia
+                    c'e' sempre e ha sempre la stessa altezza: tutti e tre i testi ci
+                    sono in ogni stato, il cronometro vuoto occupa comunque la sua riga,
+                    e nessuno va a capo. Cosi' niente di quello che sta sotto si sposta
+                    quando arriva una chiamata.
+
+                    Cinque stati, uno alla volta, con una precedenza: squilla, in linea,
+                    in attesa, fuori servizio, libero. La regola e' in
+                    LineStatusCatalog, nel core, dove si collauda stato per stato.
+
+                    I COLORI NON PORTANO L'INFORMAZIONE DA SOLI. La porta la parola in
+                    maiuscolo, che cambia con lo stato; il colore aiuta a riconoscerla
+                    da lontano. Stanno nei temi e non qui, con il rapporto di contrasto
+                    accanto: blu per squilla, verde per in linea, ambra scuro per in
+                    attesa, rosso per fuori servizio, tutti con il testo bianco sopra il
+                    7 a 1; libero con i colori delle intestazioni. Nel tema di sistema,
+                    cioe' in contrasto elevato, i quattro stati di avviso invertono
+                    testo e fondo di Windows: il contrasto e' quello scelto
+                    dall'utente, e la parola distingue lo stato.
+
+                    NON E' UNA REGIONE DINAMICA, come non lo erano gli avvisi. Lo
+                    screen reader riceve gia' l'annuncio di ciascun cambiamento con la
+                    priorita' giusta: dichiarare anche la fascia farebbe dire due volte
+                    la stessa cosa, e il cronometro farebbe parlare ogni secondo. La
+                    fascia serve a chi guarda lo schermo.
+
+                    Il colore del testo si da' al pannello e i tre testi lo ereditano:
+                    lo stile qui dentro non lo dichiara, e prende il posto di quello
+                    comune, che lo dichiarerebbe e vincerebbe sull'eredita'.
                 -->
-                <TextBlock Text="Chiamata in corso"
-                           FontSize="{StaticResource FontCaption}"
-                           Foreground="{DynamicResource MutedTextBrush}" />
+                <Border x:Name="StatusBand"
+                        Grid.Row="0"
+                        CornerRadius="7,7,0,0"
+                        Padding="20,10"
+                        Background="{DynamicResource HeaderBrush}">
+                    <Grid x:Name="StatusBandContent" TextElement.Foreground="{DynamicResource TextBrush}">
+                        <Grid.Resources>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="NoWrap" />
+                                <Setter Property="VerticalAlignment" Value="Center" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                            </Style>
+                        </Grid.Resources>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!--
+                            Il pittogramma e' decorativo e muto, come quelli dei pulsanti:
+                            lo screen reader lo leggerebbe per nome — «campana» — davanti
+                            alla parola che dice gia' tutto.
+                        -->
+                        <TextBlock x:Name="StatusBandIcon"
+                                   Grid.Column="0"
+                                   Margin="0,0,12,0"
+                                   FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="{StaticResource FontProminent}"
+                                   FontWeight="Normal"
+                                   Text="&#xE73E;"
+                                   AutomationProperties.Name="" />
+
+                        <!--
+                            La parola si legge in minuscolo: il nome accessibile la
+                            ripete senza maiuscole, perche' alcune sintesi compitano le
+                            parole maiuscole e «IN LINEA» diventerebbe «i enne linea».
+                        -->
+                        <TextBlock x:Name="StatusBandWord"
+                                   Grid.Column="1"
+                                   FontSize="{StaticResource FontProminent}"
+                                   Text="LIBERO"
+                                   AutomationProperties.Name="Stato della linea: libero" />
+
+                        <!--
+                            Il cronometro sta a destra e ha una larghezza costante: la
+                            parola a sinistra cambia lunghezza da uno stato all'altro, e
+                            un cronometro attaccato a lei ballerebbe a ogni cambio.
+                            Cambia ogni secondo e non parla: vedi sopra.
+                        -->
+                        <TextBlock x:Name="StatusBandTimer"
+                                   Grid.Column="2"
+                                   Margin="12,0,0,0"
+                                   FontSize="{StaticResource FontBanner}"
+                                   Text="" />
+                    </Grid>
+                </Border>
+
+                <StackPanel Grid.Row="1" Margin="24,16,24,0">
+                    <!--
+                        CHI STA CHIAMANDO, solo mentre squilla.
+
+                        Dice chi chiama, non solo che qualcuno chiama: e' la stessa
+                        informazione dell'annuncio vocale, scritta per gli occhi — nome
+                        anagrafico e numero in cifre invece di nome fonetico e cifre lette
+                        una per una — con la coda da cui arriva.
+
+                        HA UNA RIGA SUA E NON PRENDE IL POSTO DEL NOME GRANDE, ed e' la
+                        decisione che tiene in piedi la casella qui sotto. La casella si
+                        chiama «chiamata in conversazione»: se mostrasse chi squilla,
+                        chi ci arriva con il tabulatore sentirebbe dire che e' in
+                        conversazione con qualcuno che sta ancora squillando. E durante
+                        una conversazione una seconda chiamata che squilla deve lasciare
+                        in vista il nome di chi si ha in linea.
+
+                        Non e' una regione dinamica: lo screen reader riceve gia'
+                        l'annuncio di chiamata entrante, con priorita' critica.
+                    -->
+                    <TextBlock x:Name="IncomingCallText"
+                               Margin="0,0,0,12"
+                               FontSize="{StaticResource FontBanner}"
+                               FontWeight="Bold"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed"
+                               Text="Chiamata da:" />
+
+                    <!--
+                        L'ETICHETTA E' ATTENUATA CON UN COLORE, NON CON L'OPACITA'.
+                        Dice in che rapporto si e' con chi c'e' scritto sotto: in linea,
+                        in conferenza, oppure in uscita e non ancora risposto.
+                    -->
+                    <TextBlock x:Name="ConnectedCaptionText"
+                               FontSize="{StaticResource FontCaption}"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               Text="Chiamata in corso" />
+
+                    <!--
+                        IL NOME GRANDE E LA CASELLA «CHIAMATA IN CONVERSAZIONE» SONO LA
+                        STESSA COSA.
+
+                        Prima la stessa persona compariva tre volte: nel riquadro verde
+                        in cima alla finestra, nella riga grande della scheda e nella
+                        casella «Collegato a» sotto. Adesso c'e' una volta sola, e chi
+                        guarda e chi ascolta leggono lo stesso elemento.
+
+                        E' RIMASTA UNA CASELLA DI TESTO, con lo stesso nome accessibile e
+                        lo stesso testo di aiuto: il numero si percorre con le frecce, si
+                        seleziona e si copia altrove, cosa che da un'etichetta non si
+                        potrebbe fare. Nel giro di tabulazione e' sempre la terza tappa
+                        della finestra, subito dopo i comandi.
+
+                        NON E' UNA REGIONE DINAMICA, ed e' deliberato: chi non vede ha gia'
+                        l'annuncio di ogni risposta e di ogni chiusura.
+                    -->
+                    <TextBox x:Name="ConnectedToBox"
+                             Style="{StaticResource HeadlineBox}"
+                             Margin="0,2,0,0"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="True"
+                             Tag="Vuota"
+                             Text="Nessuna chiamata"
+                             AutomationProperties.Name="Chiamata in conversazione"
+                             AutomationProperties.HelpText="Nome e numero di chi e' collegato in questo momento. Casella di sola lettura: il testo si puo' selezionare e copiare." />
+
+                    <!--
+                        L'ufficio di chi e' in linea, se la rubrica lo conosce, e la coda
+                        da cui e' arrivato. Il numero no: sta gia' nella casella sopra,
+                        dove si puo' copiare. Nascosta quando non c'e' niente da dire,
+                        per non lasciare una riga vuota sotto il nome.
+                    -->
+                    <TextBlock x:Name="ConnectedDetailText"
+                               Margin="0,4,0,0"
+                               FontSize="{StaticResource FontSection}"
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               TextWrapping="Wrap"
+                               Visibility="Collapsed" />
+                </StackPanel>
 
                 <!--
-                    IL DATO PIU' GRANDE DELLA FINESTRA, ed e' voluto.
-
-                    Prima otto aree si susseguivano con lo stesso peso visivo e da due
-                    metri non si capiva dove guardare. Questa e' la domanda che chi
-                    passa dalla postazione si pone davvero — con chi sta parlando
-                    l'operatore — e adesso e' l'unica cosa che si legge da lontano.
-                    Chi non vede lo schermo non perde e non guadagna nulla: il corpo
-                    del testo non cambia una virgola di quello che viene annunciato.
-                -->
-                <!--
-                    A capo automatico: e' il testo piu' grande della finestra, quindi
-                    il primo a non starci quando il nome e' lungo. Tagliato a meta' non
-                    direbbe piu' con chi si sta parlando, che e' l'unica cosa per cui
-                    esiste.
-                -->
-                <TextBlock x:Name="ActiveCallText"
-                           FontSize="{StaticResource FontHeadline}"
-                           FontWeight="Bold"
-                           Margin="0,2,0,0"
-                           TextWrapping="Wrap"
-                           Text="Nessuna chiamata attiva"
-                           AutomationProperties.Name="Chiamata attualmente in corso" />
-
-                <!--
-                    BARRA DEI COMANDI, PER CHI USA IL MOUSE.
+                    BARRA DELLA CHIAMATA, PER CHI USA IL MOUSE.
 
                     I pulsanti compaiono e scompaiono secondo quello che si puo' fare
                     in questo momento: la regola e' in CallActionCatalog, nel core,
                     dove si collauda stato per stato. Qui resta il solo atto di
-                    disporli.
-
-                    UNA TAPPA SOLA DEL GIRO DI TABULAZIONE, ed e' la parte che conta
-                    per chi non vede. Il numero di pulsanti cambia a ogni chiamata che
-                    arriva, che si risponde e che si chiude: se ciascuno fosse una
-                    tappa, il numero di Tab per raggiungere il campo di composizione
-                    cambierebbe sotto le dita durante la conversazione. Con
-                    TabNavigation="Once" la barra vale una tappa qualunque cosa
-                    contenga, e dentro ci si muove con le frecce — la stessa regola
-                    che questo prodotto applica gia' alle tabelle.
+                    disporli, con un filo verticale fra i comandi della chiamata e gli
+                    interruttori della conversazione.
 
                     Il testo dei pulsanti dice l'azione, non lo stato: "Metti in
                     attesa" e "Riprendi" sono lo stesso pulsante in due momenti
                     diversi, mai due pulsanti insieme.
                 -->
-                <ItemsControl x:Name="CommandBar"
-                              Margin="0,16,0,0"
-                              KeyboardNavigation.TabNavigation="Once"
-                              KeyboardNavigation.DirectionalNavigation="Cycle"
-                              AutomationProperties.Name="Comandi disponibili"
-                              AutomationProperties.HelpText="Pulsanti dei comandi che si possono usare in questo momento. Ogni comando ha anche una scorciatoia da tastiera, indicata sul pulsante.">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel Orientation="Horizontal" />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                </ItemsControl>
-            </StackPanel>
-        </Border>
+                <ItemsControl x:Name="CallCommandBar"
+                              Grid.Row="2"
+                              Margin="24,16,24,0"
+                              Style="{StaticResource CommandBar}"
+                              AutomationProperties.Name="Comandi della chiamata"
+                              AutomationProperties.HelpText="Pulsanti dei comandi che si possono usare adesso sulla chiamata. Ci si sposta fra i pulsanti con le frecce; ogni comando ha anche una scorciatoia da tastiera, indicata nel fumetto." />
 
-        <!--
-            Riga 3: le due caselle di riepilogo, per chi guarda lo schermo.
+                <!--
+                    IN ATTESA, in fondo alla scheda.
 
-            NON SONO UN DOPPIONE DEGLI ANNUNCI, sono il loro complemento. Un annuncio
-            passa e non torna: risponde a "che cosa e' appena successo". Queste due
-            caselle rispondono a "come sono messo adesso", e restano li' finche' la
-            situazione non cambia. Servono a chi vede — un collega che affianca
-            l'operatore nelle prime settimane, un responsabile che passa dalla
-            postazione, un operatore ipovedente che legge lo schermo ingrandito — e
-            fanno per lui quello che le spie luminose fanno su un centralino
-            tradizionale.
+                    NON E' UN DOPPIONE DEGLI ANNUNCI, e' il loro complemento. Un annuncio
+                    passa e non torna: risponde a "che cosa e' appena successo". Questa
+                    casella risponde a "chi sta aspettando adesso", e resta li' finche'
+                    la situazione non cambia. Serve a chi vede — un collega che affianca
+                    l'operatore nelle prime settimane, un responsabile che passa dalla
+                    postazione, un operatore ipovedente che legge lo schermo ingrandito
+                    — e fa per lui quello che le spie luminose fanno su un centralino
+                    tradizionale.
 
-            SONO CASELLE DI TESTO E NON ETICHETTE. Una casella di sola lettura si puo'
-            percorrere con le frecce, selezionare e copiare: il numero di chi e' in
-            attesa si prende da qui e si incolla altrove, cosa che da una etichetta non
-            si potrebbe fare.
+                    UNA CASELLA DI TESTO, per la stessa ragione di quella del nome: il
+                    numero di chi e' in attesa si prende da qui e si incolla altrove.
+                    Va a capo: occupa tutta la larghezza della scheda, e a finestra
+                    stretta un'attesa con nome lungo non ci starebbe su una riga.
 
-            NON SONO REGIONI DINAMICHE, ed e' deliberato. Il tempo di attesa cambia
-            ogni secondo: dichiararle regioni dinamiche farebbe pronunciare allo screen
-            reader un aggiornamento al secondo, tutto il giorno, coprendo la
-            conversazione in corso. Chi non vede ha gia' l'annuncio della messa in
-            attesa e il promemoria periodico, che sono dosati apposta.
-        -->
-        <Grid Grid.Row="3" Margin="{StaticResource SpaceStack}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+                    NON E' UNA REGIONE DINAMICA, ed e' deliberato. Il tempo di attesa
+                    cambia ogni secondo: dichiararla regione dinamica farebbe
+                    pronunciare allo screen reader un aggiornamento al secondo, tutto il
+                    giorno, coprendo la conversazione in corso. Chi non vede ha gia'
+                    l'annuncio della messa in attesa e il promemoria periodico, che sono
+                    dosati apposta.
+                -->
+                <StackPanel Grid.Row="4" Margin="24,8,24,24">
+                    <Separator Margin="0,0,0,16" />
 
-            <TextBox Grid.Column="0"
-                     x:Name="ConnectedToBox"
-                     IsReadOnly="True"
-                     IsReadOnlyCaretVisible="True"
-                     FontSize="{StaticResource FontBody}"
-                     TextWrapping="NoWrap"
-                     Text="Collegato a: nessuna chiamata"
-                     AutomationProperties.Name="Chiamata in conversazione"
-                     AutomationProperties.HelpText="Nome e numero di chi e' collegato in questo momento. Casella di sola lettura: il testo si puo' selezionare e copiare." />
-
-            <TextBox Grid.Column="1"
-                     x:Name="OnHoldBox"
-                     Margin="8,0,0,0"
-                     IsReadOnly="True"
-                     IsReadOnlyCaretVisible="True"
-                     FontSize="{StaticResource FontBody}"
-                     TextWrapping="NoWrap"
-                     Text="In attesa: nessuna chiamata"
-                     AutomationProperties.Name="Chiamate in attesa"
-                     AutomationProperties.HelpText="Nome, numero e durata dell'attesa di chi e' stato messo in attesa. Casella di sola lettura: il testo si puo' selezionare e copiare." />
-        </Grid>
-
-        <!--
-            Riga 4: elenco delle chiamate in coda.
-
-            IL NOME RESTA SUL CONTENITORE ESTERNO. La sezione era un DockPanel ed e'
-            diventata una scheda che lo contiene: il code-behind ne governa la
-            visibilita' e chiede se il cursore e' li' dentro, e sono due cose che un
-            Border fa esattamente come un DockPanel. Spostare il nome sul figlio
-            avrebbe lasciato a schermo una scheda vuota con l'elenco nascosto dentro.
-        -->
-        <Border Grid.Row="4" x:Name="QueueSection" Style="{StaticResource Card}">
-        <DockPanel>
-            <TextBlock DockPanel.Dock="Top"
-                       x:Name="QueueHeaderText"
-                       FontSize="{StaticResource FontBody}"
-                       FontWeight="Bold"
-                       Margin="{StaticResource SpaceStackTight}"
-                       Text="Chiamate in coda"
-                       AutomationProperties.Name="Intestazione dell'elenco chiamate in coda" />
-
-            <!--
-                ListView e non DataGrid, per lo stesso motivo dell'elenco della
-                rubrica: una riga di DataGrid si legge cella per cella, una voce di
-                ListView si legge come una cosa sola. Su un elenco che l'operatore
-                percorre sotto pressione, la differenza sono cinque pressioni di
-                tasto per chiamante.
-            -->
-            <!--
-                Senza bordo proprio: adesso sta dentro una scheda che ha gia' il suo,
-                e due contorni concentrici a un pixel di distanza sono la cosa che fa
-                sembrare un'interfaccia costruita per accumulo.
-            -->
-            <ListView x:Name="QueueList"
-                      BorderThickness="0"
-                      AutomationProperties.Name="Elenco delle chiamate in attesa in coda"
-                      AutomationProperties.HelpText="Usa le frecce per scorrere. Invio preleva la chiamata selezionata se il centralino lo consente."
-                      FontSize="{StaticResource FontBody}"
-                      SelectionMode="Single"
-                      SelectionChanged="OnQueueSelectionChanged"
-                      KeyDown="OnQueueListKeyDown">
-
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="MinHeight" Value="32" />
-                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
-                    </Style>
-                </ListView.ItemContainerStyle>
-
-                <ListView.View>
-                    <GridView>
-                        <GridViewColumn Header="Posizione" DisplayMemberBinding="{Binding Position}" Width="110" />
-                        <GridViewColumn Header="Chiamante" DisplayMemberBinding="{Binding Caller}" Width="260" />
-                        <GridViewColumn Header="Attesa" DisplayMemberBinding="{Binding Wait}" Width="120" />
-                        <GridViewColumn Header="Coda" DisplayMemberBinding="{Binding Queue}" Width="160" />
-                        <GridViewColumn Header="Stato" DisplayMemberBinding="{Binding Flags}" Width="110" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
-        </DockPanel>
-        </Border>
-
-
-        <!--
-            Riga 5: i colleghi in turno.
-
-            RISPONDE ALLA DOMANDA CHE IL CENTRALINISTA SI FA VENTI VOLTE AL GIORNO:
-            «c'e' qualcuno all'ufficio tecnico?». Chi vede lo ricava dal pannello dei
-            tasti luminosi di un centralino tradizionale; chi non vede, senza questa
-            sezione, lo scopre passando la chiamata e sentendola tornare indietro dopo
-            trenta squilli.
-
-            COMPARE SOLO SE SERVE, come la sezione della coda e per la stessa ragione:
-            finche' l'operatore non ha dichiarato nessun interno da sorvegliare non c'e'
-            niente da mostrare, e una tabella permanentemente vuota sul percorso di
-            navigazione costa una tabulazione a ogni giro per non dire mai nulla. Gli
-            interni si scrivono in Impostazioni, scheda Colleghi.
-
-            ListView e non DataGrid, per lo stesso motivo della coda e della rubrica: una
-            riga di DataGrid si legge cella per cella, una voce di ListView si legge come
-            una cosa sola. Su un elenco che si percorre per trovare un nome, la differenza
-            sono tre pressioni di tasto per collega.
-        -->
-        <Border Grid.Row="5" x:Name="ColleaguesSection" Style="{StaticResource Card}">
-        <DockPanel>
-            <!--
-                L'intestazione porta il conteggio e l'ora dell'ultima verifica, e
-                quest'ultima non e' un dettaglio tecnico: il quadro si aggiorna a
-                intervalli, quindi mostra sempre il passato. Senza dire di quanto, un
-                elenco fermo per un guasto di rete e' indistinguibile da un ufficio in cui
-                non si e' mosso nessuno.
-            -->
-            <TextBlock DockPanel.Dock="Top"
-                       x:Name="ColleaguesHeaderText"
-                       FontSize="{StaticResource FontBody}"
-                       FontWeight="Bold"
-                       Margin="{StaticResource SpaceStackTight}"
-                       Text="Colleghi in turno"
-                       AutomationProperties.Name="Intestazione dell'elenco dei colleghi in turno" />
-
-            <ListView x:Name="ColleaguesList"
-                      BorderThickness="0"
-                      AutomationProperties.Name="Elenco dei colleghi e del loro stato"
-                      AutomationProperties.HelpText="Usa le frecce per scorrere. Invio chiama il collega selezionato. La verifica si ripete da sola a intervalli."
-                      FontSize="{StaticResource FontBody}"
-                      SelectionMode="Single"
-                      KeyDown="OnColleaguesListKeyDown"
-                      MouseDoubleClick="OnColleaguesDoubleClick">
-
-                <ListView.ItemContainerStyle>
-                    <Style TargetType="ListViewItem">
-                        <Setter Property="MinHeight" Value="32" />
-                        <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
-                    </Style>
-                </ListView.ItemContainerStyle>
-
-                <ListView.View>
-                    <GridView>
-                        <!--
-                            LO STATO VIENE PRIMA DEL NOME, e l'ordine e' voluto. E'
-                            l'informazione per cui si sta guardando l'elenco: scorrendo
-                            dieci colleghi per trovare chi c'e', il nome prima dello stato
-                            costringe a leggere due volte tanto.
-                        -->
-                        <GridViewColumn Header="Stato" DisplayMemberBinding="{Binding Status}" Width="210" />
-                        <GridViewColumn Header="Nominativo" DisplayMemberBinding="{Binding Name}" Width="280" />
-                        <GridViewColumn Header="Interno" DisplayMemberBinding="{Binding Number}" Width="110" />
-                        <GridViewColumn Header="Dalle" DisplayMemberBinding="{Binding Since}" Width="110" />
-                    </GridView>
-                </ListView.View>
-            </ListView>
-        </DockPanel>
-        </Border>
-
-        <!-- Riga 6: composizione -->
-        <Grid Grid.Row="6">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
-            <Label Grid.Column="0"
-                   Target="{Binding ElementName=DialerBox}"
-                   Content="_Numero o nome"
-                   VerticalAlignment="Center"
-                   Margin="0,0,8,0" />
-
-            <TextBox Grid.Column="1"
-                     x:Name="DialerBox"
-                     AutomationProperties.Name="Campo di composizione: numero o nome da cercare"
-                     AutomationProperties.HelpText="Digita un numero e premi Invio per chiamare. Se il numero e' un interno in rubrica, la voce ti dice di chi e'. Digita un nome e la rubrica propone i contatti corrispondenti: freccia giu' per sceglierne uno, Invio per chiamarlo. Durante una conversazione puoi scrivere qui il numero che il chiamante ti detta. In modalita' trasferimento Invio trasferisce subito senza chiedere conferma, mentre il tasto di trasferimento chiama prima l'interno per annunciare la chiamata."
-                     PreviewKeyDown="OnDialerPreviewKeyDown"
-                     KeyDown="OnDialerKeyDown"
-                     TextChanged="OnDialerTextChanged" />
-
-            <!--
-                IL PITTOGRAMMA E LA PAROLA VOGLIONO DUE CARATTERI DIVERSI, e la parola
-                deve restare un AccessText: e' quello che trasforma il trattino basso
-                nella lettera sottolineata e tiene vivo Alt+H. Con una stringa sola il
-                glifo verrebbe reso dal carattere del testo, che non lo conosce, e al
-                suo posto comparirebbe un rettangolo vuoto.
-            -->
-            <Button Grid.Column="2"
-                    x:Name="DialButton"
-                    Style="{StaticResource PrimaryButton}"
-                    Margin="8,0,0,0"
-                    AutomationProperties.Name="Chiama il numero composto"
-                    Click="OnDialClick">
-                <StackPanel Orientation="Horizontal">
-                    <!--
-                        Il nero e' dichiarato qui e non ereditato: lo stile comune
-                        delle caselle di testo assegna il colore del tema, che sul
-                        verde di questo pulsante sarebbe illeggibile a tema scuro.
-                    -->
-                    <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                               FontSize="15"
-                               Margin="0,0,8,0"
-                               VerticalAlignment="Center"
-                               Foreground="#000000"
-                               Text="&#xE717;"
-                               AutomationProperties.Name="" />
-                    <AccessText VerticalAlignment="Center" Text="C_hiama" />
+                    <TextBox x:Name="OnHoldBox"
+                             Style="{StaticResource BoardBox}"
+                             IsReadOnly="True"
+                             IsReadOnlyCaretVisible="True"
+                             Text="In attesa: nessuna chiamata"
+                             AutomationProperties.Name="Chiamate in attesa"
+                             AutomationProperties.HelpText="Nome, numero e durata dell'attesa di chi e' stato messo in attesa. Casella di sola lettura: il testo si puo' selezionare e copiare." />
                 </StackPanel>
-            </Button>
-
-            <!--
-                CONTATTI CHE CORRISPONDONO AL NOME O ALL'INTERNO DIGITATO.
-
-                Compare quando nel campo ci sono lettere, cioe' quando l'operatore sta
-                cercando un nome, oppure quando le cifre sono esattamente un interno
-                che esiste in rubrica. Un numero qualunque non la apre: la ricerca
-                dell'interno e' per uguaglianza, non per somiglianza.
-
-                E' UN ELENCO SOVRAPPOSTO, NON UNA RIGA DELLA FINESTRA, ed e' la ragione
-                per cui sta qui dentro e non fra le righe della griglia.
-
-                Prima aveva una riga sua, sotto il campo. Il campo sta in fondo alla
-                finestra, quindi l'elenco stava piu' in fondo ancora: bastava una
-                finestra non a tutto schermo su un monitor piccolo perche' non ci
-                fosse posto, e l'elenco compariva tagliato o non compariva affatto,
-                con l'operatore che sentiva «tre contatti» senza poterli vedere. La
-                finestra non puo' allargarsi oltre lo schermo, e tutto lo spazio che
-                poteva ancora cedere — le due liste — era gia' ridotto al minimo.
-
-                Qui non toglie niente a nessuno: non occupa altezza, quindi non fa
-                crescere la finestra, non sposta l'ultimo annuncio e non innesca
-                nessun ridimensionamento. Si apre verso l'alto a partire dal campo,
-                dove c'e' sempre posto — sopra il campo ci sono almeno la scheda dello
-                stato, quella della chiamata e le due caselle di riepilogo — e copre
-                per il tempo della ricerca la parte bassa delle liste, che e' la meno
-                utile in quel momento.
-
-                SE IL CAMPO E' FUORI DALLA FINESTRA, L'ELENCO NO. Il valore di
-                Canvas.Bottom scritto qui e' quello di partenza, per il caso di tutti
-                i giorni; a ogni impaginazione il code-behind lo riporta al piu' in
-                basso che la finestra consente, e ne limita l'altezza allo spazio che
-                sta sopra (PositionSuggestions, MainWindowLayout.PlaceSuggestions).
-                Senza, un campo sotto il bordo si portava dietro l'elenco, e delle sue
-                righe si vedeva soltanto la fascia delle intestazioni.
-
-                COME NON OCCUPA ALTEZZA. Il Canvas misura zero e il suo contenuto non
-                concorre alla misura della riga; l'elenco e' ancorato al bordo basso
-                del Canvas, cioe' al bordo alto del campo, con uno stacco di otto
-                pixel. Il Canvas sta DENTRO la riga della composizione, dopo il
-                pulsante, e non in una riga a parte: cosi' l'ordine di tabulazione e
-                l'ordine con cui lo screen reader legge il contenuto restano quelli di
-                prima — campo, pulsante, elenco — e l'elenco viene sempre disegnato
-                sopra le liste, che lo precedono.
-
-                E' una tabella per lo stesso motivo della rubrica: nominativo e interno
-                sono due celle, si leggono una per una con le frecce, e il gesto e'
-                identico nelle due finestre. Due colonne bastano — a questo punto serve
-                solo riconoscere il contatto giusto, la scheda completa e' in rubrica.
-            -->
-            <Canvas x:Name="SuggestionsCanvas"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="3"
-                    Height="0"
-                    VerticalAlignment="Top">
-                <DataGrid x:Name="SuggestionsGrid"
-                          Canvas.Left="0"
-                          Canvas.Bottom="8"
-                          Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
-                          AutoGenerateColumns="False"
-                          IsReadOnly="True"
-                          CanUserAddRows="False"
-                          Visibility="Collapsed"
-                          MaxHeight="180"
-                          BorderBrush="{DynamicResource AccentBrush}"
-                          BorderThickness="2"
-                          AutomationProperties.Name="Contatti che corrispondono al nome o all'interno digitato"
-                          AutomationProperties.HelpText="Frecce su e giu' per cambiare contatto, destra e sinistra per leggere nominativo, interno e stato. Invio chiama. Freccia su dal primo contatto torna al campo di composizione."
-                          CanUserSortColumns="False"
-                          CanUserReorderColumns="False"
-                          CanUserResizeRows="False"
-                          CanUserDeleteRows="False"
-                          EnableRowVirtualization="False"
-                          PreviewKeyDown="OnSuggestionsPreviewKeyDown"
-                          MouseDoubleClick="OnSuggestionsDoubleClick">
-                    <!--
-                        LE COLONNE LE COSTRUISCE IL CODE-BEHIND.
-                        Nominativo e interno ci sono sempre; quelle facoltative dipendono da
-                        cosa l'operatore ha scelto in Impostazioni, scheda Rubrica. Vedi
-                        BuildSuggestionColumns.
-                    -->
-                </DataGrid>
-            </Canvas>
-        </Grid>
+            </Grid>
+        </Border>
 
         <!--
-            Riga 7: ultimo annuncio, per chi usa il cursore virtuale.
+            Riga 2: LA COLONNA DI CODA E COLLEGHI. A destra della chiamata con la
+            finestra larga, sotto la chiamata con quella stretta.
+
+            Un contenitore unico per le due sezioni, cosi' il passaggio da una a due
+            colonne sposta un elemento solo. Le due righe dividono a meta' lo spazio;
+            quella di una sezione nascosta si azzera dal code-behind, e se si nascondono
+            tutte e due si nasconde la colonna e la chiamata prende tutta la larghezza.
+
+            LE LISTE SI ACCORCIANO E SCORRONO, NON ALLUNGANO LA FINESTRA. Ciascuna ha un
+            pavimento, il titolo piu' una voce (MainWindowLayout.ListFloor): fin li'
+            cede spazio, sotto preferisce che la finestra cresca.
+        -->
+        <Grid x:Name="SidePanel"
+              Grid.Row="2"
+              Grid.Column="0"
+              Grid.ColumnSpan="3">
+            <Grid.RowDefinitions>
+                <!-- Riga della coda: a zero quando la sezione e' nascosta. -->
+                <RowDefinition x:Name="QueueRow" Height="*" />
+
+                <!-- Riga dei colleghi: a zero quando non c'e' nessuno da sorvegliare. -->
+                <RowDefinition x:Name="ColleaguesRow" Height="*" />
+            </Grid.RowDefinitions>
+
+            <!--
+                L'ELENCO DELLE CHIAMATE IN CODA.
+
+                IL NOME RESTA SUL CONTENITORE ESTERNO. Il code-behind ne governa la
+                visibilita' e chiede se il cursore e' li' dentro, e sono due cose che un
+                Border fa esattamente come un DockPanel. Spostare il nome sul figlio
+                avrebbe lasciato a schermo una scheda vuota con l'elenco nascosto dentro.
+            -->
+            <Border Grid.Row="0" x:Name="QueueSection" Style="{StaticResource Card}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Top"
+                               x:Name="QueueHeaderText"
+                               FontSize="{StaticResource FontBody}"
+                               FontWeight="Bold"
+                               Margin="{StaticResource SpaceStackTight}"
+                               Text="Chiamate in coda"
+                               AutomationProperties.Name="Intestazione dell'elenco chiamate in coda" />
+
+                    <!--
+                        ListView e non DataGrid, per lo stesso motivo dell'elenco della
+                        rubrica: una riga di DataGrid si legge cella per cella, una voce di
+                        ListView si legge come una cosa sola. Su un elenco che l'operatore
+                        percorre sotto pressione, la differenza sono cinque pressioni di
+                        tasto per chiamante.
+
+                        SENZA SCORRIMENTO ORIZZONTALE: la voce riceve la larghezza
+                        dell'elenco e va a capo dentro di essa. Con lo scorrimento
+                        orizzontale attivo l'elenco offrirebbe alle voci una larghezza
+                        infinita, e niente andrebbe mai a capo.
+
+                        Senza bordo proprio: sta dentro una scheda che ha gia' il suo, e
+                        due contorni concentrici a un pixel di distanza sono la cosa che fa
+                        sembrare un'interfaccia costruita per accumulo.
+                    -->
+                    <ListView x:Name="QueueList"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              AutomationProperties.Name="Elenco delle chiamate in attesa in coda"
+                              AutomationProperties.HelpText="Usa le frecce per scorrere. Invio preleva la chiamata selezionata se il centralino lo consente."
+                              FontSize="{StaticResource FontBody}"
+                              SelectionMode="Single"
+                              ItemContainerStyle="{StaticResource WatchedItem}"
+                              ItemTemplate="{StaticResource QueueItemTemplate}"
+                              SelectionChanged="OnQueueSelectionChanged"
+                              KeyDown="OnQueueListKeyDown" />
+                </DockPanel>
+            </Border>
+
+            <!--
+                I COLLEGHI IN TURNO.
+
+                RISPONDE ALLA DOMANDA CHE IL CENTRALINISTA SI FA VENTI VOLTE AL GIORNO:
+                «c'e' qualcuno all'ufficio tecnico?». Chi vede lo ricava dal pannello dei
+                tasti luminosi di un centralino tradizionale; chi non vede, senza questa
+                sezione, lo scopre passando la chiamata e sentendola tornare indietro dopo
+                trenta squilli.
+
+                COMPARE SOLO SE SERVE, come la sezione della coda e per la stessa ragione:
+                finche' l'operatore non ha dichiarato nessun interno da sorvegliare non c'e'
+                niente da mostrare. Gli interni si scrivono in Impostazioni, scheda
+                Colleghi.
+
+                ListView e non DataGrid, per lo stesso motivo della coda e della rubrica: una
+                riga di DataGrid si legge cella per cella, una voce di ListView si legge come
+                una cosa sola. Su un elenco che si percorre per trovare un nome, la differenza
+                sono tre pressioni di tasto per collega.
+            -->
+            <Border Grid.Row="1" x:Name="ColleaguesSection" Style="{StaticResource Card}">
+                <DockPanel>
+                    <!--
+                        L'intestazione porta il conteggio e l'ora dell'ultima verifica, e
+                        quest'ultima non e' un dettaglio tecnico: il quadro si aggiorna a
+                        intervalli, quindi mostra sempre il passato. Senza dire di quanto, un
+                        elenco fermo per un guasto di rete e' indistinguibile da un ufficio in cui
+                        non si e' mosso nessuno.
+                    -->
+                    <TextBlock DockPanel.Dock="Top"
+                               x:Name="ColleaguesHeaderText"
+                               FontSize="{StaticResource FontBody}"
+                               FontWeight="Bold"
+                               Margin="{StaticResource SpaceStackTight}"
+                               Text="Colleghi in turno"
+                               AutomationProperties.Name="Intestazione dell'elenco dei colleghi in turno" />
+
+                    <ListView x:Name="ColleaguesList"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              AutomationProperties.Name="Elenco dei colleghi e del loro stato"
+                              AutomationProperties.HelpText="Usa le frecce per scorrere. Invio chiama il collega selezionato. La verifica si ripete da sola a intervalli."
+                              FontSize="{StaticResource FontBody}"
+                              SelectionMode="Single"
+                              ItemContainerStyle="{StaticResource WatchedItem}"
+                              ItemTemplate="{StaticResource ColleagueItemTemplate}"
+                              KeyDown="OnColleaguesListKeyDown"
+                              MouseDoubleClick="OnColleaguesDoubleClick" />
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- Riga 3: composizione, a tutta larghezza sotto le colonne. -->
+        <Border Grid.Row="3"
+                Grid.ColumnSpan="3"
+                Style="{StaticResource Card}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Label Grid.Column="0"
+                       Target="{Binding ElementName=DialerBox}"
+                       Content="_Numero o nome"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0" />
+
+                <TextBox Grid.Column="1"
+                         x:Name="DialerBox"
+                         AutomationProperties.Name="Campo di composizione: numero o nome da cercare"
+                         AutomationProperties.HelpText="Digita un numero e premi Invio per chiamare. Se il numero e' un interno in rubrica, la voce ti dice di chi e'. Digita un nome e la rubrica propone i contatti corrispondenti: freccia giu' per sceglierne uno, Invio per chiamarlo. Durante una conversazione puoi scrivere qui il numero che il chiamante ti detta. In modalita' trasferimento Invio trasferisce subito senza chiedere conferma, mentre il tasto di trasferimento chiama prima l'interno per annunciare la chiamata."
+                         PreviewKeyDown="OnDialerPreviewKeyDown"
+                         KeyDown="OnDialerKeyDown"
+                         TextChanged="OnDialerTextChanged" />
+
+                <!--
+                    IL PITTOGRAMMA E LA PAROLA VOGLIONO DUE CARATTERI DIVERSI, e la parola
+                    deve restare un AccessText: e' quello che trasforma il trattino basso
+                    nella lettera sottolineata e tiene vivo Alt+H. Con una stringa sola il
+                    glifo verrebbe reso dal carattere del testo, che non lo conosce, e al
+                    suo posto comparirebbe un rettangolo vuoto.
+                -->
+                <Button Grid.Column="2"
+                        x:Name="DialButton"
+                        Style="{StaticResource PrimaryButton}"
+                        Margin="8,0,0,0"
+                        AutomationProperties.Name="Chiama il numero composto"
+                        Click="OnDialClick">
+                    <StackPanel Orientation="Horizontal">
+                        <!--
+                            Il nero e' dichiarato qui e non ereditato: lo stile comune
+                            delle caselle di testo assegna il colore del tema, che sul
+                            verde di questo pulsante sarebbe illeggibile a tema scuro.
+                        -->
+                        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="15"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="#000000"
+                                   Text="&#xE717;"
+                                   AutomationProperties.Name="" />
+                        <AccessText VerticalAlignment="Center" Text="C_hiama" />
+                    </StackPanel>
+                </Button>
+
+                <!--
+                    CONTATTI CHE CORRISPONDONO AL NOME O ALL'INTERNO DIGITATO.
+
+                    Compare quando nel campo ci sono lettere, cioe' quando l'operatore sta
+                    cercando un nome, oppure quando le cifre sono esattamente un interno
+                    che esiste in rubrica. Un numero qualunque non la apre: la ricerca
+                    dell'interno e' per uguaglianza, non per somiglianza.
+
+                    E' UN ELENCO SOVRAPPOSTO, NON UNA RIGA DELLA FINESTRA, ed e' la ragione
+                    per cui sta qui dentro e non fra le righe della griglia.
+
+                    Prima aveva una riga sua, sotto il campo. Il campo sta in fondo alla
+                    finestra, quindi l'elenco stava piu' in fondo ancora: bastava una
+                    finestra non a tutto schermo su un monitor piccolo perche' non ci
+                    fosse posto, e l'elenco compariva tagliato o non compariva affatto,
+                    con l'operatore che sentiva «tre contatti» senza poterli vedere.
+
+                    Qui non toglie niente a nessuno: non occupa altezza, quindi non fa
+                    crescere la finestra, non sposta l'ultimo annuncio e non innesca
+                    nessun ridimensionamento. Si apre verso l'alto a partire dal campo,
+                    dove c'e' sempre posto — sopra il campo ci sono almeno la scheda della
+                    postazione e quella della chiamata — e copre per il tempo della ricerca
+                    la parte bassa della chiamata e delle liste, che e' la meno utile in
+                    quel momento.
+
+                    SE IL CAMPO E' FUORI DALLA FINESTRA, L'ELENCO NO. Il valore di
+                    Canvas.Bottom scritto qui e' quello di partenza, per il caso di tutti
+                    i giorni; a ogni impaginazione il code-behind lo riporta al piu' in
+                    basso che la finestra consente, e ne limita l'altezza allo spazio che
+                    sta sopra (PositionSuggestions, MainWindowLayout.PlaceSuggestions).
+
+                    COME NON OCCUPA ALTEZZA. Il Canvas misura zero e il suo contenuto non
+                    concorre alla misura della riga; l'elenco e' ancorato al bordo basso
+                    del Canvas, cioe' al bordo alto del campo, con uno stacco di otto
+                    pixel. Il Canvas sta DENTRO la riga della composizione, dopo il
+                    pulsante, e non in una riga a parte: cosi' l'ordine di tabulazione e
+                    l'ordine con cui lo screen reader legge il contenuto restano quelli di
+                    sempre — campo, pulsante, elenco — e l'elenco viene sempre disegnato
+                    sopra la chiamata e le liste, che lo precedono.
+
+                    E' una tabella per lo stesso motivo della rubrica: nominativo e interno
+                    sono due celle, si leggono una per una con le frecce, e il gesto e'
+                    identico nelle due finestre. Due colonne bastano — a questo punto serve
+                    solo riconoscere il contatto giusto, la scheda completa e' in rubrica.
+                -->
+                <Canvas x:Name="SuggestionsCanvas"
+                        Grid.Column="0"
+                        Grid.ColumnSpan="3"
+                        Height="0"
+                        VerticalAlignment="Top">
+                    <DataGrid x:Name="SuggestionsGrid"
+                              Canvas.Left="0"
+                              Canvas.Bottom="8"
+                              Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Canvas}}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              Visibility="Collapsed"
+                              MaxHeight="180"
+                              BorderBrush="{DynamicResource AccentBrush}"
+                              BorderThickness="2"
+                              AutomationProperties.Name="Contatti che corrispondono al nome o all'interno digitato"
+                              AutomationProperties.HelpText="Frecce su e giu' per cambiare contatto, destra e sinistra per leggere nominativo, interno e stato. Invio chiama. Freccia su dal primo contatto torna al campo di composizione."
+                              CanUserSortColumns="False"
+                              CanUserReorderColumns="False"
+                              CanUserResizeRows="False"
+                              CanUserDeleteRows="False"
+                              EnableRowVirtualization="False"
+                              PreviewKeyDown="OnSuggestionsPreviewKeyDown"
+                              MouseDoubleClick="OnSuggestionsDoubleClick">
+                        <!--
+                            LE COLONNE LE COSTRUISCE IL CODE-BEHIND.
+                            Nominativo e interno ci sono sempre; quelle facoltative dipendono da
+                            cosa l'operatore ha scelto in Impostazioni, scheda Rubrica. Vedi
+                            BuildSuggestionColumns.
+                        -->
+                    </DataGrid>
+                </Canvas>
+            </Grid>
+        </Border>
+
+        <!--
+            Riga 4: ultimo annuncio, per chi usa il cursore virtuale. In fondo, sotto
+            tutto il resto.
 
             E' una scheda come le altre ma piu' bassa e senza margine sotto: e' un
-            dettaglio di servizio, non un'area di lavoro, e prima aveva lo stesso peso
-            visivo di tutto il resto solo perche' aveva lo stesso contorno.
+            dettaglio di servizio, non un'area di lavoro.
         -->
-        <Border Grid.Row="7"
+        <Border Grid.Row="4"
+                Grid.ColumnSpan="3"
                 Style="{StaticResource Card}"
                 Padding="12,8"
-                Margin="0,16,0,0">
+                Margin="0">
             <TextBlock x:Name="LastAnnouncementText"
                        FontSize="{StaticResource FontCaption}"
                        Text="Premi F1 per la guida, Control K due volte per l'elenco dei tasti."

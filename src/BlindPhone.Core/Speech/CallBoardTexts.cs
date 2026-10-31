@@ -3,8 +3,8 @@ using BlindPhone.Core.Domain;
 namespace BlindPhone.Core.Speech;
 
 /// <summary>
-/// I testi delle due caselle di riepilogo della finestra principale: con chi è
-/// collegato l'operatore, e chi sta aspettando in attesa.
+/// I testi della scheda della chiamata nella finestra principale: con chi è collegato
+/// l'operatore, chi sta squillando, chi sta aspettando in attesa, e i cronometri.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -32,10 +32,10 @@ namespace BlindPhone.Core.Speech;
 /// </remarks>
 public static class CallBoardTexts
 {
-    /// <summary>Etichetta della casella di sinistra, quando non c'è nessuno in linea.</summary>
-    public const string NoConnectedCall = "Collegato a: nessuna chiamata";
+    /// <summary>Testo della casella del nome, quando non c'è nessuno in linea.</summary>
+    public const string NoConnectedCall = "Nessuna chiamata";
 
-    /// <summary>Etichetta della casella di destra, quando non c'è nessuno in attesa.</summary>
+    /// <summary>Testo della casella delle attese, quando non c'è nessuno in attesa.</summary>
     public const string NoHeldCall = "In attesa: nessuna chiamata";
 
     /// <summary>
@@ -60,7 +60,8 @@ public static class CallBoardTexts
             : $"In servizio: {ClockDuration(inService)}";
 
     /// <summary>
-    /// Con chi è collegato l'operatore in questo momento.
+    /// Con chi è collegato l'operatore in questo momento: il nome grande della scheda
+    /// della chiamata.
     /// </summary>
     /// <param name="active">Chiamata in conversazione, se c'è.</param>
     /// <param name="conferenced">
@@ -69,16 +70,83 @@ public static class CallBoardTexts
     /// in linea, e guardare solo quella mostrerebbe «nessuna chiamata» nel momento di
     /// massimo impegno della postazione.
     /// </param>
-    /// <returns>Per esempio "Collegato a: Mario Rossi - 4021".</returns>
-    public static string Connected(Call? active, IReadOnlyList<Call>? conferenced = null)
+    /// <param name="outgoing">
+    /// Chiamata uscente che sta ancora squillando dall'altra parte. Conta solo se non
+    /// c'è nessuno in linea: è la linea che l'operatore ha appena impegnato.
+    /// </param>
+    /// <returns>Per esempio "Mario Rossi - 4021", oppure <see cref="NoConnectedCall"/>.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Niente più «Collegato a:» davanti.</b> Prima la stessa persona compariva tre
+    /// volte — nel riquadro verde in cima, nella riga grande della scheda e in questa
+    /// casella — e la casella aveva bisogno dell'etichetta per distinguersi dalle altre
+    /// due. Adesso è l'unica, è lei il nome grande, e la relazione la dice la
+    /// didascalia sopra (<see cref="ConnectedCaption"/>). Allo screen reader la dice il
+    /// nome accessibile della casella, «chiamata in conversazione», che non cambia.
+    /// </para>
+    /// <para>
+    /// <b>Dice soltanto chi è in linea</b>, mai chi squilla o chi aspetta: la casella si
+    /// chiama «chiamata in conversazione», e chi ci arriva con il tabulatore deve poter
+    /// credere a quello che sente. Chi squilla e chi aspetta hanno ciascuno il loro
+    /// posto nella stessa scheda.
+    /// </para>
+    /// <para>
+    /// Il numero resta nel testo e non solo nella riga sotto: la casella esiste perché
+    /// quel numero si possa selezionare e copiare.
+    /// </para>
+    /// </remarks>
+    public static string Connected(Call? active, IReadOnlyList<Call>? conferenced = null, Call? outgoing = null)
     {
         if (conferenced is { Count: > 0 })
         {
-            var chi = string.Join(" e ", conferenced.Select(c => Identity(c.RemoteParty)));
-            return $"Collegato a: {chi} (conferenza a tre)";
+            return string.Join(" e ", conferenced.Select(c => Identity(c.RemoteParty)));
         }
 
-        return active is null ? NoConnectedCall : $"Collegato a: {Identity(active.RemoteParty)}";
+        var party = (active ?? outgoing)?.RemoteParty;
+
+        return party is null ? NoConnectedCall : Identity(party);
+    }
+
+    /// <summary>
+    /// Didascalia sopra il nome grande: in che rapporto si è con chi c'è scritto.
+    /// </summary>
+    /// <param name="active">Chiamata in conversazione, se c'è.</param>
+    /// <param name="conferenced">Partecipanti alla conferenza a tre, se aperta.</param>
+    /// <param name="outgoing">Chiamata uscente che sta squillando dall'altra parte.</param>
+    /// <remarks>
+    /// Distingue la chiamata uscente che squilla ancora da quella in cui si parla: il
+    /// nome è lo stesso, ma chi passa dalla postazione e legge «in linea con» crede che
+    /// la conversazione sia cominciata.
+    /// </remarks>
+    public static string ConnectedCaption(Call? active, IReadOnlyList<Call>? conferenced = null, Call? outgoing = null)
+    {
+        if (conferenced is { Count: > 0 }) return "In conferenza a tre con";
+        if (active is not null) return "In linea con";
+
+        return outgoing is not null ? "Chiamata in uscita, squilla da" : "Chiamata in corso";
+    }
+
+    /// <summary>
+    /// Riga sotto il nome grande: l'ufficio di chi è in linea e la coda da cui è arrivato.
+    /// </summary>
+    /// <param name="active">Chiamata in conversazione, se c'è.</param>
+    /// <param name="outgoing">Chiamata uscente che sta squillando dall'altra parte.</param>
+    /// <returns>Per esempio "Ufficio tecnico · coda Anagrafe", oppure stringa vuota.</returns>
+    /// <remarks>
+    /// Il numero non c'è perché sta già nella casella sopra, dove si può copiare. In
+    /// conferenza la riga resta vuota: due uffici in fila non dicono a chi appartengono.
+    /// </remarks>
+    public static string ConnectedDetail(Call? active, Call? outgoing = null)
+    {
+        var call = active ?? outgoing;
+        if (call is null) return string.Empty;
+
+        var parti = new List<string>(2);
+
+        if (!string.IsNullOrWhiteSpace(call.RemoteParty.Department)) parti.Add(call.RemoteParty.Department!.Trim());
+        if (!string.IsNullOrWhiteSpace(call.QueueName)) parti.Add($"coda {call.QueueName}");
+
+        return string.Join(" · ", parti);
     }
 
     /// <summary>
@@ -93,13 +161,12 @@ public static class CallBoardTexts
     /// rischia di dimenticare, ed è la riga su cui si agisce.
     /// </para>
     /// <para>
-    /// <b>Le altre si contano invece di elencarle.</b> La casella occupa mezza
-    /// larghezza della finestra e sta su una riga sola: due attese per esteso non ci
-    /// stanno, e il testo verrebbe tagliato a metà di un nome — cioè proprio dove
-    /// nascondere qualcosa fa più danno, perché chi guarda non ha modo di sapere che
-    /// manca qualcosa. Il conteggio invece ci sta sempre e dice che esistono. Chi
-    /// vuole l'elenco completo ha il comando di riepilogo dello stato, che le nomina
-    /// tutte.
+    /// <b>Le altre si contano invece di elencarle.</b> La casella sta in fondo alla
+    /// scheda della chiamata: un'attesa per esteso per ogni chiamata la allungherebbe a
+    /// ogni messa in attesa, e con la finestra stretta spingerebbe giù la coda e i
+    /// colleghi proprio mentre si cerca a chi passare qualcuno. Il conteggio invece ci
+    /// sta sempre e dice che esistono. Chi vuole l'elenco completo ha il comando di
+    /// riepilogo dello stato, che le nomina tutte.
     /// </para>
     /// </remarks>
     public static string OnHold(IReadOnlyList<Call> held, DateTimeOffset now)
@@ -116,7 +183,8 @@ public static class CallBoardTexts
     }
 
     /// <summary>
-    /// Testo dell'avviso di chiamata entrante: chi sta chiamando, per chi guarda.
+    /// Chi sta chiamando, per chi guarda: la riga che compare nella scheda della
+    /// chiamata finché squilla.
     /// </summary>
     /// <param name="party">Chiamante, già passato dalla risoluzione in rubrica.</param>
     /// <param name="queueName">Coda da cui arriva la chiamata, se ne arriva da una.</param>
@@ -143,33 +211,6 @@ public static class CallBoardTexts
         return string.IsNullOrWhiteSpace(queueName)
             ? $"Chiamata da: {chi}"
             : $"Chiamata da: {chi}  -  coda {queueName}";
-    }
-
-    /// <summary>
-    /// Testo dell'avviso di conversazione in corso: con chi si sta parlando.
-    /// </summary>
-    /// <param name="active">Chiamata in conversazione, se c'è.</param>
-    /// <param name="conferenced">
-    /// Partecipanti alla conferenza a tre. Hanno la precedenza: in conferenza la
-    /// chiamata attiva non esiste, e guardare solo quella lascerebbe il riquadro vuoto
-    /// nel momento di massimo impegno della postazione.
-    /// </param>
-    /// <returns>Per esempio "In linea con: Mario Rossi (4021)", oppure stringa vuota.</returns>
-    /// <remarks>
-    /// Stessa forma dell'avviso di chiamata entrante, e per la stessa ragione: i due
-    /// riquadri si susseguono sullo stesso punto dello schermo — prima «Chiamata da»,
-    /// poi «In linea con» — e cambiare disposizione a metà costringerebbe a rileggere
-    /// invece di riconoscere.
-    /// </remarks>
-    public static string InCall(Call? active, IReadOnlyList<Call>? conferenced = null)
-    {
-        if (conferenced is { Count: > 0 })
-        {
-            var chi = string.Join(" e ", conferenced.Select(c => IncomingIdentity(c.RemoteParty)));
-            return $"In linea con: {chi}  -  conferenza a tre";
-        }
-
-        return active is null ? string.Empty : $"In linea con: {IncomingIdentity(active.RemoteParty)}";
     }
 
     /// <summary>
@@ -241,12 +282,11 @@ public static class CallBoardTexts
     /// <param name="duration">Durata da mostrare.</param>
     /// <returns>Per esempio "0:12", oppure "1:05".</returns>
     /// <remarks>
-    /// Serve al cronometro dello squillo, che vive dentro il riquadro della chiamata
-    /// entrante. Lì <see cref="ClockDuration"/> mostrerebbe "0:00:12": tre gruppi di
-    /// cifre per un numero che non supera quasi mai il minuto, e in un riquadro dove
-    /// lo spazio serve al nome di chi chiama. Le ore non compaiono perché uno squillo
-    /// che duri un'ora non esiste: se comparisse un numero enorme, sarebbe comunque
-    /// più leggibile di "1:00:00" travestito da normalità.
+    /// Serve al cronometro dello squillo, nella fascia di stato della scheda della
+    /// chiamata. Lì <see cref="ClockDuration"/> mostrerebbe "0:00:12": tre gruppi di
+    /// cifre per un numero che non supera quasi mai il minuto. Le ore non compaiono
+    /// perché uno squillo che duri un'ora non esiste: se comparisse un numero enorme,
+    /// sarebbe comunque più leggibile di "1:00:00" travestito da normalità.
     /// </remarks>
     public static string ShortDuration(TimeSpan duration)
     {
@@ -254,6 +294,21 @@ public static class CallBoardTexts
 
         return $"{(int)duration.TotalMinutes}:{duration.Seconds:00}";
     }
+
+    /// <summary>
+    /// Durata per il cronometro della fascia di stato: minuti e secondi, con le ore
+    /// davanti solo quando ci sono.
+    /// </summary>
+    /// <param name="duration">Durata da mostrare.</param>
+    /// <returns>Per esempio "3:42", oppure "1:02:07".</returns>
+    /// <remarks>
+    /// La fascia misura cose diverse — uno squillo, una conversazione, un'attesa, una
+    /// pausa — e solo le ultime tre arrivano all'ora. Sotto l'ora "0:03:42" avrebbe un
+    /// gruppo di cifre che non dice niente; sopra, "62:07" costringerebbe a fare il
+    /// conto. Le due forme non si confondono perché la prima ha un solo due punti.
+    /// </remarks>
+    public static string BandDuration(TimeSpan duration)
+        => duration >= TimeSpan.FromHours(1) ? ClockDuration(duration) : ShortDuration(duration);
 
     /// <summary>
     /// Durata in forma di orologio: ore, minuti e secondi separati dai due punti.

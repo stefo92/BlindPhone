@@ -48,72 +48,159 @@ public sealed class AdeguamentoAlloSchermoTests
         throw new FileNotFoundException($"{file} non trovato");
     }
 
-    // Altezza delle righe che non sono liste, misurata sulla finestra a riposo:
-    // stato 97, chiamata 148, caselle di riepilogo 71, composizione 61, annuncio 53.
-    private const double AltreRighe = 430;
-
     // -----------------------------------------------------------------------
-    // Altezza delle liste
+    // Una o due colonne
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void SuUnoSchermoAltoLeListeRestanoAllAltezzaPreferita()
+    public void ConLaFinestraLargaChiamataEColonnaLateraleStannoAffiancate()
     {
-        // Capacita' di un monitor da 1080 righe: il comportamento di prima resta, e la
-        // finestra si allarga per dare alle liste i loro 180 pixel.
-        Assert.Equal(MainWindowLayout.PreferredListHeight, MainWindowLayout.ListMinimum(1000, AltreRighe, 2));
-        Assert.Equal(MainWindowLayout.PreferredListHeight, MainWindowLayout.ListMinimum(1000, AltreRighe, 1));
+        var disposizione = MainWindowLayout.ArrangeWorkArea(1232, hasSideSections: true);
+
+        Assert.True(disposizione.TwoColumns);
+        Assert.Equal(new GridCell(MainWindowLayout.WorkRow, 0, 1), disposizione.Call);
+        Assert.Equal(new GridCell(MainWindowLayout.WorkRow, MainWindowLayout.SideColumn, 1), disposizione.Side);
     }
 
     [Fact]
-    public void SuUnoSchermoDa768RigheLeDueListeCedonoQuantoServeAlCampo()
+    public void ConLaFinestraStrettaLaColonnaLateraleScendeSottoLaChiamata()
     {
-        // 689 pixel utili meno i 32 di margini: restano 657, e le altre righe ne
-        // prendono 430. Alle due liste ne restano 227, cioe' 113 a testa.
-        var minimo = MainWindowLayout.ListMinimum(689 - 32, AltreRighe, 2);
+        var disposizione = MainWindowLayout.ArrangeWorkArea(568, hasSideSections: true);
 
-        Assert.Equal(113, minimo);
-
-        // E il totale non supera lo spazio: e' la proprieta' che tiene il campo in vista.
-        Assert.True(AltreRighe + (2 * minimo) <= 689 - 32);
+        Assert.False(disposizione.TwoColumns);
+        Assert.Equal(new GridCell(MainWindowLayout.CallRow, 0, MainWindowLayout.ColumnCount), disposizione.Call);
+        Assert.Equal(new GridCell(MainWindowLayout.WorkRow, 0, MainWindowLayout.ColumnCount), disposizione.Side);
     }
 
     [Fact]
-    public void ConUnaSolaListaBastaLoSpazioDi768Righe()
+    public void LaSogliaEInclusa()
     {
-        // Con una lista sola lo schermo da 768 righe non ha bisogno di toccare niente.
-        Assert.Equal(MainWindowLayout.PreferredListHeight, MainWindowLayout.ListMinimum(689 - 32, AltreRighe, 1));
+        Assert.True(MainWindowLayout.ArrangeWorkArea(MainWindowLayout.TwoColumnMinWidth, true).TwoColumns);
+        Assert.False(MainWindowLayout.ArrangeWorkArea(MainWindowLayout.TwoColumnMinWidth - 1, true).TwoColumns);
     }
 
     [Theory]
-    [InlineData(300)]
-    [InlineData(450)]
-    [InlineData(500)]
-    public void MaiSottoIlPavimento(double capacita)
+    [InlineData(568)]
+    [InlineData(1000)]
+    [InlineData(1888)]
+    public void SenzaCodaNeColleghiLaChiamataPrendeTuttaLaLarghezza(double larghezza)
     {
-        // Sotto, la lista non si distingue piu' dal suo bordo: e quando nemmeno il
-        // pavimento basta, il resto del contenuto esce dalla finestra come sempre.
-        Assert.Equal(MainWindowLayout.CompactListHeight, MainWindowLayout.ListMinimum(capacita, AltreRighe, 2));
+        // Una colonna vuota a destra sarebbe spazio tolto al nome di chi chiama per
+        // non mostrare niente.
+        var disposizione = MainWindowLayout.ArrangeWorkArea(larghezza, hasSideSections: false);
+
+        Assert.False(disposizione.TwoColumns);
+        Assert.Equal(new GridCell(MainWindowLayout.WorkRow, 0, MainWindowLayout.ColumnCount), disposizione.Call);
+    }
+
+    [Theory]
+    [InlineData(400, true)]
+    [InlineData(999, true)]
+    [InlineData(1000, true)]
+    [InlineData(1800, true)]
+    [InlineData(800, false)]
+    [InlineData(1800, false)]
+    public void LaChiamataVienePrimaDellaColonnaLateraleAncheAGuardarla(double larghezza, bool laterale)
+    {
+        // L'ordine di tabulazione e' quello del XAML: chiamata, poi coda e colleghi. Chi
+        // guarda legge dall'alto in basso e da sinistra a destra, e deve trovare lo
+        // stesso ordine: la chiamata sta sopra, oppure sulla stessa riga e a sinistra.
+        var d = MainWindowLayout.ArrangeWorkArea(larghezza, laterale);
+
+        var primaSopra = d.Call.Row < d.Side.Row;
+        var stessaRigaASinistra = d.Call.Row == d.Side.Row && d.Call.Column + d.Call.ColumnSpan <= d.Side.Column;
+
+        Assert.True(!laterale || primaSopra || stessaRigaASinistra, $"A {larghezza} pixel la chiamata non precede la colonna laterale");
+    }
+
+    [Theory]
+    [InlineData(400, true)]
+    [InlineData(1400, true)]
+    [InlineData(1400, false)]
+    public void NessunaCellaEsceDallaGriglia(double larghezza, bool laterale)
+    {
+        // Righe e colonne fuori dalla griglia non producono errori: WPF mette
+        // l'elemento nell'ultima, e due aree si sovrappongono senza che nessuno se ne
+        // accorga.
+        var d = MainWindowLayout.ArrangeWorkArea(larghezza, laterale);
+
+        foreach (var cella in new[] { d.Call, d.Side })
+        {
+            Assert.InRange(cella.Row, MainWindowLayout.StationRow, MainWindowLayout.AnnouncementRow);
+            Assert.InRange(cella.Column + cella.ColumnSpan, 1, MainWindowLayout.ColumnCount);
+        }
     }
 
     [Fact]
-    public void SenzaListeNonCeNienteDaDecidere()
-        => Assert.Equal(0, MainWindowLayout.ListMinimum(700, AltreRighe, 0));
+    public void LeRigheDellaDisposizioneSonoQuelleDelXaml()
+    {
+        // Le costanti di MainWindowLayout e la griglia del XAML devono raccontare la
+        // stessa griglia: cinque righe, tre colonne, la terza riga elastica.
+        var griglia = XDocument.Load(Percorso("MainWindow.xaml")).Descendants()
+            .Single(e => (string?)e.Attribute(X + "Name") == "RootGrid");
+
+        XNamespace p = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var righe = griglia.Element(p + "Grid.RowDefinitions")!.Elements(p + "RowDefinition").ToList();
+        var colonne = griglia.Element(p + "Grid.ColumnDefinitions")!.Elements(p + "ColumnDefinition").ToList();
+
+        Assert.Equal(MainWindowLayout.AnnouncementRow + 1, righe.Count);
+        Assert.Equal(MainWindowLayout.ColumnCount, colonne.Count);
+        Assert.Equal("*", (string?)righe[MainWindowLayout.WorkRow].Attribute("Height"));
+        Assert.Equal("Auto", (string?)righe[MainWindowLayout.CallRow].Attribute("Height"));
+    }
 
     [Fact]
-    public void PiuSpazioNonDaMaiMenoAlleListe()
+    public void LaFinestraNasceLargaAbbastanzaPerDueColonne()
     {
-        var precedente = 0.0;
+        // Con la larghezza di prima, mille pixel, la finestra sarebbe nata in una
+        // colonna sola: tolti cornice e margini resta meno della soglia.
+        var finestra = XDocument.Load(Percorso("MainWindow.xaml")).Root!;
+        var larghezza = double.Parse((string?)finestra.Attribute("Width") ?? "0", System.Globalization.CultureInfo.InvariantCulture);
 
-        for (var capacita = 300; capacita <= 1200; capacita += 7)
-        {
-            var minimo = MainWindowLayout.ListMinimum(capacita, AltreRighe, 2);
+        Assert.True(larghezza - 16 - 32 >= MainWindowLayout.TwoColumnMinWidth);
+    }
 
-            Assert.True(minimo >= precedente, $"A {capacita} pixel le liste scendono da {precedente} a {minimo}");
-            Assert.InRange(minimo, MainWindowLayout.CompactListHeight, MainWindowLayout.PreferredListHeight);
+    // -----------------------------------------------------------------------
+    // Altezza minima dell'area di lavoro
+    // -----------------------------------------------------------------------
 
-            precedente = minimo;
-        }
+    [Fact]
+    public void ConLeColonneAffiancateVinceIlPiuAltoFraChiamataEListe()
+    {
+        var larga = MainWindowLayout.ArrangeWorkArea(1232, true);
+
+        Assert.Equal(420, MainWindowLayout.WorkRowMinimum(larga, callHeight: 420, visibleLists: 2));
+        Assert.Equal(2 * MainWindowLayout.ListFloor, MainWindowLayout.WorkRowMinimum(larga, callHeight: 200, visibleLists: 2));
+    }
+
+    [Fact]
+    public void ConLaFinestraStrettaLaChiamataNonContaPercheStaSopra()
+    {
+        // In una colonna la chiamata sta nella riga ad altezza automatica, che non la
+        // taglia comunque: l'area di lavoro deve tenere soltanto le liste.
+        var stretta = MainWindowLayout.ArrangeWorkArea(568, true);
+
+        Assert.Equal(MainWindowLayout.ListFloor, MainWindowLayout.WorkRowMinimum(stretta, callHeight: 600, visibleLists: 1));
+    }
+
+    [Fact]
+    public void SenzaListeContaSoloLaChiamata()
+    {
+        var sola = MainWindowLayout.ArrangeWorkArea(1232, false);
+
+        Assert.Equal(380, MainWindowLayout.WorkRowMinimum(sola, callHeight: 380, visibleLists: 0));
+    }
+
+    [Fact]
+    public void IlPavimentoDelleListeLasciaVedereIlTitoloEUnaVoce()
+    {
+        // Riempimento della scheda 32, titolo 30, margine 16, una voce su due righe 52.
+        // Sotto, la sezione mostrerebbe il titolo e nient'altro.
+        Assert.True(MainWindowLayout.ListFloor >= 32 + 30 + 16 + 52);
+
+        // E non e' piu' la misura preferita di prima: le liste cedono prima che la
+        // finestra cresca.
+        Assert.True(MainWindowLayout.ListFloor < 180);
     }
 
     // -----------------------------------------------------------------------
@@ -199,7 +286,7 @@ public sealed class AdeguamentoAlloSchermoTests
     }
 
     [Fact]
-    public void LImpaginazioneRiposizionaLElencoEAdeguaLeListeAncheAFinestraIngrandita()
+    public void LImpaginazioneRiposizionaLElencoEAdeguaLAreaDiLavoroAncheAFinestraIngrandita()
     {
         var codice = File.ReadAllText(Percorso("MainWindow.xaml.cs"));
 
@@ -209,11 +296,11 @@ public sealed class AdeguamentoAlloSchermoTests
         var corpo = codice[inizio..Math.Min(codice.Length, inizio + 1400)];
 
         var posiziona = corpo.IndexOf("PositionSuggestions();", StringComparison.Ordinal);
-        var adegua = corpo.IndexOf("ScheduleListFit();", StringComparison.Ordinal);
+        var adegua = corpo.IndexOf("ScheduleWorkRowFit();", StringComparison.Ordinal);
         var allarga = corpo.IndexOf("if (_resizePending) return;", StringComparison.Ordinal);
 
         Assert.True(posiziona > 0, "L'elenco non viene piu' riposizionato a ogni impaginazione");
-        Assert.True(adegua > 0, "Le liste non vengono piu' adeguate allo spazio");
+        Assert.True(adegua > 0, "L'area di lavoro non viene piu' adeguata al contenuto");
 
         // Prima del ritorno anticipato sullo stato della finestra: a finestra ingrandita
         // il campo puo' stare fuori vista esattamente come a finestra normale.
@@ -233,16 +320,16 @@ public sealed class AdeguamentoAlloSchermoTests
         // Se il numero fosse scritto qui e li', cambiarne uno lascerebbe il banco di
         // prova e la finestra a ragionare su valori diversi.
         Assert.Contains(
-            "MinimumListHeight = MainWindowLayout.PreferredListHeight;", codice, StringComparison.Ordinal);
+            "MinimumListHeight = MainWindowLayout.ListFloor;", codice, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void QuandoLeListeCambianoLAllargamentoRiprova()
+    public void QuandoIlMinimoCambiaLAllargamentoRiprova()
     {
         var codice = File.ReadAllText(Percorso("MainWindow.xaml.cs"));
 
-        var inizio = codice.IndexOf("private void FitListMinimums()", StringComparison.Ordinal);
-        Assert.True(inizio > 0, "FitListMinimums non esiste piu'");
+        var inizio = codice.IndexOf("private void FitWorkRowMinimum()", StringComparison.Ordinal);
+        Assert.True(inizio > 0, "FitWorkRowMinimum non esiste piu'");
 
         var corpo = codice[inizio..Math.Min(codice.Length, inizio + 1200)];
 

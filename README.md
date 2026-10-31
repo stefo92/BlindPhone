@@ -310,47 +310,116 @@ dei comandi. **Non scarica niente finché l'operatore non lo chiede**, e non ins
 niente da sé: l'installazione è la stessa procedura della prima volta, con la richiesta
 di consenso di Windows. Se il server non risponde la cosa finisce nel registro e basta.
 
-## Barra dei comandi, per chi usa il mouse
+## La finestra principale
 
-Sotto la riga della chiamata in corso c'è una fila di pulsanti — *Rispondi*,
-*Trasferisci*, *Registra*, *Toni*, *Pausa* ☕, *Rubrica*, *Impostazioni*, *Account SIP*
-e gli altri — che esiste per chi guarda lo schermo: il collega che affianca l'operatore nelle
-prime settimane, il responsabile che passa dalla postazione, l'operatore ipovedente che
-lavora con l'ingrandimento. **Non toglie niente alla tastiera**: ogni pulsante esegue
+Dall'alto in basso, nell'ordine in cui la percorre il tabulatore: la **scheda della
+postazione** — registrazione, segreteria, riepilogo, la pausa con l'orologio del turno
+e i comandi della postazione —, la **scheda della chiamata**, la **coda** e i
+**colleghi** quando ci sono, il **campo di composizione** e in fondo l'**ultimo
+annuncio**.
+
+**Una o due colonne, secondo la larghezza.** Da 1000 pixel di contenuto in su la
+chiamata sta a sinistra (tre quinti) e coda e colleghi a destra (due quinti); sotto, la
+colonna di destra scende sotto la chiamata. A mille pixel la colonna laterale ne ha
+394, quanto basta perché un collega — stato, nominativo, interno — stia su una riga, e
+la chiamata 590, quanto basta ai comandi di una conversazione su due righe: sotto,
+peggiorerebbero entrambe. La finestra nasce a 1280 per 800, ridotta all'area dello
+schermo, e scende fino a 600 di larghezza, cioè uno schermo da 1920 con la scala al
+300 per cento. **Il passaggio cambia solo riga e colonna di due elementi**: nessuno
+cambia contenitore, quindi l'ordine di tabulazione e quello in cui lo screen reader
+legge sono gli stessi in tutte e due le disposizioni. Se coda e colleghi non sono
+configurati, la chiamata prende tutta la larghezza.
+
+**Gli elenchi si accorciano e scorrono, la finestra cresce solo se deve.** Coda e
+colleghi cedono spazio fino a un pavimento — il titolo e una voce — e scorrono al loro
+interno; prima chiedevano 180 pixel ciascuno e la finestra si allungava per darglieli.
+La finestra si allunga ancora, fino al bordo dello schermo e non oltre, solo quando
+nemmeno così il contenuto ci sta: la scheda della chiamata non può scorrere, e con la
+finestra stretta sta sopra le due liste.
+
+**Le voci di coda e colleghi vanno a capo.** Non ci sono più colonne a larghezza fissa
+né lo scorrimento orizzontale che producevano: in coda la posizione in un tondino, il
+chiamante in grassetto con sotto coda, numero e segnalazioni, l'attesa a destra; fra i
+colleghi prima lo stato — una parola e un segno di forma diversa per ogni stato, mai il
+solo colore — poi nominativo, interno e da che ora. Lo screen reader le legge
+esattamente come prima.
+
+### La fascia di stato
+
+In cima alla scheda della chiamata c'è una fascia che dice in una parola com'è la
+linea, con un pittogramma e un cronometro:
+
+| Stato | Colore | Cronometro |
+|---|---|---|
+| **LIBERO** | quello delle intestazioni del tema | nessuno |
+| **SQUILLA** | blu `#0A47A9`, 8,4 a 1 | da quanto squilla |
+| **IN LINEA** | verde `#0B5A2A`, 8,4 a 1 | da quanto si parla |
+| **IN ATTESA** | ambra scuro `#7A4A00`, 7,5 a 1 | l'attesa più lunga |
+| **FUORI SERVIZIO** | rosso `#B00020`, 7,3 a 1 | da quanto dura la pausa |
+
+Uno stato alla volta, in quest'ordine di precedenza: squilla, in linea, in attesa,
+fuori servizio, libero. Una chiamata uscente che squilla ancora dall'altra parte conta
+come *in linea*, con la didascalia che dice che non ha ancora risposto e il cronometro
+fermo finché non risponde. Nel tema di sistema, cioè in contrasto elevato, i quattro
+stati di avviso invertono i colori di testo e finestra scelti in Windows, e a
+distinguerli resta la parola.
+
+**Sostituisce i tre avvisi a tutta larghezza** — fuori servizio, chiamata entrante,
+conversazione in corso — che comparivano in cima alla finestra e la spingevano giù a
+ogni chiamata. La fascia c'è sempre e ha sempre la stessa altezza, quindi niente di
+quello che sta sotto si sposta. Lampeggia solo quando squilla e quando la postazione è
+fuori servizio, a meno di un lampo al secondo; la conversazione non lampeggia più. Non
+è una regione dinamica: lo screen reader riceve già l'annuncio di ogni cambiamento.
+
+**Sotto la fascia, in grande, chi hai in linea**: è la casella di sola lettura
+*«Chiamata in conversazione»*, con nome e numero, che si seleziona e si copia come
+prima. Prima la stessa persona compariva tre volte — riquadro verde, riga grande e
+casella *«Collegato a»* — e adesso una. Sopra c'è una didascalia — *in linea con*, *in
+conferenza a tre con*, *chiamata in uscita* — e sotto l'ufficio, se la rubrica lo
+conosce, e la coda da cui è arrivata la chiamata. In fondo alla scheda la casella
+*«Chiamate in attesa»*.
+
+## Barre dei comandi, per chi usa il mouse
+
+I pulsanti stanno in due barre, e la regola di quali compaiono è una sola
+(`CallActionCatalog`, collaudata stato per stato). La **barra della postazione**, in
+alto accanto all'orologio del turno, contiene le finestre — *Rubrica*, *Elenco
+chiamate*, *Impostazioni*, *Account SIP* e, quando c'è, *Aggiornamento disponibile* — e
+non cambia mai. La **barra della chiamata**, nella scheda della chiamata, contiene tutto
+il resto: *Rispondi*, *Trasferisci*, *Registra*, *Toni* e gli altri, con un filo
+verticale fra i comandi sulla chiamata e gli interruttori della conversazione. Prima
+stavano tutti in una fila sola, e quattro pulsanti che non cambiano mai si spostavano a
+ogni squillo insieme a quelli che cambiano.
+
+Esistono per chi guarda lo schermo: il collega che affianca l'operatore nelle prime
+settimane, il responsabile che passa dalla postazione, l'operatore ipovedente che
+lavora con l'ingrandimento. **Non tolgono niente alla tastiera**: ogni pulsante esegue
 lo stesso comando della sua scorciatoia, e la scorciatoia compare nel fumetto insieme
 alla frase che dice cosa succede premendo. Sul pulsante resta il solo nome della
 funzione, con un pittogramma davanti: i nomi lunghi accanto al tasto — *«Interrompi
-registrazione (Alt R)»* — raddoppiavano la larghezza di ogni pulsante, e in una barra
-da dodici voci quella lunghezza si paga tutta insieme.
+registrazione (Alt R)»* — raddoppiavano la larghezza di ogni pulsante.
 
-**Due comandi non stanno nella barra, ed è deliberato.** La **pausa** vive in alto a
-destra, a sinistra dell'orologio del servizio: riguarda il turno e non la chiamata in
-corso, e mescolarla a *rispondi* e *trasferisci* la faceva cercare nel posto sbagliato.
-L'**elenco delle chiamate** invece è nella barra e c'è sempre, anche durante una
-conversazione: il numero da richiamare si cerca proprio quando qualcosa è appena andato
-storto. Lo stesso vale per la **rubrica**, che così si apre anche senza il suo tasto
-rapido: l'interno a cui passare qualcuno si cerca proprio mentre quel qualcuno aspetta.
+**La pausa non sta in nessuna delle due barre, ed è deliberato.** Vive accanto
+all'orologio del servizio: riguarda il turno e non la chiamata in corso, e mescolarla a
+*rispondi* e *trasferisci* la faceva cercare nel posto sbagliato. L'**elenco delle
+chiamate** e la **rubrica** invece ci sono sempre, anche durante una conversazione: il
+numero da richiamare e l'interno a cui passare qualcuno si cercano proprio quando
+qualcuno aspetta.
 
-**Mentre parli, in cima alla finestra c'è un riquadro verde lampeggiante** con
-`In linea con: Mario Rossi (4021)`. Prende il posto di quello blu della chiamata
-entrante, nello stesso punto e con la stessa forma — cambia solo il colore, che è il
-modo più rapido di accorgersi che si è passati da una cosa all'altra senza rileggere.
-Sparisce mettendo in attesa: *«in linea con»* deve dire il vero anche a chi lo legge di
-sfuggita passando dalla postazione.
-
-**La barra tiene la sua forma per tutta la durata della chiamata.** Mettendo in attesa
-non sparisce niente: *Metti in attesa* diventa *Riprendi*, e *Riaggancia* e
-*Trasferisci* restano dov'erano — funzionano benissimo anche su una chiamata in attesa.
-Registrazione, toni e microfono hanno invece bisogno di voce che passa: restano
-visibili ma spenti, e il fumetto dice perché. È l'unico caso in cui la barra mostra
-qualcosa che non si può premere, e vale solo mentre la chiamata è in attesa: fuori da
-una chiamata quei pulsanti non ci sono affatto.
+**La barra della chiamata tiene la sua forma per tutta la durata della chiamata.**
+Mettendo in attesa non sparisce niente: *Metti in attesa* diventa *Riprendi*, e
+*Riaggancia* e *Trasferisci* restano dov'erano — funzionano benissimo anche su una
+chiamata in attesa. Registrazione, toni e microfono hanno invece bisogno di voce che
+passa: restano visibili ma spenti, e il fumetto dice perché. È l'unico caso in cui la
+barra mostra qualcosa che non si può premere, e vale solo mentre la chiamata è in
+attesa: fuori da una chiamata quei pulsanti non ci sono affatto.
 
 **Per il resto compaiono solo i pulsanti che funzionano.** La barra è l'elenco di ciò
 che si può fare *adesso*: mentre una chiamata squilla ci sono *Rispondi* e *Rifiuta*,
-in conferenza compare *Sciogli conferenza*. Le coppie sono un pulsante solo — *Registra*
-e *Interrompi registrazione* non compaiono mai insieme — perché il pulsante dice
-l'azione possibile e non lo stato in cui ci si trova.
+in conferenza compare *Sciogli conferenza*, senza chiamate c'è *Componi*, che porta al
+campo di composizione. Le coppie sono un pulsante solo — *Registra* e *Interrompi
+registrazione* non compaiono mai insieme — perché il pulsante dice l'azione possibile e
+non lo stato in cui ci si trova.
 
 **Il trasferimento è il punto in cui i pulsanti dicono più della tastiera.** Da
 tastiera la differenza fra trasferimento cieco e con annuncio sta nella doppia
@@ -358,10 +427,15 @@ pressione rapida — una destrezza che si impara. Con il mouse sono due pulsanti
 distinti, *Trasferisci subito* e *Annuncia e trasferisci*, che compaiono appena c'è una
 destinazione scritta nel campo.
 
-**Per chi non vede, la barra è una tappa sola** del giro di tabulazione, e lo resta
-qualunque cosa contenga: dentro ci si muove con le frecce. Senza questa scelta il
-numero di `Tab` per raggiungere il campo di composizione sarebbe cambiato sotto le dita
-a ogni chiamata che arriva, che si risponde e che si chiude.
+**Per chi non vede, ogni barra è una tappa sola** del giro di tabulazione, e lo resta
+qualunque cosa contenga: dentro ci si muove con le frecce, che girano in tondo. Senza
+questa scelta il numero di `Tab` per raggiungere il campo di composizione sarebbe
+cambiato sotto le dita a ogni chiamata che arriva, che si risponde e che si chiude.
+È anche la ragione di *Componi*: una barra senza pulsanti non è una tappa, e senza
+chiamate quella della chiamata sarebbe rimasta vuota. Rispetto a quando la barra era
+una sola il giro ha **una tappa in più**, la barra della postazione, che c'è sempre: la
+casella *«Chiamata in conversazione»* resta comunque la terza tappa, dopo la pausa e i
+comandi.
 
 ### Quanto squilla una chiamata entrante
 
@@ -371,15 +445,15 @@ al rifiuto, alla rinuncia del chiamante e a qualunque altro esito. Un segnale su
 una volta sola non direbbe nulla di quello che succede dopo, e su un posto operatore
 non vedente il silenzio è indistinguibile da una chiamata finita.
 
-Per tutto quel tempo, in cima alla finestra, un **riquadro blu lampeggiante** dice chi
-sta chiamando — `Chiamata da: Mario Rossi (4021)` — e si spegne insieme alla suoneria.
-Riporta le stesse informazioni dell'annuncio vocale, scritte per gli occhi: nome
-anagrafico e numero in cifre invece del nome fonetico e delle cifre lette una per una.
-Il numero compare accanto al nome solo per chi è in rubrica, come nell'annuncio: un
-nome che arriva dalla segnalazione lo sceglie chi chiama, e mostrarlo con il numero a
-fianco gli darebbe l'aspetto di una scheda verificata. Il lampeggio è a meno di un
-lampo al secondo, largamente sotto il tetto di tre che le linee guida sulle crisi
-fotosensibili fissano.
+Per tutto quel tempo la **fascia della scheda della chiamata è blu, lampeggia e dice
+SQUILLA** con il tempo dello squillo, e sotto compare chi sta chiamando —
+`Chiamata da: Mario Rossi (4021)  -  coda Anagrafe`. Tutto si spegne insieme alla
+suoneria. Riporta le stesse informazioni dell'annuncio vocale, scritte per gli occhi:
+nome anagrafico e numero in cifre invece del nome fonetico e delle cifre lette una per
+una. Il numero compare accanto a qualunque nome, venga dalla rubrica o dalla
+segnalazione, perché il centralino annuncia molte chiamate esterne con un nome generico
+come *«Chiamate esterne»*. Il lampeggio è a meno di un lampo al secondo, largamente
+sotto il tetto di tre che le linee guida sulle crisi fotosensibili fissano.
 
 **Per quanti secondi squilli non lo decide BlindPhone: lo decide il centralino.** È
 lui a chiudere la chiamata con un `CANCEL` quando scade il tempo di squillo
