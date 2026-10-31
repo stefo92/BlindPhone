@@ -201,6 +201,9 @@ public sealed class HelpBookTests
     [InlineData("non arriva la voce dell'interlocutore", "non e' spiegato l'avviso dell'audio a senso unico")]
     [InlineData("Server STUN", "non e' detto dove si configura il server STUN per il lavoro agile")]
     [InlineData("Segnale di mantenimento", "non e' detto perche' da casa le chiamate entranti possono smettere di arrivare")]
+    [InlineData("Cerca un'impostazione", "non e' detto come si trova un'impostazione per nome")]
+    [InlineData("sezione Avanzate", "non e' detto dove sono finite le voci avanzate dell'account e come si aprono")]
+    [InlineData("Voce e tastiera", "non e' detto in che gruppi e in che ordine stanno le schede delle impostazioni")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza

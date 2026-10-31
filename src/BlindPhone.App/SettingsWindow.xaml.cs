@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using BlindPhone.Accessibility;
@@ -166,6 +167,14 @@ public partial class SettingsWindow : Window
             _tabLabels[tab] = tab.Header as string ?? string.Empty;
         }
 
+        // L'indice della ricerca si costruisce adesso, prima che il criterio aggiunga
+        // "(bloccata)" alle schede: la proposta deve dire il nome della scheda, non il
+        // suo stato di quel momento.
+        _searchIndex = RicercaImpostazioni.Indice(Tabs);
+        SearchResults.ItemsSource = _searchResults;
+        _searchAnnouncement.Tick += OnSearchAnnouncementTick;
+        Closed += (_, _) => _searchAnnouncement.Stop();
+
         LoadDevices();
         LoadSettings(_settingsService.Current);
         LoadHeadset(_settingsService.Current.Headset);
@@ -187,7 +196,7 @@ public partial class SettingsWindow : Window
                 criterio.IsRestrictive
                     ? $"Impostazioni. {criterio.Describe()} Control Tab per cambiare scheda"
                     : "Impostazioni. Control Tab per cambiare scheda, Alt piu' la lettera sottolineata "
-                      + "per andare a un campo",
+                      + "per andare a un campo, Alt Z per cercarne uno per nome",
                 DateTimeOffset.Now));
 
             await RefreshContactCountAsync().ConfigureAwait(true);
@@ -1302,7 +1311,9 @@ public partial class SettingsWindow : Window
     /// <remarks>
     /// Chiamato dal comando dedicato della finestra principale: chi lo preme sta
     /// cercando la diagnostica, non le impostazioni in generale, e farlo arrivare
-    /// sulla prima scheda gli costerebbe sei pressioni di Control Tab.
+    /// sulla prima scheda gli costerebbe dieci pressioni di Control Tab. La scheda si
+    /// sceglie per nome e non per posizione: le schede sono state riordinate in
+    /// gruppi, e lo saranno ancora.
     /// </remarks>
     public void ShowDiagnostics()
     {
@@ -1771,6 +1782,26 @@ public partial class SettingsWindow : Window
     /// </remarks>
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        // Control F porta alla ricerca: e' il tasto che in Windows si prova per primo.
+        if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+            return;
+        }
+
+        // Alt piu' la lettera di un campo che sta in una sezione chiusa: vedi
+        // CampoInSezioneChiusa. Solo Alt, perche' Control Alt e' anche Alt Gr.
+        if (e.Key == Key.System
+            && Keyboard.Modifiers == ModifierKeys.Alt
+            && CampoInSezioneChiusa(e.SystemKey) is { } campo)
+        {
+            e.Handled = true;
+            PortaAlCampo(campo);
+            return;
+        }
+
         if (e.Key != Key.F1) return;
 
         e.Handled = true;
@@ -1793,6 +1824,233 @@ public partial class SettingsWindow : Window
             _log.LogError(ex, "Apertura della guida non riuscita");
             Report("Impossibile aprire la guida");
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Ricerca di un'impostazione e sezioni chiuse
+    // -----------------------------------------------------------------------
+
+    /// <summary>Tutte le impostazioni del pannello, nell'ordine delle schede.</summary>
+    private readonly IReadOnlyList<VoceDiRicerca> _searchIndex;
+
+    /// <summary>Le proposte per la ricerca in corso.</summary>
+    private readonly ObservableCollection<VoceDiRicerca> _searchResults = [];
+
+    /// <summary>
+    /// Ritarda l'annuncio del numero di proposte alla prima pausa di scrittura.
+    /// </summary>
+    /// <remarks>
+    /// Annunciare a ogni lettera farebbe parlare la voce sopra l'eco della tastiera
+    /// dello screen reader, con numeri che smettono di essere veri prima di essere
+    /// finiti di dire. Il numero che conta è quello di quando l'operatore si ferma.
+    /// </remarks>
+    private readonly DispatcherTimer _searchAnnouncement = new() { Interval = TimeSpan.FromMilliseconds(450) };
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+    {
+        var domanda = SearchBox.Text;
+
+        _searchResults.Clear();
+
+        foreach (var voce in _searchIndex)
+        {
+            if (RicercaImpostazioni.Corrisponde(voce.Testo, domanda)
+                && RicercaImpostazioni.Raggiungibile(voce.Destinazione))
+            {
+                _searchResults.Add(voce);
+            }
+        }
+
+        SearchResults.Visibility = _searchResults.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        _searchAnnouncement.Stop();
+        if (!string.IsNullOrWhiteSpace(domanda)) _searchAnnouncement.Start();
+    }
+
+    private void OnSearchAnnouncementTick(object? sender, EventArgs e)
+    {
+        _searchAnnouncement.Stop();
+        Report(DescribeSearchResults());
+    }
+
+    /// <summary>
+    /// Quante proposte ci sono, e che cosa fare adesso.
+    /// </summary>
+    /// <remarks>
+    /// Con una proposta sola la si dice per intero: e' quasi sempre quella cercata, e
+    /// sentirla risparmia di scendere nell'elenco per sapere se lo e'.
+    /// </remarks>
+    private string DescribeSearchResults() => _searchResults.Count switch
+    {
+        0 => "Nessuna impostazione trovata",
+        1 => $"Una impostazione trovata: {_searchResults[0]}. Invio per andarci",
+        var n => $"{n} impostazioni trovate. Freccia giu' per scorrerle, Invio per andare alla prima",
+    };
+
+    private void OnSearchBoxPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            // Invio non deve arrivare a Salva, che e' il pulsante predefinito.
+            case Key.Enter:
+                e.Handled = true;
+                _searchAnnouncement.Stop();
+
+                if (_searchResults.Count > 0)
+                {
+                    PortaAlCampo(_searchResults[0].Destinazione);
+                }
+                else
+                {
+                    Report(string.IsNullOrWhiteSpace(SearchBox.Text)
+                        ? "Scrivi il nome di un'impostazione, per esempio STUN o suoneria"
+                        : DescribeSearchResults());
+                }
+
+                break;
+
+            case Key.Down when _searchResults.Count > 0:
+                e.Handled = true;
+                _searchAnnouncement.Stop();
+                FocusSearchResult(0);
+                break;
+
+            // Esc con il campo pieno lo svuota; con il campo vuoto chiude la finestra
+            // come sempre.
+            case Key.Escape when SearchBox.Text.Length > 0:
+                e.Handled = true;
+                SearchBox.Clear();
+                Report("Ricerca cancellata");
+                break;
+        }
+    }
+
+    private void OnSearchResultsPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Enter:
+                e.Handled = true;
+                if (SearchResults.SelectedItem is VoceDiRicerca voce) PortaAlCampo(voce.Destinazione);
+                break;
+
+            case Key.Up when SearchResults.SelectedIndex <= 0:
+            case Key.Escape:
+                e.Handled = true;
+                SearchBox.Focus();
+                break;
+        }
+    }
+
+    private void OnSearchResultsDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (SearchResults.SelectedItem is VoceDiRicerca voce) PortaAlCampo(voce.Destinazione);
+    }
+
+    /// <summary>Seleziona una proposta e ci porta il cursore, non solo la selezione.</summary>
+    private void FocusSearchResult(int index)
+    {
+        SearchResults.SelectedIndex = index;
+
+        // L'elenco e' appena comparso: senza un passaggio di impaginazione la voce
+        // non ha ancora un contenitore a cui dare il focus.
+        SearchResults.UpdateLayout();
+        SearchResults.ScrollIntoView(SearchResults.SelectedItem);
+
+        if (SearchResults.ItemContainerGenerator.ContainerFromIndex(index) is ListBoxItem voce) voce.Focus();
+    }
+
+    /// <summary>
+    /// Apre la scheda e le sezioni che contengono un campo, e ci porta il cursore.
+    /// </summary>
+    /// <param name="campo">Campo da raggiungere.</param>
+    /// <remarks>
+    /// <para>
+    /// Lo usano la ricerca e il tasto di accesso di un campo che sta in una sezione
+    /// chiusa: in tutti e due i casi l'operatore ha chiesto un campo preciso, e
+    /// arrivare sulla scheda giusta ma non sul campo lo lascerebbe a cercarlo di nuovo,
+    /// questa volta a forza di Tab.
+    /// </para>
+    /// <para>
+    /// Il cursore si sposta perché è l'operatore ad averlo chiesto, e lo screen reader
+    /// legge il campo all'arrivo: è il riscontro del comando. Se il campo non prende il
+    /// cursore — la scheda è bloccata dal criterio, e un contenitore disattivato non lo
+    /// accetta — il cursore va sulla scheda, il cui nome dice «bloccata», e il cambio di
+    /// scheda ha già detto come sbloccarla.
+    /// </para>
+    /// </remarks>
+    private void PortaAlCampo(FrameworkElement campo)
+    {
+        var antenati = RicercaImpostazioni.Antenati(campo).ToList();
+
+        if (antenati.OfType<TabItem>().FirstOrDefault() is { } scheda) Tabs.SelectedItem = scheda;
+
+        foreach (var sezione in antenati.OfType<Expander>()) sezione.IsExpanded = true;
+
+        // La scheda appena scelta e la sezione appena aperta non hanno ancora
+        // costruito i loro controlli: senza impaginazione il campo non c'e'.
+        UpdateLayout();
+
+        if (campo.Focus())
+        {
+            campo.BringIntoView();
+            return;
+        }
+
+        (Tabs.SelectedItem as TabItem)?.Focus();
+    }
+
+    /// <summary>
+    /// Il campo della scheda corrente che ha questa lettera di accesso e sta in una
+    /// sezione chiusa, se c'è.
+    /// </summary>
+    /// <param name="tasto">Il tasto premuto insieme ad Alt.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Il difetto che evita.</b> WPF consegna Alt piu' la lettera soltanto agli
+    /// elementi visibili, e il contenuto di una sezione chiusa non lo è: Alt R,
+    /// con «Avanzate» chiusa, non farebbe niente, senza un suono né una parola. Per chi
+    /// non vede è indistinguibile da un tasto sbagliato, e la lettera sottolineata che
+    /// ha imparato smetterebbe di funzionare a seconda di una sezione che non sa
+    /// nemmeno essere chiusa.
+    /// </para>
+    /// <para>
+    /// Si è scelto di aprire la sezione e non di lasciare quei campi fuori: le voci
+    /// che si toccano una volta all'anno restano raccolte, e chi conosce la lettera ci
+    /// arriva come prima. Le lettere si leggono dal testo delle etichette e dei
+    /// pulsanti, perché una sezione mai aperta non ha ancora costruito i suoi
+    /// controlli, e quindi non ha ancora registrato i tasti.
+    /// </para>
+    /// </remarks>
+    private FrameworkElement? CampoInSezioneChiusa(Key tasto)
+    {
+        char? lettera = tasto switch
+        {
+            >= Key.A and <= Key.Z => (char)('A' + (tasto - Key.A)),
+            >= Key.D0 and <= Key.D9 => (char)('0' + (tasto - Key.D0)),
+            _ => null,
+        };
+
+        if (lettera is null || Tabs.SelectedItem is not TabItem { Content: DependencyObject contenuto }) return null;
+
+        foreach (var sezione in RicercaImpostazioni.Discendenti(contenuto).OfType<Expander>().Where(x => !x.IsExpanded))
+        {
+            foreach (var elemento in RicercaImpostazioni.Discendenti(sezione))
+            {
+                switch (elemento)
+                {
+                    case Label { Content: string testo, Target: FrameworkElement destinazione }
+                        when RicercaImpostazioni.TastoDiAccesso(testo) == lettera:
+                        return destinazione;
+
+                    case ButtonBase { Content: string testo } pulsante
+                        when RicercaImpostazioni.TastoDiAccesso(testo) == lettera:
+                        return pulsante;
+                }
+            }
+        }
+
+        return null;
     }
 
     // -----------------------------------------------------------------------
@@ -2739,6 +2997,17 @@ public partial class SettingsWindow : Window
         // raggiunge con Control Tab, e quello che l'operatore perde e' la possibilita'
         // di leggere come e' configurata la sua postazione.
         if (tab.Content is UIElement contenuto) contenuto.IsEnabled = editable;
+
+        // LE SEZIONI CHIUSE DI UNA SCHEDA BLOCCATA SI APRONO. Una sezione disattivata
+        // non si apre piu', e quello che c'e' dentro — il proxy, l'ordine dei codec —
+        // non si potrebbe nemmeno leggere: la scheda bloccata deve restare leggibile.
+        if (!editable && tab.Content is DependencyObject radice)
+        {
+            foreach (var sezione in RicercaImpostazioni.Discendenti(radice).OfType<Expander>())
+            {
+                sezione.IsExpanded = true;
+            }
+        }
 
         var etichetta = _tabLabels.GetValueOrDefault(tab, tab.Header as string ?? string.Empty);
 

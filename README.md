@@ -391,8 +391,8 @@ centralino — su Yeastar, il *ring timeout* dell'interno o della coda.
 
 Lo stack SIP implementa quattro codec: **G.722**, **G.711 A-law (PCMA)**,
 **G.729** e **G.711 μ-law (PCMU)**. I primi tre sono quelli di uso corrente in
-Europa e sono selezionabili e ordinabili da *Impostazioni → Audio → Codec audio
-della conversazione*; PCMU resta disponibile solo per le interconnessioni
+Europa e sono selezionabili e ordinabili da *Impostazioni → Account SIP → Avanzate
+→ Codec audio della conversazione*: l'ordine è dell'account, non della postazione; PCMU resta disponibile solo per le interconnessioni
 internazionali che lo richiedano.
 
 L'ordine predefinito è **G.729, G.722, G.711 A-law**.
@@ -524,7 +524,8 @@ quel requisito è contrattuale.
 ## Rubrica
 
 **`F6`** apre il pannello rubrica; la configurazione e l'importazione stanno in
-*Impostazioni → Rubrica* (`Ctrl+,`, poi `Ctrl+Tab` fino alla scheda).
+*Impostazioni → Rubrica* (`Ctrl+,`, poi `Ctrl+Tab` fino alla scheda, oppure `Alt+Z` e
+il nome dell'impostazione).
 
 ### Consultazione (`F6`)
 
@@ -923,7 +924,7 @@ trasferimento di dati personali che nessuno ha autorizzato. Lo configura l'ente.
 
 ## Lavoro agile: postazioni dietro NAT
 
-*Impostazioni → Account SIP → Lavoro agile: da casa o con la VPN*
+*Impostazioni → Account SIP → Lavoro agile*
 
 Da casa la postazione sta dietro il router e ha un indirizzo privato. Il sintomo tipico
 è **l'audio a senso unico**: l'interlocutore sente l'operatore, l'operatore sente
@@ -1207,7 +1208,8 @@ disattivano singolarmente, e si applicano subito senza riavviare.
 
 ## Tasti rapidi
 
-*Impostazioni → Tasti rapidi* (`Ctrl+,`, poi `Ctrl+Tab` fino alla scheda)
+*Impostazioni → Tasti rapidi* (`Ctrl+,`, poi `Ctrl+Tab` fino alla scheda, oppure `Alt+Z` e
+il nome dell'impostazione)
 
 Ogni comando è riassegnabile, in due ambiti indipendenti: **locale** (BlindPhone in
 primo piano) e **globale** (funziona anche in secondo piano, registrata presso

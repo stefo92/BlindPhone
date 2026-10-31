@@ -47,8 +47,8 @@
     <SolidColorBrush x:Key="FieldBrush" Color="#1F1F1F" />
     <SolidColorBrush x:Key="FieldBorderBrush" Color="#7A7A7A" />
 
-    <!-- Selezione negli elenchi: bianco su blu, 7,6 a 1. -->
-    <SolidColorBrush x:Key="SelectionBrush" Color="#1F5FA8" />
+    <!-- Selezione negli elenchi: bianco su blu, 7,7 a 1 (misurato: #1F5FA8 dava 6,4, sotto il 7 promesso). -->
+    <SolidColorBrush x:Key="SelectionBrush" Color="#1A5493" />
     <SolidColorBrush x:Key="SelectionTextBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="HoverRowBrush" Color="#2F3B47" />
 
