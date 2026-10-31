@@ -81,6 +81,41 @@ public static class ShiftBoardTexts
     }
 
     /// <summary>
+    /// Pittogramma dello stato, accanto alla parola nella voce dell'elenco.
+    /// </summary>
+    /// <param name="entry">Riga del quadro.</param>
+    /// <returns>Un punto di codice di Segoe Fluent Icons.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Un segno di forma diversa per ogni stato</b>, perché lo stato non sia affidato
+    /// al solo colore: la spunta per chi è in turno e libero, la cornetta per chi è al
+    /// telefono, la campana per chi sta squillando, il cerchio barrato per chi non vuole
+    /// essere disturbato, l'orologio per chi è assente, la croce per chi non è in turno,
+    /// il punto di domanda quando non si sa. Si riconoscono anche senza distinguere i
+    /// colori e in contrasto elevato, dove il colore lo decide Windows.
+    /// </para>
+    /// <para>
+    /// È decorativo: accanto c'è sempre la parola di <see cref="Status"/>, e allo screen
+    /// reader arriva soltanto quella. I segni esistono anche in Segoe MDL2 Assets, il
+    /// carattere di Windows 10.
+    /// </para>
+    /// </remarks>
+    public static string StatusIcon(ShiftEntry entry) => entry.Duty switch
+    {
+        DutyState.OnDuty => entry.Detail switch
+        {
+            PresenceState.Busy => "",
+            PresenceState.Ringing => "",
+            PresenceState.DoNotDisturb => "",
+            PresenceState.Away => "",
+            _ => "",
+        },
+        DutyState.OffDuty => "",
+        DutyState.NotConfigured => "",
+        _ => "",
+    };
+
+    /// <summary>
     /// Testo che lo screen reader legge quando il cursore arriva sulla riga.
     /// </summary>
     /// <param name="entry">Riga del quadro.</param>

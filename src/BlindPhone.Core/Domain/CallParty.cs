@@ -56,6 +56,16 @@ public sealed record CallParty(
     public string? Extension { get; init; }
 
     /// <summary>
+    /// Ufficio o reparto che la rubrica associa alla controparte, se lo conosce.
+    /// </summary>
+    /// <remarks>
+    /// Serve solo a chi guarda lo schermo: compare sotto il nome grande della scheda
+    /// della chiamata, ed è la riga che risponde a «chi è questo Rossi?» quando in
+    /// rubrica ce ne sono tre. Non entra negli annunci, che restano quelli di sempre.
+    /// </remarks>
+    public string? Department { get; init; }
+
+    /// <summary>
     /// Indica se della controparte non si conosce nulla di pronunciabile.
     /// </summary>
     public bool IsAnonymous => string.IsNullOrWhiteSpace(Number) && string.IsNullOrWhiteSpace(DisplayName);

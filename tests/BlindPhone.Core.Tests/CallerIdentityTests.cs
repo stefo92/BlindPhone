@@ -45,7 +45,8 @@ internal sealed class FakeContactRepository : IContactRepository
         string extension,
         PresenceState presence = PresenceState.Unknown,
         bool doNotTransfer = false,
-        ContactKind kind = ContactKind.Unknown)
+        ContactKind kind = ContactKind.Unknown,
+        string? department = null)
     {
         _contacts.Add(new Contact
         {
@@ -55,6 +56,7 @@ internal sealed class FakeContactRepository : IContactRepository
             Presence = presence,
             DoNotTransfer = doNotTransfer,
             Kind = kind,
+            Department = department,
         });
 
         return this;

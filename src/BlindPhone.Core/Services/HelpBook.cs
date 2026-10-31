@@ -158,9 +158,13 @@ public static class HelpBook
 
         Se le scorciatoie ti sembrano troppe, c'è una via più corta: la modalità semplificata governa l'intera chiamata con quattro tasti del tastierino numerico. Ha un argomento suo in questa guida.
 
-        Nella finestra trovi due caselle di sola lettura, affiancate: a sinistra «Collegato a», con nome e numero di chi hai in linea; a destra «In attesa», con nome, numero e da quanto tempo aspetta. Servono soprattutto a chi guarda lo schermo — un collega che ti affianca, chi passa dalla postazione — e fanno per lui quello che le spie luminose fanno su un centralino tradizionale. Sono caselle di testo e non etichette proprio perché il numero che c'è scritto si possa selezionare e copiare. Non parlano da sole: il tempo di attesa cambia ogni secondo e sentirlo ripetere ti coprirebbe la conversazione. Quello che devi sapere continua ad arrivarti dagli annunci.
+        Come è fatta la finestra, nell'ordine in cui la percorre il tabulatore. In alto la scheda della postazione: lo stato del telefono, la segreteria, il pulsante della pausa con l'orologio del turno e i comandi della postazione — rubrica, elenco delle chiamate, impostazioni e account. Poi la scheda della chiamata; poi la coda e i colleghi, quando ci sono; poi il campo di composizione; in fondo l'ultimo annuncio. Con la finestra larga la coda e i colleghi stanno a destra della chiamata, con quella stretta sotto: l'ordine del tabulatore è lo stesso.
 
-        Sotto la riga della chiamata in corso c'è una fila di pulsanti, che compaiono solo quando la funzione è disponibile: mentre squilla ci sono «rispondi» e «rifiuta», in conversazione l'attesa, il trasferimento e la registrazione. Servono a chi usa il mouse e non tolgono niente alla tastiera: ogni pulsante esegue lo stesso comando della sua scorciatoia. Per chi si muove con il tabulatore la fila conta come una tappa sola, qualunque cosa contenga, e dentro ci si sposta con le frecce: così il numero di tabulazioni per arrivare al campo di composizione non cambia mentre le chiamate vanno e vengono.
+        In cima alla scheda della chiamata c'è una fascia colorata che dice in una parola com'è la linea: libero, squilla, in linea, in attesa, fuori servizio, con accanto da quanto tempo. È sempre presente e sempre alta uguale, così quello che sta sotto non si sposta quando arriva una chiamata. Serve a chi guarda lo schermo e non parla da sola: quello che succede te lo dicono gli annunci.
+
+        Sotto la fascia, in grande, una casella di sola lettura con nome e numero di chi hai in linea; mentre una chiamata squilla, sopra compare anche chi sta chiamando. In fondo alla scheda un'altra casella dice chi è in attesa e da quanto tempo aspetta. Fanno per chi guarda quello che le spie luminose fanno su un centralino tradizionale, e sono caselle di testo e non etichette proprio perché il numero che c'è scritto si possa selezionare e copiare. Non parlano da sole: il tempo di attesa cambia ogni secondo e sentirlo ripetere ti coprirebbe la conversazione.
+
+        I pulsanti stanno in due barre. Quella della postazione, in alto, c'è sempre. Quella della chiamata, nella scheda della chiamata, mostra solo quello che si può fare adesso: mentre squilla «rispondi» e «rifiuta», in conversazione l'attesa, il trasferimento e la registrazione, e senza chiamate «componi», che porta al campo di composizione. Servono a chi usa il mouse e non tolgono niente alla tastiera: ogni pulsante esegue lo stesso comando della sua scorciatoia. Per chi si muove con il tabulatore ogni barra conta come una tappa sola, qualunque cosa contenga, e dentro ci si sposta con le frecce: così il numero di tabulazioni per arrivare al campo di composizione non cambia mentre le chiamate vanno e vengono.
 
         Questa guida si riapre in qualunque momento con {K(profile, HotkeyCommand.OpenHelp)}, e si apre sull'argomento che riguarda il punto in cui ti trovi.
         """;
@@ -243,7 +247,7 @@ public static class HelpBook
 
         In conferenza la registrazione non è disponibile: le due linee sono due percorsi audio distinti e ne uscirebbe un file con una voce sola.
 
-        Quando arriva una chiamata la senti squillare e la voce ti dice chi è. La suoneria continua finché non rispondi: se smette da sola, la chiamata non c'è più — è il centralino che l'ha ritirata, perché è scaduto il tempo di squillo che ha configurato lui. In cima alla finestra compare anche un riquadro blu lampeggiante con il nome e il numero di chi chiama, per chi guarda lo schermo.
+        Quando arriva una chiamata la senti squillare e la voce ti dice chi è. La suoneria continua finché non rispondi: se smette da sola, la chiamata non c'è più — è il centralino che l'ha ritirata, perché è scaduto il tempo di squillo che ha configurato lui. Per chi guarda lo schermo, la fascia in cima alla scheda della chiamata diventa blu, lampeggia e dice SQUILLA con il tempo dello squillo, e sotto compaiono il nome e il numero di chi chiama.
 
         Se il numero risulta in rubrica senti il nome e il recapito da cui chiama: «Chiamata da Mario Rossi, interno quattro zero due uno». Il numero viene detto anche avendo il nome, perché è quello che ti serve subito dopo, per richiamare o per riferire a chi passi la chiamata. Si dice «interno» solo quando quel numero è davvero l'interno del contatto: se lo stesso contatto ti sta chiamando dal cellulare senti «numero», che è un'altra cosa e cambia il modo di rispondere.
 
@@ -413,7 +417,7 @@ public static class HelpBook
 
         La pausa della postazione, {K(profile, HotkeyCommand.ToggleServicePause)}, mette fuori servizio il posto operatore per intero. Ogni chiamata entrante — di coda o diretta — viene rifiutata nell'istante in cui arriva, e il centralino la passa subito a un collega invece di lasciarla squillare per venti secondi su una sedia vuota. Funziona anche senza API, perché agisce sulla segnalazione telefonica.
 
-        Mentre sei fuori servizio il campo di composizione è bloccato e un avviso rosso lampeggia nella finestra. Se provi a digitare, la voce ti ricorda da quanto sei in pausa e con quale tasto rientrare. Le chiamate che avevi già in corso non vengono toccate: mettersi in pausa significa non prenderne di nuove, non far cadere quella che hai in mano.
+        Mentre sei fuori servizio il campo di composizione è bloccato e la fascia della scheda della chiamata diventa rossa, lampeggia e dice FUORI SERVIZIO, con il tempo della pausa. Se provi a digitare, la voce ti ricorda da quanto sei in pausa e con quale tasto rientrare. Le chiamate che avevi già in corso non vengono toccate: mettersi in pausa significa non prenderne di nuove, non far cadere quella che hai in mano.
 
         Oltre una certa attesa scatta un avviso, per non lasciare che qualcuno resti in linea dimenticato. La soglia si regola da Impostazioni, scheda Accessibilità.
         """;
@@ -644,7 +648,7 @@ public static class HelpBook
 
         Chiamate. Modalità del tasto di trasferimento, tempo di attesa della consultazione, conferme.
 
-        Aggiornamenti, nella scheda Assistenza. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
+        Aggiornamenti, nella scheda Assistenza. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
         Tasti rapidi. Vedi l'argomento dedicato.
 

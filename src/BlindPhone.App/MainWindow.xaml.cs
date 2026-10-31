@@ -28,6 +28,13 @@ namespace BlindPhone.App;
 /// <param name="Flags">Contrassegni: VIP, emergenza.</param>
 /// <param name="Id">Identificativo della chiamata lato centralino.</param>
 /// <param name="SpokenCaller">Chiamante nella forma pronunciabile, con il numero letto cifra per cifra.</param>
+/// <param name="Number">
+/// Numero del chiamante, in cifre, quando c'è un nome da mostrare al suo posto; stringa
+/// vuota se il chiamante è già il numero.
+/// </param>
+/// <param name="WaitClock">
+/// Tempo di attesa in forma di orologio, per lo schermo: "2:41". Vuoto se non calcolato.
+/// </param>
 public sealed record QueueRow(
     string Position,
     string Caller,
@@ -35,8 +42,52 @@ public sealed record QueueRow(
     string Queue,
     string Flags,
     string Id,
-    string SpokenCaller)
+    string SpokenCaller,
+    string Number = "",
+    string WaitClock = "")
 {
+    /// <summary>
+    /// L'attesa come si vede, a destra nella voce.
+    /// </summary>
+    /// <remarks>
+    /// A schermo vale la forma dell'orologio, «2:41», che si afferra con un'occhiata e
+    /// occupa la stessa larghezza su ogni riga. La forma a parole, «2 minuti e 41»,
+    /// resta in <see cref="Wait"/> per la lettura vocale, che non cambia: in una voce
+    /// che va a capo una colonna di larghezza variabile spingerebbe il nome su due righe.
+    /// </remarks>
+    public string WaitShown => string.IsNullOrEmpty(WaitClock) ? Wait : WaitClock;
+
+    /// <summary>
+    /// Riga sotto il chiamante: coda, numero e segnalazioni, quelli che ci sono.
+    /// </summary>
+    /// <remarks>
+    /// È la parte della voce che prima stava in tre colonne a larghezza fissa. Le
+    /// segnalazioni vengono per ultime a schermo e per prime a voce
+    /// (<see cref="AccessibleText"/>): chi guarda le trova accanto al nome, chi ascolta
+    /// deve saperle prima di sapere chi è.
+    /// </remarks>
+    public string Detail
+    {
+        get
+        {
+            var parts = new List<string>(3);
+
+            if (!string.IsNullOrWhiteSpace(Queue)) parts.Add($"Coda {Queue}");
+            if (!string.IsNullOrWhiteSpace(Number)) parts.Add(Number);
+            if (!string.IsNullOrWhiteSpace(Flags)) parts.Add(Flags);
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    /// <summary>Il tondino della posizione c'è solo quando la posizione è garantita.</summary>
+    public Visibility PositionVisibility
+        => string.IsNullOrWhiteSpace(Position) ? Visibility.Collapsed : Visibility.Visible;
+
+    /// <summary>La riga di dettaglio sparisce quando non ha niente da dire.</summary>
+    public Visibility DetailVisibility
+        => Detail.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+
     /// <summary>
     /// Testo che la sintesi legge quando il focus arriva sulla voce.
     /// </summary>
@@ -65,7 +116,7 @@ public sealed record QueueRow(
 }
 
 /// <summary>Riga dell'elenco dei colleghi in turno.</summary>
-/// <param name="Status">Stato in parole, per la colonna.</param>
+/// <param name="Status">Stato in parole, nella pastiglia in testa alla voce.</param>
 /// <param name="Name">Nominativo, oppure stringa vuota se non se ne conosce nessuno.</param>
 /// <param name="Number">Interno, in cifre.</param>
 /// <param name="Since">Ora in cui lo stato è diventato quello, oppure stringa vuota.</param>
@@ -73,12 +124,24 @@ public sealed record QueueRow(
 /// Quello che lo screen reader legge arrivando sulla riga: lo stato per primo, poi chi
 /// è, con il numero letto cifra per cifra.
 /// </param>
+/// <param name="Icon">
+/// Pittogramma dello stato, accanto alla parola: un segno che si riconosce senza
+/// distinguere i colori. Vedi <see cref="ShiftBoardTexts.StatusIcon"/>.
+/// </param>
 public sealed record ColleagueRow(
     string Status,
     string Name,
     string Number,
     string Since,
-    string AccessibleText);
+    string AccessibleText,
+    string Icon = "")
+{
+    /// <summary>
+    /// L'interno con la sua parola davanti: senza intestazioni di colonna, un numero da
+    /// solo in mezzo alla riga non dice che cos'è.
+    /// </summary>
+    public string NumberText => string.IsNullOrWhiteSpace(Number) ? string.Empty : $"interno {Number}";
+}
 
 /// <summary>Contatto proposto sopra il campo di composizione.</summary>
 /// <param name="Name">Nominativo.</param>
@@ -237,26 +300,20 @@ public partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Misurata, non scelta a occhio.</b> Serve a contenere il titolo della scheda,
-    /// la riga delle intestazioni di colonna e almeno tre voci: sotto, la sezione mostra
-    /// i nomi delle colonne e nient'altro, cioè occupa spazio nella finestra e sul
-    /// percorso di navigazione senza dire niente. A centoventi pixel, provato sul banco
-    /// del layout, si vedeva esattamente questo.
+    /// <b>Il titolo della scheda e una voce, e non di più.</b> Le righe elastiche sono le
+    /// prime a cedere spazio quando qualcosa sopra cresce, e ridotta a una fessura una
+    /// lista mostrerebbe una sezione che c'è e non si legge. Sopra questo minimo invece
+    /// la lista cede volentieri, e scorre al suo interno.
     /// </para>
     /// <para>
-    /// Le righe elastiche sono le prime a cedere spazio quando qualcosa sopra cresce.
-    /// Con un minimo dichiarato lo spazio non si prende più da qui: il contenuto sfonda
-    /// la finestra e <see cref="GrowToFitContent"/> la allarga.
-    /// </para>
-    /// <para>
-    /// <b>È il valore preferito, non sempre quello in vigore.</b> Dove nemmeno
-    /// allargandosi fino al bordo dello schermo la finestra riesce a contenere le liste a
-    /// questa altezza, ciascuna cede quanto serve a lasciare in vista il campo di
-    /// composizione: vedi <see cref="MainWindowLayout.ListMinimum"/> e
-    /// <see cref="FitListMinimums"/>.
+    /// Prima il minimo era 180 pixel e la finestra si allungava da sé per darli a
+    /// ciascuna lista. Con la colonna laterale accanto alla chiamata quello spazio c'è
+    /// quasi sempre; dove non c'è, una lista più corta che scorre è meglio di una finestra
+    /// che cresce fino al bordo dello schermo. Vedi <see cref="MainWindowLayout.ListFloor"/>
+    /// e <see cref="FitWorkRowMinimum"/>.
     /// </para>
     /// </remarks>
-    private const double MinimumListHeight = MainWindowLayout.PreferredListHeight;
+    private const double MinimumListHeight = MainWindowLayout.ListFloor;
 
     private bool? _queueSectionVisible;
 
@@ -404,6 +461,9 @@ public partial class MainWindow : Window
 
         // La finestra si allarga quando il contenuto non ci sta: vedi GrowToFitContent.
         RootGrid.LayoutUpdated += OnRootLayoutUpdated;
+
+        // Una o due colonne secondo la larghezza: vedi ApplyWorkAreaLayout.
+        RootGrid.SizeChanged += (_, _) => ApplyWorkAreaLayout();
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
@@ -689,7 +749,7 @@ public partial class MainWindow : Window
 
             _announcer.Announce(Announcement.Normal(
                 $"Aggiornamento disponibile: versione {esito.Update!.DisplayVersion}. "
-                + "Il pulsante per installarlo e' nella barra dei comandi.",
+                + "Il pulsante per installarlo e' nella barra dei comandi della postazione.",
                 DateTimeOffset.Now,
                 coalesceKey: "update:available"));
         }
@@ -935,8 +995,9 @@ public partial class MainWindow : Window
     /// Il minimo di altezza c'è per lo stesso motivo per cui c'è su quella della coda:
     /// è una riga elastica, quindi è la prima a cedere spazio quando qualcosa sopra
     /// cresce, e ridotta a una fessura mostrerebbe una sezione che c'è e non si legge.
-    /// A zero quando è nascosta, altrimenti resterebbe una fascia vuota in mezzo alla
-    /// finestra.
+    /// A zero quando è nascosta, altrimenti resterebbe una fascia vuota nella colonna
+    /// laterale. Se con lei sparisce anche la coda, sparisce la colonna e la chiamata
+    /// prende tutta la larghezza: vedi <see cref="ApplyWorkAreaLayout"/>.
     /// </para>
     /// </remarks>
     private void ApplyColleaguesVisibility()
@@ -954,6 +1015,8 @@ public partial class MainWindow : Window
 
         var previous = _colleaguesSectionVisible;
         _colleaguesSectionVisible = visible;
+
+        ApplyWorkAreaLayout();
 
         if (!visible && hadFocus) DialerBox.Focus();
 
@@ -995,7 +1058,8 @@ public partial class MainWindow : Window
                 voce.Name,
                 voce.Number,
                 voce.Since is { } da ? $"dalle {da:HH:mm}" : string.Empty,
-                ShiftBoardTexts.Accessible(voce, raggruppamento)));
+                ShiftBoardTexts.Accessible(voce, raggruppamento),
+                ShiftBoardTexts.StatusIcon(voce)));
         }
 
         ColleaguesHeaderText.Text = _shift.CanTrustResults
@@ -1137,10 +1201,10 @@ public partial class MainWindow : Window
     /// puro attrito, tutti i giorni.
     /// </para>
     /// <para>
-    /// La riga della griglia si azzera insieme alla sezione. Nasconderne il solo
-    /// contenuto lascerebbe un vuoto verticale in mezzo alla finestra, con il campo di
-    /// composizione spinto a metà schermo: chi vede lo troverebbe fuori posto, e chi
-    /// ingrandisce lo schermo dovrebbe percorrere quel vuoto per arrivarci.
+    /// La riga della colonna laterale si azzera insieme alla sezione. Nasconderne il
+    /// solo contenuto lascerebbe un vuoto a metà della colonna: chi vede lo troverebbe
+    /// fuori posto, e chi ingrandisce lo schermo dovrebbe percorrere quel vuoto per
+    /// arrivare ai colleghi. Se non resta nessuna sezione sparisce la colonna intera.
     /// </para>
     /// <para>
     /// Si applica a caldo come le altre impostazioni, e a caldo va anche detto: chi ha
@@ -1166,18 +1230,17 @@ public partial class MainWindow : Window
 
         // L'ELENCO NON PUO' RIDURSI A UNA FESSURA.
         //
-        // E' l'unica riga elastica della finestra, quindi e' la prima a cedere spazio
-        // quando qualcosa sopra cresce: con un nome di chiamante lungo, che manda il
-        // riquadro dell'avviso su due righe, restava alta sette pixel. La sezione
-        // risultava presente e vuota, che e' il modo peggiore di mostrarla — chi guarda
-        // non ha modo di sapere se la coda e' vuota o se l'elenco e' stato schiacciato.
-        //
-        // Con un minimo dichiarato lo spazio non si prende piu' da qui: il contenuto
-        // sfonda la finestra, GrowToFitContent se ne accorge e la allarga.
+        // E' una riga elastica, quindi e' la prima a cedere spazio quando qualcosa
+        // sopra cresce: senza minimo, con un nome di chiamante lungo restava alta sette
+        // pixel. La sezione risultava presente e vuota, che e' il modo peggiore di
+        // mostrarla — chi guarda non ha modo di sapere se la coda e' vuota o se
+        // l'elenco e' stato schiacciato. Sopra il minimo cede, e scorre al suo interno.
         //
         // A zero quando la sezione e' nascosta, altrimenti resterebbe una fascia vuota
-        // di centoventi pixel in mezzo alla finestra.
+        // nella colonna laterale.
         QueueRow.MinHeight = visible ? MinimumListHeight : 0;
+
+        ApplyWorkAreaLayout();
 
         var previous = _queueSectionVisible;
         if (previous == visible) return;
@@ -2069,27 +2132,36 @@ public partial class MainWindow : Window
     }
 
     // -----------------------------------------------------------------------
-    // La barra dei comandi, per chi usa il mouse
+    // Le due barre dei comandi, per chi usa il mouse
     // -----------------------------------------------------------------------
 
-    /// <summary>Firma dei pulsanti mostrati, per non ricostruire la barra a vuoto.</summary>
-    private string _commandBarSignature = string.Empty;
+    /// <summary>Firma dei pulsanti della barra della postazione, per non ricostruirla a vuoto.</summary>
+    private string _stationBarSignature = string.Empty;
+
+    /// <summary>Firma dei pulsanti della barra della chiamata, per non ricostruirla a vuoto.</summary>
+    private string _callBarSignature = string.Empty;
 
     /// <summary>
-    /// Rifà la barra dei pulsanti se le azioni disponibili sono cambiate.
+    /// Rifà le due barre dei pulsanti se le azioni disponibili sono cambiate.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Si ricostruisce solo quando cambia davvero qualcosa.</b> Questo metodo viene
-    /// richiamato dopo ogni comando, a ogni transizione di chiamata e a ogni tasto
-    /// battuto nel campo di composizione: ricostruire ogni volta toglierebbe il focus
-    /// dal pulsante su cui si trova l'operatore e farebbe rileggere la barra alla
-    /// tecnologia assistiva a ogni cifra digitata.
+    /// <b>Le barre sono due, e l'elenco è uno.</b> <see cref="CallActionCatalog"/>
+    /// decide quali pulsanti esistono, nell'ordine di sempre; qui si dividono secondo la
+    /// famiglia. Le finestre della postazione — rubrica, elenco delle chiamate,
+    /// impostazioni, account, aggiornamento — vanno nella barra in alto, accanto
+    /// all'orologio del turno; tutto il resto nella barra della chiamata. Prima stavano
+    /// in coda alla stessa fila, e quattro pulsanti che non cambiano mai si spostavano a
+    /// ogni squillo insieme a quelli che cambiano.
     /// </para>
     /// <para>
-    /// Le regole di quali pulsanti mostrare non stanno qui ma in
-    /// <see cref="CallActionCatalog"/>, dove si collaudano stato per stato. Qui resta
-    /// il solo atto di costruirli.
+    /// <b>Ciascuna si ricostruisce solo quando cambia davvero qualcosa, e da sola.</b>
+    /// Questo metodo viene richiamato dopo ogni comando, a ogni transizione di chiamata e
+    /// a ogni tasto battuto nel campo di composizione: ricostruire ogni volta toglierebbe
+    /// il focus dal pulsante su cui si trova l'operatore e farebbe rileggere la barra
+    /// alla tecnologia assistiva a ogni cifra digitata. Con due firme separate, una
+    /// chiamata che arriva non tocca la barra della postazione, e un aggiornamento
+    /// trovato non tocca quella della chiamata.
     /// </para>
     /// </remarks>
     private void UpdateCommandBar()
@@ -2103,37 +2175,64 @@ public partial class MainWindow : Window
 
         var azioni = CallActionCatalog.Available(contesto);
 
+        RebuildBar(
+            StationCommandBar,
+            [.. azioni.Where(a => a.Group == CallActionGroup.Station)],
+            ref _stationBarSignature);
+
+        RebuildBar(
+            CallCommandBar,
+            [.. azioni.Where(a => a.Group != CallActionGroup.Station)],
+            ref _callBarSignature);
+
+        // La fascia legge lo stesso stato della barra: si riallinea qui per la stessa
+        // ragione per cui si riallinea la barra, cioe' per non doversi ricordare di
+        // farlo in ciascuno dei rami che cambiano qualcosa.
+        UpdateStatusBand(DateTimeOffset.Now);
+    }
+
+    /// <summary>
+    /// Ricostruisce una barra, se i suoi pulsanti sono cambiati.
+    /// </summary>
+    /// <param name="bar">La barra.</param>
+    /// <param name="azioni">I pulsanti che le spettano, nell'ordine del catalogo.</param>
+    /// <param name="firma">Firma dei pulsanti mostrati adesso, aggiornata qui.</param>
+    private void RebuildBar(
+        System.Windows.Controls.ItemsControl bar,
+        IReadOnlyList<CallActionButton> azioni,
+        ref string firma)
+    {
         // Nella firma entra anche l'acceso e spento: «Registra» disponibile e
         // «Registra» spento sono lo stesso pulsante ma non lo stesso pulsante, e senza
         // questo la barra resterebbe ferma mentre la chiamata va in attesa.
         var signature = string.Join('|', azioni.Select(a => $"{a.Action}:{a.IsEnabled}"));
-        if (signature == _commandBarSignature) return;
+        if (signature == firma) return;
 
-        _commandBarSignature = signature;
+        firma = signature;
 
         // Se il cursore era su un pulsante, i pulsanti che sta per sostituire se lo
         // porterebbero via: il focus tornerebbe alla finestra, e chi si muove a
         // tastiera dovrebbe ricominciare il giro di tabulazione da capo proprio nel
         // momento in cui la situazione e' cambiata.
-        var focusEraNellaBarra = CommandBar.IsKeyboardFocusWithin;
+        var focusEraNellaBarra = bar.IsKeyboardFocusWithin;
 
-        CommandBar.Items.Clear();
+        bar.Items.Clear();
 
         CallActionGroup? gruppoPrecedente = null;
 
         foreach (var azione in azioni)
         {
-            // Un filo verticale fra una famiglia e l'altra: separa i comandi della
-            // chiamata da quelli della conversazione e da quelli della postazione.
-            // Senza, dodici pulsanti in fila sono un muro in cui si cerca a occhio
-            // invece di andare a colpo sicuro.
+            // Un filo verticale fra una famiglia e l'altra: nella barra della chiamata
+            // separa i comandi sulla chiamata dagli interruttori della conversazione.
+            // Senza, otto pulsanti in fila sono un muro in cui si cerca a occhio invece
+            // di andare a colpo sicuro.
             if (gruppoPrecedente is { } precedente && precedente != azione.Group)
             {
-                CommandBar.Items.Add(CreateGroupSeparator());
+                bar.Items.Add(CreateGroupSeparator());
             }
 
             gruppoPrecedente = azione.Group;
-            CommandBar.Items.Add(CreateCommandButton(azione));
+            bar.Items.Add(CreateCommandButton(azione));
         }
 
         if (!focusEraNellaBarra) return;
@@ -2147,7 +2246,7 @@ public partial class MainWindow : Window
                 // Il primo elemento e' sempre un pulsante, ma i separatori stanno
                 // nella stessa raccolta: si cerca il primo che si possa mettere a
                 // fuoco invece di dare per scontata la posizione.
-                foreach (var elemento in CommandBar.Items)
+                foreach (var elemento in bar.Items)
                 {
                     if (elemento is not System.Windows.Controls.Button { IsEnabled: true } primo) continue;
 
@@ -2322,6 +2421,7 @@ public partial class MainWindow : Window
     /// </remarks>
     private static HotkeyCommand? HotkeyFor(CallAction action) => action switch
     {
+        CallAction.FocusDialer => HotkeyCommand.FocusDialer,
         CallAction.Answer => HotkeyCommand.Answer,
         CallAction.Reject or CallAction.HangUp => HotkeyCommand.HangUp,
         CallAction.Hold or CallAction.Resume => HotkeyCommand.ToggleHold,
@@ -3552,8 +3652,6 @@ public partial class MainWindow : Window
     /// </remarks>
     private void ApplyPausedState(bool paused)
     {
-        PauseBanner.Visibility = paused ? Visibility.Visible : Visibility.Collapsed;
-
         UpdateDialerAvailability();
         DialButton.IsEnabled = !paused;
 
@@ -3565,125 +3663,171 @@ public partial class MainWindow : Window
               + "per tornare in servizio."
             : _dialerHelpText);
 
-        if (paused) StartPauseBannerFlash();
-        else StopPauseBannerFlash();
-
         // IL PULSANTE VA RISCRITTO QUI, e prima non succedeva.
         //
         // Si aggiornava soltanto dentro UpdateStatus, che gira alle transizioni di
         // chiamata e agli aggiornamenti di coda: su una postazione ferma, con l'API
         // del centralino disattivata, non girava affatto. L'operatore premeva la
-        // pausa, sentiva l'annuncio, vedeva comparire il riquadro rosso — e sul
+        // pausa, sentiva l'annuncio, vedeva la fascia diventare rossa — e sul
         // pulsante restava la tazza, come se il comando non fosse arrivato.
         UpdateServicePauseButton();
 
         UpdateServiceClock(DateTimeOffset.Now);
 
+        // La fascia dice FUORI SERVIZIO, se non c'e' una chiamata che ha la precedenza.
+        UpdateStatusBand(DateTimeOffset.Now);
+
         // Porta la pausa sul suggerimento dell'icona nell'area di notifica.
         UpdateRegistrationText();
     }
 
-    /// <summary>Avvia il lampeggio dell'avviso.</summary>
+    // -----------------------------------------------------------------------
+    // La fascia di stato della chiamata
+    // -----------------------------------------------------------------------
+
+    /// <summary>Stato mostrato adesso dalla fascia; <c>null</c> prima della prima volta.</summary>
+    private LineStatus? _bandStatus;
+
+    /// <summary>Storyboard del lampeggio della fascia, tenuto per poterlo fermare.</summary>
+    private Storyboard? _bandFlash;
+
+    /// <summary>Fotografia dello stato da cui dipende la fascia.</summary>
+    /// <remarks>
+    /// Chi aspetta si conta con <c>WaitingCalls</c> e non con <c>HeldCalls</c>: il
+    /// chiamante parcheggiato dentro un trasferimento sta aspettando quanto quello in
+    /// attesa, e per tutta la procedura la fascia avrebbe detto LIBERO.
+    /// </remarks>
+    private LineStatusContext CurrentLineStatusContext() => new(
+        HasRingingCall: _calls.RingingCall is not null,
+        IsTalking: _calls.IsTalking,
+        HasOutgoingCall: _calls.OutgoingCall is not null,
+        WaitingCount: _calls.WaitingCalls.Count,
+        IsServicePaused: _duty.IsPaused);
+
+    /// <summary>
+    /// Riallinea la fascia allo stato della postazione e ne fa avanzare il cronometro.
+    /// </summary>
+    /// <param name="now">Istante corrente.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Segue lo stato, non gli eventi.</b> Gli avvisi di prima si accendevano
+    /// all'arrivo di una chiamata e si spegnevano altrove, e avevano cinque modi di
+    /// restare accesi a vuoto — risposta, rifiuto, rinuncia del chiamante, caduta, cambio
+    /// di chiamata in squillo. Qui ogni volta si ricalcola lo stato da capo con
+    /// <see cref="LineStatusCatalog.Resolve"/>: la fascia non può dire una cosa che non
+    /// è più vera, come la suoneria, che segue la stessa regola
+    /// (<c>CallSessionManager.SyncRinger</c>).
+    /// </para>
+    /// <para>
+    /// <b>Colori, parola e lampeggio si toccano solo quando lo stato cambia.</b> Il metodo
+    /// gira una volta al secondo per il cronometro e a ogni aggiornamento della coda: far
+    /// ripartire l'animazione ogni volta la bloccherebbe sul primo fotogramma.
+    /// </para>
+    /// <para>
+    /// I colori si agganciano alle chiavi del tema per nome, come con
+    /// <c>DynamicResource</c>: cambiando tema a programma aperto la fascia si ridipinge
+    /// con gli altri elementi, e in contrasto elevato prende i colori di Windows.
+    /// </para>
+    /// </remarks>
+    private void UpdateStatusBand(DateTimeOffset now)
+    {
+        var status = LineStatusCatalog.Resolve(CurrentLineStatusContext());
+
+        if (status != _bandStatus)
+        {
+            _bandStatus = status;
+
+            var face = LineStatusCatalog.Face(status);
+
+            StatusBandWord.Text = face.Word;
+            StatusBandIcon.Text = face.Icon;
+            AutomationProperties.SetName(StatusBandWord, face.AccessibleName);
+
+            var (fondo, testo) = status switch
+            {
+                LineStatus.Ringing => ("LineRingingBrush", "LineAlertTextBrush"),
+                LineStatus.Talking => ("LineTalkingBrush", "LineAlertTextBrush"),
+                LineStatus.OnHold => ("LineHoldBrush", "LineAlertTextBrush"),
+                LineStatus.OutOfService => ("LineOutOfServiceBrush", "LineAlertTextBrush"),
+                _ => ("HeaderBrush", "TextBrush"),
+            };
+
+            StatusBand.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, fondo);
+            StatusBandContent.SetResourceReference(System.Windows.Documents.TextElement.ForegroundProperty, testo);
+
+            if (face.Flashes) StartBandFlash();
+            else StopBandFlash();
+        }
+
+        var cronometro = LineStatusCatalog.Elapsed(
+            status,
+            now,
+            ringing: _calls.RingingCall,
+            active: _calls.ActiveCall,
+            conferenced: _calls.ConferencedCalls,
+            waiting: _calls.WaitingCalls,
+            currentPause: _duty.CurrentPause(now));
+
+        if (StatusBandTimer.Text != cronometro) StatusBandTimer.Text = cronometro;
+    }
+
+    /// <summary>Avvia il lampeggio della fascia.</summary>
     /// <remarks>
     /// La cadenza e la scelta di animare l'opacità sono spiegate accanto allo
     /// storyboard, in MainWindow.xaml: restano sotto i tre lampeggi al secondo che le
     /// linee guida sulle crisi fotosensibili fissano come tetto.
     /// </remarks>
-    private void StartPauseBannerFlash()
+    private void StartBandFlash()
     {
+        if (_bandFlash is not null) return;
         if (TryFindResource("BannerFlash") is not Storyboard storyboard) return;
 
-        _pauseFlash = storyboard;
-        storyboard.Begin(PauseBanner, isControllable: true);
+        _bandFlash = storyboard;
+        storyboard.Begin(StatusBand, isControllable: true);
     }
 
-    /// <summary>Ferma il lampeggio e riporta l'avviso a piena opacità.</summary>
+    /// <summary>Ferma il lampeggio e riporta la fascia a piena opacità.</summary>
     /// <remarks>
-    /// Senza il ripristino esplicito il riquadro resterebbe all'opacità in cui
-    /// l'animazione è stata fermata: invisibile a schermo perché nascosto, ma
-    /// sbiadito alla pausa successiva.
+    /// Senza il ripristino esplicito la fascia resterebbe all'opacità in cui
+    /// l'animazione è stata fermata: sbiadita, cioè con un contrasto più basso di quello
+    /// dichiarato nei temi, fino al prossimo squillo.
     /// </remarks>
-    private void StopPauseBannerFlash()
+    private void StopBandFlash()
     {
-        _pauseFlash?.Stop(PauseBanner);
-        _pauseFlash = null;
+        _bandFlash?.Stop(StatusBand);
+        _bandFlash = null;
 
-        PauseBanner.Opacity = 1.0;
+        StatusBand.Opacity = 1.0;
     }
-
-    /// <summary>Storyboard del lampeggio, tenuto per poterlo fermare.</summary>
-    private Storyboard? _pauseFlash;
-
-    /// <summary>Storyboard del lampeggio dell'avviso di chiamata entrante.</summary>
-    private Storyboard? _incomingFlash;
 
     /// <summary>
-    /// Mostra, aggiorna o spegne l'avviso di chiamata entrante.
+    /// Mostra o toglie la riga con chi sta chiamando, nella scheda della chiamata.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Segue lo stato di squillo, non l'evento di arrivo.</b> Un riquadro acceso
-    /// all'arrivo e spento da qualcun altro avrebbe cinque modi di restare acceso a
-    /// vuoto — risposta, rifiuto, rinuncia del chiamante, caduta, cambio di chiamata
-    /// in squillo — e un avviso che resta acceso su una chiamata che non c'è più è
-    /// peggio di nessun avviso. Sta accanto alla suoneria, che segue la stessa regola:
-    /// <c>CallSessionManager.SyncRinger</c>.
+    /// Il testo si riscrive comunque: una seconda chiamata che comincia a squillare
+    /// mentre la prima è ancora lì prende il posto della prima appena quella viene
+    /// risposta, e il nome deve seguirla.
     /// </para>
     /// <para>
-    /// Il lampeggio parte solo quando il riquadro si accende. Questo metodo viene
-    /// richiamato anche a ogni aggiornamento della coda, e far ripartire l'animazione
-    /// ogni volta la bloccherebbe sul primo fotogramma.
+    /// È l'unica riga della scheda che compare e scompare. Sta dentro la scheda, sotto
+    /// la fascia, e sposta soltanto quello che nella scheda viene dopo: la fascia resta
+    /// dov'è, e con lei la coda, i colleghi e il campo di composizione.
     /// </para>
     /// </remarks>
-    /// <summary>
-    /// Mostra o spegne l'avviso verde di conversazione in corso.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Segue la conversazione e non la chiamata: mettendo in attesa sparisce, perché
-    /// «in linea con» smetterebbe di essere vero e questo riquadro lo legge di sfuggita
-    /// chi passa dalla postazione, senza il contesto per correggerlo.
-    /// </para>
-    /// <para>
-    /// Il testo si riscrive a ogni passaggio anche quando il riquadro è già acceso:
-    /// alternando fra due linee l'interlocutore cambia mentre lo stato «in
-    /// conversazione» resta, e un nome fermo sul precedente sarebbe la peggiore delle
-    /// informazioni. Il lampeggio invece parte una volta sola, quando il riquadro si
-    /// accende.
-    /// </para>
-    /// </remarks>
-    private void UpdateActiveCallBanner()
+    private void UpdateIncomingCallText()
     {
-        var testo = CallBoardTexts.InCall(_calls.ActiveCall, _calls.ConferencedCalls);
-        var acceso = ActiveCallBanner.Visibility == Visibility.Visible;
+        var ringing = _calls.RingingCall;
 
-        if (string.IsNullOrEmpty(testo))
+        if (ringing is null)
         {
-            if (!acceso) return;
-
-            ActiveCallBanner.Visibility = Visibility.Collapsed;
-
-            _activeCallFlash?.Stop(ActiveCallBanner);
-            _activeCallFlash = null;
-            ActiveCallBanner.Opacity = 1.0;
-
+            if (IncomingCallText.Visibility != Visibility.Collapsed) IncomingCallText.Visibility = Visibility.Collapsed;
             return;
         }
 
-        ActiveCallBannerText.Text = testo;
-
-        if (acceso) return;
-
-        ActiveCallBanner.Visibility = Visibility.Visible;
-
-        if (TryFindResource("BannerFlash") is not Storyboard storyboard) return;
-
-        _activeCallFlash = storyboard;
-        storyboard.Begin(ActiveCallBanner, isControllable: true);
+        IncomingCallText.Text = CallBoardTexts.IncomingCall(ringing.RemoteParty, ringing.QueueName);
+        IncomingCallText.Visibility = Visibility.Visible;
     }
-
-    /// <summary>Storyboard del lampeggio dell'avviso di conversazione in corso.</summary>
-    private Storyboard? _activeCallFlash;
 
     /// <summary>
     /// Riflette sul pulsante della pausa lo stato del turno.
@@ -3692,7 +3836,8 @@ public partial class MainWindow : Window
     /// Il pulsante dice l'azione che si può fare adesso e non lo stato in cui ci si
     /// trova — «Pausa» quando si è in servizio, «Torna in servizio» quando si è
     /// fuori — come tutti gli altri pulsanti del prodotto. Lo stato lo raccontano
-    /// l'orologio accanto, che in pausa cambia forma, e il riquadro rosso.
+    /// l'orologio accanto, che in pausa cambia forma, e la fascia della chiamata, che
+    /// diventa rossa e dice FUORI SERVIZIO.
     /// </remarks>
     private void UpdateServicePauseButton()
     {
@@ -3713,40 +3858,6 @@ public partial class MainWindow : Window
     {
         _log.LogInformation("Comando dal pulsante {Action}", CallAction.ServicePauseOn);
         await ExecuteCommandAsync(HotkeyCommand.ToggleServicePause).ConfigureAwait(true);
-    }
-
-    private void UpdateIncomingBanner()
-    {
-        var ringing = _calls.RingingCall;
-        var acceso = IncomingCallBanner.Visibility == Visibility.Visible;
-
-        if (ringing is null)
-        {
-            if (!acceso) return;
-
-            IncomingCallBanner.Visibility = Visibility.Collapsed;
-
-            _incomingFlash?.Stop(IncomingCallBanner);
-            _incomingFlash = null;
-            IncomingCallBanner.Opacity = 1.0;
-
-            return;
-        }
-
-        // Il testo si riscrive comunque: una seconda chiamata che comincia a squillare
-        // mentre la prima e' ancora li' prende il posto della prima nel riquadro appena
-        // quella viene risposta, e il nome deve seguirla.
-        IncomingCallBannerText.Text = CallBoardTexts.IncomingCall(ringing.RemoteParty, ringing.QueueName);
-        UpdateIncomingTimer(DateTimeOffset.Now);
-
-        if (acceso) return;
-
-        IncomingCallBanner.Visibility = Visibility.Visible;
-
-        if (TryFindResource("BannerFlash") is not Storyboard storyboard) return;
-
-        _incomingFlash = storyboard;
-        storyboard.Begin(IncomingCallBanner, isControllable: true);
     }
 
     /// <summary>
@@ -4614,7 +4725,12 @@ public partial class MainWindow : Window
                 SpeechFormatter.Party(
                     caller.CallerName,
                     caller.CallerNumber,
-                    _settings.Accessibility.DigitGrouping)));
+                    _settings.Accessibility.DigitGrouping),
+                // A schermo il numero va nella riga di dettaglio solo se sopra c'e' un
+                // nome: altrimenti il chiamante e' gia' il numero, e lo si leggerebbe due
+                // volte nella stessa voce.
+                string.IsNullOrWhiteSpace(caller.CallerName) ? string.Empty : caller.CallerNumber ?? string.Empty,
+                CallBoardTexts.BandDuration(caller.WaitDuration(now))));
         }
 
         // Il ripristino della selezione evita che il cursore dell'operatore salti a
@@ -4763,54 +4879,22 @@ public partial class MainWindow : Window
 
     private void UpdateStatus()
     {
-        UpdateIncomingBanner();
-        UpdateActiveCallBanner();
+        UpdateIncomingCallText();
         UpdateServicePauseButton();
+
+        // Ricostruisce le due barre e, con loro, la fascia di stato.
         UpdateCommandBar();
         UpdateDialerAvailability();
-
-        var conference = _calls.ConferencedCalls;
 
         // CHI ASPETTA, NON CHI E' NELLO STATO "IN ATTESA".
         //
         // Sono due insiemi diversi per una sola riga della macchina a stati: durante
         // un trasferimento con annuncio il chiamante e' parcheggiato dentro la
-        // procedura, non «in attesa», e con le sole HeldCalls le tre righe che parlano
-        // di lui — il riquadro della chiamata, il conteggio delle attese e la casella
-        // di riepilogo — dichiaravano tutte insieme che non stava aspettando nessuno.
-        // A chi aspetta la distinzione non arriva: sente la stessa musica e conta gli
-        // stessi minuti.
-        var held = _calls.WaitingCalls;
-
-        if (conference.Count > 0)
-        {
-            ActiveCallText.Text = CallBoardTexts.InCall(null, conference);
-
-            UpdateSecondaryStatus(held);
-            return;
-        }
-
-        var active = _calls.ActiveCall;
-
-        // QUESTA RIGA NON PARLA PIU', E LA SCRITTURA E' DIRETTA PER QUESTO.
-        //
-        // Toglierle LiveSetting dal XAML non sarebbe bastato: LiveRegion.Update
-        // solleva comunque l'evento di regione cambiata, ed e' quello che faceva
-        // parlare lo screen reader. Chi racconta cosa succede e' la pipeline degli
-        // annunci, una volta sola; questa riga risponde a "come sono messo adesso" a
-        // chi ci passa sopra con il cursore virtuale.
-        //
-        // Il testo dice anche la pausa. Con una chiamata in attesa "nessuna chiamata
-        // attiva" e' vero alla lettera e falso nella sostanza: chi guarda lo schermo
-        // legge che non sta succedendo niente mentre qualcuno aspetta in linea.
-        ActiveCallText.Text = active is not null
-            ? CallBoardTexts.InCall(active)
-            : held.Count > 0
-                ? $"Chiamata in pausa: {CallBoardTexts.Identity(held[0].RemoteParty)}"
-                  + (held.Count > 1 ? $"   (+{held.Count - 1} in attesa)" : string.Empty)
-                : "Nessuna chiamata attiva";
-
-        UpdateSecondaryStatus(held);
+        // procedura, non «in attesa», e con le sole HeldCalls le righe che parlano di
+        // lui — la fascia, il conteggio delle attese e la casella delle attese —
+        // dichiaravano tutte insieme che non stava aspettando nessuno. A chi aspetta
+        // la distinzione non arriva: sente la stessa musica e conta gli stessi minuti.
+        UpdateSecondaryStatus(_calls.WaitingCalls);
     }
 
     /// <summary>Riga di stato secondaria: coda, attese, stato agente.</summary>
@@ -4821,10 +4905,9 @@ public partial class MainWindow : Window
     /// non dire mai nulla.
     /// </para>
     /// <para>
-    /// Come la riga della chiamata, non parla da sola: si scrive senza sollevare
-    /// l'evento di regione dinamica. Un riepilogo che si legge da sé a ogni chiamata
-    /// che entra, che si risponde e che si chiude ripete cose che gli annunci hanno
-    /// già detto meglio.
+    /// Non parla da sola: si scrive senza sollevare l'evento di regione dinamica. Un
+    /// riepilogo che si legge da sé a ogni chiamata che entra, che si risponde e che si
+    /// chiude ripete cose che gli annunci hanno già detto meglio.
     /// </para>
     /// </remarks>
     private void UpdateSecondaryStatus(IReadOnlyList<Call> held)
@@ -4845,20 +4928,27 @@ public partial class MainWindow : Window
     }
 
     // -----------------------------------------------------------------------
-    // Le due caselle di riepilogo: con chi sono, chi sta aspettando
+    // La scheda della chiamata: con chi sono, chi sta aspettando
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Riscrive le due caselle di sola lettura e regola l'orologio dell'attesa.
+    /// Riscrive il nome grande, la casella delle attese e la loro cornice.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Le caselle sono l'equivalente visivo delle spie di linea di un centralino
+    /// Le due caselle sono l'equivalente visivo delle spie di linea di un centralino
     /// tradizionale, e servono a chi guarda lo schermo: il collega che affianca
     /// l'operatore, il responsabile che passa dalla postazione, l'operatore ipovedente
     /// che lavora con l'ingrandimento. Gli annunci raccontano ciò che <b>è appena
-    /// successo</b> e poi svaniscono; queste due righe dicono <b>come si è messi
+    /// successo</b> e poi svaniscono; queste righe dicono <b>come si è messi
     /// adesso</b> e restano.
+    /// </para>
+    /// <para>
+    /// <b>Il nome grande è la casella «chiamata in conversazione».</b> Prima la stessa
+    /// persona compariva tre volte — nel riquadro verde in cima alla finestra, nella riga
+    /// grande della scheda e nella casella «Collegato a» — e adesso una sola. La
+    /// didascalia sopra dice in che rapporto si è con lei, la riga sotto da quale ufficio
+    /// e da quale coda arriva; la casella tiene nome e numero, che si copiano da lì.
     /// </para>
     /// <para>
     /// Deliberatamente <b>non</b> sono regioni dinamiche e non passano da
@@ -4873,7 +4963,27 @@ public partial class MainWindow : Window
     {
         var now = DateTimeOffset.Now;
 
-        SetBoardText(ConnectedToBox, CallBoardTexts.Connected(_calls.ActiveCall, _calls.ConferencedCalls));
+        var active = _calls.ActiveCall;
+        var conference = _calls.ConferencedCalls;
+
+        // La chiamata uscente conta solo finche' nessuno e' in linea: con qualcuno in
+        // linea la casella parla di lui, e la seconda linea che squilla e' un'altra
+        // storia che racconta la fascia.
+        var outgoing = active is null && conference.Count == 0 ? _calls.OutgoingCall : null;
+
+        var nome = CallBoardTexts.Connected(active, conference, outgoing);
+        SetBoardText(ConnectedToBox, nome);
+
+        // Il nome rimpicciolisce e si attenua quando non c'e' nessuno: vedi HeadlineBox.
+        var vuota = nome == CallBoardTexts.NoConnectedCall ? "Vuota" : null;
+        if (!Equals(ConnectedToBox.Tag, vuota)) ConnectedToBox.Tag = vuota;
+
+        ConnectedCaptionText.Text = CallBoardTexts.ConnectedCaption(active, conference, outgoing);
+
+        var dettaglio = conference.Count > 0 ? string.Empty : CallBoardTexts.ConnectedDetail(active, outgoing);
+        ConnectedDetailText.Text = dettaglio;
+        ConnectedDetailText.Visibility = dettaglio.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+
         SetBoardText(OnHoldBox, CallBoardTexts.OnHold(_calls.WaitingCalls, now));
         UpdateServiceClock(now);
     }
@@ -4891,33 +5001,74 @@ public partial class MainWindow : Window
         var now = DateTimeOffset.Now;
 
         UpdateServiceClock(now);
-        UpdateIncomingTimer(now);
+        UpdateStatusBand(now);
 
         if (OnHoldBox.IsKeyboardFocusWithin) return;
 
         SetBoardText(OnHoldBox, CallBoardTexts.OnHold(_calls.WaitingCalls, now));
     }
 
-    /// <summary>
-    /// Riscrive il cronometro dello squillo nel riquadro della chiamata entrante.
-    /// </summary>
-    /// <param name="now">Istante corrente.</param>
-    /// <remarks>
-    /// Si misura dalla creazione della chiamata, che per una entrante è l'istante in
-    /// cui ha cominciato a squillare. Quando non c'è nessuna chiamata in squillo non
-    /// si scrive niente: il riquadro è nascosto, e riscriverlo a vuoto una volta al
-    /// secondo sarebbe lavoro per nessuno.
-    /// </remarks>
-    private void UpdateIncomingTimer(DateTimeOffset now)
-    {
-        if (_calls.RingingCall is not { } ringing) return;
-
-        IncomingCallTimerText.Text = CallBoardTexts.ShortDuration(now - ringing.CreatedAt);
-    }
-
-    /// <summary>Riscrive l'orologio del turno nell'intestazione della finestra.</summary>
+    /// <summary>Riscrive l'orologio del turno nella scheda della postazione.</summary>
     private void UpdateServiceClock(DateTimeOffset now)
         => ServiceClockText.Text = CallBoardTexts.ServiceClock(_duty.InService(now), _duty.CurrentPause(now));
+
+    // -----------------------------------------------------------------------
+    // Una o due colonne
+    // -----------------------------------------------------------------------
+
+    /// <summary>Disposizione in vigore; <c>null</c> prima della prima volta.</summary>
+    private WorkAreaLayout? _workArea;
+
+    /// <summary>
+    /// Mette la colonna di coda e colleghi accanto alla chiamata o sotto, secondo la
+    /// larghezza, e la toglie quando non ha niente da mostrare.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Cambiano soltanto riga, colonna e colonne occupate</b> della scheda della
+    /// chiamata e della colonna laterale. Nessun elemento cambia contenitore, quindi
+    /// l'ordine di tabulazione e quello dell'albero di automazione restano quelli del
+    /// XAML qualunque sia la larghezza, e chi ha il cursore in una delle due aree non lo
+    /// perde quando la finestra cambia disposizione sotto di lui. La decisione è in
+    /// <see cref="MainWindowLayout.ArrangeWorkArea"/>, dove si prova senza finestra.
+    /// </para>
+    /// <para>
+    /// La larghezza è quella del contenuto, cioè del contenitore della griglia meno i
+    /// margini: è quella che le due colonne si devono dividere. Cambiare colonna non la
+    /// cambia, quindi non c'è un'andata e ritorno da temere vicino alla soglia.
+    /// </para>
+    /// </remarks>
+    private void ApplyWorkAreaLayout()
+    {
+        if (VisualTreeHelper.GetParent(RootGrid) is not FrameworkElement host || host.ActualWidth <= 0) return;
+
+        var available = host.ActualWidth - RootGrid.Margin.Left - RootGrid.Margin.Right;
+        var hasSide = QueueSection.Visibility == Visibility.Visible
+                      || ColleaguesSection.Visibility == Visibility.Visible;
+
+        var layout = MainWindowLayout.ArrangeWorkArea(available, hasSide);
+
+        SidePanel.Visibility = hasSide ? Visibility.Visible : Visibility.Collapsed;
+
+        if (layout == _workArea) return;
+
+        _workArea = layout;
+
+        Place(CallCard, layout.Call);
+        Place(SidePanel, layout.Side);
+
+        _log.LogDebug(
+            "Finestra a {Colonne} su {Larghezza} pixel di contenuto",
+            layout.TwoColumns ? "due colonne" : "una colonna",
+            (int)available);
+
+        static void Place(UIElement element, GridCell cell)
+        {
+            System.Windows.Controls.Grid.SetRow(element, cell.Row);
+            System.Windows.Controls.Grid.SetColumn(element, cell.Column);
+            System.Windows.Controls.Grid.SetColumnSpan(element, cell.ColumnSpan);
+        }
+    }
 
     // -----------------------------------------------------------------------
     // La finestra si allarga per contenere quello che c'è scritto
@@ -4928,12 +5079,18 @@ public partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>La finestra nasceva sempre a 1000 per 700, qualunque fosse lo schermo.</b> Su
-    /// un monitor basso — un portatile da 768 righe, o un 1080 con la scala al 150 per
-    /// cento, che in unità indipendenti dal dispositivo dà 720 — l'area di lavoro è più
-    /// piccola della finestra: il bordo basso finisce sotto la barra delle applicazioni
-    /// e con lui il campo di composizione, cioè la cosa per cui si apre il programma.
-    /// Lo stesso vale in larghezza sugli schermi stretti.
+    /// <b>La finestra nasce a 1280 per 800 qualunque sia lo schermo.</b> Su un monitor
+    /// basso — un portatile da 768 righe, o un 1080 con la scala al 150 per cento, che in
+    /// unità indipendenti dal dispositivo dà 720 — l'area di lavoro è più piccola della
+    /// finestra: il bordo basso finirebbe sotto la barra delle applicazioni e con lui il
+    /// campo di composizione, cioè la cosa per cui si apre il programma. Lo stesso vale
+    /// in larghezza sugli schermi stretti, e con la scala al 300 per cento uno schermo
+    /// da 1920 ne dà 640: la misura minima di 600 è scelta perché ci stia.
+    /// </para>
+    /// <para>
+    /// La larghezza iniziale è quella a cui chiamata e colonna laterale stanno
+    /// affiancate con margine (<see cref="MainWindowLayout.TwoColumnMinWidth"/>): con la
+    /// misura di prima, mille pixel, la finestra sarebbe nata in una colonna sola.
     /// </para>
     /// <para>
     /// Si riduce soltanto, e mai sotto le misure minime dichiarate: la finestra non si
@@ -4973,36 +5130,42 @@ public partial class MainWindow : Window
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Il difetto che chiude</b>: con un nome di chiamante lungo il riquadro
-    /// dell'avviso va a capo e cresce, e il contenuto non ci sta più. WPF non lo segnala
-    /// in alcun modo — non c'è una barra di scorrimento, non c'è un segno che manchi
-    /// qualcosa: la finestra taglia, e a sparire è quello che sta in fondo. Su questa
-    /// schermata «in fondo» vuol dire il campo di composizione.
+    /// <b>Il difetto che chiude</b>: quando il contenuto è più alto della finestra WPF
+    /// non lo segnala in alcun modo — non c'è una barra di scorrimento, non c'è un segno
+    /// che manchi qualcosa: la finestra taglia, e a sparire è quello che sta in fondo. Su
+    /// questa schermata «in fondo» vuol dire il campo di composizione.
+    /// </para>
+    /// <para>
+    /// <b>Succede meno di prima, ma succede ancora.</b> Le liste adesso si accorciano e
+    /// scorrono fino al loro pavimento invece di pretendere 180 pixel ciascuna, e gli
+    /// avvisi a tutta larghezza che spingevano giù la finestra a ogni chiamata non ci
+    /// sono più. Restano due cose che non possono cedere: la scheda della chiamata, che
+    /// non scorre perché una barra di scorrimento nasconderebbe proprio i comandi, e i
+    /// pavimenti delle liste. Con la finestra stretta la chiamata e le due liste stanno
+    /// una sotto l'altra, e su uno schermo basso la somma supera spesso la finestra.
     /// </para>
     /// <para>
     /// <b>Perché di qui e non dai punti che riscrivono i testi</b>: i modi di cambiare
-    /// altezza sono molti — l'avviso di chiamata, la barra dei comandi che cambia
-    /// numero di pulsanti, il riquadro della pausa — e ricordarsi di chiamare il
-    /// controllo in ognuno è il genere di cosa che si dimentica proprio nel caso nuovo.
-    /// Qui il controllo è una sottrazione e finisce subito quando non c'è niente da
-    /// fare.
+    /// altezza sono molti — la riga di chi squilla, un nome che va a capo, la barra della
+    /// chiamata che cambia numero di pulsanti, il passaggio a una colonna — e ricordarsi
+    /// di chiamare il controllo in ognuno è il genere di cosa che si dimentica proprio
+    /// nel caso nuovo. Qui il controllo è una sottrazione e finisce subito quando non
+    /// c'è niente da fare.
     /// </para>
     /// <para>
     /// <b>L'elenco dei contatti proposti non è fra questi</b>: è sovrapposto alle altre
     /// sezioni e non occupa altezza, quindi comparire non richiede nessun allargamento.
-    /// Prima richiedeva spazio sotto il campo di composizione, e dove la finestra non
-    /// poteva più crescere — schermi bassi — l'elenco restava tagliato.
     /// </para>
     /// </remarks>
     private void OnRootLayoutUpdated(object? sender, EventArgs e)
     {
         // Prima di tutto il resto, e a finestra ingrandita come a finestra normale: un
-        // elenco fuori dalla finestra e una lista che toglie il campo di composizione
-        // si presentano in entrambi i casi.
+        // elenco fuori dalla finestra e una scheda tagliata si presentano in entrambi i
+        // casi.
         if (IsLoaded && WindowState != WindowState.Minimized)
         {
             PositionSuggestions();
-            ScheduleListFit();
+            ScheduleWorkRowFit();
         }
 
         if (_resizePending) return;
@@ -5022,11 +5185,11 @@ public partial class MainWindow : Window
     }
 
     // -----------------------------------------------------------------------
-    // Elenco dei contatti proposti e liste: stare dentro la finestra
+    // Elenco dei contatti proposti e area di lavoro: stare dentro la finestra
     // -----------------------------------------------------------------------
 
-    /// <summary>Adeguamento dell'altezza delle liste già in coda.</summary>
-    private bool _listFitPending;
+    /// <summary>Adeguamento dell'altezza minima dell'area di lavoro già in coda.</summary>
+    private bool _workRowFitPending;
 
     /// <summary>
     /// Porta l'elenco dei contatti proposti dentro la finestra.
@@ -5034,9 +5197,10 @@ public partial class MainWindow : Window
     /// <remarks>
     /// <para>
     /// L'elenco è ancorato al bordo alto del campo di composizione. Quando il campo sta
-    /// sotto il bordo della finestra — con coda e colleghi su uno schermo basso — così
-    /// ancorato scendeva con lui, e fuori dalla finestra non restava che la fascia
-    /// delle intestazioni: i risultati si sentivano e non si vedevano.
+    /// sotto il bordo della finestra — una finestra bassa su uno schermo che non la
+    /// lascia crescere — così ancorato scendeva con lui, e fuori dalla finestra non
+    /// restava che la fascia delle intestazioni: i risultati si sentivano e non si
+    /// vedevano.
     /// </para>
     /// <para>
     /// Qui, a ogni impaginazione, si riporta il bordo basso dell'elenco al più in basso
@@ -5073,98 +5237,99 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Altezza utile massima che la finestra può dare al proprio contenuto.
+    /// Altezza della scheda della chiamata quando ha tutto lo spazio che vuole.
     /// </summary>
-    /// <param name="host">Il contenitore della griglia principale, cioè l'area utile.</param>
     /// <remarks>
-    /// A finestra normale è quella che la finestra raggiungerebbe allargandosi fino al
-    /// bordo dello schermo, perché è fin lì che <see cref="GrowToFitContent"/> la porta;
-    /// a finestra ingrandita è quella che ha. Lo scarto fra l'altezza della finestra e
-    /// quella dell'area utile è la cornice — titolo e bordi — che il sistema aggiunge.
+    /// <para>
+    /// <b>Si somma, non si chiede.</b> Nella riga elastica la scheda viene misurata con
+    /// l'altezza che la riga le concede, e la sua misura desiderata non la supera mai: è
+    /// proprio il motivo per cui la scheda verrebbe tagliata in silenzio. Le sue righe
+    /// interne invece sono quasi tutte ad altezza automatica, e WPF misura i figli di una
+    /// riga automatica ad altezza infinita: la somma delle loro misure è l'altezza
+    /// naturale, qualunque cosa conceda la riga di fuori.
+    /// </para>
+    /// <para>
+    /// Rimisurare la scheda con un'altezza infinita sarebbe la strada diretta, ma da qui
+    /// innescherebbe un'altra impaginazione che la rimisura con l'altezza vera, e così
+    /// avanti: l'altezza naturale dipende solo dalla larghezza, e leggerla senza toccare
+    /// niente è l'unico modo di non girare in tondo.
+    /// </para>
     /// </remarks>
-    private double ContentCapacity(FrameworkElement host)
+    private double CallCardNaturalHeight()
     {
-        if (WindowState != WindowState.Normal) return host.ActualHeight;
+        var contenuto = CallCardContent.Children
+            .OfType<UIElement>()
+            .Where(c => c.Visibility != Visibility.Collapsed)
+            .Sum(c => c.DesiredSize.Height);
 
-        var frame = ActualHeight - host.ActualHeight;
+        return contenuto
+               + CallCard.Padding.Top + CallCard.Padding.Bottom
+               + CallCard.BorderThickness.Top + CallCard.BorderThickness.Bottom
+               + CallCard.Margin.Top + CallCard.Margin.Bottom;
+    }
 
-        return Math.Max(host.ActualHeight, SystemParameters.WorkArea.Height - frame);
+    /// <summary>Altezza minima da dare all'area di lavoro, oppure <c>null</c> se è presto per dirlo.</summary>
+    private double? PlanWorkRowMinimum()
+    {
+        if (_workArea is not { } layout) return null;
+
+        var liste = (QueueSection.Visibility == Visibility.Visible ? 1 : 0)
+                    + (ColleaguesSection.Visibility == Visibility.Visible ? 1 : 0);
+
+        return MainWindowLayout.WorkRowMinimum(layout, CallCardNaturalHeight(), liste);
     }
 
     /// <summary>
-    /// Stabilisce quale altezza minima dare alle liste visibili, e a quali.
-    /// </summary>
-    /// <returns>Le righe delle liste visibili e l'altezza voluta, oppure <c>null</c> se non c'è niente da decidere.</returns>
-    private (List<System.Windows.Controls.RowDefinition> Rows, double Wanted)? PlanListMinimum()
-    {
-        List<System.Windows.Controls.RowDefinition> rows = [];
-
-        if (QueueSection.Visibility == Visibility.Visible) rows.Add(QueueRow);
-        if (ColleaguesSection.Visibility == Visibility.Visible) rows.Add(ColleaguesRow);
-
-        if (rows.Count == 0) return null;
-        if (VisualTreeHelper.GetParent(RootGrid) is not FrameworkElement host || host.ActualHeight <= 0) return null;
-
-        var capacity = ContentCapacity(host) - RootGrid.Margin.Top - RootGrid.Margin.Bottom;
-
-        // Le altre righe hanno altezza propria: nessuna si allunga se una lista cede.
-        var fixedHeight = RootGrid.RowDefinitions.Where(r => !rows.Contains(r)).Sum(r => r.ActualHeight);
-
-        return (rows, MainWindowLayout.ListMinimum(capacity, fixedHeight, rows.Count));
-    }
-
-    /// <summary>
-    /// Chiede l'adeguamento dell'altezza minima delle liste, se serve.
+    /// Chiede l'adeguamento dell'altezza minima dell'area di lavoro, se serve.
     /// </summary>
     /// <remarks>
     /// Come per l'allargamento della finestra, non si agisce dentro il calcolo
     /// dell'impaginazione ma al giro successivo del dispatcher. Costa un confronto fra
-    /// due numeri a ogni impaginazione, e finisce lì quando le liste hanno già
-    /// l'altezza giusta.
+    /// due numeri a ogni impaginazione, e finisce lì quando il minimo è già giusto.
     /// </remarks>
-    private void ScheduleListFit()
+    private void ScheduleWorkRowFit()
     {
-        if (_listFitPending) return;
-        if (PlanListMinimum() is not { } plan) return;
-        if (!plan.Rows.Any(r => Math.Abs(r.MinHeight - plan.Wanted) >= 1)) return;
+        if (_workRowFitPending) return;
+        if (PlanWorkRowMinimum() is not { } wanted) return;
+        if (Math.Abs(WorkRowDefinition.MinHeight - wanted) < 1) return;
 
-        _listFitPending = true;
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(FitListMinimums));
+        _workRowFitPending = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(FitWorkRowMinimum));
     }
 
     /// <summary>
-    /// Lascia alle liste l'altezza minima che lo spazio consente.
+    /// Impedisce all'area di lavoro di scendere sotto quello che non può cedere.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Il difetto che chiude.</b> Le due liste hanno un minimo di 180 pixel ciascuna,
-    /// scelto perché sotto mostrano solo i nomi delle colonne. Su uno schermo basso
-    /// quei 360 pixel più il resto non entrano, la finestra non può crescere oltre lo
-    /// schermo e a restare fuori è il campo di composizione, che sta in fondo.
+    /// <b>Il difetto che previene.</b> La riga elastica dà ai figli lo spazio che resta,
+    /// e un figlio che ne vorrebbe di più viene tagliato in fondo senza nessun segno: con
+    /// la finestra larga e bassa sarebbero spariti i comandi della chiamata o la casella
+    /// delle attese. Con il minimo dichiarato il contenuto non si taglia ma sfonda la
+    /// finestra, <see cref="GrowToFitContent"/> se ne accorge e la allunga fino al bordo
+    /// dello schermo.
     /// </para>
     /// <para>
-    /// La scelta è di priorità: fra una lista più corta e un campo di composizione che
-    /// non si vede, vince il campo. La lista resta percorribile con la tastiera e letta
-    /// per intero dallo screen reader, il campo no. Dove lo spazio basta nulla cambia: il
-    /// valore resta 180 e la finestra si allarga, come prima, per darglielo.
+    /// Il minimo è l'altezza naturale della scheda della chiamata, quando sta in questa
+    /// riga, oppure i pavimenti delle liste: vedi
+    /// <see cref="MainWindowLayout.WorkRowMinimum"/>. Non dipende dall'altezza della
+    /// finestra, quindi il conto converge al primo giro.
     /// </para>
     /// </remarks>
-    private void FitListMinimums()
+    private void FitWorkRowMinimum()
     {
-        _listFitPending = false;
+        _workRowFitPending = false;
 
-        if (!IsLoaded || PlanListMinimum() is not { } plan) return;
+        if (!IsLoaded || PlanWorkRowMinimum() is not { } wanted) return;
+        if (Math.Abs(WorkRowDefinition.MinHeight - wanted) < 1) return;
 
-        foreach (var row in plan.Rows)
-        {
-            if (Math.Abs(row.MinHeight - plan.Wanted) >= 1) row.MinHeight = plan.Wanted;
-        }
+        WorkRowDefinition.MinHeight = wanted;
 
         // Con un minimo diverso la mancanza di prima non vale piu': si riprova a
         // contenere il contenuto.
         _unreachableGrowth = 0;
 
-        _log.LogDebug("Altezza minima delle liste portata a {Altezza} pixel", (int)plan.Wanted);
+        _log.LogDebug("Altezza minima dell'area di lavoro portata a {Altezza} pixel", (int)wanted);
     }
 
     /// <summary>
@@ -5223,6 +5388,15 @@ public partial class MainWindow : Window
     /// cercando di mostrare. L'area di lavoro è quella dello schermo principale: su più
     /// schermi il calcolo è approssimato, e il limite serve comunque a non produrre una
     /// finestra più alta di qualunque schermo.
+    /// </para>
+    /// <para>
+    /// <b>Perché c'è ancora, ora che le liste scorrono.</b> Le liste cedono spazio fino
+    /// al loro pavimento, ed è la prima difesa; ma la scheda della chiamata non può
+    /// scorrere, e a finestra stretta sta sopra le due liste invece che accanto. Su uno
+    /// schermo da 768 righe chiamata in conversazione, due liste al pavimento,
+    /// postazione e composizione superano i 700 pixel: senza crescere, la finestra
+    /// taglierebbe il campo di composizione. Cresce solo fin dove serve, e mai oltre lo
+    /// schermo.
     /// </para>
     /// </remarks>
     private void GrowToFitContent()

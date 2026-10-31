@@ -58,4 +58,21 @@
     <!-- Intestazioni di tabella. -->
     <SolidColorBrush x:Key="HeaderBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
 
+    <!--
+        Fascia di stato della chiamata. I QUATTRO STATI DI AVVISO INVERTONO TESTO E
+        FONDO DELLA FINESTRA, e hanno tutti lo stesso aspetto.
+
+        Il colore evidenziato di Windows sarebbe stato il candidato naturale, ma con i
+        colori predefiniti il bianco sull'azzurro di sistema sta a 4,5 a 1, sotto il 7 a
+        1 di questo prodotto. La coppia testo-finestra invece e' quella su cui chi usa il
+        contrasto elevato ha regolato tutto il resto: rovesciata, si stacca dalla scheda
+        e tiene esattamente il contrasto che l'utente ha scelto. A distinguere gli stati
+        resta la parola, che e' quello che deve fare in ogni tema.
+    -->
+    <SolidColorBrush x:Key="LineAlertTextBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="LineRingingBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="LineTalkingBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="LineHoldBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="LineOutOfServiceBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+
 </ResourceDictionary>

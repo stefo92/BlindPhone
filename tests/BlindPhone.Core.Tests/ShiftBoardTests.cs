@@ -523,6 +523,42 @@ public sealed class ShiftBoardTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void OgniStatoHaUnSegnoDiFormaDiversa()
+    {
+        // Lo stato non e' affidato al solo colore: due stati con lo stesso segno, nella
+        // pastiglia neutra della voce, si distinguerebbero solo leggendo la parola.
+        DutyState[] turni = [DutyState.OnDuty, DutyState.OffDuty, DutyState.NotConfigured, DutyState.Unknown];
+        PresenceState[] dettagli =
+        [
+            PresenceState.Unknown, PresenceState.Busy, PresenceState.Ringing,
+            PresenceState.DoNotDisturb, PresenceState.Away,
+        ];
+
+        var inTurno = dettagli
+            .Select(d => ShiftBoardTexts.StatusIcon(new ShiftEntry("4021", "Mario Rossi", DutyState.OnDuty, d, null, "api")))
+            .ToList();
+
+        var fuori = turni.Skip(1)
+            .Select(t => ShiftBoardTexts.StatusIcon(Riga("4021", "Mario Rossi", t)))
+            .ToList();
+
+        var tutti = inTurno.Concat(fuori).ToList();
+
+        Assert.All(tutti, segno => Assert.False(string.IsNullOrWhiteSpace(segno)));
+        Assert.Equal(tutti.Count, tutti.Distinct().Count());
+    }
+
+    [Fact]
+    public void IlSegnoNonCambiaLaParola()
+    {
+        // Il segno e' decorativo: la voce si legge dal suo nome accessibile, che resta
+        // quello di sempre.
+        var riga = new ShiftEntry("4021", "Mario Rossi", DutyState.OnDuty, PresenceState.Busy, null, "api");
+
+        Assert.StartsWith("In turno, occupato. Mario Rossi", ShiftBoardTexts.Accessible(riga), StringComparison.Ordinal);
+    }
+
     private static ShiftEntry Riga(string numero, string nome, DutyState stato)
         => new(numero, nome, stato, PresenceState.Unknown, null, "sondaggio");
 }

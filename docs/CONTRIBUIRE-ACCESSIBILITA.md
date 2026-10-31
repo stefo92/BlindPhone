@@ -282,6 +282,24 @@ scorrere.
 Per chi naviga con il cursore virtuale, un'interfaccia che si riorganizza è come una
 stanza in cui qualcuno sposta i mobili ogni giorno.
 
+Nella finestra principale questo vuol dire tre cose, e ciascuna ha una prova:
+
+- **Niente compare in cima e spinge giù il resto.** Lo stato della linea sta in una
+  fascia sempre presente e sempre alta uguale, in cima alla scheda della chiamata
+  (`LineStatusCatalog`, `FinestraPrincipaleTests`). I vecchi avvisi a tutta larghezza
+  spostavano la finestra a ogni chiamata, cioè proprio quando chi lavora con
+  l'ingrandimento stava guardando.
+- **Una o due colonne si scelgono solo con riga e colonna.** Il passaggio dipende dalla
+  larghezza della finestra, che decide l'operatore, e cambia `Grid.Row`, `Grid.Column` e
+  `Grid.ColumnSpan` di due elementi e nient'altro (`MainWindowLayout.ArrangeWorkArea`).
+  Nessun elemento cambia contenitore: l'ordine di tabulazione e quello in cui lo screen
+  reader legge restano quelli del XAML, e coincidono con l'ordine visivo in tutte e due
+  le disposizioni.
+- **Una barra dei comandi non resta mai vuota.** Una barra vuota non è una tappa del
+  giro di tabulazione, una barra con un pulsante sì: se si svuotasse, il numero di `Tab`
+  cambierebbe a ogni chiamata. Senza chiamate la barra della chiamata contiene
+  «Componi».
+
 ---
 
 ## 13. Prima di aprire una pull request

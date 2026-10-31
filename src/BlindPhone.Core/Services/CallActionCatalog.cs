@@ -12,6 +12,13 @@ namespace BlindPhone.Core.Services;
 /// </remarks>
 public enum CallAction
 {
+    /// <summary>Porta il cursore nel campo di composizione.</summary>
+    /// <remarks>
+    /// Compare solo quando non c'è nessuna chiamata, ed è lì per tenere piena la barra
+    /// della chiamata: vedi <see cref="CallActionCatalog.Available"/>.
+    /// </remarks>
+    FocusDialer,
+
     /// <summary>Risponde alla chiamata in squillo.</summary>
     Answer,
 
@@ -79,8 +86,8 @@ public enum CallAction
     /// Mette la postazione in pausa.
     /// </summary>
     /// <remarks>
-    /// Non compare fra i pulsanti della barra: vive accanto all'orologio del servizio,
-    /// perché riguarda il turno e non la chiamata in corso.
+    /// Non compare fra i pulsanti delle due barre: vive accanto all'orologio del
+    /// servizio, perché riguarda il turno e non la chiamata in corso.
     /// </remarks>
     ServicePauseOn,
 
@@ -104,6 +111,12 @@ public enum CallAction
 }
 
 /// <summary>Famiglia a cui appartiene un pulsante, per raggrupparli a schermo.</summary>
+/// <remarks>
+/// La famiglia decide anche in quale delle due barre della finestra principale sta il
+/// pulsante: <see cref="Station"/> nella barra della postazione, in alto accanto
+/// all'orologio del turno; le altre due nella barra della chiamata, dentro la scheda
+/// della chiamata, separate da un filo verticale.
+/// </remarks>
 public enum CallActionGroup
 {
     /// <summary>Comandi che agiscono sulla chiamata: rispondere, chiudere, passare.</summary>
@@ -112,7 +125,7 @@ public enum CallActionGroup
     /// <summary>Interruttori della conversazione: registrazione, toni, microfono.</summary>
     Conversation,
 
-    /// <summary>Stato della postazione e finestre: pausa, impostazioni, account.</summary>
+    /// <summary>Finestre della postazione: rubrica, elenco chiamate, impostazioni, account.</summary>
     Station,
 }
 
@@ -294,8 +307,8 @@ public readonly record struct CallActionButton(
 /// <para>
 /// <b>Le coppie sono un pulsante solo.</b> Attesa e ripresa, registra e interrompi,
 /// toni acceso e spento non compaiono mai insieme: il pulsante dice l'azione che si
-/// può fare adesso, non lo stato in cui ci si trova. Lo stato lo raccontano le caselle
-/// di riepilogo e gli annunci.
+/// può fare adesso, non lo stato in cui ci si trova. Lo stato lo raccontano la fascia
+/// in cima alla scheda della chiamata, le due caselle e gli annunci.
 /// </para>
 /// <para>
 /// Vive nel core e non nel code-behind della finestra per la stessa ragione di
@@ -313,13 +326,38 @@ public static class CallActionCatalog
     /// </summary>
     /// <param name="context">Stato della postazione.</param>
     /// <remarks>
+    /// <para>
     /// L'ordine non è casuale ed è sempre lo stesso: prima ciò che riguarda la
-    /// chiamata che squilla, poi la conversazione, poi il trasferimento, infine gli
-    /// interruttori della postazione. Chi impara dove sta un pulsante lo ritrova lì.
+    /// chiamata che squilla, poi la conversazione, poi il trasferimento, poi gli
+    /// interruttori della conversazione, infine le finestre della postazione. Chi impara
+    /// dove sta un pulsante lo ritrova lì.
+    /// </para>
+    /// <para>
+    /// La finestra principale divide l'elenco in due barre secondo
+    /// <see cref="CallActionButton.Group"/>. <b>La barra della chiamata non resta mai
+    /// vuota</b>: senza chiamate contiene «Componi», ed è la ragione per cui quel
+    /// pulsante esiste.
+    /// </para>
     /// </remarks>
     public static IReadOnlyList<CallActionButton> Available(CallActionContext context)
     {
         var buttons = new List<CallActionButton>(12);
+
+        // 0. SENZA CHIAMATE, «COMPONI». Non e' un pulsante in piu' per gusto: tiene
+        //    piena la barra della chiamata.
+        //
+        //    Le finestre della postazione stanno in un'altra barra, quindi senza
+        //    chiamate questa restava vuota. Una barra vuota non e' una tappa del giro di
+        //    tabulazione, una barra con un pulsante si': il numero di Tab per arrivare
+        //    alla coda e al campo di composizione sarebbe cambiato a ogni chiamata che
+        //    arriva e che si chiude, che e' esattamente il difetto per cui la barra e'
+        //    una tappa sola. Con «Componi» la tappa c'e' sempre, e il pulsante fa una
+        //    cosa vera: porta al campo di composizione, come il suo tasto.
+        if (!context.HasRingingCall && !context.HasAnyCall)
+        {
+            buttons.Add(new(CallAction.FocusDialer, "", "Componi",
+                "Porta il cursore nel campo di composizione", CallActionGroup.Call));
+        }
 
         // 1. La chiamata che squilla. Viene prima di tutto perche' e' l'unica cosa
         //    che ha una scadenza: mentre si guarda la barra, sta squillando.
@@ -359,14 +397,15 @@ public static class CallActionCatalog
         // 5. Interruttori della conversazione.
         AddConversationButtons(buttons, context);
 
-        // 6. Finestre. Sempre disponibili: sono l'unica parte della barra che non
-        //    dipende da cosa sta succedendo, ed e' il motivo per cui stanno in fondo e
-        //    non in mezzo agli altri.
+        // 6. Finestre. Sempre disponibili: sono l'unica parte dell'elenco che non
+        //    dipende da cosa sta succedendo, ed e' il motivo per cui la finestra
+        //    principale le mette in una barra a parte, in alto nella scheda della
+        //    postazione, invece che in coda ai comandi della chiamata.
         //
         //    LA PAUSA NON STA QUI, e non e' una dimenticanza: e' l'unico comando che
         //    riguarda il turno e non la chiamata, e vive accanto all'orologio del
-        //    servizio, che e' l'altra cosa che parla del turno. Vedi la riga di stato
-        //    della finestra principale.
+        //    servizio, che e' l'altra cosa che parla del turno. Vedi la scheda della
+        //    postazione nella finestra principale.
         // La rubrica apre la fila: e' la finestra che il posto operatore apre piu' spesso,
         // per cercare l'interno a cui passare chi sta aspettando. Sta accanto all'elenco
         // delle chiamate, l'altra finestra in cui si cerca qualcuno da chiamare.

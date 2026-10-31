@@ -619,4 +619,77 @@ public sealed class CallActionCatalogTests
         // compone in quel momento sta facendo una cosa che ha scelto.
         Assert.True(new CallActionContext(HasRingingCall: true).CanDial);
     }
+
+    // -----------------------------------------------------------------------
+    // Le due barre della finestra principale
+    // -----------------------------------------------------------------------
+    //
+    // La finestra divide l'elenco secondo la famiglia: le finestre della postazione in
+    // alto, tutto il resto nella scheda della chiamata. Ciascuna barra e' una tappa sola
+    // del giro di tabulazione, ma solo se contiene almeno un pulsante: una barra vuota
+    // non e' una tappa, e il numero di Tab cambierebbe a ogni chiamata.
+
+    [Theory]
+    [MemberData(nameof(TuttiGliStati))]
+    public void LaBarraDellaChiamataNonRestaMaiVuota(CallActionContext context)
+    {
+        var dellaChiamata = CallActionCatalog.Available(context)
+            .Where(b => b.Group != CallActionGroup.Station)
+            .ToList();
+
+        Assert.NotEmpty(dellaChiamata);
+        Assert.Contains(dellaChiamata, b => b.IsEnabled);
+    }
+
+    [Theory]
+    [MemberData(nameof(TuttiGliStati))]
+    public void LaBarraDellaPostazioneNonRestaMaiVuota(CallActionContext context)
+        => Assert.Contains(CallActionCatalog.Available(context), b => b.Group == CallActionGroup.Station);
+
+    [Fact]
+    public void SenzaChiamateLaBarraDellaChiamataProponeComponi()
+    {
+        // E il pulsante fa una cosa vera: porta al campo di composizione, come il suo tasto.
+        var componi = Pulsante(default, CallAction.FocusDialer);
+
+        Assert.Equal("Componi", componi.Label);
+        Assert.Equal(CallActionGroup.Call, componi.Group);
+        Assert.True(componi.IsEnabled);
+    }
+
+    [Fact]
+    public void InPausaSenzaChiamateComponiResta()
+    {
+        // Spento non sarebbe raggiungibile con la tastiera, e la barra tornerebbe vuota.
+        // Acceso porta al campo, che spiega da se' perche' in pausa non scrive.
+        Assert.Contains(CallAction.FocusDialer, Azioni(new CallActionContext(IsServicePaused: true)));
+    }
+
+    [Theory]
+    [MemberData(nameof(TuttiGliStati))]
+    public void ComponiCompareSoloSenzaNessunaChiamata(CallActionContext context)
+    {
+        var senzaChiamate = !context.HasRingingCall && !context.HasAnyCall;
+
+        Assert.Equal(senzaChiamate, Azioni(context).Contains(CallAction.FocusDialer));
+    }
+
+    [Fact]
+    public void NellaBarraDellaPostazioneStannoLeFinestreENientAltro()
+    {
+        var stato = new CallActionContext(HasActiveCall: true, HasUpdateAvailable: true);
+
+        var postazione = CallActionCatalog.Available(stato)
+            .Where(b => b.Group == CallActionGroup.Station)
+            .Select(b => b.Action)
+            .ToList();
+
+        Assert.Equal(
+            new[]
+            {
+                CallAction.OpenContacts, CallAction.OpenCallHistory, CallAction.OpenSettings,
+                CallAction.OpenSipAccounts, CallAction.OpenUpdate,
+            },
+            postazione);
+    }
 }

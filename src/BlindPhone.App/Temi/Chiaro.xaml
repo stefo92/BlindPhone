@@ -50,4 +50,25 @@
     <!-- Intestazioni di tabella. -->
     <SolidColorBrush x:Key="HeaderBrush" Color="#E9E9E9" />
 
+    <!--
+        Fascia di stato della chiamata, nella finestra principale. Lo stato «libero»
+        usa le intestazioni (testo a 14,3 a 1); gli altri quattro hanno un fondo pieno
+        con il testo bianco:
+
+        squilla         #0A47A9   8,4 a 1   blu, e non rosso: il rosso vuol gia' dire
+                                            «la postazione non lavora»
+        in linea        #0B5A2A   8,4 a 1
+        in attesa       #7A4A00   7,5 a 1   ambra scuro: un ambra chiaro con il testo
+                                            bianco starebbe sotto il 3 a 1
+        fuori servizio  #B00020   7,3 a 1
+
+        Gli stessi valori nel tema scuro: la fascia ha un fondo suo, e il contrasto che
+        conta e' fra il testo e quel fondo, non con la scheda intorno.
+    -->
+    <SolidColorBrush x:Key="LineAlertTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="LineRingingBrush" Color="#0A47A9" />
+    <SolidColorBrush x:Key="LineTalkingBrush" Color="#0B5A2A" />
+    <SolidColorBrush x:Key="LineHoldBrush" Color="#7A4A00" />
+    <SolidColorBrush x:Key="LineOutOfServiceBrush" Color="#B00020" />
+
 </ResourceDictionary>

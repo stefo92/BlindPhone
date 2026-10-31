@@ -18,22 +18,25 @@ public sealed class CallBoardTests
     private static readonly DateTimeOffset Now = new(2026, 8, 8, 10, 0, 0, TimeSpan.FromHours(2));
 
     // -----------------------------------------------------------------------
-    // Casella di sinistra: con chi sono collegato
+    // Il nome grande: con chi sono collegato
     // -----------------------------------------------------------------------
 
     [Fact]
     public void SenzaChiamateSiDiceEsplicitamenteCheNonCeNessuno()
     {
         // Una casella vuota e' ambigua: non si distingue da una casella rotta.
-        Assert.Equal("Collegato a: nessuna chiamata", CallBoardTexts.Connected(null));
+        Assert.Equal("Nessuna chiamata", CallBoardTexts.Connected(null));
+        Assert.Equal(CallBoardTexts.NoConnectedCall, CallBoardTexts.Connected(null));
     }
 
     [Fact]
     public void ConUnaChiamataInCorsoSiLeggonoNomeENumero()
     {
+        // Il numero resta nella casella e non solo nella riga sotto: la casella esiste
+        // perche' quel numero si possa selezionare e copiare.
         var call = Chiamata("4021", "Mario Rossi", CallState.Active);
 
-        Assert.Equal("Collegato a: Mario Rossi - 4021", CallBoardTexts.Connected(call));
+        Assert.Equal("Mario Rossi - 4021", CallBoardTexts.Connected(call));
     }
 
     [Fact]
@@ -41,7 +44,65 @@ public sealed class CallBoardTests
     {
         var call = Chiamata("3491234567", null, CallState.Active);
 
-        Assert.Equal("Collegato a: 3491234567", CallBoardTexts.Connected(call));
+        Assert.Equal("3491234567", CallBoardTexts.Connected(call));
+    }
+
+    [Fact]
+    public void LaCasellaNonDiceMaiChiStaSquillando()
+    {
+        // Si chiama «chiamata in conversazione»: chi ci arriva con il tabulatore deve
+        // poter credere a quello che sente. Chi squilla ha una riga sua.
+        Assert.Equal(CallBoardTexts.NoConnectedCall, CallBoardTexts.Connected(null, [], outgoing: null));
+    }
+
+    [Fact]
+    public void LaChiamataUscenteCompareConLaSuaDidascalia()
+    {
+        // Il nome di chi si sta chiamando sta dove stara' quando rispondera'; la
+        // didascalia dice che non ha ancora risposto, e chi passa non legge «in linea».
+        var uscente = new Call("u-1", CallDirection.Outbound, new CallParty("4021", "Mario Rossi"), Now);
+        uscente.TryApply(CallTrigger.OutgoingCall, Now, out _);
+
+        Assert.Equal("Mario Rossi - 4021", CallBoardTexts.Connected(null, null, uscente));
+        Assert.DoesNotContain("In linea", CallBoardTexts.ConnectedCaption(null, null, uscente), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LaDidascaliaDiceInCheRapportoSiEConChiCeScritto()
+    {
+        var attiva = Chiamata("4021", "Mario Rossi", CallState.Active);
+        var primo = Chiamata("4022", "Anna Bianchi", CallState.Conferenced);
+        var secondo = Chiamata("4023", "Luca Verdi", CallState.Conferenced);
+
+        Assert.Equal("In linea con", CallBoardTexts.ConnectedCaption(attiva));
+        Assert.Equal("In conferenza a tre con", CallBoardTexts.ConnectedCaption(null, [primo, secondo]));
+        Assert.Equal("Chiamata in corso", CallBoardTexts.ConnectedCaption(null));
+    }
+
+    [Fact]
+    public void SottoIlNomeCompaionoUfficioECodaMaiIlNumero()
+    {
+        // Il numero sta gia' nella casella sopra: ripeterlo sotto lo farebbe leggere due
+        // volte a chi guarda.
+        var party = new CallParty("4021", "Mario Rossi") { Department = "Ufficio tecnico" };
+        var call = new Call("d-1", CallDirection.Inbound, party, Now);
+        call.TryApply(CallTrigger.IncomingCall, Now, out _);
+        call.TryApply(CallTrigger.Answer, Now, out _);
+        call.AttachQueue("Anagrafe");
+
+        var dettaglio = CallBoardTexts.ConnectedDetail(call);
+
+        Assert.Equal("Ufficio tecnico · coda Anagrafe", dettaglio);
+        Assert.DoesNotContain("4021", dettaglio, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SenzaUfficioNeCodaLaRigaSottoIlNomeEVuota()
+    {
+        var call = Chiamata("4021", "Mario Rossi", CallState.Active);
+
+        Assert.Equal(string.Empty, CallBoardTexts.ConnectedDetail(call));
+        Assert.Equal(string.Empty, CallBoardTexts.ConnectedDetail(null));
     }
 
     [Fact]
@@ -65,9 +126,8 @@ public sealed class CallBoardTests
 
         var text = CallBoardTexts.Connected(null, [primo, secondo]);
 
-        Assert.Contains("Mario Rossi", text, StringComparison.Ordinal);
-        Assert.Contains("Anna Bianchi", text, StringComparison.Ordinal);
-        Assert.Contains("conferenza a tre", text, StringComparison.Ordinal);
+        Assert.Equal("Mario Rossi - 4021 e Anna Bianchi - 4022", text);
+        Assert.Contains("conferenza a tre", CallBoardTexts.ConnectedCaption(null, [primo, secondo]), StringComparison.Ordinal);
     }
 
     // -----------------------------------------------------------------------
@@ -104,9 +164,9 @@ public sealed class CallBoardTests
     [Fact]
     public void LeAltreAtteseSiContanoInvecheDiEssereElencate()
     {
-        // La casella sta su una riga sola e occupa mezza finestra: due attese per
-        // esteso verrebbero tagliate a meta' di un nome, cioe' nel punto in cui chi
-        // guarda non puo' accorgersi che manca qualcosa. Il conteggio ci sta sempre.
+        // Un'attesa per esteso per ogni chiamata allungherebbe la scheda a ogni messa
+        // in attesa, e spingerebbe giu' la coda proprio mentre si cerca a chi passare
+        // qualcuno. Il conteggio ci sta sempre e dice che esistono.
         var prima = Chiamata("4021", "Mario Rossi", CallState.Held, heldFor: TimeSpan.FromSeconds(30));
         var seconda = Chiamata("4022", "Anna Bianchi", CallState.Held, heldFor: TimeSpan.FromSeconds(20));
 
@@ -287,77 +347,24 @@ public sealed class CallBoardTests
     }
 
     // -----------------------------------------------------------------------
-    // Avviso di conversazione in corso
+    // Il cronometro della fascia di stato
     // -----------------------------------------------------------------------
 
-    [Fact]
-    public void InConversazioneLAvvisoDiceConChiSiParla()
-    {
-        var call = ChiamataInRubrica("4021", "Mario Rossi");
-
-        Assert.Equal("In linea con: Mario Rossi (4021)", CallBoardTexts.InCall(call));
-    }
-
-    [Fact]
-    public void ChiNonEInRubricaCompareConIlSoloNumeroAncheInLinea()
-    {
-        // Stessa regola dell'avviso di chiamata entrante: il numero accanto al nome
-        // vale solo per chi la rubrica conferma.
-        var call = Chiamata("3491234567", null, CallState.Active);
-
-        Assert.Equal("In linea con: 3491234567", CallBoardTexts.InCall(call));
-    }
+    [Theory]
+    [InlineData(0, "0:00")]
+    [InlineData(222, "3:42")]
+    [InlineData(3599, "59:59")]
+    [InlineData(3600, "1:00:00")]
+    [InlineData(3727, "1:02:07")]
+    public void IlCronometroDellaFasciaMostraLeOreSoloQuandoCiSono(int secondi, string atteso)
+        => Assert.Equal(atteso, CallBoardTexts.BandDuration(TimeSpan.FromSeconds(secondi)));
 
     [Fact]
-    public void SenzaConversazioneLAvvisoNonHaTesto()
+    public void IlCronometroDellaFasciaNonVaMaiSottoZero()
     {
-        // La stringa vuota e' cio' che spegne il riquadro: un testo di ripiego lo
-        // lascerebbe acceso a dire che si e' in linea con nessuno.
-        Assert.Equal(string.Empty, CallBoardTexts.InCall(null));
-    }
-
-    [Fact]
-    public void InConferenzaLAvvisoNominaEntrambi()
-    {
-        // In conferenza la chiamata attiva non esiste: guardare solo quella
-        // spegnerebbe il riquadro nel momento di massimo impegno della postazione.
-        var primo = Chiamata("4021", "Mario Rossi", CallState.Conferenced);
-        var secondo = Chiamata("4022", "Anna Bianchi", CallState.Conferenced);
-
-        var testo = CallBoardTexts.InCall(null, [primo, secondo]);
-
-        Assert.Contains("Mario Rossi", testo, StringComparison.Ordinal);
-        Assert.Contains("Anna Bianchi", testo, StringComparison.Ordinal);
-        Assert.Contains("conferenza", testo, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void LAvvisoUsaLaStessaFormaDiQuelloDiChiamataEntrante()
-    {
-        // I due riquadri si susseguono sullo stesso punto dello schermo: cambiare
-        // disposizione a meta' costringerebbe a rileggere invece di riconoscere.
-        var party = new CallParty("4021", "Mario Rossi") { IsKnownContact = true };
-        var call = new Call("c-1", CallDirection.Inbound, party, Now);
-        call.TryApply(CallTrigger.IncomingCall, Now, out _);
-        call.TryApply(CallTrigger.Answer, Now, out _);
-
-        var entrante = CallBoardTexts.IncomingCall(party);
-        var inLinea = CallBoardTexts.InCall(call);
-
-        Assert.Equal("Chiamata da: Mario Rossi (4021)", entrante);
-        Assert.Equal("In linea con: Mario Rossi (4021)", inLinea);
-    }
-
-    /// <summary>Chiamata in conversazione con una controparte ritrovata in rubrica.</summary>
-    private static Call ChiamataInRubrica(string number, string name)
-    {
-        var party = new CallParty(number, name) { IsKnownContact = true };
-        var call = new Call($"c-{number}", CallDirection.Inbound, party, Now);
-
-        call.TryApply(CallTrigger.IncomingCall, Now, out _);
-        call.TryApply(CallTrigger.Answer, Now, out _);
-
-        return call;
+        // Uno scarto di orologio fra la creazione della chiamata e adesso non deve
+        // produrre un tempo negativo, che farebbe dubitare di tutta la fascia.
+        Assert.Equal("0:00", CallBoardTexts.BandDuration(TimeSpan.FromSeconds(-3)));
     }
 
     /// <summary>Costruisce una chiamata già portata nello stato richiesto.</summary>

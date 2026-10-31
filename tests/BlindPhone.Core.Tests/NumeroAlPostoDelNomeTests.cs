@@ -115,13 +115,12 @@ public sealed class NumeroAlPostoDelNomeTests
     }
 
     [Fact]
-    public void IlRiquadroVerdeELaCasellaNonRipetonoIlNumero()
+    public void IlNomeGrandeNonRipeteIlNumero()
     {
         var chiamata = new Call(
             "doppio-1", CallDirection.Inbound, new CallParty("3491234567", "3491234567"), Adesso);
 
-        Assert.Equal("In linea con: 3491234567", CallBoardTexts.InCall(chiamata));
-        Assert.Equal("Collegato a: 3491234567", CallBoardTexts.Connected(chiamata));
+        Assert.Equal("3491234567", CallBoardTexts.Connected(chiamata));
     }
 
     [Fact]
@@ -261,15 +260,15 @@ public sealed class NumeroAlPostoDelNomeTests
         var chiamata = calls.GetCall(id);
         Assert.NotNull(chiamata);
         Assert.Null(chiamata.RemoteParty.DisplayName);
-        Assert.Equal("In linea con: 4021", CallBoardTexts.InCall(chiamata));
+        Assert.Equal("4021", CallBoardTexts.Connected(null, null, outgoing: chiamata));
     }
 
     [Fact]
     public async Task LaLineaDiConsultazioneVersoUnaVoceSenzaNomeNonRipeteIlNumero()
     {
-        // Durante un trasferimento la linea con l'interno occupa il riquadro verde, e la
-        // sua controparte viene dalla rubrica del trasferimento: con una voce senza nome
-        // diceva «In linea con: 4021 (4021)».
+        // Durante un trasferimento la linea con l'interno occupa il nome grande della
+        // scheda, e la sua controparte viene dalla rubrica del trasferimento: con una
+        // voce senza nome il riquadro verde di prima diceva «In linea con: 4021 (4021)».
         var clock = new ManualClock(Adesso);
         var engine = new FakeEngine();
         var announcer = new RecordingAnnouncer();
@@ -297,7 +296,7 @@ public sealed class NumeroAlPostoDelNomeTests
 
         Assert.NotNull(consultazione);
         Assert.Null(consultazione.RemoteParty.DisplayName);
-        Assert.Equal("In linea con: 4021", CallBoardTexts.InCall(consultazione));
+        Assert.Equal("4021", CallBoardTexts.Connected(consultazione));
     }
 
     /// <summary>
