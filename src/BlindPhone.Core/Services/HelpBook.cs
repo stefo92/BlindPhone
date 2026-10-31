@@ -634,25 +634,33 @@ public static class HelpBook
 
     private static string Impostazioni(HotkeyProfile profile) =>
         $"""
-        Le impostazioni si aprono con {K(profile, HotkeyCommand.OpenSettings)}. Control Tab cambia scheda, Alt più la lettera sottolineata porta direttamente a un campo.
+        Le impostazioni si aprono con {K(profile, HotkeyCommand.OpenSettings)}. Le schede stanno in un elenco a sinistra, divise in cinque gruppi, e Control Tab le percorre in quest'ordine: Collegamento, con Account SIP, Centralino e Configurazione; Dispositivi, con Audio e Cuffia; Lavoro, con Chiamate, Colleghi e Rubrica; Voce e tastiera, con Accessibilità e Tasti rapidi; Assistenza, con Diagnostica. I nomi dei gruppi si vedono ma non si leggono: non sono schede. Alt più la lettera sottolineata porta direttamente a un campo. Salva e Annulla restano sempre in fondo alla finestra.
 
-        Account SIP. È quello che fa funzionare il telefono: interno, password e indirizzo del centralino, forniti da chi amministra il centralino. Finché non è compilato, BlindPhone parte in modalità simulata: tutti i comandi funzionano ma nessuna telefonata parte davvero. Viene detto all'avvio, perché è l'unico caso in cui tutto sembra a posto e non lo è.
+        Cerca un'impostazione. Se sai che cosa cerchi ma non dove sta, Alt Z porta al campo di ricerca in cima alla finestra, e così anche Control F. Scrivi una parola, per esempio STUN o suoneria: alla prima pausa senti quante impostazioni corrispondono. Invio va alla prima, freccia giù scorre le proposte, e Invio su una proposta apre la scheda giusta, apre la sezione se è chiusa e porta il cursore sul campo. Esc cancella la ricerca.
+
+        Account SIP. È quello che fa funzionare il telefono: interno, password e indirizzo del centralino, forniti da chi amministra il centralino. Finché non è compilato, BlindPhone parte in modalità simulata: tutti i comandi funzionano ma nessuna telefonata parte davvero. Viene detto all'avvio, perché è l'unico caso in cui tutto sembra a posto e non lo è. I campi sono divisi in quattro gruppi — Identità, Centralino, Lavoro agile, Segreteria — e lo screen reader dice il nome del gruppo quando ci entri. Le voci che si toccano di rado — server di registrazione, proxy in uscita, nome visualizzato, numero presentato e ordine dei codec — stanno nella sezione Avanzate, chiusa all'apertura: si apre con la barra spaziatrice, e Alt R, Alt X, Alt U e Alt G la aprono da soli e portano al loro campo. Il pulsante «Verifica la registrazione», Alt F, resta sempre in fondo alla scheda.
 
         Centralino. Il collegamento all'API serve a vedere le chiamate in coda, la presenza degli interni e la rubrica del centralino. Se il centralino non espone l'API, togli la spunta: telefonare, rispondere e trasferire continuano a funzionare, e il sistema smette di segnalare un guasto che non esiste.
 
-        Audio. Quattro vie separate: microfono, conversazione, suoneria, annunci. Assegnare dispositivi diversi è la configurazione che fa più differenza nell'uso quotidiano, perché evita che la voce degli annunci e la suoneria finiscano nello stesso orecchio dell'interlocutore. Dalla via «suoneria» escono il segnale di chiamata in arrivo, gli eventi di coda e gli allarmi; dalla «conversazione» escono la voce dell'interlocutore e i riscontri di quello che hai appena fatto. Dispositivi e volumi valgono da subito, senza riavviare — solo una chiamata già in corso resta sui dispositivi con cui è cominciata. Qui stanno anche la suoneria personalizzata, la regolazione del buffer audio e l'ordine dei codec.
+        Configurazione. Serve a chi prepara le postazioni: esporta questa configurazione in un pacchetto da applicare alle altre, e blocca le impostazioni che l'operatore non deve cambiare.
+
+        Audio. Quattro vie separate: microfono, conversazione, suoneria, annunci. Assegnare dispositivi diversi è la configurazione che fa più differenza nell'uso quotidiano, perché evita che la voce degli annunci e la suoneria finiscano nello stesso orecchio dell'interlocutore. Dalla via «suoneria» escono il segnale di chiamata in arrivo, gli eventi di coda e gli allarmi; dalla «conversazione» escono la voce dell'interlocutore e i riscontri di quello che hai appena fatto. Dispositivi e volumi valgono da subito, senza riavviare — solo una chiamata già in corso resta sui dispositivi con cui è cominciata. Qui stanno anche la suoneria personalizzata e la regolazione del buffer audio. L'ordine dei codec invece è dell'account: sta in Account SIP, sezione Avanzate.
 
         Cuffia. I pulsanti della cuffia che rispondono e chiudono, la scelta della cuffia se ne colleghi più di una, e il ripiego sul tasto Play e pausa per le cuffie che non hanno altro. Vale subito, senza riavviare. Vedi l'argomento dedicato.
 
+        Chiamate. Modalità del tasto di trasferimento, tempo di attesa della consultazione, conferme, avviso della registrazione e durata dell'elenco delle ultime chiamate.
+
+        Colleghi. Gli interni dei colleghi di cui vuoi sapere se sono alla postazione, uno per riga, e ogni quanto verificarlo.
+
+        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima; collegamento a SQL Server, alla directory LDAP o Active Directory e ai contatti di Outlook classico.
+
         Accessibilità. Modalità di interazione — standard o semplificata da tastierino, vedi l'argomento dedicato — voce, quantità di dettaglio, lettura dei numeri, segnali acustici, braille, e la sezione Finestra e area di notifica.
-
-        Chiamate. Modalità del tasto di trasferimento, tempo di attesa della consultazione, conferme.
-
-        Aggiornamenti, nella scheda Assistenza. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
         Tasti rapidi. Vedi l'argomento dedicato.
 
-        Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima; collegamento a SQL Server, alla directory LDAP o Active Directory e ai contatti di Outlook classico.
+        Diagnostica, nel gruppo Assistenza. Il dettaglio del registro, il riepilogo da mandare all'assistenza, lo spazio su disco, la segnalazione di un problema, gli aggiornamenti e i certificati del centralino.
+
+        Aggiornamenti, nella scheda Diagnostica. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
         Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
         """;

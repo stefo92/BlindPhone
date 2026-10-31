@@ -739,6 +739,228 @@
         </Setter>
     </Style>
 
+    <!--
+        ======================= SCHEDE A SINISTRA, IN GRUPPI =======================
+
+        Il pannello delle impostazioni ha undici schede. In alto, su una finestra
+        larga 860 pixel, andavano su due righe, e selezionando una scheda della
+        riga di sopra WPF scambiava le righe: la scheda appena scelta saltava sotto
+        il cursore del mouse e l'ingranditore inquadrava di colpo un'altra cosa. Qui
+        diventano un elenco verticale, diviso in gruppi.
+
+        RESTA UN TabControl VERO, con lo stesso modello di automazione di prima:
+        Control Tab e Control Pagina giu' scorrono le schede, lo screen reader dice
+        «scheda 2 di 11». Cambiano solo il disegno e la posizione. Gli stili senza
+        chiave qui sopra restano per le schede in alto delle altre finestre, come
+        l'elenco delle ultime chiamate.
+
+        LA COLONNA DELL'ELENCO HA UN MINIMO E UN MASSIMO. Prende un quarto della
+        larghezza, mai meno di 190 pixel e mai piu' di 230: con la finestra stretta,
+        o con lo schermo al 300 per cento — che in pixel logici e' una finestra di
+        poche centinaia di punti — il contenuto tiene sempre almeno tre quarti dello
+        spazio, e i nomi delle schede vanno a capo invece di allargare la colonna.
+        In altezza l'elenco scorre da solo: undici schede e cinque titoli non stanno
+        in una finestra bassa, e la scheda che riceve il focus viene portata in
+        vista da sola.
+
+        Il minimo di 190 e' misurato: e' la larghezza a cui «Configurazione», la
+        parola piu' lunga, sta ancora intera accanto alla barra di scorrimento.
+        A 170 andava a capo a meta' parola.
+    -->
+    <Style x:Key="VoceDiSchedaLaterale" TargetType="TabItem">
+        <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <!--
+            Voci compatte: undici schede e cinque titoli devono stare nell'altezza di
+            una finestra di 720 pixel senza scorrere. Restano alte 33 pixel, sopra il
+            minimo di bersaglio per il mouse.
+        -->
+        <Setter Property="Padding" Value="8,6,12,6" />
+
+        <!--
+            IL CONTORNO DEL FOCUS LO DISEGNA IL MODELLO, NON L'ADORNO DI WPF.
+
+            L'adorno avvolge l'intero elemento, e sulla scheda che apre un gruppo
+            l'elemento comprende anche il titolo del gruppo: il riquadro del focus
+            avrebbe racchiuso «Collegamento» insieme ad «Account SIP», come se
+            fossero una cosa sola. L'anello del modello circonda solo la scheda.
+
+            E' spesso 3 pixel come in tutto il prodotto, e STA STACCATO DI 2 PIXEL
+            DAL FONDO: la scheda che ha il focus e' sempre quella selezionata, e nel
+            tema chiaro il colore della selezione e quello del focus coincidono.
+            Attaccato al fondo, l'anello sarebbe sembrato soltanto una scheda un
+            po' piu' grande.
+        -->
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <!--
+                            Il titolo del gruppo: si vede e non si legge, e non si
+                            clicca. Vedi GruppoDiSchede e TitoloDecorativo.
+                        -->
+                        <app:TitoloDecorativo x:Name="Gruppo"
+                                              Grid.Row="0"
+                                              Margin="8,10,8,4"
+                                              Text="{Binding (app:GruppoDiSchede.Titolo), RelativeSource={RelativeSource TemplatedParent}}"
+                                              FontSize="{StaticResource FontCaption}"
+                                              FontWeight="SemiBold"
+                                              Foreground="{DynamicResource MutedTextBrush}"
+                                              TextWrapping="Wrap"
+                                              IsHitTestVisible="False" />
+
+                        <Grid Grid.Row="1">
+                            <Border x:Name="Sfondo"
+                                    CornerRadius="{StaticResource RadiusControl}"
+                                    Background="Transparent"
+                                    Padding="{TemplateBinding Padding}"
+                                    SnapsToDevicePixels="True">
+                                <DockPanel>
+                                    <!--
+                                        Il terzo segnale della selezione, dopo il fondo e
+                                        il grassetto: una barretta che si vede anche senza
+                                        distinguere i colori. Lo spazio c'e' sempre, cosi'
+                                        il testo non si sposta quando la scheda si accende.
+                                    -->
+                                    <Border x:Name="Segno"
+                                            DockPanel.Dock="Left"
+                                            Width="4"
+                                            Margin="0,2,8,2"
+                                            CornerRadius="2"
+                                            Background="Transparent" />
+
+                                    <!--
+                                        Un TextBlock esplicito e non un ContentPresenter:
+                                        il testo generato da un ContentPresenter prende lo
+                                        stile implicito dei TextBlock, il cui colore vince
+                                        sull'ereditarieta', e sulla scheda selezionata
+                                        sarebbe rimasto scuro sul fondo blu. Lo stesso
+                                        difetto e' spiegato sopra, per i suggerimenti.
+                                    -->
+                                    <TextBlock x:Name="Titolo"
+                                               Text="{Binding Header, RelativeSource={RelativeSource TemplatedParent}}"
+                                               Foreground="{TemplateBinding Foreground}"
+                                               FontSize="{TemplateBinding FontSize}"
+                                               FontWeight="{TemplateBinding FontWeight}"
+                                               TextWrapping="Wrap" />
+                                </DockPanel>
+                            </Border>
+
+                            <Border x:Name="Anello"
+                                    Margin="-5"
+                                    BorderThickness="3"
+                                    CornerRadius="9"
+                                    BorderBrush="{DynamicResource AccentBrush}"
+                                    Visibility="Hidden"
+                                    IsHitTestVisible="False"
+                                    SnapsToDevicePixels="True" />
+                        </Grid>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="app:GruppoDiSchede.Titolo" Value="{x:Null}">
+                            <Setter TargetName="Gruppo" Property="Visibility" Value="Collapsed" />
+                        </Trigger>
+                        <!--
+                            Colore e grassetto vanno sul testo della scheda, non sulla
+                            scheda: il contenuto della scheda eredita da lei, e con il
+                            grassetto sulla scheda diventava grassetto tutto il pannello,
+                            etichette comprese, mentre il bianco della selezione sarebbe
+                            finito su ogni testo che non dichiara un colore suo.
+                        -->
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource SelectionBrush}" />
+                            <Setter TargetName="Segno" Property="Background"
+                                    Value="{DynamicResource SelectionTextBrush}" />
+                            <Setter TargetName="Titolo" Property="Foreground"
+                                    Value="{DynamicResource SelectionTextBrush}" />
+                            <Setter TargetName="Titolo" Property="FontWeight" Value="Bold" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="False" />
+                                <Condition Property="IsMouseOver" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Sfondo" Property="Background"
+                                    Value="{DynamicResource ControlHoverBrush}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Anello" Property="Visibility" Value="Visible" />
+                            <!-- L'anello sborda di 5 pixel: deve stare sopra le schede vicine. -->
+                            <Setter Property="Panel.ZIndex" Value="1" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Titolo" Property="Foreground"
+                                    Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SchedeLaterali" TargetType="TabControl">
+        <Setter Property="TabStripPlacement" Value="Left" />
+        <Setter Property="Background" Value="{DynamicResource CardBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="ItemContainerStyle" Value="{StaticResource VoceDiSchedaLaterale}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid KeyboardNavigation.TabNavigation="Local" SnapsToDevicePixels="True">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" MinWidth="190" MaxWidth="230" />
+                            <ColumnDefinition Width="16" />
+                            <ColumnDefinition Width="3*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Grid.Column="0"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource RadiusCard}">
+                            <!--
+                                Il riquadro di scorrimento non prende il focus: lo
+                                scorrimento segue la scheda che ce l'ha. Il pannello e'
+                                quello standard delle schede, che in verticale le
+                                impila e da' a Tab una fermata sola e alle frecce il
+                                giro completo.
+                            -->
+                            <ScrollViewer Focusable="False"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <TabPanel x:Name="HeaderPanel"
+                                          IsItemsHost="True"
+                                          Margin="8,0,8,12"
+                                          KeyboardNavigation.TabIndex="1" />
+                            </ScrollViewer>
+                        </Border>
+
+                        <Border Grid.Column="2"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="{StaticResource RadiusCard}"
+                                KeyboardNavigation.TabIndex="2"
+                                KeyboardNavigation.TabNavigation="Local"
+                                KeyboardNavigation.DirectionalNavigation="Contained">
+                            <ContentPresenter x:Name="PART_SelectedContentHost"
+                                              ContentSource="SelectedContent"
+                                              Margin="{TemplateBinding Padding}" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="GroupBox">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />

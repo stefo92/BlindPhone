@@ -44,6 +44,7 @@ public sealed class NomiDelleVociTests
         { "SettingsWindow.xaml.cs", "HotkeyRow" },
         { "SettingsWindow.xaml.cs", "CodecEntry" },
         { "SettingsWindow.xaml.cs", "DialerFieldEntry" },
+        { "RicercaImpostazioni.cs", "VoceDiRicerca" },
         { "MainWindow.xaml.cs", "DialerSuggestion" },
         { "ContactsWindow.xaml.cs", "ContactRow" },
         { "CallHistoryWindow.xaml.cs", "CallHistoryRow" },
