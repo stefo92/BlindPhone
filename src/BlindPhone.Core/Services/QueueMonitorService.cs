@@ -169,6 +169,15 @@ public sealed class QueueMonitorService : IAsyncDisposable
     /// <summary>Annuncia lo stato corrente dell'agente.</summary>
     public void AnnounceAgentState()
     {
+        // Senza API lo stato non si conosce: il connettore spento risponde
+        // «disconnesso» solo perche' qualcosa deve rispondere, e detto a voce faceva
+        // pensare al telefono scollegato. Vedi AnnouncementTexts.AgentLinkDisabled.
+        if (_provider.LinkStatus == PbxLinkStatus.Disabled)
+        {
+            _announcer.Announce(Announcement.CommandResponse(AnnouncementTexts.AgentLinkDisabled, _clock.Now));
+            return;
+        }
+
         var state = _provider.AgentState;
         var text = AnnouncementTexts.AgentStateChanged(state);
 

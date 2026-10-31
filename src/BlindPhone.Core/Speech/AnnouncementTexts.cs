@@ -636,6 +636,27 @@ public static class AnnouncementTexts
     public static string QueueLinkDisabled
         => "Collegamento al centralino non attivo. Le chiamate in coda non sono visibili";
 
+    /// <summary>
+    /// Lo stato di agente è stato chiesto, ma il collegamento all'API è disattivato.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Prima la risposta era «disconnesso», ed era sbagliata due volte.</b> Senza
+    /// API nessuno sa se la postazione è collegata alle code, quindi lo stato non è
+    /// «disconnesso» ma sconosciuto. E la parola, detta da un posto operatore, fa
+    /// pensare al telefono: chi la sentiva andava a controllare la registrazione,
+    /// che invece funzionava.
+    /// </para>
+    /// <para>
+    /// La frase dice che cosa manca e che cosa continua a funzionare: le chiamate
+    /// arrivano lo stesso, le code passano dal centralino senza che la postazione
+    /// le veda.
+    /// </para>
+    /// </remarks>
+    public static string AgentLinkDisabled
+        => "Collegamento al centralino non attivo: lo stato di agente nelle code non è disponibile. "
+           + "Le chiamate arrivano lo stesso";
+
     /// <summary>Il dettaglio della coda è tornato disponibile.</summary>
     public static string QueueDetailRestored => "Collegamento al centralino ripristinato";
 
@@ -988,10 +1009,25 @@ public static class AnnouncementTexts
     /// solo quando ci sono messaggi nuovi: «nessun messaggio» detto a ogni riepilogo
     /// sarebbe una frase in più da ascoltare per non sapere niente.
     /// </param>
+    /// <param name="queueLinked">
+    /// Se il collegamento all'API del centralino è attivo. Senza, la coda e lo stato
+    /// di agente non entrano nel riepilogo: vedi le osservazioni.
+    /// </param>
     /// <remarks>
+    /// <para>
     /// È il comando più usato dopo il conteggio della coda: serve a ricostruire in
     /// una frase il quadro che un operatore vedente ricava con un'occhiata allo
     /// schermo. L'ordine delle informazioni è quello di urgenza decrescente.
+    /// </para>
+    /// <para>
+    /// <b>Senza API la coda e l'agente si tacciono, non si inventano.</b> Il
+    /// connettore spento risponde con una coda vuota e un agente «disconnesso»,
+    /// perché qualcosa deve pur rispondere; ma detti qui diventavano due
+    /// affermazioni — «nessuna chiamata in coda», «stato agente: disconnesso» — su
+    /// cose che la postazione non può sapere. La seconda in particolare faceva
+    /// pensare al telefono scollegato. La riga di stato della finestra fa lo stesso:
+    /// quello che non si sa non si scrive.
+    /// </para>
     /// </remarks>
     public static string StatusSummary(
         Call? activeCall,
@@ -1001,7 +1037,8 @@ public static class AnnouncementTexts
         SipRegistrationState registration,
         DateTimeOffset now,
         IReadOnlyList<Call>? conferencedCalls = null,
-        MessageSummary? voicemail = null)
+        MessageSummary? voicemail = null,
+        bool queueLinked = true)
     {
         var parts = new List<string>();
 
@@ -1028,15 +1065,18 @@ public static class AnnouncementTexts
             parts.Add($"{SpeechFormatter.Count(heldCalls.Count, "chiamata in attesa", "chiamate in attesa")}: {held}");
         }
 
-        parts.Add(QueueCount(queue, now));
-
-        parts.Add(agent.Status switch
+        if (queueLinked)
         {
-            AgentStatus.Available => "Stato agente: disponibile",
-            AgentStatus.Paused => "Stato agente: in pausa",
-            AgentStatus.LoggedOut => "Stato agente: disconnesso",
-            _ => "Stato agente: occupato",
-        });
+            parts.Add(QueueCount(queue, now));
+
+            parts.Add(agent.Status switch
+            {
+                AgentStatus.Available => "Stato agente: disponibile",
+                AgentStatus.Paused => "Stato agente: in pausa",
+                AgentStatus.LoggedOut => "Stato agente: disconnesso",
+                _ => "Stato agente: occupato",
+            });
+        }
 
         if (voicemail is not null && voicemail.NewToAnnounce != 0) parts.Add(VoicemailArrived(voicemail));
 

@@ -2869,10 +2869,24 @@ public partial class MainWindow : Window
             _telephony.RegistrationState,
             DateTimeOffset.Now,
             _calls.ConferencedCalls,
-            _voicemail?.Current);
+            _voicemail?.Current,
+            queueLinked: QueueLinked);
 
         _announcer.Announce(Announcement.CommandResponse(text, DateTimeOffset.Now));
     }
+
+    /// <summary>
+    /// Se coda e stato di agente sono cose che la postazione può sapere.
+    /// </summary>
+    /// <remarks>
+    /// Servono tutte e due le condizioni. La sezione nascosta dice che l'operatore ha
+    /// tolto il collegamento nelle impostazioni, e vale subito; il connettore spento
+    /// dice che all'avvio il collegamento non c'era, e vale finché non si riavvia. In
+    /// entrambi i casi il connettore risponde con una coda vuota e un agente
+    /// «disconnesso» che non descrivono niente di vero.
+    /// </remarks>
+    private bool QueueLinked
+        => _queueSectionVisible != false && _queueProvider.LinkStatus != PbxLinkStatus.Disabled;
 
     /// <summary>
     /// Risponde alla domanda «da quanto», che cambia oggetto secondo la situazione.
@@ -5011,6 +5025,13 @@ public partial class MainWindow : Window
     /// non dire mai nulla.
     /// </para>
     /// <para>
+    /// <b>Lo stato di agente segue la stessa regola, e prima non la seguiva.</b> Senza
+    /// API restava scritto «Agente: disconnesso» per tutto il turno: lo stato di
+    /// partenza del connettore spento, che non cambia mai. Era peggio di un dato
+    /// inutile, perché in cima alla finestra di un telefono «disconnesso» si legge
+    /// come «il telefono non funziona».
+    /// </para>
+    /// <para>
     /// Non parla da sola: si scrive senza sollevare l'evento di regione dinamica. Un
     /// riepilogo che si legge da sé a ogni chiamata che entra, che si risponde e che si
     /// chiude ripete cose che gli annunci hanno già detto meglio.
@@ -5026,7 +5047,8 @@ public partial class MainWindow : Window
         }
 
         parts.Add($"In attesa: {held.Count}");
-        parts.Add($"Agente: {DescribeAgent(_queueProvider.AgentState.Status)}");
+
+        if (QueueLinked) parts.Add($"Agente: {DescribeAgent(_queueProvider.AgentState.Status)}");
 
         StatusText.Text = string.Join("  |  ", parts);
 

@@ -411,6 +411,8 @@ public static class HelpBook
 
         In pausa resti collegato ma non ti vengono assegnate nuove chiamate. È la cosa da fare prima di allontanarti, invece di lasciare squillare.
 
+        Lo stato di agente lo conosce solo il centralino, e la postazione lo sa attraverso la sua API. Senza quel collegamento non compare nella riga di stato né nel riepilogo, e il tasto che lo chiede ti dice che il collegamento non è attivo: le chiamate arrivano lo stesso.
+
         LE PAUSE SONO DUE E NON VANNO CONFUSE.
 
         La pausa in coda, qui sopra, riguarda le sole code e passa dall'API del centralino: senza collegamento non fa nulla.

@@ -70,6 +70,44 @@ public sealed class DisabledQueueProviderTests
     }
 
     [Fact]
+    public void ConIlCollegamentoDisattivatoLoStatoAgenteNonEDisconnesso()
+    {
+        // «Disconnesso» era lo stato di partenza del connettore spento, detto come se
+        // fosse un fatto: a chi lo sentiva faceva pensare al telefono scollegato.
+        var announcer = new RecordingAnnouncer();
+        var monitor = new QueueMonitorService(new DisabledQueueProvider(), announcer);
+
+        monitor.AnnounceAgentState();
+
+        Assert.False(announcer.Said("disconnesso"));
+        Assert.True(announcer.Said("non attivo"));
+        Assert.True(announcer.Said("arrivano lo stesso"));
+    }
+
+    [Fact]
+    public void ConIlCollegamentoDisattivatoIlRiepilogoNonParlaDiCodaNeDiAgente()
+    {
+        var provider = new DisabledQueueProvider();
+        var registrato = new Domain.SipRegistrationState(Domain.RegistrationStatus.Registered, "test");
+
+        var senza = Speech.AnnouncementTexts.StatusSummary(
+            null, [], provider.CurrentSnapshot, provider.AgentState, registrato, DateTimeOffset.Now,
+            queueLinked: false);
+
+        var con = Speech.AnnouncementTexts.StatusSummary(
+            null, [], provider.CurrentSnapshot, provider.AgentState, registrato, DateTimeOffset.Now);
+
+        // Senza API la coda vuota e l'agente disconnesso non sono fatti: si tacciono.
+        Assert.DoesNotContain("agente", senza, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("coda", senza, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Nessuna chiamata attiva", senza);
+
+        // Con l'API restano, come prima.
+        Assert.Contains("Stato agente", con);
+        Assert.Contains("in coda", con);
+    }
+
+    [Fact]
     public void UnCollegamentoDavveroCadutoContinuaAEssereSegnalatoComeTale()
     {
         // Il contrario del rischio precedente: ammorbidire il messaggio per tutti
