@@ -2201,6 +2201,20 @@
                                    AutomationProperties.Name="Stato del tema"
                                    AutomationProperties.LiveSetting="Polite" />
 
+                        <!--
+                            I TASTI SCRITTI SUI PULSANTI STANNO ACCANTO AL TEMA, perche'
+                            sono la stessa domanda: come deve apparire la finestra a chi
+                            la guarda. Lo screen reader la scorciatoia la dice gia', nella
+                            descrizione del pulsante; questa casella serve a chi la deve
+                            leggere a schermo. Spenta di partenza: allarga i pulsanti, e
+                            un aggiornamento non cambia l'aspetto di una postazione.
+                        -->
+                        <CheckBox x:Name="ShowHotkeysOnButtons"
+                                  Content="Mostra i tasti _rapidi sui pulsanti della finestra principale"
+                                  Margin="0,0,0,12"
+                                  AutomationProperties.Name="Mostra le scorciatoie da tastiera sui pulsanti della finestra principale"
+                                  AutomationProperties.HelpText="Scrive accanto al nome di ogni comando il tasto che lo esegue, per esempio F3 accanto a Riaggancia. Serve a chi guarda lo schermo: lo screen reader dice la scorciatoia comunque, nella descrizione del pulsante." />
+
                         <Label Target="{Binding ElementName=Verbosity}" Content="Quanto _dettaglio negli annunci" />
                         <ComboBox x:Name="Verbosity" FontSize="16" MinHeight="36"
                                   AutomationProperties.Name="Livello di dettaglio degli annunci"

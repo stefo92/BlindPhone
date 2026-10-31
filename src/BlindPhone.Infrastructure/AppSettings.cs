@@ -522,6 +522,27 @@ public sealed record AccessibilitySettings
     /// differenza fra leggere lo schermo e non leggerlo.
     /// </remarks>
     public AppTheme Theme { get; init; } = AppTheme.FollowSystem;
+
+    /// <summary>
+    /// Se scrivere la scorciatoia da tastiera sui pulsanti della finestra principale.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Serve a chi guarda lo schermo, non a chi lo ascolta.</b> Lo screen reader la
+    /// scorciatoia la dice già, nella descrizione di ogni pulsante. Chi invece guarda —
+    /// un collega che affianca l'operatore nelle prime settimane, un operatore
+    /// ipovedente con l'ingranditore — la trovava solo nel fumetto, cioè passando con
+    /// il mouse su ogni pulsante: il modo più lento di imparare un tasto.
+    /// </para>
+    /// <para>
+    /// <b>Spenta di partenza</b>, perché allarga i pulsanti e un aggiornamento non deve
+    /// cambiare l'aspetto di una postazione che nessuno ha toccato. Con le due barre
+    /// dei comandi separate il costo è più basso di quando i tasti erano stati tolti —
+    /// la barra della chiamata ha al massimo otto voci — ma resta una scelta di chi usa
+    /// la postazione.
+    /// </para>
+    /// </remarks>
+    public bool ShowHotkeysOnButtons { get; init; }
 }
 
 /// <summary>

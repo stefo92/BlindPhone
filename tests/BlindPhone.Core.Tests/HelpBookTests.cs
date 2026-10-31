@@ -204,6 +204,7 @@ public sealed class HelpBookTests
     [InlineData("Cerca un'impostazione", "non e' detto come si trova un'impostazione per nome")]
     [InlineData("sezione Avanzate", "non e' detto dove sono finite le voci avanzate dell'account e come si aprono")]
     [InlineData("Voce e tastiera", "non e' detto in che gruppi e in che ordine stanno le schede delle impostazioni")]
+    [InlineData("tasti rapidi sui pulsanti", "non e' detto che la scorciatoia si puo' scrivere sui pulsanti della finestra principale")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza

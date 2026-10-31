@@ -48,6 +48,11 @@ public sealed class SettingsPersistenceTests
             Assert.True(impostazioni.Tray.MinimizeToTrayOnClose);
             Assert.True(impostazioni.Tray.RestoreOnIncomingCall);
 
+            // I tasti scritti sui pulsanti restano spenti: allargano i pulsanti, e un
+            // aggiornamento non deve cambiare l'aspetto di una postazione che nessuno
+            // ha toccato.
+            Assert.False(impostazioni.Accessibility.ShowHotkeysOnButtons);
+
             // Le chiavi che c'erano non vengono perse.
             Assert.Equal("Automatic", impostazioni.Accessibility.SpeechChannel);
             Assert.Equal("it-IT", impostazioni.Language);
@@ -70,7 +75,7 @@ public sealed class SettingsPersistenceTests
 
             Assert.True(servizio.Save(iniziali with
             {
-                Accessibility = iniziali.Accessibility with { InternalVoiceEnabled = false },
+                Accessibility = iniziali.Accessibility with { InternalVoiceEnabled = false, ShowHotkeysOnButtons = true },
                 Tray = iniziali.Tray with { MinimizeToTrayOnClose = false, RestoreOnIncomingCall = false },
                 DiagnosticLogLevel = "Debug",
             }));
@@ -78,6 +83,7 @@ public sealed class SettingsPersistenceTests
             var riletto = new SettingsService(cartella).Load();
 
             Assert.False(riletto.Accessibility.InternalVoiceEnabled);
+            Assert.True(riletto.Accessibility.ShowHotkeysOnButtons);
             Assert.True(riletto.Tray.Enabled);
             Assert.False(riletto.Tray.MinimizeToTrayOnClose);
             Assert.False(riletto.Tray.RestoreOnIncomingCall);

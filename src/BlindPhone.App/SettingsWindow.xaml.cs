@@ -958,6 +958,7 @@ public partial class SettingsWindow : Window
         LoadDialerFields(settings.Contacts.DialerFields);
         SelectByTag(Theme, settings.Accessibility.Theme.ToString());
         UpdateThemeHint();
+        ShowHotkeysOnButtons.IsChecked = settings.Accessibility.ShowHotkeysOnButtons;
         SelectByTag(Verbosity, settings.Accessibility.Verbosity.ToString());
         SelectByTag(QueueMode, settings.Accessibility.QueueMode.ToString());
         SelectByTag(DigitGrouping, settings.Accessibility.DigitGrouping.ToString());
@@ -3238,6 +3239,7 @@ public partial class SettingsWindow : Window
                 SpeechChannel = speechChannel,
                 InternalVoiceEnabled = internalVoice,
                 Theme = ParseEnum(SelectedTag(Theme), AppTheme.FollowSystem),
+                ShowHotkeysOnButtons = ShowHotkeysOnButtons.IsChecked == true,
                 Verbosity = ParseEnum(SelectedTag(Verbosity), VerbosityLevel.Standard),
                 QueueMode = ParseEnum(SelectedTag(QueueMode), QueueAnnouncementMode.CountOnly),
                 DigitGrouping = ParseEnum(SelectedTag(DigitGrouping), Core.Speech.DigitGrouping.Single),

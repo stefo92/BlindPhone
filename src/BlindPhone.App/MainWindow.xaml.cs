@@ -406,6 +406,7 @@ public partial class MainWindow : Window
         _speech = speech;
         _contacts = contacts;
         _settings = settings;
+        _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
         _settingsService = settingsService;
         _serviceProvider = serviceProvider;
         _log = logger;
@@ -871,7 +872,33 @@ public partial class MainWindow : Window
             // tastierino semplificato deve sentirsi nominare Invio dalla prima
             // chiamata, non dal riavvio successivo.
             ApplyTransferKeyName(settings, _hotkeys);
+
+            // I tasti scritti sui pulsanti si accendono e si spengono subito: e' una
+            // scelta di aspetto, e chiedere un riavvio per vederne l'effetto
+            // costringerebbe a provarla alla cieca.
+            ApplyHotkeysOnButtons(settings);
         });
+
+    /// <summary>
+    /// Scrive o toglie la scorciatoia sui pulsanti, se la scelta è cambiata.
+    /// </summary>
+    /// <param name="settings">Configurazione appena salvata.</param>
+    /// <remarks>
+    /// Le barre si ricostruiscono solo quando cambia l'elenco dei pulsanti, e qui
+    /// l'elenco non cambia: cambia come è scritto ogni pulsante. Azzerare le due firme
+    /// è il modo di dire alle barre che quello che mostrano non vale più.
+    /// </remarks>
+    private void ApplyHotkeysOnButtons(AppSettings settings)
+    {
+        if (settings.Accessibility.ShowHotkeysOnButtons == _showHotkeysOnButtons) return;
+
+        _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
+        _stationBarSignature = string.Empty;
+        _callBarSignature = string.Empty;
+
+        UpdateCommandBar();
+        UpdateServicePauseButton();
+    }
 
     /// <summary>
     /// Allinea il nome del tasto pronunciato dagli annunci del trasferimento.
@@ -2141,6 +2168,9 @@ public partial class MainWindow : Window
     /// <summary>Firma dei pulsanti della barra della chiamata, per non ricostruirla a vuoto.</summary>
     private string _callBarSignature = string.Empty;
 
+    /// <summary>Se scrivere la scorciatoia sui pulsanti: vedi <see cref="AccessibilitySettings.ShowHotkeysOnButtons"/>.</summary>
+    private bool _showHotkeysOnButtons;
+
     /// <summary>
     /// Rifà le due barre dei pulsanti se le azioni disponibili sono cambiate.
     /// </summary>
@@ -2267,6 +2297,12 @@ public partial class MainWindow : Window
     /// alla frase che dice cosa succede premendo.
     /// </para>
     /// <para>
+    /// <b>A meno che l'operatore non lo chieda</b>, in Impostazioni, scheda
+    /// Accessibilità. Allora il tasto compare dopo il nome, in forma corta — «F3»,
+    /// «Ctrl+M» — dentro un riquadro suo: costa meno della parentesi di una volta, e le
+    /// barre adesso sono due e più corte.
+    /// </para>
+    /// <para>
     /// Il nome accessibile resta la sola etichetta, senza pittogramma: gli screen
     /// reader leggono i pittogrammi per nome — «telefono nero», «tazza calda» — e
     /// davanti a ogni comando sarebbe rumore. Quello che serve sapere sta nel testo di
@@ -2282,7 +2318,7 @@ public partial class MainWindow : Window
 
         var button = new System.Windows.Controls.Button
         {
-            Content = BuildCommandContent(descriptor),
+            Content = BuildCommandContent(descriptor, VisibleHotkeyFor(descriptor.Action)),
             Style = (Style)FindResource("CommandButton"),
             Tag = descriptor.Action,
             IsEnabled = descriptor.IsEnabled,
@@ -2301,9 +2337,13 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Compone pittogramma ed etichetta di un pulsante della barra.
+    /// Compone pittogramma, etichetta ed eventuale tasto di un pulsante della barra.
     /// </summary>
     /// <param name="descriptor">Azione, pittogramma ed etichetta.</param>
+    /// <param name="hotkey">
+    /// Scorciatoia da scrivere dopo l'etichetta, in forma corta; <c>null</c> per non
+    /// scriverla.
+    /// </param>
     /// <remarks>
     /// <para>
     /// <b>Due caselle di testo e non una stringa sola</b>, perché il pittogramma e la
@@ -2324,25 +2364,30 @@ public partial class MainWindow : Window
     /// codice usati qui esistono in entrambi.
     /// </para>
     /// </remarks>
-    private static object BuildCommandContent(CallActionButton descriptor)
+    private static object BuildCommandContent(CallActionButton descriptor, string? hotkey = null)
     {
-        if (string.IsNullOrEmpty(descriptor.Icon)) return descriptor.Label;
+        if (string.IsNullOrEmpty(descriptor.Icon) && hotkey is null) return descriptor.Label;
 
         var riga = new System.Windows.Controls.StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
         };
 
-        var glifo = new System.Windows.Controls.TextBlock
+        if (!string.IsNullOrEmpty(descriptor.Icon))
         {
-            Text = descriptor.Icon,
-            FontFamily = IconFont,
-            FontSize = 15,
-            Margin = new Thickness(0, 0, 8, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+            var glifo = new System.Windows.Controls.TextBlock
+            {
+                Text = descriptor.Icon,
+                FontFamily = IconFont,
+                FontSize = 15,
+                Margin = new Thickness(0, 0, 8, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+            };
 
-        AutomationProperties.SetName(glifo, string.Empty);
+            AutomationProperties.SetName(glifo, string.Empty);
+            FollowButtonForeground(glifo);
+            riga.Children.Add(glifo);
+        }
 
         var etichetta = new System.Windows.Controls.TextBlock
         {
@@ -2355,13 +2400,58 @@ public partial class MainWindow : Window
         // sull'ereditarieta': su un pulsante colorato il testo diventerebbe
         // illeggibile, e su un pulsante disattivato resterebbe acceso mentre il
         // contorno sbiadisce — cioe' il contrario di quello che deve dire.
-        FollowButtonForeground(glifo);
         FollowButtonForeground(etichetta);
-
-        riga.Children.Add(glifo);
         riga.Children.Add(etichetta);
 
+        if (hotkey is not null) riga.Children.Add(BuildHotkeyCap(hotkey));
+
         return riga;
+    }
+
+    /// <summary>
+    /// Il riquadro con la scorciatoia, scritto dopo l'etichetta del pulsante.
+    /// </summary>
+    /// <param name="hotkey">La scorciatoia in forma corta, per esempio «Ctrl+M».</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Ha fondo e colore suoi, e non quelli del pulsante.</b> Il pulsante sotto il
+    /// mouse diventa blu con il testo bianco: un riquadro che lo seguisse cambierebbe
+    /// contrasto a ogni passaggio, mentre così resta quello dichiarato dai temi —
+    /// testo attenuato sul fondo dei campi, 7,4 a 1 nel chiaro e 8,4 a 1 nello scuro;
+    /// nel tema di sistema sono il testo e il fondo delle finestre di Windows.
+    /// </para>
+    /// <para>
+    /// <b>È muto per lo screen reader</b>, come il pittogramma. La scorciatoia la dice
+    /// già il testo di aiuto del pulsante: letta anche qui, ogni comando la ripeterebbe
+    /// due volte.
+    /// </para>
+    /// </remarks>
+    private static System.Windows.Controls.Border BuildHotkeyCap(string hotkey)
+    {
+        var testo = new System.Windows.Controls.TextBlock
+        {
+            Text = hotkey,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        testo.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "FontCaption");
+        testo.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
+        AutomationProperties.SetName(testo, string.Empty);
+
+        var riquadro = new System.Windows.Controls.Border
+        {
+            Child = testo,
+            Margin = new Thickness(8, 0, 0, 0),
+            Padding = new Thickness(5, 0, 5, 1),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(3),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        riquadro.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "FieldBrush");
+        riquadro.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlBorderBrush");
+
+        return riquadro;
     }
 
     /// <summary>Lega il colore di una casella di testo a quello del pulsante che la contiene.</summary>
@@ -2406,6 +2496,22 @@ public partial class MainWindow : Window
     {
         var command = HotkeyFor(action);
         return command is null ? null : _hotkeys.Get(command.Value, HotkeyScope.Local)?.SpeechText;
+    }
+
+    /// <summary>
+    /// Scorciatoia da scrivere sul pulsante, in forma corta, se l'operatore lo ha chiesto.
+    /// </summary>
+    /// <remarks>
+    /// La forma corta — «Ctrl+M» e non «Control M» — è quella dei menu di Windows: sul
+    /// pulsante si legge con gli occhi, e la forma pronunciabile resta nel testo di
+    /// aiuto, dove la cerca lo screen reader.
+    /// </remarks>
+    private string? VisibleHotkeyFor(CallAction action)
+    {
+        if (!_showHotkeysOnButtons) return null;
+
+        var command = HotkeyFor(action);
+        return command is null ? null : _hotkeys.Get(command.Value, HotkeyScope.Local)?.DisplayText;
     }
 
     /// <summary>
@@ -3846,7 +3952,7 @@ public partial class MainWindow : Window
 
         // Stessa composizione dei pulsanti della barra: il pittogramma vuole la
         // famiglia dei caratteri di icone, la parola quella del testo.
-        ServicePauseButton.Content = BuildCommandContent(descrittore);
+        ServicePauseButton.Content = BuildCommandContent(descrittore, VisibleHotkeyFor(descrittore.Action));
         ServicePauseButton.ToolTip = $"{descrittore.Description}.\nScorciatoia: {tasto}";
 
         AutomationProperties.SetName(ServicePauseButton, descrittore.Label);

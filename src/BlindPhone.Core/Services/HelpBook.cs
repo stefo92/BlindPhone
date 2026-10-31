@@ -654,7 +654,7 @@ public static class HelpBook
 
         Rubrica. Importazione da file CSV e da backup di banca dati, con scelta della tabella, abbinamento delle colonne e anteprima; collegamento a SQL Server, alla directory LDAP o Active Directory e ai contatti di Outlook classico.
 
-        Accessibilità. Modalità di interazione — standard o semplificata da tastierino, vedi l'argomento dedicato — voce, quantità di dettaglio, lettura dei numeri, segnali acustici, braille, e la sezione Finestra e area di notifica.
+        Accessibilità. Modalità di interazione — standard o semplificata da tastierino, vedi l'argomento dedicato — voce, quantità di dettaglio, lettura dei numeri, segnali acustici, braille, e la sezione Finestra e area di notifica. Qui c'è anche «Mostra i tasti rapidi sui pulsanti», Alt R: scrive accanto a ogni comando della finestra principale il tasto che lo esegue, per esempio F3 accanto a Riaggancia. Serve a chi guarda lo schermo, come un collega che ti affianca: lo screen reader la scorciatoia la dice comunque, nella descrizione del pulsante.
 
         Tasti rapidi. Vedi l'argomento dedicato.
 
