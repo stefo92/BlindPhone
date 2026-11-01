@@ -965,7 +965,7 @@ circolano più pacchetti firmati con quello.
 
 ---
 
-## 11. Statistiche d'uso: preparare il server PostHog
+## 11. Statistiche d'uso: PostHog Cloud UE o un server proprio
 
 BlindPhone sa mandare a un server [PostHog](https://posthog.com) delle statistiche
 d'uso anonime: quante postazioni ci sono, con quale versione, con quale screen reader,
@@ -1011,7 +1011,66 @@ la città. I rinvii HTTP non si seguono. Se il server non risponde si riprova pi
 tardi, con un'attesa che raddoppia fino a sei ore; gli eventi in attesa sono al
 massimo cinquecento e stanno in `telemetria.json`.
 
-### Il server
+### Due strade: PostHog Cloud UE o un'istanza propria
+
+BlindPhone parla allo stesso modo con tutte e due: cambia solo l'indirizzo. Cambia
+invece chi ha in mano i dati, e quindi che cosa deve fare l'ente.
+
+| | PostHog Cloud UE | Istanza propria |
+|---|---|---|
+| Dove stanno gli eventi | Nei centri dati di PostHog in Germania | Sulla macchina scelta da chi la ospita |
+| Chi li tratta | PostHog Inc., come responsabile del trattamento, con un DPA | Solo chi ospita l'istanza |
+| Trasferimenti fuori dallo Spazio economico europeo | Previsti dal DPA, con le garanzie che il DPA elenca | Nessuno, se la macchina e il fornitore sono nell'UE |
+| Conservazione | La decide il piano e non si accorcia | La decide e la applica chi ospita l'istanza |
+| Manutenzione | Di PostHog | Di chi ospita l'istanza |
+
+### PostHog Cloud UE
+
+È il servizio ufficiale di PostHog, con i dati nella regione europea. I passi:
+
+1. **Creare l'organizzazione nella regione UE**, da `https://eu.posthog.com/signup`. La
+   regione si sceglie quando si crea l'account e poi resta quella: la documentazione di
+   PostHog dice che UE e USA sono separate e che i dati non si spostano dall'una
+   all'altra, salvo una migrazione fatta dai suoi tecnici, riservata ai piani Scale ed
+   Enterprise.
+2. **Generare e firmare il DPA**, l'accordo sul trattamento dei dati, dalla pagina legale
+   dell'organizzazione, `https://app.posthog.com/legal` (porta da sé alla regione
+   giusta): «+ New», «Data Processing Agreement (DPA)», i dati dell'ente o del fornitore,
+   poi la firma su PandaDoc. È disponibile con qualunque piano, anche quello gratuito, e
+   vale solo la copia generata da lì: il testo su `posthog.com/dpa` è un'anteprima.
+3. **Impostare il progetto** come dice il paragrafo «Le impostazioni del progetto» più
+   sotto.
+4. **Scrivere in BlindPhone l'indirizzo dell'invio, quello con «.i.»**:
+   `https://eu.i.posthog.com/`, oppure `https://us.i.posthog.com/` per la regione USA.
+   È l'indirizzo che la documentazione dell'API di PostHog indica per l'invio degli
+   eventi; `https://eu.posthog.com` è quello dell'applicazione web, che si apre nel
+   browser. BlindPhone **non segue i rinvii**, di proposito (§11, «Che cosa arriva al
+   server»): se l'indirizzo scritto risponde con un rinvio, i lotti si scartano e il
+   registro lo dice. Va quindi scritto quello dell'invio, direttamente.
+
+Che cosa dice il DPA, e va letto dall'RPD dell'ente prima di firmarlo:
+
+- PostHog Inc., con sede negli Stati Uniti, è il **responsabile del trattamento**; chi
+  firma è il titolare.
+- I dati stanno nei centri dati della regione scelta: per il cloud UE, secondo l'elenco
+  dei sub-responsabili, Amazon Web Services in Germania.
+- **Il trattamento fuori dallo Spazio economico europeo è previsto**: il DPA dice che
+  PostHog tratta i dati anche negli Stati Uniti e negli altri paesi indicati
+  nell'elenco dei sub-responsabili, e chi firma autorizza quei trasferimenti. Le
+  garanzie dichiarate sono l'adesione di PostHog all'EU-US Data Privacy Framework e le
+  clausole contrattuali tipo della Commissione (modulo 2).
+- I **sub-responsabili** sono autorizzati in via generale; un cambio dell'elenco va
+  comunicato con quattordici giorni di anticipo, e ci si può opporre entro sette.
+  L'elenco è su `https://posthog.com/subprocessors`: per i servizi di base Amazon Web
+  Services e Modal in Germania per il cloud UE, Wiz in Germania e Francia, e
+  Cloudflare sulla sua rete mondiale per i dati in transito; fra le società del gruppo,
+  PostHog GmbH in Germania e Hiberly Ltd. nel Regno Unito.
+- **Le funzioni di intelligenza artificiale portano altri sub-responsabili negli Stati
+  Uniti**, e solo se sono accese. BlindPhone non ne ha bisogno: vanno lasciate spente.
+
+### Un'istanza propria: il server
+
+*Questo paragrafo vale solo per chi ospita PostHog da sé. Con PostHog Cloud UE non serve.*
 
 La strada documentata da PostHog per ospitarlo da sé è l'installazione «hobby», con
 Docker Compose, gratuita e con licenza MIT. Secondo la documentazione di PostHog
@@ -1029,35 +1088,48 @@ dati**. Va saputo che PostHog non dà assistenza alle istanze ospitate da sé e 
 nuove installazioni su Kubernetes non sono più supportate: una macchina sola con
 Docker Compose è oggi l'unica via documentata.
 
-Tre condizioni per il server, prima di accendere qualunque postazione:
+Tre condizioni per un'istanza propria, prima di accendere qualunque postazione:
 
 - **Nell'Unione europea.** La macchina sta in un centro dati nell'UE, o presso l'ente
   stesso, con un fornitore che non trasferisce i dati fuori dallo Spazio economico
-  europeo. È la condizione su cui regge la nota per l'ente.
+  europeo. È la differenza principale rispetto al cloud, ed è quella su cui regge la
+  nota per l'ente.
 - **Solo HTTPS, con un certificato vero.** BlindPhone rifiuta qualunque altro schema,
   e verifica il certificato del server con le autorità di Windows: un certificato
-  autofirmato non basta.
+  autofirmato non basta. Il cloud ha già il suo.
 - **Registri del proxy brevi.** L'unico posto in cui compaiono l'IP e l'ora di una
   postazione è il registro degli accessi del proxy davanti a PostHog: va tenuto il
-  minimo che serve a far funzionare il server, o spento.
+  minimo che serve a far funzionare il server, o spento. Sul cloud quei registri sono
+  di PostHog, e li regola il DPA.
 
 ### Le impostazioni del progetto
 
-Nel progetto PostHog che riceverà le statistiche:
+Nel progetto PostHog che riceverà le statistiche, su tutte e due le strade salvo dove
+è detto:
 
-1. **Settings → Project → IP data capture configuration: accendere «Discard client IP
-   data».** PostHog smette di conservare l'IP insieme agli eventi. BlindPhone manda
-   già `$geoip_disable`, ma se fra le trasformazioni del progetto c'è il GeoIP
-   conviene spegnerlo comunque: lavora sull'IP prima che venga scartato.
-2. **Decidere la conservazione, e applicarla.** Sul cloud la conservazione la decide
-   il piano; un'istanza ospitata da sé **tiene gli eventi finché qualcuno non li
-   cancella**. Il periodo va deciso — tredici mesi bastano a confrontare un anno con
-   il precedente — scritto nel registro dei trattamenti, e applicato con una
-   cancellazione periodica degli eventi più vecchi nel database dell'istanza, provata
-   prima su una copia.
+1. **Scartare l'IP del client.** Nella guida di PostHog sulla conservazione dei dati
+   la voce è Settings → Project → IP data capture configuration, «Discard client IP
+   data»: PostHog smette di conservare l'IP insieme agli eventi. La pagina di PostHog
+   sul GDPR mette la stessa scelta in Settings → Project → General, con il valore
+   predefinito dell'organizzazione in Settings → Organization → General, e dice che
+   sui progetti nuovi del cloud UE la raccolta dell'IP è già spenta: va controllato che
+   lo sia davvero, dove l'interfaccia di oggi la mette. BlindPhone manda già `$geoip_disable`, ma se fra
+   le trasformazioni del progetto c'è il GeoIP conviene spegnerlo comunque: lavora
+   sull'IP prima che venga scartato.
+2. **La conservazione.**
+   - *PostHog Cloud*: la decide il piano — un anno con quello gratuito, sette con
+     quelli a pagamento, secondo la documentazione di PostHog — e **non si può
+     accorciare**. Per togliere gli eventi prima si cancella il progetto o
+     l'organizzazione. Il periodo va scritto così com'è nel registro dei trattamenti e
+     nell'informativa.
+   - *Istanza propria*: **tiene gli eventi finché qualcuno non li cancella**. Il
+     periodo va deciso — tredici mesi bastano a confrontare un anno con il precedente —
+     scritto nel registro dei trattamenti, e applicato con una cancellazione periodica
+     degli eventi più vecchi nel database dell'istanza, provata prima su una copia.
 3. **Spegnere quello che non serve.** Registrazione delle sessioni, autocapture,
    mappe di calore e sondaggi sono funzioni per i siti web: BlindPhone non le usa, e
-   lasciate spente non raccolgono niente per errore.
+   lasciate spente non raccolgono niente per errore. Sul cloud vale anche per le
+   funzioni di intelligenza artificiale, che portano sub-responsabili negli Stati Uniti.
 4. **Accessi.** Chi può leggere il progetto lo decide l'ente, con utenze personali e
    la verifica in due passaggi.
 
@@ -1069,9 +1141,11 @@ pagine web. **Non va mai usata una chiave personale**, quelle che cominciano con
 
 ### Dove si scrivono indirizzo e chiave
 
-Tre posti, dal più generale al più particolare. L'indirizzo è quello base
-dell'istanza, `https://statistiche.example.it/`: il percorso `batch/` lo aggiunge il
-programma, anche dietro un proxy che pubblica PostHog sotto un percorso.
+Tre posti, dal più generale al più particolare. L'indirizzo è quello base, senza il
+percorso dell'API: `https://eu.i.posthog.com/` per PostHog Cloud UE, oppure quello
+dell'istanza propria, per esempio `https://statistiche.example.it/`. Il percorso
+`batch/` lo aggiunge il programma, anche dietro un proxy che pubblica PostHog sotto un
+percorso.
 
 **Nel codice, prima di compilare**: le costanti `TelemetrySettings.DefaultServerUrl` e
 `TelemetrySettings.DefaultProjectKey` in `src\BlindPhone.Infrastructure\AppSettings.cs`.
@@ -1080,15 +1154,18 @@ spento. La chiave **non va scritta nel repository pubblico**, anche se non è un
 segreto: chiunque la legga potrebbe riempire il progetto di eventi falsi. Si scrive
 nella copia che si compila per la distribuzione.
 
-**Su una postazione**, in `%APPDATA%\BlindPhone\settings.json`:
+**Su una postazione**, in `%APPDATA%\BlindPhone\settings.json`. Con PostHog Cloud UE:
 
 ```json
 "telemetry": {
-  "serverUrl": "https://statistiche.example.it/",
+  "serverUrl": "https://eu.i.posthog.com/",
   "projectKey": "phc_...",
   "enabled": false
 }
 ```
+
+Con un'istanza propria cambia solo `serverUrl`, per esempio
+`"https://statistiche.example.it/"`.
 
 **Su tutte le postazioni**, con il pacchetto di configurazione (§8): la sezione
 *Diagnostica* porta indirizzo, chiave **e consenso**. È la strada quando a decidere è
@@ -1104,9 +1181,9 @@ si cambiano da lì.
 
 ### Verificarlo
 
-- **Sulla postazione**: la riga sotto la casella dice «Accese: partono verso
-  statistiche.example.it». Nel registro diagnostico, tre minuti dopo l'avvio, compare
-  «Statistiche d'uso attive verso statistiche.example.it»; i problemi di rete
+- **Sulla postazione**: la riga sotto la casella dice, per esempio, «Accese: partono verso
+  eu.i.posthog.com». Nel registro diagnostico, tre minuti dopo l'avvio, compare
+  «Statistiche d'uso attive verso eu.i.posthog.com»; i problemi di rete
   compaiono come righe «Statistiche d'uso: ...» e restano lì, senza annunci.
 - **Sul server**: nella vista degli eventi arrivano `installazione`, `avvio` e
   `attivita_giornaliera`, tutti con l'ora delle 12:00 UTC del giorno. Non è un errore:

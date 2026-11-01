@@ -217,6 +217,9 @@ public sealed class StatisticheDusoReteTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData("https://eu.i.posthog.com/", "https://eu.i.posthog.com/batch/")]
+    [InlineData("https://eu.i.posthog.com", "https://eu.i.posthog.com/batch/")]
+    [InlineData("https://us.i.posthog.com/", "https://us.i.posthog.com/batch/")]
     [InlineData("https://statistiche.example.it", "https://statistiche.example.it/batch/")]
     [InlineData("https://statistiche.example.it/", "https://statistiche.example.it/batch/")]
     [InlineData("https://example.it/statistiche", "https://example.it/statistiche/batch/")]
@@ -226,6 +229,19 @@ public sealed class StatisticheDusoReteTests : IAsyncLifetime
     [InlineData("statistiche.example.it", null)]
     public void LIndirizzoDeiLottiSiRicavaSoloDaUnIndirizzoHttps(string indirizzo, string? atteso)
         => Assert.Equal(atteso, TelemetrySettings.ToBatchEndpoint(indirizzo)?.AbsoluteUri);
+
+    [Fact]
+    public void LaConfigurazioneDelCloudUeEQuellaDellaDocumentazione()
+    {
+        // E' l'esempio di settings.json in docs/INSTALLAZIONE.md, paragrafo 11: se un
+        // giorno il programma smettesse di accettarlo, la documentazione mentirebbe a chi
+        // configura la prima postazione. Nessuna connessione verso PostHog: la prova
+        // guarda solo come l'indirizzo viene letto.
+        var cloud = new TelemetrySettings { ServerUrl = "https://eu.i.posthog.com/", ProjectKey = Chiave, Enabled = true };
+
+        Assert.True(cloud.IsActive);
+        Assert.Equal("https://eu.i.posthog.com/batch/", cloud.BatchEndpoint?.AbsoluteUri);
+    }
 
     [Fact]
     public async Task DuranteUnaChiamataNonSiMandaNiente()

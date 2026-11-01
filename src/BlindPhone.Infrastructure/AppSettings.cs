@@ -401,9 +401,16 @@ public sealed record TelemetrySettings
     /// <para>
     /// <b>È questa la riga da cambiare prima di compilare</b>, se si vuole che ogni
     /// postazione installata da quel momento conosca già il server. Va scritto
-    /// l'indirizzo base dell'istanza, senza il percorso dell'API:
+    /// l'indirizzo base, senza il percorso dell'API: <c>https://eu.i.posthog.com/</c> per
+    /// PostHog Cloud nella regione UE, oppure quello di un'istanza propria,
     /// <c>https://statistiche.example.it/</c>. Il percorso <c>batch/</c> lo aggiunge il
     /// programma.
+    /// </para>
+    /// <para>
+    /// <b>Sul cloud, l'indirizzo con «.i.».</b> È quello dell'invio degli eventi;
+    /// <c>eu.posthog.com</c> è l'applicazione web. Il client non segue i rinvii — vedi
+    /// <see cref="PostHogClient"/> — quindi l'indirizzo va scritto quello giusto, non uno
+    /// che ci arrivi rimandando.
     /// </para>
     /// <para>
     /// <b>Solo <c>https://</c>.</b> Qualunque altro schema viene rifiutato e le statistiche

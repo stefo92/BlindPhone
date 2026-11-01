@@ -240,14 +240,15 @@ Trattarli come pseudonimi non costa molto, ed evita di costruire l'adempimento s
 
 **Il consenso nella scheda Diagnostica non è la base giuridica.** È un comando: dice al programma se mandare o no. Nel rapporto di lavoro il consenso del dipendente difficilmente è libero, perché chi lo chiede è il datore di lavoro (Comitato europeo per la protezione dei dati, Linee guida 05/2020 sul consenso), e un ente pubblico non può fondare su quello un trattamento che riguarda i propri dipendenti. La casella serve a un'altra cosa: a far sì che nulla parta per caso, e che l'operatore possa sempre vedere se parte.
 
-Le strade sono due, e dipendono da **chi ospita il server**:
+I ruoli dipendono da **chi ospita il server**:
 
 | Server | Ruoli | Che cosa serve |
 |---|---|---|
 | **Dell'ente** | L'ente è titolare; la finalità è la gestione del parco postazioni e della loro accessibilità | Base giuridica nell'esecuzione dei compiti dell'ente (art. 6, par. 1, lett. e, del Regolamento UE 2016/679, con l'art. 2-ter del Codice privacy), da verificare con l'RPD |
 | **Del fornitore** | Va deciso e scritto: il fornitore come responsabile del trattamento per conto dell'ente (art. 28 del Regolamento), oppure come titolare autonomo delle statistiche sul proprio prodotto | Una clausola nel contratto di fornitura o di assistenza che dica quale delle due, con le istruzioni o l'informativa del fornitore |
+| **PostHog Cloud UE** | PostHog Inc. è responsabile del trattamento (art. 28) di chi apre l'account e firma il suo DPA. Titolare e base giuridica restano quelli delle due righe sopra: se l'account è dell'ente, PostHog è responsabile dell'ente; se è del fornitore, PostHog è sub-responsabile dell'ente quando il fornitore è suo responsabile, e allora l'ente lo deve autorizzare (art. 28, par. 2), oppure responsabile del fornitore titolare autonomo | Il DPA di PostHog firmato, e quello che il §7.6 chiede in più per il cloud |
 
-In entrambi i casi il server non è un servizio che l'ente acquista o usa per lavorare: non dovrebbe ricadere nella qualificazione dei servizi cloud del §3.4, ma con un server del fornitore la conclusione va confermata dall'ufficio legale.
+Con un server dell'ente o del fornitore il server non è un servizio che l'ente acquista o usa per lavorare: non dovrebbe ricadere nella qualificazione dei servizi cloud del §3.4, ma con un server del fornitore la conclusione va confermata dall'ufficio legale. **Con PostHog Cloud la domanda va posta esplicitamente**: è un servizio cloud vero, e se l'account è dell'ente va verificato con l'ufficio legale se ricada nel regime del §3.4.
 
 L'identificativo è un'informazione archiviata sull'apparecchio dell'utente, il caso dell'art. 122 del Codice privacy: la casella spenta di partenza e la decisione esplicita vanno nella direzione di quella regola. Quando a decidere per tutte le postazioni è l'ente, con il pacchetto di configurazione, va chiarito con l'RPD se basta la decisione dell'ente proprietario delle postazioni o se serve anche la scelta del singolo operatore: nel secondo caso il pacchetto distribuisce indirizzo e chiave con il consenso spento, e la sezione Diagnostica non si blocca.
 
@@ -284,18 +285,32 @@ Prima di accendere, l'ente informa gli operatori (art. 13 del Regolamento, e art
 
 ### 7.6 Che cosa resta da fare a chi gestisce il server
 
-- **Server nell'Unione europea**, senza trasferimenti fuori dallo Spazio economico europeo.
+Su tutte e due le strade:
+
 - **Scartare l'IP** nelle impostazioni del progetto, e spegnere la trasformazione GeoIP.
-- **Decidere la conservazione, e applicarla**: un'istanza PostHog ospitata da sé tiene gli eventi finché qualcuno non li cancella.
-- **Registri del proxy brevi**: sono l'unico posto in cui compaiono IP e ora di una postazione.
 - **Accessi** al progetto con utenze personali e verifica in due passaggi.
 - **Registro dei trattamenti** (art. 30 del Regolamento) aggiornato con il trattamento.
 - **Valutazione d'impatto**: con le misure del §7.5 il trattamento non misura l'attività dei dipendenti, e questo dovrebbe escluderla; la decisione resta dell'ente, sentito l'RPD.
 
+Solo con un'istanza propria:
+
+- **Server nell'Unione europea**, senza trasferimenti fuori dallo Spazio economico europeo.
+- **Decidere la conservazione, e applicarla**: un'istanza PostHog ospitata da sé tiene gli eventi finché qualcuno non li cancella.
+- **Registri del proxy brevi**: sono l'unico posto in cui compaiono IP e ora di una postazione.
+
+Solo con PostHog Cloud UE, sulla base del DPA e delle pagine di PostHog citate nelle fonti:
+
+- **Firmare il DPA** generato dall'organizzazione PostHog, che è disponibile con qualunque piano. È il contratto dell'art. 28: senza, PostHog riceve dati senza un accordo che lo vincoli.
+- **Regione UE**, scelta alla creazione dell'account: gli eventi stanno in Germania. La regione non si cambia dopo, salvo una migrazione fatta da PostHog sui piani più alti.
+- **Trasferimenti fuori dallo Spazio economico europeo: ci sono, e vanno valutati.** La regione UE dice dove stanno gli eventi, non dove vengono trattati. Il DPA dice che PostHog tratta i dati anche negli Stati Uniti e negli altri paesi del suo elenco dei sub-responsabili, e chi lo firma autorizza quei trasferimenti. Le garanzie dichiarate sono l'adesione all'EU-US Data Privacy Framework e le clausole contrattuali tipo (decisione di esecuzione UE 2021/914, modulo 2). L'RPD valuta se bastano; se non bastano, la strada è l'istanza propria.
+- **Sub-responsabili**: autorizzati in via generale dal DPA, con un preavviso di quattordici giorni su ogni cambio dell'elenco e sette giorni per opporsi. Qualcuno deve leggere quegli avvisi.
+- **Funzioni di intelligenza artificiale spente**: portano sub-responsabili negli Stati Uniti, e BlindPhone non ne ha bisogno.
+- **Conservazione fissata dal piano**, un anno con quello gratuito e sette con quelli a pagamento, e **non si accorcia**: va scritta così nell'informativa e nel registro. Un periodo più breve si ottiene solo cancellando il progetto.
+
 ### 7.7 In ordine, prima di accendere
 
-1. Decidere chi ospita il server, e scriverlo nel contratto con i ruoli del §7.2.
-2. Preparare il server con le impostazioni della §11 di INSTALLAZIONE.md.
+1. Decidere chi ospita il server — l'ente, il fornitore o PostHog Cloud UE — e scriverlo nel contratto con i ruoli del §7.2. Con il cloud, firmare il DPA di PostHog.
+2. Preparare il server o il progetto con le impostazioni della §11 di INSTALLAZIONE.md.
 3. Dare l'informativa agli operatori (§7.4).
 4. Aggiornare il registro dei trattamenti, sentito l'RPD.
 5. Accendere: con il pacchetto di configurazione, bloccando la sezione Diagnostica se la decisione è dell'ente, oppure lasciando la casella agli operatori.
@@ -318,3 +333,10 @@ Prima di accendere, l'ente informa gli operatori (art. 13 del Regolamento, e art
 - [Corte di giustizia UE, causa C-582/14, Breyer](https://curia.europa.eu/juris/liste.jsf?num=C-582/14)
 - [PostHog — Self-host](https://posthog.com/docs/self-host)
 - [PostHog — Controlling data storage](https://posthog.com/docs/privacy/data-storage)
+- [PostHog — Data Processing Agreement](https://posthog.com/dpa)
+- [PostHog — Subprocessors](https://posthog.com/subprocessors)
+- [PostHog — GDPR compliance](https://posthog.com/docs/privacy/gdpr-compliance)
+- [PostHog — Privacy, «How do I get a signed DPA?»](https://posthog.com/docs/privacy)
+- [PostHog — Events data retention](https://posthog.com/docs/data/events-retention)
+- [PostHog — Capture API, indirizzi delle regioni](https://posthog.com/docs/api/capture)
+- [PostHog — Projects, spostamento fra regioni](https://posthog.com/docs/settings/projects)

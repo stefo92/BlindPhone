@@ -314,11 +314,11 @@ di consenso di Windows. Se il server non risponde la cosa finisce nel registro e
 
 BlindPhone può dire a chi lo sviluppa quante postazioni lo usano e quali funzioni
 servono: versione, Windows, screen reader, funzioni accese, quali comandi si usano e se
-da tastiera o dal pulsante. Le manda a un server [PostHog](https://posthog.com)
-ospitato da chi distribuisce il prodotto, e **non parte niente finché non ci sono tre
-cose insieme**: un indirizzo `https://`, una chiave di progetto `phc_` e il consenso,
-che è spento di partenza. Una copia compilata senza toccare niente non conosce nessun
-server, ed è muta.
+da tastiera o dal pulsante. Le manda a [PostHog](https://posthog.com), al servizio
+ufficiale nella regione UE (`https://eu.i.posthog.com/`) oppure a un'istanza ospitata
+in proprio, e **non parte niente finché non ci sono tre cose insieme**: un indirizzo
+`https://`, una chiave di progetto `phc_` e il consenso, che è spento di partenza. Una
+copia compilata senza toccare niente non conosce nessun server, ed è muta.
 
 **L'elenco di che cosa può partire è chiuso** e sta in un file solo,
 [TelemetryCatalog.cs](src/BlindPhone.Core/Services/TelemetryCatalog.cs): ogni valore è
@@ -331,8 +331,9 @@ chi lo usa.
 Il consenso è la casella «Invia statistiche d'uso anonime» in *Impostazioni →
 Diagnostica*, e viaggia con il pacchetto di configurazione insieme a indirizzo e
 chiave. La guida in linea ha un argomento che legge all'operatore, dallo stesso
-catalogo, che cosa parte. Come preparare il server: [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md)
-§11. Che cosa deve fare l'ente prima di accenderle:
+catalogo, che cosa parte. Come preparare PostHog, sul cloud UE o in proprio:
+[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) §11. Che cosa deve fare l'ente prima di
+accenderle, compreso il DPA di PostHog con il cloud:
 [CONFORMITA-PA-ITALIANA.md](CONFORMITA-PA-ITALIANA.md) §7.
 
 ## La finestra principale
@@ -613,9 +614,9 @@ quel requisito è contrattuale.
   gestionali dell'ente: interpretazione, consegna alla copia aperta e registrazione
   nell'installatore sono verificate dai test e dal pacchetto costruito, non ancora
   da un'installazione su una postazione reale
-- Collaudo delle statistiche d'uso con un server PostHog vero: il formato dei lotti,
-  i rifiuti e i tentativi sono provati contro un server HTTPS finto sulla postazione,
-  non ancora contro un'istanza PostHog
+- Collaudo delle statistiche d'uso con un PostHog vero: il formato dei lotti, i
+  rifiuti e i tentativi sono provati contro un server HTTPS finto sulla postazione,
+  non ancora contro PostHog Cloud UE né contro un'istanza propria
 - Decisione su RTT (EN 301 549 §6.2): implementarlo o dichiarare lo scostamento
   nell'Accessibility Conformance Report
 - ICE e TURN non ci sono, per scelta motivata: in SIPSorcery 10 l'ICE esiste solo per
