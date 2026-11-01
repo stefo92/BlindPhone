@@ -82,6 +82,19 @@ public static class HelpBook
     /// <summary>Argomento delle statistiche d'uso anonime.</summary>
     public const string UsageStatisticsTopicId = "statistiche";
 
+    /// <summary>Argomento della licenza, dell'autore e dei suoi contatti.</summary>
+    public const string LicenseTopicId = "licenza";
+
+    /// <summary>Autore e titolare dei diritti.</summary>
+    /// <remarks>
+    /// È lo stesso nome delle proprietà dei binari (<c>Directory.Build.props</c>), di
+    /// <c>publiccode.yml</c> e dell'installatore: le quattro righe vanno tenute allineate.
+    /// </remarks>
+    public const string AuthorName = "Stefano Curti";
+
+    /// <summary>Indirizzo di posta dell'autore.</summary>
+    public const string AuthorEmail = "curti92@live.it";
+
     /// <summary>
     /// Costruisce la guida sulle combinazioni attualmente assegnate.
     /// </summary>
@@ -113,6 +126,7 @@ public static class HelpBook
         Topic("lavoro-agile", "Lavorare da casa: router, VPN e voce che non arriva", LavoroAgile(profile)),
         Topic(AccountsTopicId, "Piu' account SIP sulla stessa postazione", Account(profile)),
         Topic("mancante", "Cosa non c'è ancora", Mancante()),
+        Topic(LicenseTopicId, "Licenza e autore", Licenza(profile)),
 
         // L'elenco arriva gia' impaginato dal generatore della scheda dei tasti, che
         // e' lo stesso usato per l'esportazione in braille: si prende com'e' invece di
@@ -697,6 +711,35 @@ public static class HelpBook
         Quando parte. Qualche minuto dopo l'avvio, a gruppi, e mai durante una chiamata. Se il server non risponde non succede niente: si riprova più tardi, e la cosa resta nel registro.
 
         Spegnerle. Togli la spunta e salva: la postazione dimentica il proprio identificativo e quello che non era ancora partito. Se la casella non si lascia cambiare, la scheda è bloccata dall'amministratore: la decisione è dell'ente, ed è a chi amministra che va chiesto.
+        """;
+
+    /// <summary>
+    /// Licenza, garanzie e contatti dell'autore.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Raccoglie quello che diceva l'avviso di versione beta</b>, oggi spento: era
+    /// l'unico punto in cui il programma dichiarava di non offrire garanzie e di non
+    /// dover essere l'unico mezzo per le chiamate di emergenza. Vedi
+    /// <c>App.AvvisoBetaAllAvvio</c>. Qui si trova quando serve, senza fermare l'avvio.
+    /// </para>
+    /// <para>
+    /// L'indirizzo dell'autore è accompagnato da un avvertimento sui registri: chi scrive
+    /// per un guasto è tentato di allegare il pacchetto per l'assistenza, che porta i
+    /// numeri chiamati, e la decisione di mandarlo fuori dall'ente non è sua.
+    /// </para>
+    /// </remarks>
+    private static string Licenza(HotkeyProfile profile) =>
+        $"""
+        BlindPhone è software libero, distribuito con la GNU General Public License, versione 3, nella forma GPL-3.0-only. Puoi usarlo, studiarlo, modificarlo e ridistribuirlo. Chi distribuisce una versione modificata deve pubblicarne il sorgente con la stessa licenza. Il testo integrale è nel file LICENSE, che accompagna il codice sorgente su github.com/stefo92/BlindPhone, ed è quello che fa fede.
+
+        Nessuna garanzia. Il programma è fornito così com'è, senza garanzia di alcun tipo, nei limiti consentiti dalla legge: lo dicono le sezioni 15 e 16 della licenza. È una versione di prova, e non va usato come unico mezzo per le chiamate di emergenza: tieni disponibile un telefono che non dipenda da questo programma.
+
+        Insieme a BlindPhone viaggia la libreria di NV Access che serve a parlare con NVDA. Ha una licenza sua, la LGPL 2.1, e il suo testo sta accanto alla libreria.
+
+        L'autore. BlindPhone è scritto da {AuthorName}, che ne detiene i diritti. Per segnalare un problema, proporre una modifica o chiedere informazioni, scrivi a {AuthorEmail}.
+
+        Prima di allegare qualcosa a quel messaggio, pensa ai dati. Il pacchetto per l'assistenza, che si prepara con {K(profile, HotkeyCommand.SendSupportPackage)}, contiene i registri con i numeri chiamati e chiamanti: mandalo fuori dall'ente solo se chi ne è responsabile lo consente. Una descrizione con parole tue, invece, si manda sempre.
         """;
 
     private static string Problemi(HotkeyProfile profile) =>

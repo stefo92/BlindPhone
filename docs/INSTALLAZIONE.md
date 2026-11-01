@@ -120,6 +120,7 @@ l'elevazione dei privilegi: Windows chiede conferma all'avvio.
 | Collegamento nel menu Start | direttamente fra i programmi, senza cartella |
 | Collegamento sul desktop | creato salvo `DESKTOP=0` |
 | Candidatura per i link `tel:`, `sip:`, `sips:`, `callto:` | Registro di sistema, vedi §7 |
+| Editore, contatto e licenza | Nell'elenco delle app installate: Stefano Curti, curti92@live.it, GPL-3.0-only |
 | Dati dell'operatore | `%APPDATA%\BlindPhone` (per utente) |
 
 Nella cartella dei dati l'applicazione crea, alla prima esecuzione e poi via via che

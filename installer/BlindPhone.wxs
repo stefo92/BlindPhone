@@ -57,7 +57,7 @@
       ci ha messo una versione di prova senza doverla aprire.
   -->
   <Package Name="BlindPhone $(var.EtichettaVersione)"
-           Manufacturer="BlindPhone"
+           Manufacturer="Stefano Curti"
            Version="$(var.Versione)"
            UpgradeCode="577CC908-8CF5-4C5F-A874-6B1596D99FF5"
            Scope="perMachine"
@@ -89,6 +89,24 @@
 
     <!-- L'icona compare anche nell'elenco delle app installate. -->
     <Property Id="ARPPRODUCTICON" Value="IconaBlindPhone" />
+
+    <!--
+        AUTORE, CONTATTO E LICENZA NELL'ELENCO DELLE APP INSTALLATE.
+
+        Manufacturer, qui sopra, e' l'editore che Windows mostra accanto al nome. Le
+        quattro proprieta' sotto sono le informazioni di supporto della stessa voce:
+        chi amministra una postazione e trova BlindPhone installato deve poter sapere
+        di chi e', sotto quale licenza, e a chi scrivere, senza cercare il repository.
+        Sono gli stessi dati di Directory.Build.props e publiccode.yml, e vanno
+        tenuti allineati.
+
+        Manufacturer non entra in nessun percorso e non decide gli aggiornamenti: lo
+        fa UpgradeCode. Cambiarlo non tocca le postazioni gia' installate.
+    -->
+    <Property Id="ARPCONTACT" Value="Stefano Curti, curti92@live.it" />
+    <Property Id="ARPHELPLINK" Value="mailto:curti92@live.it" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/stefo92/BlindPhone" />
+    <Property Id="ARPCOMMENTS" Value="Software libero, licenza GPL-3.0-only. Autore: Stefano Curti." />
 
     <!--
         Nota: ARPNOMODIFY lo dichiara gia' l'interfaccia WixUI_InstallDir, che
