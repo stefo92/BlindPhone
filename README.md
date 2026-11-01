@@ -1561,6 +1561,23 @@ utente Windows sulla stessa macchina.
 
 **GPL-3.0-only.** Il testo integrale è in [LICENSE](LICENSE), ed è quello che fa fede.
 
+Copyright © 2026 Stefano Curti. Il programma è distribuito **senza alcuna garanzia**,
+nei limiti consentiti dalla legge: vedi le sezioni 15 e 16 della licenza.
+
+### Autore e contatti
+
+**Stefano Curti** — [curti92@live.it](mailto:curti92@live.it)
+
+È l'indirizzo per segnalare un problema, proporre una modifica o chiedere informazioni,
+anche da parte di un ente che valuta il prodotto. Chi scrive per un guasto non alleghi
+il pacchetto per l'assistenza senza il permesso dell'ente: contiene i registri, con i
+numeri chiamati e chiamanti.
+
+Gli stessi dati stanno nelle proprietà dei binari ([Directory.Build.props](Directory.Build.props)),
+nell'elenco delle app installate di Windows ([installer/BlindPhone.wxs](installer/BlindPhone.wxs)),
+nel catalogo del riuso ([publiccode.yml](publiccode.yml)) e nella guida in linea,
+argomento «Licenza e autore».
+
 La scelta ha conseguenze concrete, ed è il motivo per cui è dichiarata qui e non
 lasciata implicita: incide sullo stack SIP — [SIPSorcery](https://github.com/sipsorcery-org/sipsorcery)
 è MIT, quindi compatibile e riusabile senza vincoli aggiuntivi — e sulla risposta alla

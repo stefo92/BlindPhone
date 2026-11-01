@@ -87,7 +87,10 @@ description:
 
 legal:
   license: GPL-3.0-only
-  mainCopyrightOwner: stefo92
+  # Il titolare per nome e cognome, come nelle proprieta' dei binari
+  # (Directory.Build.props) e nell'installatore. repoOwner resta l'account GitHub
+  # che ospita il repository.
+  mainCopyrightOwner: Stefano Curti
   repoOwner: stefo92
 
 maintenance:
@@ -95,7 +98,8 @@ maintenance:
   # fornitore sotto contratto ne' da una comunita'.
   type: internal
   contacts:
-    - name: stefo92
+    - name: Stefano Curti
+      email: curti92@live.it
 
 localisation:
   localisationReady: false

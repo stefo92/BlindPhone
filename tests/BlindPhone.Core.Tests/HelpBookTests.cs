@@ -208,6 +208,11 @@ public sealed class HelpBookTests
     [InlineData("Invia statistiche d'uso anonime", "non e' detto dove si accendono e si spengono le statistiche d'uso")]
     [InlineData("Che cosa non parte mai", "non e' detto che cosa le statistiche d'uso non mandano")]
     [InlineData("dimentica il proprio identificativo", "non e' detto che spegnendo le statistiche la postazione dimentica tutto")]
+    [InlineData("GPL-3.0-only", "non e' detto sotto quale licenza e' distribuito BlindPhone")]
+    [InlineData("Nessuna garanzia", "non e' detto che il programma e' fornito senza garanzie, come diceva l'avviso beta")]
+    [InlineData("unico mezzo per le chiamate di emergenza", "non e' detto che una versione di prova non sostituisce un telefono per le emergenze")]
+    [InlineData("Stefano Curti", "non e' detto chi e' l'autore")]
+    [InlineData("curti92@live.it", "non e' detto a chi scrivere")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza
