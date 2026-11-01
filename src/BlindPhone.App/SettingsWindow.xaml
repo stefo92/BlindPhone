@@ -2690,6 +2690,41 @@
                                     Click="OnClearCrashReportsClick" />
                         </StackPanel>
 
+                        <!-- ==================== STATISTICHE D'USO ==================== -->
+                        <Separator Margin="0,24,0,16" />
+
+                        <TextBlock Text="Statistiche d'uso anonime" FontWeight="Bold" FontSize="17" />
+
+                        <!--
+                            QUI C'E' SOLO IL CONSENSO.
+
+                            Indirizzo e chiave del server li sceglie chi distribuisce
+                            BlindPhone - nel codice, in settings.json o nel pacchetto di
+                            configurazione (TelemetrySettings) - e non l'operatore: la riga
+                            sotto la casella dice se un server c'e' e qual e'. Senza server
+                            la casella si spunta lo stesso, e non parte niente.
+
+                            Che cosa parte, una voce per una, lo legge la guida, e lo legge
+                            dallo stesso catalogo che decide che cosa puo' partire: i due
+                            elenchi non possono dire cose diverse.
+                        -->
+                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
+                                   Text="Servono a chi sviluppa BlindPhone per sapere quante postazioni lo usano e quali funzioni servono davvero: la versione, lo screen reader, quali comandi si usano e se con un tasto o con un pulsante. Non partono mai numeri di telefono, nomi, interni, rubrica, indirizzi o testi di errore, e nemmeno quante chiamate fai o a che ora. L'elenco completo e' nella guida, all'argomento sulle statistiche d'uso." />
+
+                        <CheckBox x:Name="TelemetryEnabled"
+                                  Content="Invia s_tatistiche d'uso anonime"
+                                  AutomationProperties.Name="Invia statistiche d'uso anonime"
+                                  AutomationProperties.HelpText="Spenta di partenza. Parte qualcosa solo se chi amministra la postazione ha indicato un server. Spegnendola, la postazione dimentica il proprio identificativo e quello che non era ancora partito."
+                                  Checked="OnTelemetryEnabledChanged"
+                                  Unchecked="OnTelemetryEnabledChanged" />
+
+                        <TextBlock x:Name="TelemetryHint"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
+                                   Text=""
+                                   AutomationProperties.LiveSetting="Polite"
+                                   AutomationProperties.Name="Dove vanno le statistiche d'uso" />
+
                         <!-- ==================== AGGIORNAMENTI ==================== -->
                         <Separator Margin="0,24,0,16" />
 

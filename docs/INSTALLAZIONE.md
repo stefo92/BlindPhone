@@ -135,6 +135,7 @@ servono:
 | `certificati-fidati.json` | Certificati del centralino approvati dall'operatore |
 | `log\` | Registri diagnostici, conservati per i giorni impostati |
 | `errori\` | Rapporti degli errori gravi, in attesa di essere segnalati |
+| `telemetria.json` | Solo con le statistiche d'uso accese: l'identificativo anonimo e gli eventi non ancora partiti (§11) |
 
 `certificati-fidati.json` sta **fuori** da `settings.json` di proposito: quel file è
 documentato come esportabile fra postazioni, e una decisione di fiducia su un
@@ -961,3 +962,159 @@ qualcuno» non basta più: il certificato deve essere quello. L'elenco accetta p
 impronte perché un rinnovo le cambia — durante il passaggio ci stanno dentro sia il
 certificato uscente sia quello entrante, e il vecchio si toglie quando non
 circolano più pacchetti firmati con quello.
+
+---
+
+## 11. Statistiche d'uso: preparare il server PostHog
+
+BlindPhone sa mandare a un server [PostHog](https://posthog.com) delle statistiche
+d'uso anonime: quante postazioni ci sono, con quale versione, con quale screen reader,
+quali funzioni sono accese e quali comandi si usano. Servono a chi sviluppa il
+prodotto per decidere che cosa migliorare, e **non partono finché non ci sono tre cose
+insieme**:
+
+- un indirizzo `https://` del server;
+- la chiave del progetto PostHog, quella che comincia con `phc_`;
+- il consenso, spento di partenza.
+
+Ne manca una e non succede niente: niente identificativo, niente file, niente
+connessioni. Una copia compilata senza toccare niente ha indirizzo e chiave vuoti, e
+quindi è muta su qualunque postazione.
+
+### Che cosa arriva al server
+
+L'elenco è chiuso e sta in un posto solo, `TelemetryCatalog` nel core: lì è scritto
+evento per evento quali proprietà possono partire, e una prova fallisce se ne compare
+una nuova senza che qualcuno l'abbia dichiarata. La guida in linea legge le
+descrizioni dallo stesso elenco, quindi quello che l'operatore legge prima di dare il
+consenso è quello che parte.
+
+| Evento | Quando |
+|---|---|
+| `installazione` | La prima volta che le statistiche partono dalla postazione |
+| `avvio` | A ogni avvio, e quando si accendono: versione, Windows, screen reader, tema, modalità, funzioni accese |
+| `attivita_giornaliera` | Una volta per giorno in cui BlindPhone è acceso |
+| `comando_usato` | Il giorno dopo, una volta per ogni coppia comando e origine (tasto, pulsante, tastierino, cuffia) |
+| `aggiornamento_trovato` | Una volta per ogni versione nuova trovata sul server degli aggiornamenti |
+| `aggiornamento_installato` | Al primo avvio dopo un aggiornamento, con la versione di prima |
+| `errore` | Al massimo una volta al giorno per tipo: il nome del tipo di eccezione, mai il testo |
+
+Ogni evento porta il **giorno e non l'ora**, e nessun evento conta le chiamate o i
+comandi. È una scelta di legge e non di stile: il perché sta in
+[CONFORMITA-PA-ITALIANA.md](../CONFORMITA-PA-ITALIANA.md), §7.
+
+Sul piano tecnico: una POST in JSON su `<server>/batch/`, a gruppi di al massimo
+cinquanta eventi, tre minuti dopo l'avvio e poi ogni quindici minuti, mai durante una
+chiamata. Ogni evento porta `$process_person_profile: false`, perché PostHog non
+costruisca un profilo di persona, e `$geoip_disable: true`, perché non ricavi dall'IP
+la città. I rinvii HTTP non si seguono. Se il server non risponde si riprova più
+tardi, con un'attesa che raddoppia fino a sei ore; gli eventi in attesa sono al
+massimo cinquecento e stanno in `telemetria.json`.
+
+### Il server
+
+La strada documentata da PostHog per ospitarlo da sé è l'installazione «hobby», con
+Docker Compose, gratuita e con licenza MIT. Secondo la documentazione di PostHog
+serve una macchina Ubuntu paragonabile a **4 vCPU, 16 GB di RAM e più di 30 GB di
+disco**, con un nome di dominio il cui record `A` punti alla macchina: il certificato
+TLS lo chiede da sé a Let's Encrypt, attraverso il Caddy che sta nel pacchetto.
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/posthog/posthog/HEAD/bin/deploy-hobby)"
+```
+
+Lo script chiede la versione da installare e il nome di dominio. Per aggiornare
+l'istanza c'è `upgrade-hobby` nella stessa cartella, **dopo aver fatto una copia dei
+dati**. Va saputo che PostHog non dà assistenza alle istanze ospitate da sé e che le
+nuove installazioni su Kubernetes non sono più supportate: una macchina sola con
+Docker Compose è oggi l'unica via documentata.
+
+Tre condizioni per il server, prima di accendere qualunque postazione:
+
+- **Nell'Unione europea.** La macchina sta in un centro dati nell'UE, o presso l'ente
+  stesso, con un fornitore che non trasferisce i dati fuori dallo Spazio economico
+  europeo. È la condizione su cui regge la nota per l'ente.
+- **Solo HTTPS, con un certificato vero.** BlindPhone rifiuta qualunque altro schema,
+  e verifica il certificato del server con le autorità di Windows: un certificato
+  autofirmato non basta.
+- **Registri del proxy brevi.** L'unico posto in cui compaiono l'IP e l'ora di una
+  postazione è il registro degli accessi del proxy davanti a PostHog: va tenuto il
+  minimo che serve a far funzionare il server, o spento.
+
+### Le impostazioni del progetto
+
+Nel progetto PostHog che riceverà le statistiche:
+
+1. **Settings → Project → IP data capture configuration: accendere «Discard client IP
+   data».** PostHog smette di conservare l'IP insieme agli eventi. BlindPhone manda
+   già `$geoip_disable`, ma se fra le trasformazioni del progetto c'è il GeoIP
+   conviene spegnerlo comunque: lavora sull'IP prima che venga scartato.
+2. **Decidere la conservazione, e applicarla.** Sul cloud la conservazione la decide
+   il piano; un'istanza ospitata da sé **tiene gli eventi finché qualcuno non li
+   cancella**. Il periodo va deciso — tredici mesi bastano a confrontare un anno con
+   il precedente — scritto nel registro dei trattamenti, e applicato con una
+   cancellazione periodica degli eventi più vecchi nel database dell'istanza, provata
+   prima su una copia.
+3. **Spegnere quello che non serve.** Registrazione delle sessioni, autocapture,
+   mappe di calore e sondaggi sono funzioni per i siti web: BlindPhone non le usa, e
+   lasciate spente non raccolgono niente per errore.
+4. **Accessi.** Chi può leggere il progetto lo decide l'ente, con utenze personali e
+   la verifica in due passaggi.
+
+La chiave da dare a BlindPhone è la **chiave del progetto**: nelle impostazioni del
+progetto si chiama «Project API key» o «Project token», e comincia con `phc_`. Non è un
+segreto: permette solo di scrivere eventi, ed è la stessa che PostHog mette nelle
+pagine web. **Non va mai usata una chiave personale**, quelle che cominciano con
+`phx_`: leggono e cancellano tutto il progetto. BlindPhone le rifiuta.
+
+### Dove si scrivono indirizzo e chiave
+
+Tre posti, dal più generale al più particolare. L'indirizzo è quello base
+dell'istanza, `https://statistiche.example.it/`: il percorso `batch/` lo aggiunge il
+programma, anche dietro un proxy che pubblica PostHog sotto un percorso.
+
+**Nel codice, prima di compilare**: le costanti `TelemetrySettings.DefaultServerUrl` e
+`TelemetrySettings.DefaultProjectKey` in `src\BlindPhone.Infrastructure\AppSettings.cs`.
+Ogni postazione installata da quella copia conosce il server, e il consenso resta
+spento. La chiave **non va scritta nel repository pubblico**, anche se non è un
+segreto: chiunque la legga potrebbe riempire il progetto di eventi falsi. Si scrive
+nella copia che si compila per la distribuzione.
+
+**Su una postazione**, in `%APPDATA%\BlindPhone\settings.json`:
+
+```json
+"telemetry": {
+  "serverUrl": "https://statistiche.example.it/",
+  "projectKey": "phc_...",
+  "enabled": false
+}
+```
+
+**Su tutte le postazioni**, con il pacchetto di configurazione (§8): la sezione
+*Diagnostica* porta indirizzo, chiave **e consenso**. È la strada quando a decidere è
+l'ente: chi prepara il pacchetto accende le statistiche per tutte le postazioni, e
+bloccando la sezione Diagnostica (§9) la decisione resta quella. All'applicazione
+l'operatore sente «ATTENZIONE: sono state accese le statistiche d'uso anonime», e lo
+stesso se il pacchetto sposta il server. Prima di farlo, l'ente deve aver fatto quello
+che chiede la nota in [CONFORMITA-PA-ITALIANA.md](../CONFORMITA-PA-ITALIANA.md), §7.
+
+Nella scheda Diagnostica l'operatore vede solo la casella «Invia statistiche d'uso
+anonime», Alt T, e una riga che dice se il server c'è e qual è. Indirizzo e chiave non
+si cambiano da lì.
+
+### Verificarlo
+
+- **Sulla postazione**: la riga sotto la casella dice «Accese: partono verso
+  statistiche.example.it». Nel registro diagnostico, tre minuti dopo l'avvio, compare
+  «Statistiche d'uso attive verso statistiche.example.it»; i problemi di rete
+  compaiono come righe «Statistiche d'uso: ...» e restano lì, senza annunci.
+- **Sul server**: nella vista degli eventi arrivano `installazione`, `avvio` e
+  `attivita_giornaliera`, tutti con l'ora delle 12:00 UTC del giorno. Non è un errore:
+  è il modo di dire il giorno senza dire l'ora.
+
+### Spegnerle
+
+Si toglie la spunta e si salva, oppure si distribuisce un pacchetto con il consenso
+spento. In entrambi i casi la postazione cancella `telemetria.json` nel momento del
+salvataggio: identificativo ed eventi non partiti spariscono, un invio in corso si
+interrompe, e riaccendendo la postazione risulta un'installazione nuova.

@@ -244,6 +244,9 @@ public partial class MainWindow : Window
     /// <summary>Pulsanti e spie della cuffia, collegati quando la finestra è pronta.</summary>
     private HeadsetController? _headset;
 
+    /// <summary>Statistiche d'uso: annotano quale comando, e da dove, senza contarli.</summary>
+    private readonly TelemetryService? _telemetry;
+
     private readonly CompositeSpeechOutput _speech;
     private readonly IContactRepository _contacts;
     private readonly IServiceProvider _serviceProvider;
@@ -409,6 +412,7 @@ public partial class MainWindow : Window
         _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
         _settingsService = settingsService;
         _serviceProvider = serviceProvider;
+        _telemetry = serviceProvider.GetService<TelemetryService>();
         _log = logger;
         _trayLog = trayLogger;
 
@@ -477,7 +481,7 @@ public partial class MainWindow : Window
 
         // La cuffia passa dagli stessi comandi delle scorciatoie: vedi HeadsetController.
         _headset = _serviceProvider.GetRequiredService<HeadsetController>();
-        _headset.Start(source, CurrentActionContext, ExecuteCommandAsync);
+        _headset.Start(source, CurrentActionContext, command => ExecuteCommandAsync(command, CommandOrigin.Headset));
 
         RegisterGlobalHotkeys();
         ApplyTraySettings(_settingsService.Current);
@@ -596,24 +600,25 @@ public partial class MainWindow : Window
         switch (azione)
         {
             case KeypadAction.Answer:
-                await ExecuteCommandAsync(HotkeyCommand.Answer).ConfigureAwait(true);
+                await ExecuteCommandAsync(HotkeyCommand.Answer, CommandOrigin.Keypad).ConfigureAwait(true);
                 break;
 
             case KeypadAction.HangUp:
-                await ExecuteCommandAsync(HotkeyCommand.HangUp).ConfigureAwait(true);
+                await ExecuteCommandAsync(HotkeyCommand.HangUp, CommandOrigin.Keypad).ConfigureAwait(true);
                 break;
 
             case KeypadAction.Hold:
             case KeypadAction.Resume:
-                await ExecuteCommandAsync(HotkeyCommand.ToggleHold).ConfigureAwait(true);
+                await ExecuteCommandAsync(HotkeyCommand.ToggleHold, CommandOrigin.Keypad).ConfigureAwait(true);
                 break;
 
             case KeypadAction.StartConsultation:
+                _telemetry?.RecordCommand(HotkeyCommand.Transfer, CommandOrigin.Keypad);
                 await KeypadStartConsultationAsync().ConfigureAwait(true);
                 break;
 
             case KeypadAction.CompleteTransfer:
-                await ExecuteCommandAsync(HotkeyCommand.Transfer).ConfigureAwait(true);
+                await ExecuteCommandAsync(HotkeyCommand.Transfer, CommandOrigin.Keypad).ConfigureAwait(true);
                 break;
 
             // NON E' UN COMANDO RIFIUTATO, E' UNA RISPOSTA.
@@ -745,6 +750,7 @@ public partial class MainWindow : Window
             var esito = await servizio.CheckAsync().ConfigureAwait(true);
             if (!esito.HasUpdate) return;
 
+            _telemetry?.RecordUpdateFound(esito.Update!.Version);
             _updateFound = esito;
             UpdateCommandBar();
 
@@ -1783,7 +1789,7 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
-        _ = ExecuteCommandAsync(command.Value);
+        _ = ExecuteCommandAsync(command.Value, CommandOrigin.Keyboard);
     }
 
     /// <summary>
@@ -1910,21 +1916,30 @@ public partial class MainWindow : Window
         => Dispatcher.Invoke(() =>
         {
             _log.LogInformation("Scorciatoia globale {Command}", command);
-            _ = ExecuteCommandAsync(command);
+            _ = ExecuteCommandAsync(command, CommandOrigin.GlobalHotkey);
         });
 
     /// <summary>
     /// Esegue un comando dell'operatore.
     /// </summary>
     /// <param name="command">Comando da eseguire.</param>
+    /// <param name="origin">
+    /// Da dove è arrivato. Va dichiarato da ogni chiamante, senza un valore predefinito:
+    /// un'origine sbagliata non si vede da nessuna parte, e le statistiche direbbero che
+    /// un pulsante si usa da tastiera.
+    /// </param>
     /// <remarks>
     /// Ogni ramo produce un effetto <b>e</b> un riscontro: non esiste comando muto.
     /// Un comando che non risponde è indistinguibile da un comando che non ha
     /// funzionato, e porta l'operatore a premere di nuovo, spesso peggiorando la
     /// situazione.
     /// </remarks>
-    private async Task ExecuteCommandAsync(HotkeyCommand command)
+    private async Task ExecuteCommandAsync(HotkeyCommand command, CommandOrigin origin)
     {
+        // Quale comando e da dove, e nient'altro: niente ora, niente numero di volte.
+        // Muto finche' le statistiche non sono accese.
+        _telemetry?.RecordCommand(command, origin);
+
         // UNA RIGA PER OGNI COMANDO, con lo stato al momento in cui arriva.
         //
         // Risponde alla domanda che davanti a una segnalazione non aveva risposta:
@@ -2575,11 +2590,15 @@ public partial class MainWindow : Window
     {
         switch (action)
         {
+            // I due trasferimenti dai pulsanti non passano dal comando, ma sono il
+            // comando: per le statistiche sono il trasferimento, dato con un pulsante.
             case CallAction.TransferBlind:
+                _telemetry?.RecordCommand(HotkeyCommand.Transfer, CommandOrigin.Button);
                 await TransferFromButtonAsync(blind: true).ConfigureAwait(true);
                 break;
 
             case CallAction.TransferAttended:
+                _telemetry?.RecordCommand(HotkeyCommand.Transfer, CommandOrigin.Button);
                 await TransferFromButtonAsync(blind: false).ConfigureAwait(true);
                 break;
 
@@ -2590,7 +2609,7 @@ public partial class MainWindow : Window
             default:
                 if (HotkeyFor(action) is { } command)
                 {
-                    await ExecuteCommandAsync(command).ConfigureAwait(true);
+                    await ExecuteCommandAsync(command, CommandOrigin.Button).ConfigureAwait(true);
                 }
 
                 break;
@@ -3977,7 +3996,7 @@ public partial class MainWindow : Window
     private async void OnServicePauseButtonClick(object sender, RoutedEventArgs e)
     {
         _log.LogInformation("Comando dal pulsante {Action}", CallAction.ServicePauseOn);
-        await ExecuteCommandAsync(HotkeyCommand.ToggleServicePause).ConfigureAwait(true);
+        await ExecuteCommandAsync(HotkeyCommand.ToggleServicePause, CommandOrigin.Button).ConfigureAwait(true);
     }
 
     /// <summary>
@@ -4048,7 +4067,7 @@ public partial class MainWindow : Window
         // Chiamarlo qui di lato significherebbe che un'eccezione del connettore, che
         // per la combinazione assegnata diventa "il comando non e' riuscito", da
         // questa strada chiuderebbe l'applicazione.
-        _ = ExecuteCommandAsync(HotkeyCommand.PickSelectedQueueCall);
+        _ = ExecuteCommandAsync(HotkeyCommand.PickSelectedQueueCall, CommandOrigin.Keyboard);
     }
 
     private async Task PickSelectedQueueCallAsync()

@@ -163,7 +163,7 @@ Raccomandazione operativa: mantenere BlindPhone **interamente on-premise** (appl
 
 Motivo: qualsiasi servizio cloud erogato alla PA ricade nel regime di qualificazione dei servizi cloud per la PA, con oneri, tempi e costi di certificazione sproporzionati rispetto al valore del prodotto. Un applicativo desktop che parla solo con il PBX dell'ente **evita interamente questo percorso**. È una scelta architetturale con motivazione commerciale, e conviene esplicitarla nella documentazione tecnica come punto di forza.
 
-Se in futuro servisse una componente di aggiornamento o telemetria centralizzata, va progettata come **opzionale e disattivabile**, con l'installazione PA che gira di default senza.
+Se in futuro servisse una componente di aggiornamento o telemetria centralizzata, va progettata come **opzionale e disattivabile**, con l'installazione PA che gira di default senza. Le statistiche d'uso seguono questa regola: spente di partenza, e mute finché nessuno indica un server. Che cosa deve fare l'ente prima di accenderle sta nel §7.
 
 ---
 
@@ -179,7 +179,7 @@ Documenti da produrre, con l'indicazione di quando servono.
 | **Analisi comparativa delle alternative** | Risposta preconfezionata all'art. 68 CAD | Prima della prima offerta |
 | **Manuale utente accessibile** | HTML strutturato, TXT, EPUB/DAISY, scheda tasti in BRF | Al rilascio |
 | **Guida amministratore** | SIP, connettore Yeastar, distribuzione GPO/Intune, ADMX | Al rilascio |
-| **Informativa e analisi privacy** | Trattamento dati rubrica, registro chiamate, log; supporto al titolare per l'eventuale DPIA | Al rilascio |
+| **Informativa e analisi privacy** | Trattamento dati rubrica, registro chiamate, log, statistiche d'uso (§7); supporto al titolare per l'eventuale DPIA | Al rilascio |
 | **Rapporto dei test con utenti non vedenti** | Metodologia, campione, metriche, esiti | Al rilascio |
 | **Validazione di terza parte** | Endorsement UICI e/o I.Ri.Fo.R. | Auspicabile prima della prima gara |
 | **Piano di formazione e supporto accessibile** | Copre il requisito EN 301 549 §12.2 | Al rilascio |
@@ -220,6 +220,88 @@ Indipendenti dallo sviluppo, con tempi lunghi, e per questo da far partire ora e
 
 ---
 
+## 7. Statistiche d'uso anonime: che cosa deve fare l'ente prima di accenderle
+
+BlindPhone può mandare statistiche d'uso a un server PostHog: quante postazioni ci sono, con quale versione e quale screen reader, quali funzioni sono accese, quali comandi si usano e da dove. Come si prepara il server e dove si scrivono indirizzo e chiave sta in [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §11. **Sono spente di partenza**, e una postazione su cui nessuno ha indicato un server non manda niente nemmeno con la casella spuntata.
+
+Questa nota serve all'ente che decide di accenderle. Vale l'avvertenza in testa al documento: è un'analisi tecnica, non un parere legale, e va letta con il responsabile della protezione dei dati (RPD) dell'ente.
+
+### 7.1 Sono dati personali?
+
+Non contengono dati personali in chiaro, ma **conviene trattarli come dati personali pseudonimi**, per tre ragioni:
+
+- l'identificativo dell'installazione è casuale, ma è stabile: distingue una postazione dalle altre per tutto il tempo in cui le statistiche restano accese;
+- la connessione porta al server l'indirizzo IP della postazione, che la giurisprudenza europea considera un dato personale quando chi lo riceve ha mezzi ragionevoli per collegarlo a una persona (Corte di giustizia, causa C-582/14, *Breyer*), e un ente conosce la propria rete;
+- su una postazione assegnata a un operatore, «la postazione» e «la persona» sono la stessa cosa.
+
+Trattarli come pseudonimi non costa molto, ed evita di costruire l'adempimento su una premessa — «sono anonimi» — che un controllo potrebbe smentire.
+
+### 7.2 Chi è il titolare, e su quale base
+
+**Il consenso nella scheda Diagnostica non è la base giuridica.** È un comando: dice al programma se mandare o no. Nel rapporto di lavoro il consenso del dipendente difficilmente è libero, perché chi lo chiede è il datore di lavoro (Comitato europeo per la protezione dei dati, Linee guida 05/2020 sul consenso), e un ente pubblico non può fondare su quello un trattamento che riguarda i propri dipendenti. La casella serve a un'altra cosa: a far sì che nulla parta per caso, e che l'operatore possa sempre vedere se parte.
+
+Le strade sono due, e dipendono da **chi ospita il server**:
+
+| Server | Ruoli | Che cosa serve |
+|---|---|---|
+| **Dell'ente** | L'ente è titolare; la finalità è la gestione del parco postazioni e della loro accessibilità | Base giuridica nell'esecuzione dei compiti dell'ente (art. 6, par. 1, lett. e, del Regolamento UE 2016/679, con l'art. 2-ter del Codice privacy), da verificare con l'RPD |
+| **Del fornitore** | Va deciso e scritto: il fornitore come responsabile del trattamento per conto dell'ente (art. 28 del Regolamento), oppure come titolare autonomo delle statistiche sul proprio prodotto | Una clausola nel contratto di fornitura o di assistenza che dica quale delle due, con le istruzioni o l'informativa del fornitore |
+
+In entrambi i casi il server non è un servizio che l'ente acquista o usa per lavorare: non dovrebbe ricadere nella qualificazione dei servizi cloud del §3.4, ma con un server del fornitore la conclusione va confermata dall'ufficio legale.
+
+L'identificativo è un'informazione archiviata sull'apparecchio dell'utente, il caso dell'art. 122 del Codice privacy: la casella spenta di partenza e la decisione esplicita vanno nella direzione di quella regola. Quando a decidere per tutte le postazioni è l'ente, con il pacchetto di configurazione, va chiarito con l'RPD se basta la decisione dell'ente proprietario delle postazioni o se serve anche la scelta del singolo operatore: nel secondo caso il pacchetto distribuisce indirizzo e chiave con il consenso spento, e la sezione Diagnostica non si blocca.
+
+### 7.3 Lo Statuto dei lavoratori: perché non ci sono conteggi né orari
+
+L'art. 4 della legge 300 del 1970 ammette gli strumenti da cui può derivare un controllo a distanza dell'attività dei lavoratori solo per esigenze organizzative, produttive, di sicurezza o di tutela del patrimonio, e solo con un accordo sindacale o un'autorizzazione dell'Ispettorato del lavoro. L'eccezione per «gli strumenti utilizzati dal lavoratore per rendere la prestazione» copre il softphone, non le statistiche, che al lavoro non servono.
+
+Per questo le statistiche sono costruite in modo da **non misurare il lavoro**:
+
+- nessun conteggio: si sa che un comando è stato usato in un giorno, non quante volte, e quindi non quante chiamate ha preso la postazione;
+- nessun orario: ogni evento porta il giorno, e l'uso dei comandi arriva il giorno dopo;
+- nessun evento legato alla singola chiamata: non c'è «chiamata ricevuta», «chiamata persa», durata o attesa in coda.
+
+Un ente che volesse di più — quante chiamate per postazione, a che ora — avrebbe in mano un controllo dell'attività, e la procedura dell'art. 4 andrebbe fatta prima. **Il prodotto non lo offre**, e una prova automatica impedisce che il catalogo degli eventi si allarghi senza che qualcuno lo dichiari.
+
+### 7.4 L'informativa agli operatori
+
+Prima di accendere, l'ente informa gli operatori (art. 13 del Regolamento, e art. 4, comma 3, dello Statuto per l'informazione sugli strumenti): chi è il titolare, perché, che cosa parte, verso chi, per quanto tempo, come si esercitano i diritti, e come si spegne.
+
+**Che cosa parte** lo dice l'elenco della §11 di INSTALLAZIONE.md, e lo dice all'operatore la guida in linea, argomento «Le statistiche d'uso anonime»: è scritta per essere ascoltata con lo screen reader, e legge le descrizioni dallo stesso catalogo che decide che cosa può partire. Non sostituisce l'informativa, ma ne è la parte accessibile, e dice la verità per costruzione.
+
+### 7.5 Minimizzazione: che cosa fa già il prodotto
+
+| Misura | Dove |
+|---|---|
+| Elenco chiuso di eventi e proprietà, ogni valore un sì o no, una voce di un elenco o una versione | `TelemetryCatalog`, con le prove che lo sorvegliano |
+| Nessun numero di telefono, nome, interno, indirizzo SIP, contenuto della rubrica, nome del centralino o testo di errore | Non esiste una forma di valore che li possa contenere; una prova lo verifica sui byte inviati a un server di prova |
+| Nessuna sequenza di sei cifre in nessun valore | Verificato a ogni invio |
+| Giorno e non ora, nessun conteggio | §7.3 |
+| Identificativo casuale, senza nome macchina, utente o indirizzo di rete; dimenticato quando si spegne | `TelemetryDiary` |
+| Nessun profilo di persona, nessuna geolocalizzazione | `$process_person_profile: false` e `$geoip_disable: true` su ogni evento |
+| Solo HTTPS, nessun rinvio seguito, chiavi personali rifiutate | `TelemetrySettings`, `PostHogClient` |
+| Spento di partenza; annunciato a voce quando un pacchetto di configurazione lo accende | Scheda Diagnostica, pacchetto di configurazione |
+
+### 7.6 Che cosa resta da fare a chi gestisce il server
+
+- **Server nell'Unione europea**, senza trasferimenti fuori dallo Spazio economico europeo.
+- **Scartare l'IP** nelle impostazioni del progetto, e spegnere la trasformazione GeoIP.
+- **Decidere la conservazione, e applicarla**: un'istanza PostHog ospitata da sé tiene gli eventi finché qualcuno non li cancella.
+- **Registri del proxy brevi**: sono l'unico posto in cui compaiono IP e ora di una postazione.
+- **Accessi** al progetto con utenze personali e verifica in due passaggi.
+- **Registro dei trattamenti** (art. 30 del Regolamento) aggiornato con il trattamento.
+- **Valutazione d'impatto**: con le misure del §7.5 il trattamento non misura l'attività dei dipendenti, e questo dovrebbe escluderla; la decisione resta dell'ente, sentito l'RPD.
+
+### 7.7 In ordine, prima di accendere
+
+1. Decidere chi ospita il server, e scriverlo nel contratto con i ruoli del §7.2.
+2. Preparare il server con le impostazioni della §11 di INSTALLAZIONE.md.
+3. Dare l'informativa agli operatori (§7.4).
+4. Aggiornare il registro dei trattamenti, sentito l'RPD.
+5. Accendere: con il pacchetto di configurazione, bloccando la sezione Diagnostica se la decisione è dell'ente, oppure lasciando la casella agli operatori.
+
+---
+
 ## Fonti
 
 - [Legge 29 marzo 1985, n. 113 — testo](https://handylex.org/legge-29-marzo-1985-n-113/)
@@ -229,3 +311,10 @@ Indipendenti dallo sviluppo, con tempi lunghi, e per questo da far partire ora e
 - [Legge 4/2004 — testo su parlamento.it](https://www.parlamento.it/parlam/leggi/04004l.htm)
 - [AgID — Linee guida sull'accessibilità degli strumenti informatici (PA)](https://www.agid.gov.it/sites/agid/files/2024-06/Linee%20Guida%20sull'accessibilit%C3%A0%20degli%20strumenti%20informatici%20-%20PA.pdf)
 - [Linee guida AgID — requisiti tecnici per l'accessibilità degli strumenti informatici](https://docs.italia.it/AgID/documenti-in-consultazione/lg-accessibilita-docs/it/stabile/requisiti-tecnici-accessibilita-strumenti-informatici.html)
+- [Regolamento (UE) 2016/679 — testo](https://eur-lex.europa.eu/eli/reg/2016/679/oj)
+- [Codice in materia di protezione dei dati personali, d.lgs. 196/2003 — Normattiva](https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:decreto.legislativo:2003-06-30;196)
+- [Legge 20 maggio 1970, n. 300 (Statuto dei lavoratori) — Normattiva](https://www.normattiva.it/uri-res/N2Ls?urn:nir:stato:legge:1970-05-20;300)
+- [Comitato europeo per la protezione dei dati — Linee guida 05/2020 sul consenso](https://www.edpb.europa.eu/our-work-tools/our-documents/guidelines/guidelines-052020-consent-under-regulation-2016679_en)
+- [Corte di giustizia UE, causa C-582/14, Breyer](https://curia.europa.eu/juris/liste.jsf?num=C-582/14)
+- [PostHog — Self-host](https://posthog.com/docs/self-host)
+- [PostHog — Controlling data storage](https://posthog.com/docs/privacy/data-storage)

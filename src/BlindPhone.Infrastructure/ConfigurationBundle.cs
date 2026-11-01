@@ -570,6 +570,12 @@ public sealed class ConfigurationBundleService
                     DiagnosticLogRetentionDays = origine.DiagnosticLogRetentionDays,
                     DiagnosticLogLevel = origine.DiagnosticLogLevel,
                     DebugModeEnabled = origine.DebugModeEnabled,
+
+                    // Le statistiche d'uso viaggiano intere, consenso compreso: e'
+                    // l'ente che decide se le postazioni le mandano, e chi prepara il
+                    // pacchetto lo decide per tutte. Bloccando la Diagnostica la
+                    // decisione resta quella.
+                    Telemetry = origine.Telemetry,
                 },
 
                 // I tasti rapidi non stanno in AppSettings: vivono nel loro deposito
@@ -669,6 +675,19 @@ public sealed class ConfigurationBundleService
         if (Spostato(prima.Support.UploadUrl, dopo.Support.UploadUrl))
         {
             avvisi.Add("l'indirizzo a cui si inviano i pacchetti di assistenza e' cambiato");
+        }
+
+        // Le statistiche d'uso non portano dati personali, ma escono dalla postazione:
+        // chi siede davanti deve sapere che da oggi partono, e verso dove. Lo stesso
+        // annuncio che sente per il server degli aggiornamenti.
+        if (!prima.Telemetry.Enabled && dopo.Telemetry.Enabled)
+        {
+            avvisi.Add("sono state accese le statistiche d'uso anonime");
+        }
+
+        if (Spostato(prima.Telemetry.ServerUrl, dopo.Telemetry.ServerUrl))
+        {
+            avvisi.Add("il server delle statistiche d'uso e' cambiato");
         }
 
         avvisi.AddRange(DescribeAccountDowngrades(prima, dopo));

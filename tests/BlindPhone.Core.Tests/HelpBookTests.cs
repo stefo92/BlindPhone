@@ -205,6 +205,9 @@ public sealed class HelpBookTests
     [InlineData("sezione Avanzate", "non e' detto dove sono finite le voci avanzate dell'account e come si aprono")]
     [InlineData("Voce e tastiera", "non e' detto in che gruppi e in che ordine stanno le schede delle impostazioni")]
     [InlineData("tasti rapidi sui pulsanti", "non e' detto che la scorciatoia si puo' scrivere sui pulsanti della finestra principale")]
+    [InlineData("Invia statistiche d'uso anonime", "non e' detto dove si accendono e si spengono le statistiche d'uso")]
+    [InlineData("Che cosa non parte mai", "non e' detto che cosa le statistiche d'uso non mandano")]
+    [InlineData("dimentica il proprio identificativo", "non e' detto che spegnendo le statistiche la postazione dimentica tutto")]
     public void LaGuidaCopreLeFunzioniIntrodotteDopoIlPrimoRilascio(string frammento, string perche)
     {
         // Gate di copertura, come quello degli annunci: una funzione che arriva senza
@@ -213,6 +216,25 @@ public sealed class HelpBookTests
         Assert.True(
             Piatto(HotkeyProfile.CreateDefault()).Contains(frammento, StringComparison.OrdinalIgnoreCase),
             perche);
+    }
+
+    [Fact]
+    public void LaGuidaElencaTuttoQuelloCheLeStatisticheMandano()
+    {
+        // E' la frase a cui l'operatore da' il consenso: un evento aggiunto al catalogo
+        // senza comparire qui partirebbe senza che nessuno l'abbia letto. La guida lo
+        // prende dal catalogo stesso, e questa prova si assicura che continui a farlo.
+        var argomento = HelpBook.Build(HotkeyProfile.CreateDefault(), Now)
+            .Single(t => t.Id == HelpBook.UsageStatisticsTopicId).Text;
+
+        var piatto = string.Join(' ', argomento.Split('\n').Select(r => r.Trim()));
+
+        foreach (var evento in TelemetryCatalog.All)
+        {
+            Assert.True(
+                piatto.Contains(evento.Description, StringComparison.Ordinal),
+                $"La guida non dice quando parte l'evento {evento.Name}");
+        }
     }
 
     [Fact]

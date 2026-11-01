@@ -759,6 +759,60 @@ public partial class SettingsWindow : Window
         UpdateCrashReportsHint();
     }
 
+    private void OnTelemetryEnabledChanged(object sender, RoutedEventArgs e) => UpdateTelemetryHint();
+
+    /// <summary>
+    /// Dice dove andrebbero le statistiche, e se ci vanno davvero.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La casella da sola non basta a capirlo: spuntata su una postazione senza server
+    /// non manda niente, e chi la spunta deve saperlo invece di credere di aver acceso
+    /// qualcosa. L'indirizzo si dice per nome del server e non per esteso: è l'unica
+    /// parte che serve a capire verso chi.
+    /// </para>
+    /// <para>
+    /// Un indirizzo che non è <c>https://</c> e una chiave che non è di progetto si
+    /// dicono con il loro difetto: sono gli errori che chi configura il server commette
+    /// davvero, e «nessun server» lo manderebbe a cercare dalla parte sbagliata.
+    /// </para>
+    /// </remarks>
+    private void UpdateTelemetryHint()
+    {
+        if (TelemetryHint is null || TelemetryEnabled is null) return;
+
+        var telemetria = _settingsService.Current.Telemetry;
+        var spuntata = TelemetryEnabled.IsChecked == true;
+
+        string testo;
+
+        if (string.IsNullOrWhiteSpace(telemetria.ServerUrl))
+        {
+            testo = "Su questa postazione non e' indicato un server delle statistiche: anche con la casella "
+                    + "spuntata non parte niente.";
+        }
+        else if (telemetria.BatchEndpoint is not { } indirizzo)
+        {
+            testo = "L'indirizzo del server delle statistiche non e' un indirizzo https: le statistiche restano "
+                    + "spente finche' chi amministra la postazione non lo corregge.";
+        }
+        else if (!TelemetrySettings.IsProjectKey(telemetria.ProjectKey))
+        {
+            testo = $"Il server delle statistiche e' {indirizzo.Host}, ma la chiave del progetto manca o non e' "
+                    + "quella che comincia con phc_: le statistiche restano spente finche' chi amministra la "
+                    + "postazione non la corregge.";
+        }
+        else
+        {
+            testo = spuntata
+                ? $"Accese: partono verso {indirizzo.Host}, a gruppi, qualche minuto dopo l'avvio e mai durante "
+                  + "una chiamata."
+                : $"Spente. Spuntando la casella partirebbero verso {indirizzo.Host}.";
+        }
+
+        LiveRegion.Update(TelemetryHint, testo);
+    }
+
     private void UpdateCrashReportsHint()
     {
         if (CrashReportsHint is null) return;
@@ -904,6 +958,11 @@ public partial class SettingsWindow : Window
         SupportUploadUrl.Text = settings.Support.UploadUrl ?? string.Empty;
         CollectCrashReports.IsChecked = settings.Support.CollectCrashReports;
         AcceptAnyCertificate.IsChecked = settings.Pbx.AcceptAnyCertificate;
+
+        // Statistiche d'uso: solo il consenso. Il commento sotto la casella dice se un
+        // server c'e', e si aggiorna da se' quando la casella cambia.
+        TelemetryEnabled.IsChecked = settings.Telemetry.Enabled;
+        UpdateTelemetryHint();
 
         // Modalita' di interazione: decide anche se il pannello dei tasti rapidi si
         // puo' usare, quindi va applicata subito dopo averla letta.
@@ -3201,6 +3260,13 @@ public partial class SettingsWindow : Window
                 Email = NullIfEmpty(SupportEmail.Text),
                 UploadUrl = NullIfEmpty(SupportUploadUrl.Text),
                 CollectCrashReports = CollectCrashReports.IsChecked == true,
+            },
+
+            // Indirizzo e chiave restano quelli che ci sono: da qui si decide solo se
+            // mandare.
+            Telemetry = current.Telemetry with
+            {
+                Enabled = TelemetryEnabled.IsChecked == true,
             },
             Updates = current.Updates with
             {

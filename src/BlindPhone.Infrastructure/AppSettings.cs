@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Domain;
 using BlindPhone.Core.Speech;
@@ -366,6 +367,148 @@ public sealed record UpdateSettings
     /// </para>
     /// </remarks>
     public bool AllowUnverifiedPackages { get; init; } = false;
+}
+
+/// <summary>
+/// Statistiche d'uso anonime, mandate a un server PostHog scelto da chi distribuisce
+/// BlindPhone.
+/// </summary>
+/// <remarks>
+/// <para>
+/// <b>QUI SI SCRIVONO INDIRIZZO E CHIAVE DEL SERVER.</b> I valori predefiniti sono
+/// <see cref="DefaultServerUrl"/> e <see cref="DefaultProjectKey"/>, poche righe più
+/// sotto, ed entrambi sono vuoti. Su una postazione già installata si correggono in
+/// <c>settings.json</c> sotto <c>Telemetry</c>, oppure si distribuiscono con il pacchetto
+/// di configurazione, sezione Diagnostica. Come preparare il server lo spiega
+/// <c>docs/INSTALLAZIONE.md</c>, capitolo 11.
+/// </para>
+/// <para>
+/// <b>Partono solo con tre cose insieme</b>: un indirizzo <c>https://</c>, una chiave di
+/// progetto PostHog e il consenso acceso. Manca una sola delle tre e non succede
+/// niente: nessun identificativo creato, nessun file scritto, nessuna connessione
+/// aperta. È anche lo stato di una copia appena compilata, con le due costanti vuote.
+/// </para>
+/// <para>
+/// Che cosa parte, proprietà per proprietà, sta in
+/// <see cref="Core.Services.TelemetryCatalog"/>, e non c'è un altro posto da cui possa
+/// partire qualcosa.
+/// </para>
+/// </remarks>
+public sealed record TelemetrySettings
+{
+    /// <summary>Indirizzo predefinito del server PostHog.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>È questa la riga da cambiare prima di compilare</b>, se si vuole che ogni
+    /// postazione installata da quel momento conosca già il server. Va scritto
+    /// l'indirizzo base dell'istanza, senza il percorso dell'API:
+    /// <c>https://statistiche.example.it/</c>. Il percorso <c>batch/</c> lo aggiunge il
+    /// programma.
+    /// </para>
+    /// <para>
+    /// <b>Solo <c>https://</c>.</b> Qualunque altro schema viene rifiutato e le statistiche
+    /// restano spente: su HTTP la chiave del progetto e l'identificativo dell'installazione
+    /// viaggerebbero in chiaro, e chiunque sul percorso potrebbe leggere o falsare quello
+    /// che arriva.
+    /// </para>
+    /// <para>
+    /// Anche con l'indirizzo scritto qui il consenso resta spento: compilare con un
+    /// indirizzo non accende niente su nessuna postazione.
+    /// </para>
+    /// </remarks>
+    public const string DefaultServerUrl = "";
+
+    /// <summary>Chiave predefinita del progetto PostHog.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>È la chiave del progetto, quella che comincia con <c>phc_</c></b>: PostHog la
+    /// chiama «Project API key» e la mette lui stesso nelle pagine web, perché permette
+    /// soltanto di scrivere eventi. Non è un segreto, e per questo sta in
+    /// <c>settings.json</c> e viaggia nel pacchetto di configurazione.
+    /// </para>
+    /// <para>
+    /// <b>Mai una chiave personale</b>, quelle che cominciano con <c>phx_</c>: leggono e
+    /// cancellano i dati di tutto il progetto, e su una postazione le leggerebbe
+    /// chiunque apra un file di testo. Una chiave che non comincia con <c>phc_</c> viene
+    /// rifiutata e le statistiche restano spente.
+    /// </para>
+    /// </remarks>
+    public const string DefaultProjectKey = "";
+
+    /// <summary>Indirizzo base dell'istanza PostHog.</summary>
+    public string ServerUrl { get; init; } = DefaultServerUrl;
+
+    /// <summary>Chiave del progetto PostHog, con il prefisso <c>phc_</c>.</summary>
+    public string ProjectKey { get; init; } = DefaultProjectKey;
+
+    /// <summary>Se mandare le statistiche: è il consenso.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Spento di partenza, anche in un file scritto da una versione che non lo
+    /// conosceva.</b> Lo accende l'operatore dalla scheda Diagnostica, oppure chi
+    /// amministra con il pacchetto di configurazione; in quel caso la decisione è
+    /// dell'ente, e il pacchetto può anche bloccarla. Che cosa deve fare l'ente prima di
+    /// accenderlo lo dice <c>CONFORMITA-PA-ITALIANA.md</c>.
+    /// </para>
+    /// <para>
+    /// Spegnendolo la postazione dimentica tutto: l'identificativo e gli eventi non
+    /// ancora partiti.
+    /// </para>
+    /// </remarks>
+    public bool Enabled { get; init; }
+
+    /// <summary>Indirizzo a cui mandare i lotti, oppure <c>null</c> se l'indirizzo non è valido.</summary>
+    [JsonIgnore]
+    public Uri? BatchEndpoint => ToBatchEndpoint(ServerUrl);
+
+    /// <summary>Se indirizzo e chiave sono utilizzabili, a prescindere dal consenso.</summary>
+    [JsonIgnore]
+    public bool IsConfigured => BatchEndpoint is not null && IsProjectKey(ProjectKey);
+
+    /// <summary>Se le statistiche partono davvero.</summary>
+    [JsonIgnore]
+    public bool IsActive => Enabled && IsConfigured;
+
+    /// <summary>
+    /// Traduce l'indirizzo dell'istanza in quello dell'API dei lotti.
+    /// </summary>
+    /// <param name="serverUrl">Indirizzo scritto nella configurazione.</param>
+    /// <returns>L'indirizzo dei lotti, oppure <c>null</c> se quello dato non è accettabile.</returns>
+    /// <remarks>
+    /// Si rifiutano anche un nome utente o una password nell'indirizzo, una richiesta e
+    /// un frammento: non servono a PostHog, e un indirizzo che li porta è stato scritto
+    /// per un altro scopo.
+    /// </remarks>
+    public static Uri? ToBatchEndpoint(string? serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl)) return null;
+
+        if (!Uri.TryCreate(serverUrl.Trim(), UriKind.Absolute, out var indirizzo)
+            || !indirizzo.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrEmpty(indirizzo.Host)
+            || !string.IsNullOrEmpty(indirizzo.UserInfo)
+            || !string.IsNullOrEmpty(indirizzo.Query)
+            || !string.IsNullOrEmpty(indirizzo.Fragment))
+        {
+            return null;
+        }
+
+        // Un'istanza dietro un proxy puo' stare sotto un percorso, "/statistiche": la
+        // barra finale fa si' che "batch/" gli venga aggiunto invece di sostituirlo.
+        var cartella = indirizzo.AbsoluteUri.EndsWith('/') ? indirizzo : new Uri(indirizzo.AbsoluteUri + "/");
+
+        return new Uri(cartella, "batch/");
+    }
+
+    /// <summary>Indica se un testo ha la forma di una chiave di progetto PostHog.</summary>
+    /// <param name="key">Chiave da verificare.</param>
+    public static bool IsProjectKey(string? key)
+        => key is { Length: >= 24 and <= 68 }
+           && key.StartsWith("phc_", StringComparison.Ordinal)
+           && key.AsSpan(4).IndexOfAnyExcept(ProjectKeyCharacters) < 0;
+
+    private static readonly System.Buffers.SearchValues<char> ProjectKeyCharacters =
+        System.Buffers.SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
 }
 
 /// <summary>Impostazioni di collegamento al centralino Yeastar.</summary>
@@ -842,6 +985,14 @@ public sealed record AppSettings
 
     /// <summary>Aggiornamenti scaricati dal server dell'ente.</summary>
     public UpdateSettings Updates { get; init; } = new();
+
+    /// <summary>Statistiche d'uso anonime, spente finché qualcuno non le accende.</summary>
+    /// <remarks>
+    /// Un file scritto da una versione che non le conosceva non ha la proprietà, e le
+    /// statistiche partono spente e senza server: sono i valori di
+    /// <see cref="TelemetrySettings"/>.
+    /// </remarks>
+    public TelemetrySettings Telemetry { get; init; } = new();
 
     /// <summary>Da dove arriva la rubrica.</summary>
     public ContactsSettings Contacts { get; init; } = new();

@@ -98,6 +98,16 @@ public partial class App : Application
     /// </remarks>
     private CrashReporter? _crashes;
 
+    /// <summary>
+    /// Statistiche d'uso, catturate per i gestori degli errori come il raccoglitore dei
+    /// rapporti.
+    /// </summary>
+    /// <remarks>
+    /// Restano mute finché non c'è un server e un consenso: vedi
+    /// <see cref="TelemetrySettings"/>.
+    /// </remarks>
+    private TelemetryService? _telemetry;
+
     /// <summary>Servizio che applica il tema dei colori. Vive quanto l'applicazione.</summary>
     private ThemeService? _theme;
 
@@ -248,6 +258,14 @@ public partial class App : Application
 
         AnnouncePendingCrashReports();
         AnnounceRejectedSecrets();
+
+        // LE STATISTICHE PARTONO DOPO LA FINESTRA, E NON PESANO SULL'AVVIO.
+        //
+        // Start torna subito: il ciclo gira su un'attivita' di sfondo, e la prima cosa
+        // che compone o manda arriva tre minuti dopo. Senza server o senza consenso il
+        // ciclo gira a vuoto e non apre nessuna connessione.
+        _telemetry = _services.GetService<TelemetryService>();
+        _telemetry?.Start();
 
         // LINK DI CHIAMATA: QUELLI DEI SECONDI AVVII E QUELLO DI QUESTO.
         //
@@ -720,6 +738,41 @@ public partial class App : Application
             sp.GetRequiredService<CrashReporter>(),
             sp.GetRequiredService<ILogger<SupportPackageService>>()));
 
+        // ------------------------------------------------------------------
+        // Statistiche d'uso
+        // ------------------------------------------------------------------
+
+        // Lo stato della postazione si compone qui perche' qui si conoscono tutte le
+        // parti: la configurazione, i ponti verso gli screen reader, il criterio in
+        // vigore. Le parti si catturano ora e non si risolvono dal contenitore a ogni
+        // giro, perche' il giro gira sullo sfondo e in chiusura il contenitore e' gia'
+        // smontato.
+        services.AddSingleton(sp =>
+        {
+            var chiamate = sp.GetRequiredService<CallSessionManager>();
+            var criterio = sp.GetRequiredService<ConfigurationPolicyService>();
+            var voce = sp.GetRequiredService<CompositeSpeechOutput>();
+            var lettori = sp.GetRequiredService<IEnumerable<IScreenReaderBridge>>().ToList();
+            var versione = TelemetryVersion();
+
+            return new TelemetryService(
+                settingsService,
+                versione,
+                () => TelemetryFactsBuilder.FromSettings(settingsService.Current, versione) with
+                {
+                    ScreenReader = DescribeScreenReader(lettori, voce),
+                    HighContrast = ThemeService.HighContrast,
+
+                    // Quello in vigore e non quello del file: un criterio di postazione
+                    // scritto nel registro vince su tutto, ed e' lui che conta.
+                    Policy = TelemetryFactsBuilder.PolicyName(
+                        criterio.Effective.IsRestrictive ? criterio.Effective.Origin : Core.Domain.PolicyOrigin.None),
+                },
+                () => chiamate.LiveCalls.Count > 0,
+                logger: sp.GetRequiredService<ILogger<TelemetryService>>(),
+                clientLogger: sp.GetRequiredService<ILogger<PostHogClient>>());
+        });
+
         services.AddSingleton(sp => CreateTelephonyEngine(sp, settingsService, settings));
         services.AddSingleton<ITelephonyEngine>(sp => sp.GetRequiredService<SwitchableTelephonyEngine>());
 
@@ -1158,6 +1211,35 @@ public partial class App : Application
         EnableExperimentalQueuePick = settings.Pbx.EnableExperimentalQueuePick,
     };
 
+    /// <summary>Versione di BlindPhone nella forma numerica, quella delle statistiche.</summary>
+    /// <remarks>
+    /// Tre numeri e non la versione «1.0.18 beta» che si legge nella finestra: il
+    /// catalogo accetta solo cifre e punti.
+    /// </remarks>
+    private static string TelemetryVersion()
+        => (typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0)).ToString(3);
+
+    /// <summary>Quale screen reader sta girando, nelle voci del catalogo.</summary>
+    /// <remarks>
+    /// NVDA e JAWS si riconoscono dal ponte diretto. Quando nessuno dei due risponde ma
+    /// Windows dice che uno screen reader c'è — l'Assistente vocale, o un NVDA senza la
+    /// sua libreria accanto all'eseguibile — si dice «altro»: è un'informazione vera, e
+    /// serve a non contare come «senza screen reader» chi uno screen reader lo usa.
+    /// </remarks>
+    private static string DescribeScreenReader(IReadOnlyList<IScreenReaderBridge> lettori, CompositeSpeechOutput voce)
+    {
+        var nvda = lettori.Any(l => l is NvdaScreenReaderBridge && l.IsAvailable);
+        var jaws = lettori.Any(l => l is JawsScreenReaderBridge && l.IsAvailable);
+
+        return (nvda, jaws) switch
+        {
+            (true, true) => "nvda_e_jaws",
+            (true, false) => "nvda",
+            (false, true) => "jaws",
+            _ => voce.IsScreenReaderRunning ? "altro" : "nessuno",
+        };
+    }
+
     /// <summary>
     /// Avvia il ciclo che fa avanzare i servizi con comportamento temporizzato.
     /// </summary>
@@ -1286,6 +1368,10 @@ public partial class App : Application
 
             var registrato = Record(e.Exception, "interfaccia", fatal: false);
 
+            // Al server delle statistiche arriva il solo nome del tipo, una volta al
+            // giorno: il testo e la traccia restano nel rapporto, sulla postazione.
+            _telemetry?.RecordError(e.Exception, ErrorOrigin.Interface, fatal: false);
+
             // UN ERRORE RIPETUTO SI ANNUNCIA UNA VOLTA SOLA.
             //
             // Un'eccezione dentro il calcolo del layout non capita una volta: capita a
@@ -1342,6 +1428,7 @@ public partial class App : Application
 
             _logger?.LogCritical(exception, "Errore non gestito nel processo");
             Record(exception, "processo", e.IsTerminating);
+            _telemetry?.RecordError(exception, ErrorOrigin.Process, e.IsTerminating);
         }
         catch (Exception failure)
         {
@@ -1375,6 +1462,7 @@ public partial class App : Application
 
             _logger?.LogError(e.Exception, "Errore in un'attivita' di sfondo");
             Record(e.Exception, "attivita' di sfondo", fatal: false);
+            _telemetry?.RecordError(e.Exception, ErrorOrigin.BackgroundTask, fatal: false);
         }
         catch (Exception failure)
         {
@@ -1490,6 +1578,7 @@ public partial class App : Application
         _services = null;
         _logger = null;
         _announcer = null;
+        _telemetry = null;
 
         base.OnExit(e);
     }

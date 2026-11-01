@@ -79,6 +79,9 @@ public static class HelpBook
     /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
     public const string CallLinksTopicId = "link-di-chiamata";
 
+    /// <summary>Argomento delle statistiche d'uso anonime.</summary>
+    public const string UsageStatisticsTopicId = "statistiche";
+
     /// <summary>
     /// Costruisce la guida sulle combinazioni attualmente assegnate.
     /// </summary>
@@ -105,6 +108,7 @@ public static class HelpBook
         Topic("finestra", "Chiudere, riaprire, secondo piano", Finestra(profile)),
         Topic(HotkeysTopicId, "Cambiare i tasti rapidi", CambiareTasti(profile)),
         Topic(SettingsTopicId, "Impostazioni e prima configurazione", Impostazioni(profile)),
+        Topic(UsageStatisticsTopicId, "Le statistiche d'uso anonime", Statistiche()),
         Topic("problemi", "Quando qualcosa non funziona", Problemi(profile)),
         Topic("lavoro-agile", "Lavorare da casa: router, VPN e voce che non arriva", LavoroAgile(profile)),
         Topic(AccountsTopicId, "Piu' account SIP sulla stessa postazione", Account(profile)),
@@ -660,11 +664,39 @@ public static class HelpBook
 
         Tasti rapidi. Vedi l'argomento dedicato.
 
-        Diagnostica, nel gruppo Assistenza. Il dettaglio del registro, il riepilogo da mandare all'assistenza, lo spazio su disco, la segnalazione di un problema, gli aggiornamenti e i certificati del centralino.
+        Diagnostica, nel gruppo Assistenza. Il dettaglio del registro, il riepilogo da mandare all'assistenza, lo spazio su disco, la segnalazione di un problema, le statistiche d'uso, gli aggiornamenti e i certificati del centralino.
+
+        Statistiche d'uso, nella scheda Diagnostica. Sono spente finché non le accendi: la casella «Invia statistiche d'uso anonime», Alt T, le accende e le spegne. Che cosa mandano, e soprattutto che cosa non mandano mai, lo dice l'argomento dedicato.
 
         Aggiornamenti, nella scheda Diagnostica. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
         Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
+        """;
+
+    /// <summary>
+    /// Le statistiche d'uso: che cosa parte, che cosa no, come si spengono.
+    /// </summary>
+    /// <remarks>
+    /// <b>L'elenco di che cosa parte non è scritto qui</b>: lo legge dal catalogo, dalla
+    /// frase che accompagna ogni evento. È lo stesso principio della scheda dei tasti —
+    /// la guida e il programma non possono dire cose diverse — e qui conta di più,
+    /// perché è la frase a cui l'operatore dà il consenso.
+    /// </remarks>
+    private static string Statistiche() =>
+        $"""
+        Le statistiche d'uso servono a chi sviluppa BlindPhone per sapere quante postazioni lo usano e quali funzioni servono davvero. Sono spente finché non le accendi tu, o chi amministra la postazione per conto dell'ente.
+
+        Si accendono e si spengono da Impostazioni, scheda Diagnostica, con la casella «Invia statistiche d'uso anonime», Alt T. Parte qualcosa solo se chi amministra la postazione ha indicato un server: la riga sotto la casella dice se c'è, e qual è.
+
+        Che cosa parte. Ogni postazione ha un identificativo fatto di lettere a caso, che non dice niente della macchina né di chi la usa. Con lui partono queste cose, e nessun'altra.
+
+        {string.Join("\n\n", TelemetryCatalog.All.Select(evento => evento.Description))}
+
+        Che cosa non parte mai. Numeri di telefono, nomi, interni, indirizzi SIP, il contenuto della rubrica, il nome del centralino, il testo degli errori. E nemmeno quante chiamate fai o a che ora: ogni cosa porta il giorno e non l'ora, e i comandi arrivano il giorno dopo senza dire quante volte li hai usati.
+
+        Quando parte. Qualche minuto dopo l'avvio, a gruppi, e mai durante una chiamata. Se il server non risponde non succede niente: si riprova più tardi, e la cosa resta nel registro.
+
+        Spegnerle. Togli la spunta e salva: la postazione dimentica il proprio identificativo e quello che non era ancora partito. Se la casella non si lascia cambiare, la scheda è bloccata dall'amministratore: la decisione è dell'ente, ed è a chi amministra che va chiesto.
         """;
 
     private static string Problemi(HotkeyProfile profile) =>
