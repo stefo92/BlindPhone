@@ -31,7 +31,7 @@ public sealed class FileLoggerProvider : ILoggerProvider
 {
     private readonly object _gate = new();
     private readonly string _directory;
-    private readonly int _retentionDays;
+    private int _retentionDays;
 
     private StreamWriter? _writer;
     private DateOnly _openedFor;
@@ -54,6 +54,29 @@ public sealed class FileLoggerProvider : ILoggerProvider
         {
             // Un registro che non si riesce ad aprire non deve impedire l'avvio del
             // posto operatore: si perde la diagnostica, non il servizio.
+        }
+    }
+
+    /// <summary>Giorni di conservazione dei file di registro.</summary>
+    /// <remarks>
+    /// Si cambia a caldo, e un periodo accorciato si applica subito: i registri
+    /// contengono numeri chiamati e chiamanti, e chi riduce la conservazione per
+    /// allinearla alla policy dell'ente non deve aspettare il riavvio per vederla
+    /// rispettata.
+    /// </remarks>
+    public int RetentionDays
+    {
+        get { lock (_gate) return _retentionDays; }
+        set
+        {
+            lock (_gate)
+            {
+                var giorni = Math.Clamp(value, 1, 365);
+                if (giorni == _retentionDays) return;
+
+                _retentionDays = giorni;
+                PurgeOldFiles();
+            }
         }
     }
 

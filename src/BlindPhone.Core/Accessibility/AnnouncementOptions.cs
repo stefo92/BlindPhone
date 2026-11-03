@@ -45,6 +45,13 @@ public enum QueueAnnouncementMode
 /// tarata per chi ascolta a 200 parole al minuto è inutilizzabile per chi ascolta
 /// a 600.
 /// </para>
+/// <para>
+/// <b>Le proprietà che vengono dalle impostazioni si possono cambiare dopo la
+/// costruzione</b>, e la stessa istanza è condivisa da tutti i servizi che annunciano:
+/// è così che una modifica salvata vale subito, senza riavviare e quindi senza far
+/// cadere la chiamata in corso. Le altre restano fissate alla costruzione. Vedi
+/// <c>LiveSettingsApplier</c>.
+/// </para>
 /// </remarks>
 public sealed record AnnouncementOptions
 {
@@ -87,7 +94,7 @@ public sealed record AnnouncementOptions
     /// Accessibilità: l'interruttore è rimasto dov'era.
     /// </para>
     /// </remarks>
-    public bool SilenceDuringConversation { get; init; } = false;
+    public bool SilenceDuringConversation { get; set; } = false;
 
     /// <summary>
     /// Priorità minima che sfugge alla soppressione durante la conversazione.
@@ -126,13 +133,13 @@ public sealed record AnnouncementOptions
     public TimeSpan TypingSilenceWindow { get; init; } = TimeSpan.FromSeconds(3);
 
     /// <summary>Livello di dettaglio.</summary>
-    public VerbosityLevel Verbosity { get; init; } = VerbosityLevel.Standard;
+    public VerbosityLevel Verbosity { get; set; } = VerbosityLevel.Standard;
 
     /// <summary>Modalità di annuncio automatico delle variazioni di coda.</summary>
-    public QueueAnnouncementMode QueueMode { get; init; } = QueueAnnouncementMode.CountOnly;
+    public QueueAnnouncementMode QueueMode { get; set; } = QueueAnnouncementMode.CountOnly;
 
     /// <summary>Soglia di attesa oltre la quale scatta l'allerta.</summary>
-    public TimeSpan QueueWaitThreshold { get; init; } = TimeSpan.FromSeconds(60);
+    public TimeSpan QueueWaitThreshold { get; set; } = TimeSpan.FromSeconds(60);
 
     /// <summary>Numero di annunci conservati nello storico consultabile.</summary>
     public int HistorySize { get; init; } = 20;
@@ -144,7 +151,7 @@ public sealed record AnnouncementOptions
     public float DuckAttenuationDb { get; init; } = 8f;
 
     /// <summary>Intervallo del promemoria di chiamata dimenticata in attesa.</summary>
-    public TimeSpan HoldReminderInterval { get; init; } = TimeSpan.FromSeconds(30);
+    public TimeSpan HoldReminderInterval { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>Impostazioni predefinite.</summary>
     public static AnnouncementOptions Default { get; } = new();

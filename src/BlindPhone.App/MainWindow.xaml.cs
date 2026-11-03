@@ -253,7 +253,6 @@ public partial class MainWindow : Window
     private readonly ILogger<MainWindow> _log;
     private readonly ILogger<TrayIcon> _trayLog;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _settings;
 
     /// <summary>Segreteria telefonica dell'account in uso, se il servizio c'è.</summary>
     private readonly VoicemailService? _voicemail;
@@ -408,7 +407,6 @@ public partial class MainWindow : Window
         _globalHotkeys = globalHotkeys;
         _speech = speech;
         _contacts = contacts;
-        _settings = settings;
         _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
         _settingsService = settingsService;
         _serviceProvider = serviceProvider;
@@ -1354,15 +1352,14 @@ public partial class MainWindow : Window
         // All'avvio non si annuncia: previous vale null solo la prima volta.
         if (previous is null) return;
 
-        // Quando si riattiva si dice anche che il collegamento vero parte al riavvio:
-        // il connettore viene scelto all'avvio, quindi la sezione ricompare subito ma
-        // resterebbe vuota, e senza dirlo sembrerebbe una coda ferma invece di un
-        // collegamento non ancora aperto. E' la stessa cosa che dice il pannello delle
-        // impostazioni quando propone di riavviare.
+        // Quando si riattiva si dice anche che il collegamento si sta aprendo: la
+        // sezione ricompare subito e resta vuota per il tempo del collegamento, e senza
+        // dirlo sembrerebbe una coda ferma. L'esito lo annuncia chi apre il
+        // collegamento, vedi LiveSettingsApplier.
         _announcer.Announce(Announcement.CommandResponse(
             visible
                 ? "Collegamento al centralino attivo: la sezione delle chiamate in coda torna nella "
-                  + "finestra. Il collegamento si apre al riavvio di BlindPhone"
+                  + "finestra. Collegamento in corso"
                 : "Collegamento al centralino disattivato: la sezione delle chiamate in coda "
                   + "e' stata tolta dalla finestra",
             DateTimeOffset.Now));
@@ -1592,6 +1589,11 @@ public partial class MainWindow : Window
         // presenza e dopo l'elenco chiamate perche' e' la meno urgente delle tre: una
         // rubrica vecchia di un'ora funziona, un posto operatore senza presenza no.
         ((App)Application.Current).Services.GetRequiredService<ContactsSyncService>().Start();
+
+        // Da qui in poi un salvataggio delle impostazioni vale subito: i servizi che
+        // aggiorna sono tutti avviati. Prima del centralino, perche' un collegamento
+        // fallito all'avvio si corregge proprio cambiando la configurazione.
+        ((App)Application.Current).Services.GetRequiredService<LiveSettingsApplier>().Start();
 
         var conservazione = CallHistoryRetention.ToTimeSpan(
             CallHistoryRetention.Normalize(_settingsService.Current.CallHistoryRetentionDays));
@@ -2857,7 +2859,7 @@ public partial class MainWindow : Window
     private void HandleQueueCountKey()
     {
         var now = DateTimeOffset.Now;
-        var window = TimeSpan.FromMilliseconds(_settings.Accessibility.DoubleTapWindowMs);
+        var window = TimeSpan.FromMilliseconds(_settingsService.Current.Accessibility.DoubleTapWindowMs);
 
         if (now - _lastQueueCountKeyPress <= window)
         {
@@ -3238,7 +3240,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var parlato = SpeechFormatter.Digits(interno, _settings.Accessibility.DigitGrouping);
+        var parlato = SpeechFormatter.Digits(interno, _settingsService.Current.Accessibility.DigitGrouping);
 
         var stato = await _presence
             .QueryAsync(interno, TimeSpan.FromMilliseconds(1500), CancellationToken.None)
@@ -4743,7 +4745,7 @@ public partial class MainWindow : Window
             message = byExtension
                 ? $"{only.Contact.SpeechName}{warning}"
                 : $"{only.Contact.SpeechName}, interno "
-                  + $"{SpeechFormatter.Digits(only.Number, _settings.Accessibility.DigitGrouping)}{warning}";
+                  + $"{SpeechFormatter.Digits(only.Number, _settingsService.Current.Accessibility.DigitGrouping)}{warning}";
         }
         else if (truncated)
         {
@@ -4928,7 +4930,7 @@ public partial class MainWindow : Window
                 SpeechFormatter.Party(
                     caller.CallerName,
                     caller.CallerNumber,
-                    _settings.Accessibility.DigitGrouping),
+                    _settingsService.Current.Accessibility.DigitGrouping),
                 // A schermo il numero va nella riga di dettaglio solo se sopra c'e' un
                 // nome: altrimenti il chiamante e' gia' il numero, e lo si leggerebbe due
                 // volte nella stessa voce.

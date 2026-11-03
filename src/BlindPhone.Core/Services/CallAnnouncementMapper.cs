@@ -26,8 +26,8 @@ namespace BlindPhone.Core.Services;
 /// </remarks>
 public sealed class CallAnnouncementMapper
 {
-    private readonly DigitGrouping _grouping;
-    private readonly VerbosityLevel _verbosity;
+    private DigitGrouping _grouping;
+    private VerbosityLevel _verbosity;
 
     /// <summary>Crea il mappatore.</summary>
     /// <param name="grouping">Come leggere i numeri telefonici.</param>
@@ -35,6 +35,19 @@ public sealed class CallAnnouncementMapper
     public CallAnnouncementMapper(
         DigitGrouping grouping = DigitGrouping.Single,
         VerbosityLevel verbosity = VerbosityLevel.Standard)
+    {
+        _grouping = grouping;
+        _verbosity = verbosity;
+    }
+
+    /// <summary>Applica una nuova configurazione degli annunci, senza ricostruire il mappatore.</summary>
+    /// <param name="grouping">Come leggere i numeri telefonici.</param>
+    /// <param name="verbosity">Livello di dettaglio degli annunci.</param>
+    /// <remarks>
+    /// Stessa ragione di <see cref="QueueMonitorService.UpdateOptions"/>: il mappatore
+    /// è agganciato al gestore delle chiamate, e ricostruirlo vorrebbe dire riavviare.
+    /// </remarks>
+    public void UpdateOptions(DigitGrouping grouping, VerbosityLevel verbosity)
     {
         _grouping = grouping;
         _verbosity = verbosity;

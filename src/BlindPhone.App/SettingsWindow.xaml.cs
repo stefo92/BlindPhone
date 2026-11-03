@@ -3302,27 +3302,16 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // La voce si applica subito, senza riavvio: e' l'impostazione che si viene a
-        // cambiare proprio mentre si sta sentendo il problema, e farla verificare al
-        // riavvio successivo significherebbe cambiarla alla cieca.
-        _speech.Mode = ParseEnum(speechChannel, SpeechChannelMode.Automatic);
-        _speech.InternalVoiceEnabled = internalVoice;
-
-        // Lo stesso vale per i dispositivi audio: chi cambia l'uscita della suoneria
-        // preme il pulsante di prova subito dopo aver salvato. Il percorso audio di
-        // una chiamata gia' in corso non si sposta — quello lo prende all'apertura —
-        // ma suoneria, annunci e segnali seguono da subito.
-        AudioSettingsApplier.Apply(_audio, updated, _log);
-
-        Report($"Impostazioni salvate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
+        // NESSUN RIAVVIO DA CHIEDERE.
+        //
+        // Il salvataggio arriva ai servizi gia' avviati — voce, dispositivi audio,
+        // annunci, centralino, account SIP — tramite LiveSettingsApplier, che rimanda a
+        // fine chiamata solo cio' che la farebbe cadere e lo dice. Prima si chiedeva di
+        // riavviare a ogni salvataggio, anche dopo aver cambiato soltanto il tema: una
+        // domanda che compare sempre si impara a rifiutarla senza leggerla.
+        Report($"Impostazioni salvate e applicate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
         DialogResult = true;
         Close();
-
-        // La domanda si pone quando questa finestra e' effettivamente sparita, non
-        // mentre si sta chiudendo: altrimenti lo screen reader legge la finestra in
-        // uscita al posto della domanda, e l'operatore sente parlare di riavvio senza
-        // sapere che gli e' stato chiesto qualcosa.
-        Dispatcher.BeginInvoke(new Action(PromptForRestart), DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>
@@ -3380,94 +3369,6 @@ public partial class SettingsWindow : Window
             "Credenziale {Chiave} rilegata dal pannello: da {Prima} a {Adesso}", key, precedente, adesso);
 
         notices.Add($"{what} ora vale per {adesso ?? "nessun server"} e non piu' per {precedente}.");
-    }
-
-    /// <summary>
-    /// Chiede se riavviare subito per applicare le impostazioni salvate.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Il riavvio serve davvero: motore telefonico, connettore del centralino,
-    /// suoneria e instradamento audio vengono costruiti all'avvio con i parametri di
-    /// allora. Senza una richiesta esplicita l'operatore salva, non vede cambiare
-    /// nulla e conclude che l'impostazione non ha funzionato.
-    /// </para>
-    /// <para>
-    /// È una domanda e non un riavvio automatico perché <b>può esserci una chiamata
-    /// in corso</b>: riavviare senza chiedere la farebbe cadere. Il valore
-    /// predefinito è No proprio per questo — chi preme Invio distrattamente non
-    /// perde la conversazione.
-    /// </para>
-    /// <para>
-    /// La finestra viene mostrata dopo la chiusura del pannello, così lo screen
-    /// reader legge la domanda invece della finestra che sta sparendo. Il proprietario
-    /// è la finestra principale, che a quel punto è quella attiva.
-    /// </para>
-    /// </remarks>
-    private void PromptForRestart()
-    {
-        var answer = MessageBox.Show(
-            Application.Current.MainWindow,
-            "Le impostazioni sono state salvate.\n\n"
-            + "Voce degli annunci e tasti rapidi sono gia' attivi.\n"
-            + "Account SIP, centralino e dispositivi audio richiedono il riavvio.\n\n"
-            + "Vuoi riavviare adesso?\n"
-            + "Se hai una chiamata in corso, scegli No: la chiamata cadrebbe.",
-            "Riavviare BlindPhone?",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question,
-            MessageBoxResult.No);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            _announcer.Announce(Announcement.CommandResponse(
-                "Impostazioni salvate. Verranno applicate al prossimo avvio di BlindPhone",
-                DateTimeOffset.Now));
-            return;
-        }
-
-        Restart();
-    }
-
-    /// <summary>Riavvia l'applicazione.</summary>
-    /// <remarks>
-    /// Se l'avvio del nuovo processo fallisce non si chiude quello corrente: meglio
-    /// un posto operatore con impostazioni vecchie che un posto operatore spento.
-    /// </remarks>
-    private void Restart()
-    {
-        var executable = Environment.ProcessPath;
-
-        if (string.IsNullOrWhiteSpace(executable))
-        {
-            _log.LogWarning("Percorso dell'eseguibile non determinabile: riavvio automatico non possibile");
-            Report("Riavvio automatico non riuscito. Chiudi e riapri BlindPhone a mano");
-            return;
-        }
-
-        try
-        {
-            _announcer.Announce(Announcement.CommandResponse("Riavvio di BlindPhone in corso", DateTimeOffset.Now));
-
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable)
-            {
-                UseShellExecute = true,
-            });
-
-            Application.Current.Shutdown();
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Riavvio automatico non riuscito");
-
-            MessageBox.Show(
-                Application.Current.MainWindow,
-                "Non e' stato possibile riavviare automaticamente.\n\n"
-                + "Chiudi e riapri BlindPhone a mano per applicare le impostazioni.",
-                "Riavvio non riuscito",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
     }
 
     /// <summary>
@@ -3609,12 +3510,12 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // La verifica reale della registrazione richiede il riavvio del motore
-        // telefonico, che porterebbe giu' le chiamate in corso. Si conferma quindi
-        // solo la completezza dei dati, dicendolo con chiarezza invece di lasciar
-        // credere a una verifica che non e' avvenuta.
+        // La verifica reale della registrazione ricostruisce il motore telefonico, che
+        // porterebbe giu' le chiamate in corso: la fa il salvataggio, a linea libera.
+        // Qui si conferma solo la completezza dei dati, dicendolo con chiarezza invece
+        // di lasciar credere a una verifica che non e' avvenuta.
         Report($"Dati SIP completi per l'interno {SpeechFormatter.Digits(SipUsername.Text)} "
-               + $"sul centralino {SipDomain.Text}. La registrazione viene provata al riavvio");
+               + $"sul centralino {SipDomain.Text}. La registrazione viene provata al salvataggio");
     }
 
     private async void OnTestPbxClick(object sender, RoutedEventArgs e)

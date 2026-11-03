@@ -682,7 +682,7 @@ public static class HelpBook
 
         Aggiornamenti, nella scheda Diagnostica. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
-        Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
+        Tutto quello che salvi vale subito, senza riavviare BlindPhone. L'unica cosa che aspetta è una modifica all'account SIP o al buffer audio fatta mentre sei in linea: per applicarla il telefono rifà la registrazione al centralino, e la chiamata cadrebbe. Te lo dice, e la applica da solo appena chiudi; subito dopo senti la nuova registrazione.
         """;
 
     /// <summary>

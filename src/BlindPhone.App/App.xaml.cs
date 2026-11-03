@@ -848,17 +848,14 @@ public partial class App : Application
         // Centralino
         // ------------------------------------------------------------------
 
-        services.AddSingleton(BuildYeastarOptions(settingsService, settings));
+        // Commutabile come il motore telefonico: chi cambia il collegamento all'API
+        // nelle impostazioni lo vede applicato subito, senza riavviare. Vedi
+        // SwitchableQueueProvider e LiveSettingsApplier.
+        services.AddSingleton(sp => new SwitchableQueueProvider(
+            CreateQueueProvider(sp, settingsService, settings),
+            sp.GetRequiredService<ILogger<SwitchableQueueProvider>>()));
 
-        services.AddSingleton(sp => new YeastarApiClient(
-            sp.GetRequiredService<YeastarOptions>(),
-            httpClient: null,
-            sp.GetRequiredService<ILogger<YeastarApiClient>>(),
-            sp.GetRequiredService<CertificateTrustService>()));
-
-        services.AddSingleton<YeastarEventStream>();
-        services.AddSingleton<YeastarQueueProvider>();
-        services.AddSingleton<IQueueProvider>(sp => CreateQueueProvider(sp, settings));
+        services.AddSingleton<IQueueProvider>(sp => sp.GetRequiredService<SwitchableQueueProvider>());
 
         // Stato degli interni: libero, occupato, fuori servizio. Vive in memoria e
         // non nell'archivio, perche' una presenza conservata fra un avvio e l'altro
@@ -945,6 +942,11 @@ public partial class App : Application
         // elencarle, la finestra principale ne riceve i pulsanti.
         services.AddSingleton<HeadsetMonitor>();
         services.AddSingleton<HeadsetController>();
+
+        // Porta ogni salvataggio dentro i servizi gia' avviati, cosi' le impostazioni
+        // valgono subito e non al riavvio. Vedi LiveSettingsApplier.
+        services.AddSingleton(sp => new LiveSettingsApplier(
+            sp, settingsService, sp.GetRequiredService<ILogger<LiveSettingsApplier>>()));
 
         services.AddSingleton<MainWindow>();
 
@@ -1085,23 +1087,55 @@ public partial class App : Application
     /// e insistere produce soltanto un avviso di guasto a ogni interrogazione della
     /// coda. Il posto operatore resta pienamente utilizzabile per chiamare,
     /// rispondere, trasferire e consultare la rubrica.
+    /// <para>
+    /// Ogni chiamata costruisce un connettore nuovo, con il suo client e il suo flusso
+    /// di eventi: è quello che serve per sostituirlo a caldo, e il vecchio si porta via
+    /// i suoi alla chiusura.
+    /// </para>
     /// </remarks>
-    private static IQueueProvider CreateQueueProvider(IServiceProvider sp, AppSettings settings)
+    internal static IQueueProvider CreateQueueProvider(
+        IServiceProvider sp,
+        SettingsService settingsService,
+        AppSettings settings)
     {
-        var pbx = settings.Pbx;
-        var configured = !string.IsNullOrWhiteSpace(pbx.Host) && !string.IsNullOrWhiteSpace(pbx.ClientId);
-
-        if (!pbx.Enabled || !configured)
+        if (BuildPbxConnection(settingsService, settings) is not { } options)
         {
             sp.GetRequiredService<ILogger<App>>().LogInformation(
-                pbx.Enabled
+                settings.Pbx.Enabled
                     ? "Centralino non configurato: le chiamate in coda non saranno visibili"
                     : "Collegamento al centralino disattivato nelle impostazioni");
 
             return new DisabledQueueProvider(sp.GetRequiredService<IClock>());
         }
 
-        return sp.GetRequiredService<YeastarQueueProvider>();
+        var api = new YeastarApiClient(
+            options,
+            httpClient: null,
+            sp.GetRequiredService<ILogger<YeastarApiClient>>(),
+            sp.GetRequiredService<CertificateTrustService>());
+
+        var events = new YeastarEventStream(options, api, sp.GetRequiredService<ILogger<YeastarEventStream>>());
+
+        return new YeastarQueueProvider(
+            options,
+            api,
+            events,
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<ILogger<YeastarQueueProvider>>());
+    }
+
+    /// <summary>
+    /// Parametri del collegamento all'API, oppure <c>null</c> se il collegamento è
+    /// spento o non configurato.
+    /// </summary>
+    /// <param name="settingsService">Servizio di configurazione, per il Client Secret.</param>
+    /// <param name="settings">Configurazione da cui comporli.</param>
+    internal static YeastarOptions? BuildPbxConnection(SettingsService settingsService, AppSettings settings)
+    {
+        var pbx = settings.Pbx;
+        var configured = !string.IsNullOrWhiteSpace(pbx.Host) && !string.IsNullOrWhiteSpace(pbx.ClientId);
+
+        return pbx.Enabled && configured ? BuildYeastarOptions(settingsService, settings) : null;
     }
 
     /// <summary>
@@ -1122,7 +1156,7 @@ public partial class App : Application
     /// l'unico punto che vede tutte le provenienze.
     /// </para>
     /// </remarks>
-    private static void ApplyRingtone(ToneEarconPlayer player, AppSettings settings, ILogger logger)
+    internal static void ApplyRingtone(ToneEarconPlayer player, AppSettings settings, ILogger logger)
     {
         var path = settings.RingtonePath;
 
@@ -1147,7 +1181,7 @@ public partial class App : Application
     }
 
     /// <summary>Traduce le impostazioni di regolazione audio nei parametri del motore.</summary>
-    private static AudioTuningOptions BuildAudioTuning(AppSettings settings) => new()
+    internal static AudioTuningOptions BuildAudioTuning(AppSettings settings) => new()
     {
         JitterBufferMilliseconds = settings.Audio.JitterBufferMs,
         MaxBufferMilliseconds = settings.Audio.MaxBufferMs,
@@ -1155,7 +1189,7 @@ public partial class App : Application
         PacketMilliseconds = settings.Audio.PacketMs,
     };
 
-    private static AnnouncementOptions BuildAnnouncementOptions(AppSettings settings) => new()
+    internal static AnnouncementOptions BuildAnnouncementOptions(AppSettings settings) => new()
     {
         Verbosity = settings.Accessibility.Verbosity,
         QueueMode = settings.Accessibility.QueueMode,
@@ -1164,7 +1198,7 @@ public partial class App : Application
         HoldReminderInterval = TimeSpan.FromSeconds(settings.Accessibility.HoldReminderSeconds),
     };
 
-    private static TransferOptions BuildTransferOptions(AppSettings settings, HotkeyProfile hotkeys) => new()
+    internal static TransferOptions BuildTransferOptions(AppSettings settings, HotkeyProfile hotkeys) => new()
     {
         Mode = Enum.TryParse<TransferInteractionMode>(settings.Calls.TransferMode, out var mode)
             ? mode
