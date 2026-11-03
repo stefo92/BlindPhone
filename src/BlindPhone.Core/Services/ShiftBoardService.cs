@@ -116,14 +116,26 @@ public sealed class ShiftBoardService
         _contacts = contacts;
         _clock = clock ?? SystemClock.Instance;
         _log = logger ?? NullLogger<ShiftBoardService>.Instance;
+
+        if (_presence is not null) _presence.PresenceChanged += OnPresenceChanged;
     }
 
-    /// <summary>Sollevato quando cambia qualcosa nel quadro.</summary>
+    /// <summary>Sollevato quando cambia qualcosa nel quadro, compresa l'ora dell'ultima verifica.</summary>
     /// <remarks>
+    /// <para>
     /// Serve alla sezione della finestra principale. Non produce annunci da sé: un
     /// collega che si alza dalla scrivania non è un fatto che debba interrompere una
     /// conversazione in corso. Chi vuole sapere come stanno le cose lo chiede con il
     /// tasto rapido.
+    /// </para>
+    /// <para>
+    /// <b>Parte alla fine di ogni giro, anche quando nessuno è cambiato.</b> La sezione
+    /// dice «verificato alle» proprio per distinguere un ufficio in cui non si è mosso
+    /// nessuno da un elenco fermo, e partendo solo sui cambiamenti l'ora restava quella
+    /// del primo giro: dopo l'avvio l'elenco sembrava non aggiornarsi più. Parte anche
+    /// quando cambia la presenza di un collega sorvegliato, che arriva per conto suo e
+    /// non da un giro.
+    /// </para>
     /// </remarks>
     public event EventHandler? Changed;
 
@@ -211,10 +223,11 @@ public sealed class ShiftBoardService
 
         // Sulle sottoscrizioni SIP ogni interno costa: si dichiara che questi
         // interessano, cosi' il quadro dei turni ne approfitta quando l'impianto le
-        // serve. Su un impianto che non le serve la chiamata non fa nulla.
-        if (_presence is { IsAvailable: true } && roster.Count > 0)
+        // serve. Su un impianto che non le serve la chiamata non fa nulla. Anche con
+        // l'elenco vuoto: e' il modo di lasciare andare chi non e' piu' sorvegliato.
+        if (_presence is { IsAvailable: true })
         {
-            await _presence.WatchAsync([.. roster.Select(r => r.Key)], cancellationToken)
+            await _presence.WatchAsync(PresenceWatcher.Colleagues, [.. roster.Select(r => r.Key)], cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -323,8 +336,6 @@ public sealed class ShiftBoardService
                 return;
             }
 
-            var cambiato = false;
-
             foreach (var voce in roster)
             {
                 if (cancellationToken.IsCancellationRequested) break;
@@ -343,8 +354,7 @@ public sealed class ShiftBoardService
                     .ConfigureAwait(false);
 
                 _policy.ObserveExtension(esito);
-
-                if (Record(voce.Key, esito)) cambiato = true;
+                Record(voce.Key, esito);
             }
 
             // IL BERSAGLIO DI CONTROLLO VIENE PER ULTIMO, E VIENE SEMPRE.
@@ -361,7 +371,7 @@ public sealed class ShiftBoardService
                     .ProbeAsync(_controlTarget, ProbeTimeout, cancellationToken)
                     .ConfigureAwait(false);
 
-                if (_policy.ObserveControl(controllo) != attendibilePrima) cambiato = true;
+                _policy.ObserveControl(controllo);
 
                 if (!_policy.CanTrustResults && attendibilePrima)
                 {
@@ -375,7 +385,9 @@ public sealed class ShiftBoardService
 
             lock (_gate) _lastRoundAt = _clock.Now;
 
-            if (cambiato) Changed?.Invoke(this, EventArgs.Empty);
+            // Sempre, e non solo se qualcuno e' cambiato: e' cambiata l'ora della
+            // verifica. Vedi Changed.
+            Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -389,15 +401,15 @@ public sealed class ShiftBoardService
         }
     }
 
-    /// <summary>Annota l'esito e dice se ha cambiato qualcosa.</summary>
-    private bool Record(string key, ReachabilityOutcome outcome)
+    /// <summary>Annota l'esito di un sondaggio.</summary>
+    private void Record(string key, ReachabilityOutcome outcome)
     {
         var adesso = _clock.Now;
 
         if (_probed.TryGetValue(key, out var precedente) && precedente.Outcome == outcome)
         {
             _probed[key] = precedente with { At = adesso };
-            return false;
+            return;
         }
 
         _probed[key] = new Sondaggio(outcome, adesso, adesso);
@@ -407,8 +419,24 @@ public sealed class ShiftBoardService
             _log.LogInformation(
                 "Collega {Interno}: {Prima} diventa {Adesso}", key, precedente.Outcome, outcome);
         }
+    }
 
-        return true;
+    /// <summary>Ridisegna il quadro quando cambia la presenza di un collega sorvegliato.</summary>
+    /// <remarks>
+    /// La presenza è la prima fonte di <see cref="Build"/> e il giro non sonda chi lei
+    /// conosce già: senza questo ascolto un collega seguito con le sottoscrizioni o con
+    /// l'API del centralino restava nello stato letto all'avvio, qualunque cosa
+    /// facesse dopo.
+    /// </remarks>
+    private void OnPresenceChanged(object? sender, PresenceChangedEventArgs e)
+    {
+        var chiave = ColleagueRoster.Normalize(e.Extension);
+        if (chiave.Length == 0) return;
+
+        bool sorvegliato;
+        lock (_gate) sorvegliato = _roster.Any(r => r.Key == chiave);
+
+        if (sorvegliato) Changed?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>Compone una riga mettendo insieme quello che si sa da tutte le strade.</summary>
