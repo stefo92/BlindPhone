@@ -85,7 +85,7 @@ public sealed class SegnaliDellaCuffiaTests
         var cuffia = CuffiaDaUfficio();
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(30_000)));
         Assert.False(cuffia.HookSwitchIsMomentary);
@@ -100,7 +100,7 @@ public sealed class SegnaliDellaCuffiaTests
         // risposta.
         var cuffia = CuffiaDaUfficio();
 
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
     }
@@ -114,7 +114,7 @@ public sealed class SegnaliDellaCuffiaTests
         // perso: l'operatore premerebbe e la chiamata resterebbe aperta.
         var cuffia = CuffiaDaUfficio();
 
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, T0));
     }
@@ -125,10 +125,10 @@ public sealed class SegnaliDellaCuffiaTests
         var cuffia = CuffiaDaUfficio();
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         // Ha chiuso l'interlocutore: la spia si spegne e la cuffia la segue.
-        cuffia.Reflect(default);
+        cuffia.Reflect(default, Dopo(60_000));
         Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(60_000)));
 
         // La chiamata successiva si prende con una pressione sola.
@@ -147,7 +147,7 @@ public sealed class SegnaliDellaCuffiaTests
         // cui chiude. Contare solo i "riagganciato" gli farebbe premere due volte.
         var cuffia = CuffiaSenzaSpie();
 
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(20_000)));
@@ -167,7 +167,7 @@ public sealed class SegnaliDellaCuffiaTests
         Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(200)));
 
         // La spia accesa non cambia il valore del pulsante di una cuffia a impulsi.
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, Dopo(30_000)));
     }
 
@@ -180,7 +180,7 @@ public sealed class SegnaliDellaCuffiaTests
         var cuffia = CuffiaDaUfficio();
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(180)));
         Assert.True(cuffia.HookSwitchIsMomentary);
@@ -194,7 +194,7 @@ public sealed class SegnaliDellaCuffiaTests
         var cuffia = CuffiaDaUfficio();
 
         cuffia.Feed(HeadsetButton.HookSwitch, true, T0);
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
         cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(180));
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, Dopo(40_000)));
@@ -211,7 +211,7 @@ public sealed class SegnaliDellaCuffiaTests
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
         Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(150)));
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), Dopo(160));
 
         Assert.True(cuffia.HookSwitchIsMomentary);
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, Dopo(30_000)));
@@ -224,9 +224,60 @@ public sealed class SegnaliDellaCuffiaTests
         var oltre = (int)HeadsetSignalInterpreter.ReleaseWindow.TotalMilliseconds + 300;
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, true, T0));
-        cuffia.Reflect(new HeadsetIndicators(OffHook: true));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
 
         Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(oltre)));
         Assert.False(cuffia.HookSwitchIsMomentary);
+    }
+
+    // -----------------------------------------------------------------------
+    // Spia che cambia due volte prima della conferma
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public void LaSpiaSpentaUnIstanteAllAvvioDelTrasferimentoNonChiudeLaChiamata()
+    {
+        // In conversazione da dieci secondi, l'operatore avvia il trasferimento: il
+        // chiamante passa in attesa e la spia della linea si spegne e si riaccende in
+        // venti millisecondi. La cuffia conferma tutti e due i cambi, ma la prima
+        // conferma arriva quando lo stato atteso e' gia' di nuovo "in linea".
+        var cuffia = CuffiaDaUfficio();
+
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
+        cuffia.Reflect(default, Dopo(10_000));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), Dopo(10_020));
+
+        Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(10_040)));
+        Assert.False(cuffia.Feed(HeadsetButton.HookSwitch, true, Dopo(10_060)));
+
+        // La pressione vera, a trasferimento in corso, chiude come sempre.
+        Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(40_000)));
+    }
+
+    [Fact]
+    public void PassatoIlTempoDellEcoIlRitornoAllaSpiaSostituitaEUnaPressione()
+    {
+        var cuffia = CuffiaDaUfficio();
+        var oltre = 10_020 + (int)HeadsetSignalInterpreter.EchoWindow.TotalMilliseconds + 100;
+
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), T0);
+        cuffia.Reflect(default, Dopo(10_000));
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), Dopo(10_020));
+
+        Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(oltre)));
+    }
+
+    [Fact]
+    public void UnaSpiaMostrataALungoNonFaScambiarePerEcoLaPressioneSuccessiva()
+    {
+        // Risposta da tastiera dopo un minuto di riposo: "a riposo" e' stato mostrato a
+        // lungo e la sua conferma e' arrivata da tempo. Un "riagganciato" subito dopo e'
+        // l'operatore che chiude, non un'eco.
+        var cuffia = CuffiaDaUfficio();
+
+        cuffia.Reflect(default, T0);
+        cuffia.Reflect(new HeadsetIndicators(OffHook: true), Dopo(60_000));
+
+        Assert.True(cuffia.Feed(HeadsetButton.HookSwitch, false, Dopo(60_200)));
     }
 }

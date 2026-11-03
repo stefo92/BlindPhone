@@ -435,7 +435,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // non e' stata accettata: e' la risposta a dire verso chi tenere aperto il
         // passaggio.
         _keepAlive = new SipKeepAlive(
-            _transport, _account.KeepAliveInterval, () => (_registrarLocal, _registrarRemote), _log);
+            _transport,
+            _account.KeepAliveInterval,
+            () => (_registrarLocal, _registrarRemote),
+            () => Volatile.Read(ref _registrarTrafficTicks) is var ticks and > 0
+                ? new DateTimeOffset(ticks, TimeSpan.Zero)
+                : null,
+            _log);
         _keepAlive.Start();
 
         // La segreteria ascolta dal primo istante, perche' alcuni centralini mandano lo
@@ -549,6 +555,12 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
     private volatile SIPEndPoint? _registrarRemote;
 
+    /// <summary>
+    /// Ultimo messaggio SIP scambiato con <see cref="_registrarRemote"/>, in tick UTC;
+    /// zero se nessuno. Vedi <see cref="SipKeepAlive"/>.
+    /// </summary>
+    private long _registrarTrafficTicks;
+
     private volatile SignallingNatObservation _signallingNat = SignallingNatObservation.NotYet;
     private volatile StunBindingResult? _lastStun;
     private volatile MediaAddressDecision? _lastMediaAddress;
@@ -620,6 +632,26 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         catch (Exception ex)
         {
             _log.LogDebug(ex, "Lettura dell'indirizzo visto dal centralino non riuscita");
+        }
+    }
+
+    /// <summary>Annota un messaggio scambiato con il server della registrazione.</summary>
+    /// <remarks>
+    /// Contano solo i messaggi con quel server: sono gli unici che tengono aperto il
+    /// passaggio verso di lui, che è quello da cui arriveranno le chiamate entranti.
+    /// </remarks>
+    private void NoteRegistrarTraffic(SIPEndPoint? remote)
+    {
+        try
+        {
+            if (remote is null || _registrarRemote is not { } registrar) return;
+            if (!remote.GetIPEndPoint().Equals(registrar.GetIPEndPoint())) return;
+
+            Volatile.Write(ref _registrarTrafficTicks, DateTimeOffset.UtcNow.UtcTicks);
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Annotazione del traffico verso il centralino non riuscita");
         }
     }
 
@@ -1000,6 +1032,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _keepAlive = null;
         _registrarLocal = null;
         _registrarRemote = null;
+        Volatile.Write(ref _registrarTrafficTicks, 0);
 
         if (_transport is not null)
         {
@@ -1060,19 +1093,29 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private void WireSignallingTrace(SIPTransport transport)
     {
         transport.SIPRequestInTraceEvent += (local, remote, request) =>
+        {
             TraceRequest("ricevuto", remote, request);
+            NoteRegistrarTraffic(remote);
+        };
 
         transport.SIPRequestOutTraceEvent += (local, remote, request) =>
+        {
             TraceRequest("inviato", remote, request);
+            NoteRegistrarTraffic(remote);
+        };
 
         transport.SIPResponseInTraceEvent += (local, remote, response) =>
         {
             TraceResponse("ricevuta", remote, response);
             ObserveRegistration(local, remote, response);
+            NoteRegistrarTraffic(remote);
         };
 
         transport.SIPResponseOutTraceEvent += (local, remote, response) =>
+        {
             TraceResponse("inviata", remote, response);
+            NoteRegistrarTraffic(remote);
+        };
 
         transport.SIPBadRequestInTraceEvent += (local, remote, message, field, raw) =>
             _log.LogWarning(
