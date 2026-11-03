@@ -8,6 +8,9 @@ Novita' introdotte da questa versione, la 1.0.19:
 Durante il trasferimento la linea non cade piu' con i pulsanti della cuffia USB attivi: all'avvio del trasferimento la spia della linea si spegneva per un istante, e la conferma della cuffia arrivata in ritardo veniva presa per la pressione che chiude
 Dopo un trasferimento le chiamate entranti continuano ad arrivare e quelle uscenti a partire: con il collegamento cifrato TLS il segnale di mantenimento poteva far perdere la chiusura di una chiamata, e il centralino considerava l'interno ancora occupato
 Il segnale di mantenimento verso il centralino parte solo dopo un tratto senza messaggi: ogni messaggio tiene gia' aperto il passaggio nel router, e il router non resta comunque mai piu' dell'intervallo impostato senza un pacchetto
+L'elenco dei colleghi resta aggiornato dopo l'avvio: scrivere nel campo di composizione o cercare nella rubrica toglieva la sorveglianza dei colleghi, che restavano nello stato letto all'avvio
+L'elenco dei colleghi cambia appena un collega cambia stato, e l'ora "verificato alle" avanza a ogni verifica anche quando nessuno si e' mosso
+Quando l'elenco dei colleghi si aggiorna cambiano solo le righe toccate: il cursore resta sulla riga che si stava leggendo
 BlindPhone puo' mandare statistiche d'uso anonime a un server PostHog, dell'ente oppure PostHog Cloud nell'Unione europea: si accendono dalla scheda Diagnostica con la casella Invia statistiche d'uso anonime, Alt T, e sono spente di partenza
 Senza un server configurato dall'ente non parte nessuna connessione e non si scrive nessun file: e' la situazione di ogni postazione che aggiorna
 Le statistiche non contano le chiamate e non registrano orari, solo il giorno: dicono quali funzioni sono accese e quali comandi si usano, e la guida elenca una per una le informazioni inviate
@@ -197,4 +200,4 @@ I backup con estensioni non previste - punto bkp, punto dmp, punto backup o ness
 # Impronta di BlindPhone-1.0.19-x64.msi, calcolata sul pacchetto pubblicato.
 # BlindPhone la confronta con quella del file scaricato e rifiuta l'aggiornamento
 # se non corrisponde: se il pacchetto viene ricostruito, questa riga va rifatta.
-SHA256: C3E3A7A6B378D1B5055443BD6F7BB062D35C938B4B8B05186403132AFB7DC0E2
+SHA256: D188392AC051390DAFF019D5DCFE5522AB012D7E65CC03C2A3864A604E858F43
