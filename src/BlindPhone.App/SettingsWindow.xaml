@@ -1442,77 +1442,6 @@
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
                                    Text="Importa una rubrica da file CSV, da un backup di banca dati, da una tabella di Microsoft SQL Server, dalla directory LDAP o Active Directory dell'ente oppure dai contatti di Outlook. Le rubriche di gestionale riconosciute vengono abbinate da sole; sulle altre l'abbinamento si ricava dai titoli delle colonne. In tutti i casi puoi correggere ogni abbinamento, e l'anteprima mostra come verranno importate le voci." />
 
-                        <!-- ============ CAMPI MOSTRATI NELLA RICERCA RAPIDA ============ -->
-                        <Separator Margin="0,8,0,16" />
-
-                        <TextBlock Text="Campi mostrati nella ricerca dal campo di composizione"
-                                   FontWeight="Bold" FontSize="17" />
-
-                        <!--
-                            LA SCELTA DIPENDE DA COME E' FATTA LA RUBRICA DELL'ENTE.
-
-                            Dove i nominativi si assomigliano serve la descrizione, che
-                            sulle persone porta la qualifica; dove al chiamante bisogna
-                            dire dove presentarsi serve la collocazione. Nessun valore
-                            predefinito accontenta due postazioni diverse.
-
-                            Ogni colonna in piu' e' anche una freccia destra in piu' per
-                            chi legge la riga con lo screen reader, moltiplicata per
-                            ogni contatto scorso in una giornata: chi non vede paga le
-                            colonne inutili piu' di chi guarda.
-
-                            E' la ragione per cui due campi restano vuoti dove
-                            ripeterebbero: "Descrizione" tace sulle voci senza persona,
-                            dove la descrizione e' gia' il nominativo della riga, e
-                            "Tipo" tace quando il nominativo contiene gia' la parola.
-                        -->
-                        <TextBlock TextWrapping="Wrap" Margin="0,6,0,10" Opacity="0.85"
-                                   Text="Nominativo e interno ci sono sempre. Qui scegli che altro mostrare accanto a ogni contatto proposto sopra il campo di composizione, e in che ordine: il primo dell'elenco e' quello che si legge subito dopo l'interno. Barra spaziatrice per mostrare o nascondere, ALT piu' frecce per spostare." />
-
-                        <!--
-                            STESSI COMANDI DELL'ELENCO DEI CODEC.
-
-                            Barra spaziatrice per spuntare, Alt piu' frecce per
-                            spostare. Sono due elenchi che fanno cose diverse ma si
-                            usano allo stesso modo, e un operatore che ha imparato
-                            uno non deve reimparare l'altro.
-
-                            Il riordino da tastiera non e' un di piu': trascinare col
-                            mouse e' il gesto previsto dalla maggior parte dei
-                            softphone, ed e' esattamente quello che qui nessuno puo'
-                            fare.
-                        -->
-                        <ListBox x:Name="DialerFieldList"
-                                 MaxHeight="320"
-                                 FontSize="16"
-                                 SelectionMode="Single"
-                                 KeyDown="OnDialerFieldListKeyDown"
-                                 AutomationProperties.Name="Campi della rubrica mostrati nella ricerca rapida, in ordine di lettura"
-                                 AutomationProperties.HelpText="Barra spaziatrice per mostrare o nascondere un campo. Alt freccia su e Alt freccia giu' per spostarlo nell'ordine.">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <!-- Il nome per esteso sta sulla voce dell'elenco: vedi l'elenco dei codec. -->
-                                    <CheckBox IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                              Margin="0,2,0,2"
-                                              Content="{Binding Display}"
-                                              AutomationProperties.HelpText="{Binding Field.Description}" />
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button x:Name="DialerFieldUpButton" Content="Sposta s_u" Margin="0,0,8,0"
-                                    AutomationProperties.Name="Sposta il campo selezionato piu' in alto nell'ordine di lettura"
-                                    Click="OnDialerFieldUpClick" />
-                            <Button x:Name="DialerFieldDownButton" Content="Sposta gi_u" Margin="0,0,8,0"
-                                    AutomationProperties.Name="Sposta il campo selezionato piu' in basso nell'ordine di lettura"
-                                    Click="OnDialerFieldDownClick" />
-                            <Button x:Name="DialerFieldResetButton" Content="Ri_pristina i campi consigliati"
-                                    AutomationProperties.Name="Ripristina i campi consigliati: solo lo stato dell'interno"
-                                    Click="OnDialerFieldResetClick" />
-                        </StackPanel>
-
-
                         <!-- Passo 1: file -->
                         <!--
                             LA RUBRICA PUO' VIVERE NEL GESTIONALE DELL'ENTE.
@@ -1536,7 +1465,7 @@
                                   AutomationProperties.Name="Provenienza della rubrica"
                                   AutomationProperties.HelpText="Da file importati a mano, da una tabella di Microsoft SQL Server, dalla directory LDAP o Active Directory dell'ente, oppure dai contatti di Outlook su questa postazione. Le ultime tre si riallineano periodicamente."
                                   SelectionChanged="OnContactsModeChanged">
-                            <ComboBoxItem Content="Solo file importati a mano" Tag="LocalFile" />
+                            <ComboBoxItem Content="File importati a mano" Tag="LocalFile" />
                             <ComboBoxItem Content="Collegata a Microsoft SQL Server" Tag="SqlServer" />
                             <ComboBoxItem Content="Collegata alla directory LDAP o Active Directory" Tag="Ldap" />
                             <ComboBoxItem Content="Contatti di Outlook su questa postazione" Tag="Outlook" />
@@ -1892,158 +1821,199 @@
                                        AutomationProperties.LiveSetting="Polite" />
                         </StackPanel>
 
-                        <TextBlock Text="1. File da importare" FontWeight="Bold" FontSize="16" Margin="0,8,0,6" />
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-
-                            <TextBox Grid.Column="0" x:Name="CsvPath"
-                                     AutomationProperties.Name="Percorso del file CSV da importare"
-                                     AutomationProperties.HelpText="Puoi digitare il percorso oppure usare il pulsante Sfoglia." />
-
-                            <Button Grid.Column="1" x:Name="BrowseCsvButton" Content="S_foglia"
-                                    Margin="8,0,0,0"
-                                    AutomationProperties.Name="Scegli il file CSV da importare"
-                                    Click="OnBrowseCsvClick" />
-                        </Grid>
-
-                        <TextBlock x:Name="CsvFormatText"
-                                   Margin="0,8,0,0"
-                                   Text=""
-                                   AutomationProperties.Name="Formato rilevato del file"
-                                   AutomationProperties.LiveSetting="Polite" />
-
-                        <Button x:Name="AnalyzeCsvButton" Content="_Analizza il file"
-                                HorizontalAlignment="Left" Margin="0,10,0,0"
-                                AutomationProperties.Name="Analizza il file e riconosci le colonne"
-                                Click="OnAnalyzeCsvClick" />
-
                         <!--
-                            MOLTE ESPORTAZIONI NON HANNO LA RIGA DEI TITOLI.
+                            I PASSI SI NUMERANO DA CODICE, vedi AggiornaPassi.
 
-                            Il danno non e' solo che le colonne restano senza nome: la
-                            prima riga viene consumata come intestazione, cioe' un
-                            contatto sparisce dalla rubrica a ogni importazione.
-                            L'analisi propone da se' la risposta giusta, ma la lascia
-                            correggere: e' un'euristica, e sbagliarla in silenzio
-                            costerebbe una persona o tutti i titoli.
+                            L'abbinamento delle colonne compare solo quando c'e' qualcosa
+                            da abbinare: prima di aver scelto un file, o con la directory
+                            e Outlook che i campi li hanno gia' per nome, erano nove
+                            caselle vuote da attraversare con Tab. I numeri si ricontano
+                            ogni volta, cosi' la sequenza resta 1, 2, 3 per chi la
+                            ascolta e non salta mai un passo.
+
+                            IL FILE SOLO PER LA RUBRICA DA FILE.
+
+                            Con la rubrica collegata a server, directory o Outlook i
+                            contatti arrivano dal pannello qui sopra, e un percorso da
+                            compilare in mezzo mandava chi ascolta a cercare un file che
+                            in quella modalita' non serve.
                         -->
-                        <CheckBox x:Name="CsvNoHeader" Margin="0,12,0,0"
-                                  Content="Il file _non ha la riga dei titoli"
-                                  AutomationProperties.Name="Il file non ha la riga dei titoli delle colonne"
-                                  AutomationProperties.HelpText="Se attivo, la prima riga viene importata come contatto e le colonne si abbinano per posizione."
-                                  Checked="OnCsvHeaderModeChanged"
-                                  Unchecked="OnCsvHeaderModeChanged" />
+                        <StackPanel x:Name="FileStep">
+                            <TextBlock x:Name="StepFileHeading" Text="1. File da importare" FontWeight="Bold" FontSize="16" Margin="0,8,0,6" />
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!--
+                                    NIENTE PULSANTE "ANALIZZA".
+
+                                    Dopo Sfoglia l'analisi partiva gia' da sola, e il
+                                    pulsante serviva soltanto a chi scrive il percorso a
+                                    mano: per lui basta Invio, oppure uscire dalla casella.
+                                    Invio qui analizza e non salva, che era quello che
+                                    faceva prima chiudendo le impostazioni a meta' lavoro.
+                                -->
+                                <TextBox Grid.Column="0" x:Name="CsvPath"
+                                         PreviewKeyDown="OnCsvPathPreviewKeyDown"
+                                         LostFocus="OnCsvPathLostFocus"
+                                         AutomationProperties.Name="Percorso del file da importare"
+                                         AutomationProperties.HelpText="Scrivi il percorso e premi Invio, oppure usa il pulsante Sfoglia: il file viene analizzato da solo e le colonne abbinate." />
+
+                                <Button Grid.Column="1" x:Name="BrowseCsvButton" Content="S_foglia"
+                                        Margin="8,0,0,0"
+                                        AutomationProperties.Name="Scegli il file da importare"
+                                        Click="OnBrowseCsvClick" />
+                            </Grid>
+
+                            <TextBlock x:Name="CsvFormatText"
+                                       Margin="0,8,0,0"
+                                       Text=""
+                                       AutomationProperties.Name="Formato rilevato del file"
+                                       AutomationProperties.LiveSetting="Polite" />
+
+                            <!--
+                                MOLTE ESPORTAZIONI NON HANNO LA RIGA DEI TITOLI.
+
+                                Il danno non e' solo che le colonne restano senza nome: la
+                                prima riga viene consumata come intestazione, cioe' un
+                                contatto sparisce dalla rubrica a ogni importazione.
+                                L'analisi propone da se' la risposta giusta, ma la lascia
+                                correggere: e' un'euristica, e sbagliarla in silenzio
+                                costerebbe una persona o tutti i titoli.
+
+                                Compare solo dopo l'analisi di un CSV: su un backup o prima
+                                di aver scelto un file la domanda non ha senso.
+                            -->
+                            <CheckBox x:Name="CsvNoHeader" Margin="0,12,0,0" Visibility="Collapsed"
+                                      Content="Il file _non ha la riga dei titoli"
+                                      AutomationProperties.Name="Il file non ha la riga dei titoli delle colonne"
+                                      AutomationProperties.HelpText="Se attivo, la prima riga viene importata come contatto e le colonne si abbinano per posizione."
+                                      Checked="OnCsvHeaderModeChanged"
+                                      Unchecked="OnCsvHeaderModeChanged" />
+                        </StackPanel>
 
                         <!--
-                            SCELTA DELLA TABELLA, SOLO PER I BACKUP.
+                            SCELTA DELLA TABELLA, PER I BACKUP E PER IL SERVER.
 
                             Non porta un numero e resta nascosto per i file CSV: un
                             passo numerato che compare e scompare farebbe saltare la
                             sequenza da "1" a "3" per chi la ascolta, e il conteggio
                             dei passi e' l'unico modo che ha per sapere a che punto e'.
+
+                            Sta fuori dal passo del file perche' serve anche al server,
+                            e il testo non dice "backup" per la stessa ragione.
                         -->
                         <StackPanel x:Name="BackupTablePanel" Visibility="Collapsed" Margin="0,16,0,0">
                             <TextBlock Text="Tabella da importare" FontWeight="Bold" FontSize="16" Margin="0,0,0,6" />
 
                             <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
-                                       Text="Il backup contiene piu' tabelle. Scegli quella della rubrica: accanto al nome trovi quante colonne e quante righe contiene, che e' il modo piu' rapido per riconoscerla." />
+                                       Text="Scegli la tabella della rubrica: accanto al nome trovi quante colonne e quante righe contiene, che e' il modo piu' rapido per riconoscerla." />
 
                             <ComboBox x:Name="BackupTable" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Tabella del backup da importare"
+                                      AutomationProperties.Name="Tabella da importare"
                                       AutomationProperties.HelpText="Ogni voce riporta il nome della tabella, il numero di colonne e il numero di righe."
                                       SelectionChanged="OnBackupTableChanged" />
                         </StackPanel>
 
-                        <!-- Passo 2: mappatura -->
-                        <TextBlock Text="2. Abbinamento delle colonne" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
-
-                        <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
-                                   Text="Per ogni informazione scegli da quale colonna del file prenderla. Le voci senza colonna abbinata restano vuote." />
-
-                        <Grid x:Name="MappingGrid">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
+                        <!-- Passo 2: mappatura, solo quando ci sono colonne da abbinare -->
+                        <StackPanel x:Name="MappingStep" Visibility="Collapsed">
+                            <TextBlock x:Name="StepMappingHeading" Text="2. Abbinamento delle colonne" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
 
                             <!--
-                                LE VOCI SONO QUELLE DICHIARATE DALLA RUBRICA DELL'ENTE,
-                                NELL'ORDINE IN CUI IL FILE LE ELENCA.
+                                E' ANCHE LA SCELTA DI CIO' CHE SI VEDE NELLA RICERCA RAPIDA.
 
-                                L'ordine non e' un dettaglio estetico: chi abbina le
-                                colonne ascoltando tiene il file aperto accanto, e una
-                                sequenza diversa da quella del file lo costringerebbe a
-                                cercare ogni voce invece di scorrerle in parallelo.
-
-                                QUI NON CI SONO LE COLONNE STRUTTURALI.
-
-                                Come si identifica una voce, come si riconosce un numero
-                                breve o una voce dismessa, dove sta la data di
-                                aggiornamento: sono fatti dello schema del gestionale,
-                                non scelte di chi importa. Le riempie il profilo
-                                riconosciuto, e chiederle qui vorrebbe dire pretendere
-                                che l'operatore conosca la banca dati dell'ente.
+                                Una voce lasciata senza colonna non arriva in rubrica, e
+                                quindi non compare nemmeno accanto ai contatti proposti dal
+                                campo di composizione: una scelta sola, fatta qui, invece di
+                                un secondo elenco da tenere allineato a questo.
                             -->
+                            <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
+                                       Text="Per ogni informazione scegli da quale colonna prenderla. Le voci senza colonna restano vuote e non compaiono accanto ai contatti proposti dal campo di composizione; quelle abbinate si." />
 
-                            <Label Grid.Row="0" Grid.Column="0" Content="Numero" Target="{Binding ElementName=MapNumber}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="MapNumber" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del numero di telefono"
-                                      AutomationProperties.HelpText="Obbligatoria: le righe senza numero vengono ignorate." />
+                            <Grid x:Name="MappingGrid">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
 
-                            <Label Grid.Row="1" Grid.Column="0" Content="Secondo numero" Target="{Binding ElementName=MapSecondNumber}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="MapSecondNumber" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del secondo numero"
-                                      AutomationProperties.HelpText="Il secondo apparecchio della stessa postazione, o il numero urbano diretto. Resta un recapito componibile, ma non e' quello proposto per primo." />
+                                <!--
+                                    LE VOCI SONO QUELLE DICHIARATE DALLA RUBRICA DELL'ENTE,
+                                    NELL'ORDINE IN CUI IL FILE LE ELENCA.
 
-                            <Label Grid.Row="2" Grid.Column="0" Content="Relativo" Target="{Binding ElementName=MapRelatedTo}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="2" Grid.Column="1" x:Name="MapRelatedTo" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna dell'interno di riferimento"
-                                      AutomationProperties.HelpText="L'interno a cui la voce fa capo, per sapere a chi rivolgersi quando questo non risponde." />
+                                    L'ordine non e' un dettaglio estetico: chi abbina le
+                                    colonne ascoltando tiene il file aperto accanto, e una
+                                    sequenza diversa da quella del file lo costringerebbe a
+                                    cercare ogni voce invece di scorrerle in parallelo.
 
-                            <Label Grid.Row="3" Grid.Column="0" Content="Descrizione" Target="{Binding ElementName=MapCategory}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="3" Grid.Column="1" x:Name="MapCategory" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna della descrizione della voce"
-                                      AutomationProperties.HelpText="Che cosa e' questa voce: viene letta subito dopo il nome, prima del reparto. Nelle voci senza persona diventa il nominativo." />
+                                    QUI NON CI SONO LE COLONNE STRUTTURALI.
 
-                            <Label Grid.Row="4" Grid.Column="0" Content="No_me" Target="{Binding ElementName=MapFirstName}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="4" Grid.Column="1" x:Name="MapFirstName" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del nome"
-                                      AutomationProperties.HelpText="Nome e cognome vengono uniti in un solo nominativo." />
+                                    Come si identifica una voce, come si riconosce un numero
+                                    breve o una voce dismessa, dove sta la data di
+                                    aggiornamento: sono fatti dello schema del gestionale,
+                                    non scelte di chi importa. Le riempie il profilo
+                                    riconosciuto, e chiederle qui vorrebbe dire pretendere
+                                    che l'operatore conosca la banca dati dell'ente.
+                                -->
 
-                            <Label Grid.Row="5" Grid.Column="0" Content="_Cognome" Target="{Binding ElementName=MapLastName}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="5" Grid.Column="1" x:Name="MapLastName" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del cognome"
-                                      AutomationProperties.HelpText="Nome e cognome vengono uniti in un solo nominativo." />
+                                <Label Grid.Row="0" Grid.Column="0" Content="Numero" Target="{Binding ElementName=MapNumber}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="MapNumber" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del numero di telefono"
+                                          AutomationProperties.HelpText="Obbligatoria: le righe senza numero vengono ignorate." />
 
-                            <Label Grid.Row="6" Grid.Column="0" Content="Reparto" Target="{Binding ElementName=MapDepartment}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="6" Grid.Column="1" x:Name="MapDepartment" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del reparto"
-                                      AutomationProperties.HelpText="La colonna del file o della tabella che contiene il reparto o l'unita' operativa." />
+                                <Label Grid.Row="1" Grid.Column="0" Content="Secondo numero" Target="{Binding ElementName=MapSecondNumber}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="1" Grid.Column="1" x:Name="MapSecondNumber" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del secondo numero"
+                                          AutomationProperties.HelpText="Il secondo apparecchio della stessa postazione, o il numero urbano diretto. Resta un recapito componibile, ma non e' quello proposto per primo." />
 
-                            <Label Grid.Row="7" Grid.Column="0" Content="Padiglione" Target="{Binding ElementName=MapBuilding}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="7" Grid.Column="1" x:Name="MapBuilding" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del padiglione"
-                                      AutomationProperties.HelpText="Padiglione e piano vengono uniti in una sola collocazione." />
+                                <Label Grid.Row="2" Grid.Column="0" Content="Relativo" Target="{Binding ElementName=MapRelatedTo}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="2" Grid.Column="1" x:Name="MapRelatedTo" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna dell'interno di riferimento"
+                                          AutomationProperties.HelpText="L'interno a cui la voce fa capo, per sapere a chi rivolgersi quando questo non risponde." />
 
-                            <Label Grid.Row="8" Grid.Column="0" Content="P_iano" Target="{Binding ElementName=MapFloor}" VerticalAlignment="Center" />
-                            <ComboBox Grid.Row="8" Grid.Column="1" x:Name="MapFloor" Margin="8,3" MinHeight="34" FontSize="15"
-                                      AutomationProperties.Name="Colonna del piano"
-                                      AutomationProperties.HelpText="Padiglione e piano vengono uniti in una sola collocazione." />
-                        </Grid>
+                                <Label Grid.Row="3" Grid.Column="0" Content="Descrizione" Target="{Binding ElementName=MapCategory}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="3" Grid.Column="1" x:Name="MapCategory" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna della descrizione della voce"
+                                          AutomationProperties.HelpText="Che cosa e' questa voce: viene letta subito dopo il nome, prima del reparto. Nelle voci senza persona diventa il nominativo." />
+
+                                <Label Grid.Row="4" Grid.Column="0" Content="No_me" Target="{Binding ElementName=MapFirstName}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="4" Grid.Column="1" x:Name="MapFirstName" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del nome"
+                                          AutomationProperties.HelpText="Nome e cognome vengono uniti in un solo nominativo." />
+
+                                <Label Grid.Row="5" Grid.Column="0" Content="_Cognome" Target="{Binding ElementName=MapLastName}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="5" Grid.Column="1" x:Name="MapLastName" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del cognome"
+                                          AutomationProperties.HelpText="Nome e cognome vengono uniti in un solo nominativo." />
+
+                                <Label Grid.Row="6" Grid.Column="0" Content="Reparto" Target="{Binding ElementName=MapDepartment}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="6" Grid.Column="1" x:Name="MapDepartment" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del reparto"
+                                          AutomationProperties.HelpText="La colonna del file o della tabella che contiene il reparto o l'unita' operativa." />
+
+                                <Label Grid.Row="7" Grid.Column="0" Content="Padiglione" Target="{Binding ElementName=MapBuilding}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="7" Grid.Column="1" x:Name="MapBuilding" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del padiglione"
+                                          AutomationProperties.HelpText="Padiglione e piano vengono uniti in una sola collocazione." />
+
+                                <Label Grid.Row="8" Grid.Column="0" Content="P_iano" Target="{Binding ElementName=MapFloor}" VerticalAlignment="Center" />
+                                <ComboBox Grid.Row="8" Grid.Column="1" x:Name="MapFloor" Margin="8,3" MinHeight="34" FontSize="15"
+                                          AutomationProperties.Name="Colonna del piano"
+                                          AutomationProperties.HelpText="Padiglione e piano vengono uniti in una sola collocazione." />
+                            </Grid>
+                        </StackPanel>
 
                         <!-- Passo 3: anteprima -->
-                        <TextBlock Text="3. Anteprima" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
+                        <TextBlock x:Name="StepPreviewHeading" Text="2. Anteprima" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
 
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,8" Opacity="0.85"
                                    Text="Controlla che le informazioni siano finite nei campi giusti prima di importare tutto il file." />
@@ -2059,7 +2029,7 @@
                                  AutomationProperties.HelpText="Usa le frecce su e giu' per leggere riga per riga." />
 
                         <!-- Passo 4: importazione -->
-                        <TextBlock Text="4. Importazione" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
+                        <TextBlock x:Name="StepImportHeading" Text="3. Importazione" FontWeight="Bold" FontSize="16" Margin="0,20,0,6" />
 
                         <CheckBox x:Name="ReplaceExisting"
                                   Content="Sostituisci i contatti importati in precedenza dallo stesso file"

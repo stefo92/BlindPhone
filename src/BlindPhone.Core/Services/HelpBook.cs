@@ -339,9 +339,7 @@ public static class HelpBook
 
         Scegliere fra due omonimi. Digitando un nome compare sopra il campo l'elenco dei contatti che corrispondono: freccia giu' scende dentro l'elenco, le frecce su e giu' scorrono i contatti, destra e sinistra leggono i campi di quello su cui ti trovi, Invio chiama. Freccia su dal primo contatto riporta al campo.
 
-        Quali campi vedi accanto a ogni contatto lo decidi tu, in Impostazioni, scheda Rubrica: nominativo e interno ci sono sempre, gli altri - descrizione, reparto, collocazione, stato - si spuntano uno per uno con la barra spaziatrice. Tienine pochi: ogni campo in piu' e' una freccia destra in piu' da percorrere su ogni contatto.
-
-        Anche l'ordine lo decidi tu, nello stesso elenco: Alt con freccia su e Alt con freccia giu' spostano il campo selezionato, e la voce ti dice in che posizione e' finito. Metti per primo quello che ti fa decidere - di solito lo stato, oppure il reparto se i nominativi si assomigliano - cosi' lo trovi subito dopo l'interno e sugli altri non devi arrivare. Sono gli stessi tasti dell'elenco dei codec.
+        Accanto a ogni contatto vedi nominativo, interno e stato, e poi i campi che la tua rubrica contiene: il tipo, se ci sono fax, emergenze o numeri brevi, e descrizione, reparto, collocazione, riferimento. Li decide l'importazione, in Impostazioni, scheda Rubrica: un campo che non abbini a nessuna colonna non arriva in rubrica e non compare nemmeno qui, cosi' non ti costa una freccia destra in piu' su ogni contatto. L'ordine e' sempre lo stesso: prima quello che ti fa decidere, poi quello che ti aiuta a riconoscere il contatto.
 
         Il campo non lo devi svuotare mai. Quando rispondi, quando chiudi e quando il trasferimento finisce, il cursore ci torna da solo e quello che era rimasto scritto risulta già selezionato: la prima cifra che digiti prende il posto del numero vecchio. Se invece quel numero ti serve ancora — l'interno era occupato e vuoi riprovare — non toccarlo e premi {key}: è sempre lì.
         """;

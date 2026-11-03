@@ -97,6 +97,9 @@ internal sealed class FakeContactRepository : IContactRepository
 
     public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(_contacts.Count);
 
+    public Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<Contact>>([.. _contacts]);
+
     public Task<int> ClearAsync(string? sourceName, CancellationToken cancellationToken) => Task.FromResult(0);
 }
 

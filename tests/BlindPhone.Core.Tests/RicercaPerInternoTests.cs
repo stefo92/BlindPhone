@@ -38,6 +38,9 @@ internal sealed class RubricaCheRestituisceTutto(params Contact[] contatti) : IC
 
     public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(contatti.Length);
 
+    public Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<Contact>>(contatti);
+
     public Task<int> ClearAsync(string? sourceName, CancellationToken cancellationToken) => Task.FromResult(0);
 }
 

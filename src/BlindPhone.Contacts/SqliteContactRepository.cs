@@ -532,6 +532,23 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
         }
     }
 
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            using var command = _connection.CreateCommand();
+            command.CommandText = "SELECT * FROM contacts";
+
+            return await ReadContactsAsync(command, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private static async Task<IReadOnlyList<Contact>> ReadContactsAsync(
         SqliteCommand command,
         CancellationToken cancellationToken)

@@ -8,10 +8,10 @@ namespace BlindPhone.Core.Tests;
 /// Verifica i campi della rubrica mostrabili nella ricerca dal campo di composizione.
 /// </summary>
 /// <remarks>
-/// La scelta esiste perché dipende da come è fatta la rubrica dell'ente: dove i
-/// nominativi si assomigliano serve la descrizione, dove al chiamante bisogna dire
-/// dove presentarsi serve la collocazione. E ogni colonna in più è una freccia destra
-/// in più per chi legge la riga con lo screen reader.
+/// Quali campi compaiono lo decide la rubrica, cioè l'abbinamento delle colonne fatto
+/// all'importazione: un campo che nessuna voce porta sarebbe una colonna sempre
+/// vuota, e ogni colonna in più è una freccia destra in più per chi legge la riga con
+/// lo screen reader.
 /// </remarks>
 public sealed class CampiRicercaRapidaTests
 {
@@ -35,51 +35,67 @@ public sealed class CampiRicercaRapidaTests
     }
 
     [Fact]
-    public void LeColonneEsconoNellOrdineScelto()
+    public void ConLaRubricaVuotaRestaLoStato()
     {
-        // Chi legge con lo screen reader percorre la riga da sinistra a destra e si
-        // ferma quando ha saputo quello che gli serve: il campo che decide deve
-        // stare subito dopo il numero, non in fondo dietro due campi inutili.
-        var campi = DialerFieldCatalog.Resolve(["Location", "Description", "Presence"]);
-
-        Assert.Equal(["Location", "Description", "Presence"], campi.Select(c => c.Id));
+        // Lo stato non viene dalla rubrica ma dal centralino: nessun abbinamento di
+        // colonne lo puo' togliere, e senza voci e' l'unico campo che ha senso.
+        Assert.Equal(["Presence"], DialerFieldCatalog.Present([]).Select(c => c.Id));
     }
 
     [Fact]
-    public void LOrdineNonEQuelloDelCatalogo()
+    public void CompaionoSoloICampiImportati()
     {
-        // La rete di sicurezza contro il ritorno silenzioso all'ordine fisso: se
-        // qualcuno reintroducesse un filtro sul catalogo il test sopra passerebbe
-        // comunque quando la scelta coincide con l'ordine di catalogo.
-        var scelta = DialerFieldCatalog.All.Reverse().Select(c => c.Id).ToArray();
+        // Una rubrica in cui all'importazione si sono abbinati solo nome e reparto:
+        // descrizione, collocazione e riferimento non ci sono, e le loro colonne
+        // sarebbero sempre vuote.
+        var rubrica = new[]
+        {
+            new Contact { Id = Guid.NewGuid(), LastName = "Rossi", Department = "Medicina" },
+            new Contact { Id = Guid.NewGuid(), LastName = "Bianchi", Department = "Chirurgia" },
+        };
 
-        Assert.Equal(scelta, DialerFieldCatalog.Resolve(scelta).Select(c => c.Id));
+        Assert.Equal(["Presence", "Department"], DialerFieldCatalog.Present(rubrica).Select(c => c.Id));
     }
 
     [Fact]
-    public void UnaChiaveRipetutaNonProduceDueColonne()
+    public void BastaUnaVocePerFarComparireIlCampo()
     {
-        // Due colonne identiche sarebbero una freccia destra sprecata su ogni
-        // contatto scorso, per tutta la giornata.
-        var campi = DialerFieldCatalog.Resolve(["Department", "Presence", "Department"]);
+        // Il reparto lo hanno solo i pochi che servono: una soglia lo farebbe sparire
+        // proprio da quella rubrica, senza un motivo che si possa dire a chi ascolta.
+        var rubrica = new[]
+        {
+            new Contact { Id = Guid.NewGuid(), LastName = "Rossi" },
+            new Contact { Id = Guid.NewGuid(), LastName = "Verdi" },
+            new Contact { Id = Guid.NewGuid(), LastName = "Bianchi", Department = "Chirurgia" },
+        };
 
-        Assert.Equal(["Department", "Presence"], campi.Select(c => c.Id));
+        Assert.Contains(DialerFieldCatalog.Present(rubrica), c => c.Id == "Department");
     }
 
     [Fact]
-    public void LeChiaviSconosciuteVengonoIgnorate()
+    public void LOrdineEQuelloDelCatalogoQualunqueSiaLaRubrica()
     {
-        // Una configurazione scritta a mano, o arrivata da un pacchetto di
-        // provisioning di un'altra versione, non deve lasciare la postazione senza
-        // elenco dei contatti.
-        var campi = DialerFieldCatalog.Resolve(["Description", "CampoCheNonEsiste", "Presence"]);
+        // Prima cio' che decide, poi cio' che aiuta a riconoscere: le frecce destra
+        // da contare non devono dipendere da quale voce e' stata letta per prima.
+        var rubrica = new[]
+        {
+            new Contact { Id = Guid.NewGuid(), LastName = "Rossi", RelatedTo = "4000" },
+            new Contact { Id = Guid.NewGuid(), LastName = "Verdi", Building = "Barbieri" },
+            Contatto(),
+        };
 
-        Assert.Equal(2, campi.Count);
+        Assert.Equal(
+            DialerFieldCatalog.All.Select(c => c.Id).Where(id => id != "Kind"),
+            DialerFieldCatalog.Present(rubrica).Select(c => c.Id));
     }
 
     [Fact]
-    public void UnElencoVuotoSignificaSoloNominativoEInterno()
-        => Assert.Empty(DialerFieldCatalog.Resolve([]));
+    public void UnaDescrizioneCheRipeteIlNominativoNonFaComparireLaColonna()
+    {
+        // In una rubrica di soli servizi la descrizione e' il nominativo di ogni riga:
+        // la colonna sarebbe vuota dappertutto, quindi non c'e'.
+        Assert.DoesNotContain(DialerFieldCatalog.Present([Servizio()]), c => c.Id == "Description");
+    }
 
     [Fact]
     public void OgniCampoSaRicavareIlProprioValoreDalContatto()
@@ -106,11 +122,11 @@ public sealed class CampiRicercaRapidaTests
     }
 
     [Fact]
-    public void LoStatoEIlCampoPredefinito()
+    public void LoStatoVieneSubitoDopoLInterno()
     {
         // E' quello che cambia una decisione: se l'interno e' occupato l'operatore fa
         // un'altra cosa. Gli altri aiutano a riconoscere il contatto giusto.
-        Assert.Equal(["Presence"], DialerFieldCatalog.Default);
+        Assert.Equal("Presence", DialerFieldCatalog.Present([Contatto()])[0].Id);
     }
 
     // -----------------------------------------------------------------------
@@ -184,6 +200,23 @@ public sealed class CampiRicercaRapidaTests
         };
 
         Assert.Equal("numero breve", DialerFieldCatalog.Find("Kind")!.Value(breve));
+        Assert.Contains(DialerFieldCatalog.Present([breve]), c => c.Id == "Kind");
+    }
+
+    [Fact]
+    public void IFaxCheSiChiamanoFaxNonFannoComparireIlTipo()
+    {
+        // Sono la quasi totalita' dei fax di una rubrica ospedaliera: la colonna
+        // sarebbe vuota su tutti, ed e' meglio che non ci sia.
+        var fax = new Contact
+        {
+            Id = Guid.NewGuid(),
+            Category = "Fax Accettazione DH",
+            Kind = ContactKind.Fax,
+            Numbers = [new PhoneNumber("2678", PhoneNumberKind.Extension, true)],
+        };
+
+        Assert.DoesNotContain(DialerFieldCatalog.Present([fax]), c => c.Id == "Kind");
     }
 
     [Fact]

@@ -59,6 +59,14 @@ public interface IContactRepository
     /// <param name="cancellationToken">Token di annullamento.</param>
     Task<int> CountAsync(CancellationToken cancellationToken);
 
+    /// <summary>Tutti i contatti presenti in archivio.</summary>
+    /// <param name="cancellationToken">Token di annullamento.</param>
+    /// <remarks>
+    /// Non serve alla ricerca, che resta in <see cref="SearchAsync"/>: serve a sapere
+    /// che cosa la rubrica contiene, per esempio quali campi sono stati importati.
+    /// </remarks>
+    Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken);
+
     /// <summary>
     /// Svuota l'archivio dei contatti.
     /// </summary>

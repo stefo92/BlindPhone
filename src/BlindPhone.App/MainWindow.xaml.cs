@@ -165,7 +165,7 @@ public sealed record DialerSuggestion(string Name, string Number, string Presenc
     /// <param name="id">Chiave del campo, come in <c>DialerFieldCatalog</c>.</param>
     /// <remarks>
     /// L'indicizzatore esiste per legare le colonne facoltative senza una proprietà
-    /// per ciascuna: quali colonne ci sono lo decide l'operatore dal pannello, e un
+    /// per ciascuna: quali colonne ci sono lo decide la rubrica importata, e un
     /// modello con un campo fisso per ognuna andrebbe riscritto ogni volta che se ne
     /// aggiunge uno al catalogo.
     /// </remarks>
@@ -486,7 +486,7 @@ public partial class MainWindow : Window
         RegisterGlobalHotkeys();
         ApplyTraySettings(_settingsService.Current);
         ApplyQueueVisibility(_settingsService.Current);
-        BuildSuggestionColumns(_settingsService.Current);
+        _ = RefreshSuggestionColumnsAsync();
 
         // Il turno comincia quando la finestra e' pronta, non quando il processo parte:
         // fra i due momenti c'e' l'avviso di versione, che puo' restare aperto per il
@@ -871,7 +871,7 @@ public partial class MainWindow : Window
             // funzione, perche' cambia quando cambia il personale: chiedere un riavvio
             // per una riga aggiunta sarebbe sproporzionato.
             _ = ApplyColleaguesSettingsAsync(settings);
-            BuildSuggestionColumns(settings);
+            _ = RefreshSuggestionColumnsAsync();
 
             // La modalita' di interazione si applica subito, e con essa il nome del
             // tasto che gli annunci del trasferimento pronunciano: chi passa al
@@ -921,25 +921,58 @@ public partial class MainWindow : Window
             settings.Interaction == InteractionMode.Simplified,
             profile.Get(HotkeyCommand.Transfer, HotkeyScope.Local)?.SpeechText ?? "F9");
 
+    /// <summary>Campi facoltativi delle colonne a schermo, oppure <c>null</c> prima della prima lettura.</summary>
+    private string[]? _suggestionFieldIds;
+
     /// <summary>
-    /// Costruisce le colonne dei contatti proposti secondo la scelta dell'operatore.
+    /// Rilegge dalla rubrica quali campi mostrare fra i contatti proposti, e rifà le
+    /// colonne se sono cambiati.
     /// </summary>
-    /// <param name="settings">Configurazione corrente.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>I campi li decide la rubrica</b>, cioè l'abbinamento delle colonne fatto
+    /// all'importazione: vedi <see cref="DialerFieldCatalog.Present"/>. Per questo si
+    /// rileggono quando la rubrica può essere cambiata — all'avvio e alla chiusura
+    /// delle impostazioni, da cui si importa — e non a ogni ricerca: le colonne
+    /// cambiano quando cambia la rubrica, non mentre l'operatore scorre un elenco.
+    /// </para>
+    /// <para>
+    /// Se la rubrica non si lascia leggere resta lo stato da solo, che non viene dalla
+    /// rubrica: meglio una colonna in meno che un elenco dei contatti senza colonne.
+    /// </para>
+    /// </remarks>
+    private async Task RefreshSuggestionColumnsAsync()
+    {
+        IReadOnlyList<DialerField> campi;
+
+        try
+        {
+            var voci = await _contacts.GetAllAsync(CancellationToken.None).ConfigureAwait(true);
+            campi = DialerFieldCatalog.Present(voci);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Lettura dei campi della rubrica non riuscita: resta il solo stato");
+            campi = DialerFieldCatalog.Present([]);
+        }
+
+        var ids = campi.Select(c => c.Id).ToArray();
+        if (_suggestionFieldIds is { } attuali && attuali.SequenceEqual(ids)) return;
+
+        _suggestionFieldIds = ids;
+        BuildSuggestionColumns(campi);
+    }
+
+    /// <summary>
+    /// Costruisce le colonne dei contatti proposti.
+    /// </summary>
+    /// <param name="fields">Campi facoltativi da mostrare dopo nominativo e interno.</param>
     /// <remarks>
     /// <para>
     /// <b>Nominativo e interno ci sono sempre.</b> Una riga senza nome non si
     /// riconosce e una senza numero non si chiama: non sono una scelta, sono la riga.
-    /// Le altre le sceglie l'operatore in Impostazioni, scheda Rubrica, perché
-    /// dipendono da come è fatta la rubrica dell'ente — dove i nominativi si
-    /// assomigliano serve la descrizione, dove bisogna dire al chiamante dove
-    /// presentarsi serve la collocazione.
-    /// </para>
-    /// <para>
-    /// <b>Anche l'ordine è dell'operatore</b>, e per lo stesso motivo: chi legge la
-    /// riga con lo screen reader la percorre da sinistra a destra e si ferma quando
-    /// ha saputo quello che gli serve, quindi il campo che decide deve venire subito
-    /// dopo il numero. Le colonne escono nell'ordine in cui il catalogo le risolve,
-    /// che è quello configurato.
+    /// Le altre colonne seguono la rubrica importata — vedi
+    /// <see cref="RefreshSuggestionColumnsAsync"/> — nell'ordine del catalogo.
     /// </para>
     /// <para>
     /// <b>Il nome accessibile dell'interno resta dichiarato in due punti</b>, cella e
@@ -949,7 +982,7 @@ public partial class MainWindow : Window
     /// errore — solo un numero che nessuno può trascrivere.
     /// </para>
     /// </remarks>
-    private void BuildSuggestionColumns(AppSettings settings)
+    private void BuildSuggestionColumns(IReadOnlyList<DialerField> fields)
     {
         SuggestionsGrid.Columns.Clear();
 
@@ -969,9 +1002,7 @@ public partial class MainWindow : Window
             ElementStyle = (Style)FindResource("SpokenNumberText"),
         });
 
-        var scelti = settings.Contacts.DialerFields ?? DialerFieldCatalog.Default;
-
-        foreach (var campo in DialerFieldCatalog.Resolve(scelti))
+        foreach (var campo in fields)
         {
             SuggestionsGrid.Columns.Add(new System.Windows.Controls.DataGridTextColumn
             {
@@ -3353,6 +3384,11 @@ public partial class MainWindow : Window
             if (diagnostics) window.ShowDiagnostics();
 
             window.ShowDialog();
+
+            // L'importazione scrive in rubrica anche se poi si chiude con Annulla: le
+            // colonne si rileggono comunque, o un reparto appena importato
+            // comparirebbe solo al riavvio.
+            _ = RefreshSuggestionColumnsAsync();
         }
         catch (Exception ex)
         {
