@@ -11,6 +11,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using BlindPhone.Accessibility;
+using BlindPhone.Audio;
 using BlindPhone.Contacts;
 using BlindPhone.Contacts.Ldap;
 using BlindPhone.Contacts.Outlook;
@@ -3604,7 +3605,9 @@ public partial class SettingsWindow : Window
         _audio.AssignDevice(route, deviceId);
         Report($"Suono di prova sulla via {label}");
 
-        _announcer.PlayEarcon(route == AudioRoute.Ringer
+        // Direttamente dal riproduttore e non dagli annunci: la prova deve suonare
+        // anche con i segnali acustici spenti, o sembrerebbe un dispositivo guasto.
+        _serviceProvider.GetRequiredService<ToneEarconPlayer>().PlayPreview(route == AudioRoute.Ringer
             ? EarconKind.QueueCallArrived
             : EarconKind.CallAnswered);
 

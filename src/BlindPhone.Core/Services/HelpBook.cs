@@ -602,7 +602,9 @@ public static class HelpBook
 
         Oltre alla voce ci sono i segnali acustici, brevi e riconoscibili: chiamata in arrivo, chiamata risposta, comando rifiutato, collegamento perduto. Passano anche quando la voce tace, che è il motivo per cui esistono. Si possono posizionare nello spazio stereo per famiglia di evento: coda a sinistra, chiamata al centro, linea a destra.
 
-        Se hai un display braille, la riga di stato viene aggiornata con la stessa informazione degli annunci, in forma compatta.
+        Se i segnali che accompagnano gli annunci ti sembrano di troppo, togli la spunta a «Riproduci i segnali acustici». Restano quelli che sono l'unica notizia di qualcosa: la suoneria, i toni di libero, di occupato e di numero inesistente, la registrazione perduta, il promemoria della chiamata in attesa e il comando rifiutato.
+
+        Se hai un display braille, la riga di stato viene aggiornata con la stessa informazione degli annunci, in forma compatta. Se ti copre la riga che stai leggendo, togli la spunta a «Aggiorna la riga di stato sul display braille»: il braille dello screen reader resta com'è. Le due spunte valgono subito, senza riavviare.
 
         Ripeti l'ultimo annuncio con {K(profile, HotkeyCommand.RepeatLastAnnouncement)}, interrompi la voce con {K(profile, HotkeyCommand.SilenceSpeech)}.
         """;

@@ -176,6 +176,7 @@ public sealed class LiveSettingsApplier : IDisposable
         voce.InternalVoiceEnabled = accessibilita.InternalVoiceEnabled;
         voce.InternalVoiceName = accessibilita.InternalVoiceName;
         voce.InternalVoiceRate = accessibilita.InternalVoiceRate;
+        voce.BrailleEnabled = accessibilita.BrailleEnabled;
 
         // Dispositivi e volumi delle quattro vie: chi cambia l'uscita della suoneria
         // preme il pulsante di prova subito dopo aver salvato. Il percorso audio di una
@@ -183,7 +184,10 @@ public sealed class LiveSettingsApplier : IDisposable
         // annunci e segnali seguono da subito.
         AudioSettingsApplier.Apply(_services.GetRequiredService<NAudioEngine>(), next, _log);
 
+        // Spenti, i segnali che accompagnano un annuncio tacciono dal successivo;
+        // suoneria, toni della linea e allarmi restano. Vedi EarconSwitch.
         var segnali = _services.GetRequiredService<ToneEarconPlayer>();
+        segnali.Enabled = accessibilita.EarconsEnabled;
         segnali.Volume = accessibilita.EarconVolume;
         segnali.UseSpatialPanning = accessibilita.EarconSpatialPanning;
 

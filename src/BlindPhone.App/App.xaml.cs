@@ -591,6 +591,7 @@ public partial class App : Application
             InternalVoiceEnabled = settings.Accessibility.InternalVoiceEnabled,
             InternalVoiceName = settings.Accessibility.InternalVoiceName,
             InternalVoiceRate = settings.Accessibility.InternalVoiceRate,
+            BrailleEnabled = settings.Accessibility.BrailleEnabled,
         });
 
         services.AddSingleton<ISpeechOutput>(sp => sp.GetRequiredService<CompositeSpeechOutput>());
@@ -615,6 +616,9 @@ public partial class App : Application
                 sp.GetRequiredService<IClock>(),
                 sp.GetRequiredService<ILogger<ToneEarconPlayer>>())
             {
+                // Spenti, tacciono i soli segnali che accompagnano un annuncio: la
+                // suoneria, i toni della linea e gli allarmi restano. Vedi EarconSwitch.
+                Enabled = settings.Accessibility.EarconsEnabled,
                 Volume = settings.Accessibility.EarconVolume,
                 UseSpatialPanning = settings.Accessibility.EarconSpatialPanning,
             };

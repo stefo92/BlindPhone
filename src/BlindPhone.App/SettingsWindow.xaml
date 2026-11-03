@@ -2222,7 +2222,8 @@
                         <CheckBox x:Name="EarconsEnabled"
                                   Content="Riproduci i s_egnali acustici"
                                   Margin="0,8,0,0"
-                                  AutomationProperties.Name="Riproduci i segnali acustici degli eventi" />
+                                  AutomationProperties.Name="Riproduci i segnali acustici degli eventi"
+                                  AutomationProperties.HelpText="Spenti, tacciono i segnali che accompagnano un annuncio: coda, risposta, chiusura, attesa, conferenza, trasferimento, collegamento al centralino, registrazione ripristinata. Restano la suoneria, i toni di libero, occupato e numero inesistente, la registrazione perduta, il promemoria della chiamata in attesa e il comando rifiutato." />
 
                         <CheckBox x:Name="SpatialPanning"
                                   Content="Posiziona i segnali nello spazio stereo: coda a sinistra, chiamata al centro, linea a destra"
@@ -2232,7 +2233,8 @@
                         <CheckBox x:Name="BrailleEnabled"
                                   Content="Aggiorna la riga di stato sul display _braille"
                                   Margin="0,8,0,0"
-                                  AutomationProperties.Name="Aggiorna la riga di stato sul display braille" />
+                                  AutomationProperties.Name="Aggiorna la riga di stato sul display braille"
+                                  AutomationProperties.HelpText="Spenta, BlindPhone non scrive piu' sul display la forma compatta degli annunci, che copre per qualche secondo la riga che stai leggendo. Il braille dello screen reader resta com'e'." />
 
                         <Label Target="{Binding ElementName=DoubleTapWindow}" Content="Finestra della doppia pressione, in millisecondi" />
                         <TextBox x:Name="DoubleTapWindow"
