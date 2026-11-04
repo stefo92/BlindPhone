@@ -677,6 +677,64 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     public IPEndPoint? RegistrarEndPoint => _registrarRemote?.GetIPEndPoint();
 
     /// <summary>
+    /// Sottoscrive su un interno un pacchetto di eventi qualunque e consegna il testo di
+    /// ogni notifica così come arriva.
+    /// </summary>
+    /// <param name="extension">Interno da osservare.</param>
+    /// <param name="eventPackage">Nome del pacchetto, per esempio <c>presence</c> o <c>dialog</c>.</param>
+    /// <param name="notification">Riceve il corpo di ogni notifica.</param>
+    /// <param name="outcome">Riceve l'esito della sottoscrizione, in una frase.</param>
+    /// <returns>
+    /// La sottoscrizione, che si chiude con <see cref="IDisposable.Dispose"/>; <c>null</c>
+    /// se il motore non è avviato o il pacchetto non è uno di quelli che la libreria conosce.
+    /// </returns>
+    /// <remarks>
+    /// Esposto per lo strumento di diagnostica. Serve a guardare che cosa il centralino
+    /// manda su un pacchetto che il programma non usa ancora, prima di decidere se
+    /// usarlo: il centralino di riferimento dichiara <c>presence</c> fra gli eventi che
+    /// sa servire, ed è lì che uno stato come «non disturbare» avrebbe posto, mentre
+    /// <c>dialog</c> descrive soltanto le chiamate.
+    /// </remarks>
+    public IDisposable? ObserveEventPackage(
+        string extension,
+        string eventPackage,
+        Action<string> notification,
+        Action<string> outcome)
+    {
+        if (_transport is null) return null;
+        if (!Enum.TryParse<SIPEventPackagesEnum>(eventPackage.Replace("-", string.Empty), ignoreCase: true, out var pacchetto))
+        {
+            return null;
+        }
+
+        // Stessa forma delle sottoscrizioni vere, compreso il trasporto: vedi
+        // SipPresenceSource.TrySubscribe.
+        var client = new SIPNotifierClient(
+            _transport,
+            outboundProxy: CurrentProxy,
+            pacchetto,
+            SIPURI.ParseSIPURIRelaxed($"{extension}@{_account.Domain}{_account.TransportParameter}"),
+            _account.AuthId ?? _account.Username,
+            _account.Domain,
+            _account.Password,
+            180,
+            filter: null);
+
+        client.NotificationReceived += (_, corpo) => notification(corpo ?? string.Empty);
+        client.SubscriptionSuccessful += _ => outcome("accettata dal centralino");
+        client.SubscriptionFailed += (_, codice, motivo) => outcome($"rifiutata: {(int)codice} {motivo}");
+        client.Start();
+
+        return new DiagnosticSubscription(client);
+    }
+
+    /// <summary>Chiude una sottoscrizione aperta da <see cref="ObserveEventPackage"/>.</summary>
+    private sealed class DiagnosticSubscription(SIPNotifierClient client) : IDisposable
+    {
+        public void Dispose() => client.Stop();
+    }
+
+    /// <summary>
     /// Indirizzo del centralino per una chiamata entrante: quello a cui va mandata la voce.
     /// </summary>
     /// <remarks>
