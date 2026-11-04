@@ -64,6 +64,30 @@ public sealed class HeadsetSignalInterpreter
     /// </remarks>
     public static readonly TimeSpan ReleaseWindow = TimeSpan.FromMilliseconds(700);
 
+    /// <summary>
+    /// Per quanto la conferma di una spia appena sostituita da un'altra si riconosce
+    /// ancora come eco.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>La spia può cambiare due volte prima che la cuffia confermi la prima.</b>
+    /// All'avvio del trasferimento il chiamante passa in attesa un istante prima che la
+    /// procedura esista, e la linea va da «alzata» ad «abbassata» e di nuovo ad
+    /// «alzata» in pochi millisecondi. La conferma di «abbassata» arrivava quando lo
+    /// stato atteso era già tornato «alzata», non coincideva, e veniva presa per una
+    /// pressione: il pulsante della chiamata, in linea, chiude. Il chiamante cadeva nel
+    /// momento in cui l'operatore cominciava a passarlo.
+    /// </para>
+    /// <para>
+    /// Vale solo per uno stato rimasto acceso meno di così: la conferma di uno stato
+    /// mostrato a lungo è già arrivata, e un valore uguale a quello è una pressione.
+    /// Mezzo secondo copre la risposta di una cuffia USB, che conferma in decine di
+    /// millisecondi, e resta sotto <see cref="ReleaseWindow"/>: nessuno torna indietro
+    /// apposta così in fretta dopo un cambio di stato.
+    /// </para>
+    /// </remarks>
+    public static readonly TimeSpan EchoWindow = TimeSpan.FromMilliseconds(500);
+
     private readonly HeadsetCapabilities _capabilities;
     private readonly Dictionary<HeadsetButton, bool> _last = [];
 
@@ -71,6 +95,9 @@ public sealed class HeadsetSignalInterpreter
     private DateTimeOffset? _lastHookPressAt;
     private bool _valueBeforeHookPress;
     private bool _expectedOffHook;
+    private DateTimeOffset _expectedOffHookSince = DateTimeOffset.MinValue;
+    private bool _replacedOffHook;
+    private DateTimeOffset _replacedOffHookUntil = DateTimeOffset.MinValue;
 
     /// <summary>Crea l'interprete per una cuffia.</summary>
     /// <param name="capabilities">Pulsanti e spie dichiarati dalla cuffia.</param>
@@ -125,8 +152,13 @@ public sealed class HeadsetSignalInterpreter
             return false;
         }
 
-        // L'eco dell'allineamento: la cuffia ha seguito la spia impostata da BlindPhone.
-        if (_capabilities.FollowsOffHook && value == _expectedOffHook) return false;
+        // L'eco dell'allineamento: la cuffia ha seguito la spia impostata da BlindPhone,
+        // l'ultima oppure quella che l'ultima ha appena sostituito. Vedi EchoWindow.
+        if (_capabilities.FollowsOffHook
+            && (value == _expectedOffHook || (value == _replacedOffHook && at < _replacedOffHookUntil)))
+        {
+            return false;
+        }
 
         _lastHookPressAt = at;
         _valueBeforeHookPress = previous;
@@ -138,6 +170,7 @@ public sealed class HeadsetSignalInterpreter
     /// mandato.
     /// </summary>
     /// <param name="indicators">Spie appena impostate.</param>
+    /// <param name="at">Istante in cui sono state scritte, sullo stesso orologio delle letture.</param>
     /// <remarks>
     /// <para>
     /// Una cuffia che segue la spia della cornetta alzata cambia stato senza che
@@ -151,9 +184,20 @@ public sealed class HeadsetSignalInterpreter
     /// cambia: lì non si tocca niente.
     /// </para>
     /// </remarks>
-    public void Reflect(HeadsetIndicators indicators)
+    public void Reflect(HeadsetIndicators indicators, DateTimeOffset at)
     {
-        _expectedOffHook = indicators.OffHook;
+        if (indicators.OffHook != _expectedOffHook)
+        {
+            // Solo uno stato durato un attimo puo' avere la conferma ancora in viaggio.
+            if (at - _expectedOffHookSince < EchoWindow)
+            {
+                _replacedOffHook = _expectedOffHook;
+                _replacedOffHookUntil = at + EchoWindow;
+            }
+
+            _expectedOffHook = indicators.OffHook;
+            _expectedOffHookSince = at;
+        }
 
         if (_capabilities.FollowsOffHook && !_hookIsMomentary)
         {

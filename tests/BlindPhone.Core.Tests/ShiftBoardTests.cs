@@ -559,6 +559,64 @@ public sealed class ShiftBoardTests
         Assert.StartsWith("In turno, occupato. Mario Rossi", ShiftBoardTexts.Accessible(riga), StringComparison.Ordinal);
     }
 
+    // -----------------------------------------------------------------------
+    // La sezione resta aggiornata dopo l'avvio
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task OgniGiroAvvisaLaFinestraAncheSeNessunoECambiato()
+    {
+        // La sezione dice "verificato alle". Con l'avviso solo sui cambiamenti l'ora
+        // restava quella del primo giro, e in un ufficio dove nessuno si muoveva
+        // l'elenco sembrava fermo dall'avvio del programma.
+        var sonda = new SondaFinta();
+        sonda.Rispondi("4021", ReachabilityOutcome.Reachable);
+
+        var orologio = new ManualClock(Start);
+        var quadro = new ShiftBoardService(() => sonda, presence: null, contacts: null, orologio);
+        await quadro.ConfigureAsync(ColleagueRoster.Parse("4021 Mario Rossi"), TimeSpan.FromMinutes(2));
+
+        await quadro.RefreshAsync();
+        var primaVerifica = quadro.LastUpdatedAt;
+
+        var avvisi = 0;
+        quadro.Changed += (_, _) => avvisi++;
+
+        orologio.Advance(TimeSpan.FromMinutes(2));
+        await quadro.RefreshAsync();
+
+        Assert.Equal(1, avvisi);
+        Assert.True(quadro.LastUpdatedAt > primaVerifica);
+        Assert.Contains("verificato alle 09:02:00", ShiftBoardTexts.Header(quadro.Snapshot(), quadro.LastUpdatedAt), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task IlCambioDiPresenzaDiUnCollegaAvvisaLaFinestra()
+    {
+        // La presenza e' la prima fonte del quadro, e chi lei conosce non viene
+        // sondato: senza questo avviso un collega seguito con le sottoscrizioni
+        // restava nello stato letto all'avvio.
+        var centralino = new PresenceMonitorTests.FakePresenceProvider();
+        using var presenza = new PresenceMonitorService(centralino);
+        presenza.Start();
+
+        var quadro = new ShiftBoardService(() => new SondaFinta(), presenza, contacts: null, new ManualClock(Start));
+        await quadro.ConfigureAsync(ColleagueRoster.Parse("4021 Mario Rossi\n4022 Anna Bianchi"), TimeSpan.FromMinutes(2));
+
+        var avvisi = 0;
+        quadro.Changed += (_, _) => avvisi++;
+
+        centralino.Raise("4021", PresenceState.Busy, Start);
+
+        Assert.Equal(1, avvisi);
+        Assert.Equal(PresenceState.Busy, quadro.Snapshot()[0].Detail);
+
+        // Un interno che non e' nell'elenco non riguarda la sezione.
+        centralino.Raise("4099", PresenceState.Busy, Start);
+
+        Assert.Equal(1, avvisi);
+    }
+
     private static ShiftEntry Riga(string numero, string nome, DutyState stato)
         => new(numero, nome, stato, PresenceState.Unknown, null, "sondaggio");
 }

@@ -7,6 +7,29 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace BlindPhone.Core.Services;
 
 /// <summary>
+/// Chi chiede di sorvegliare degli interni, in ordine di precedenza.
+/// </summary>
+/// <remarks>
+/// L'ordine conta: la via SIP ha un tetto di sottoscrizioni, e quando l'unione lo
+/// supera restano fuori gli ultimi. I colleghi vengono per primi perché sono gli unici
+/// sorvegliati per tutto il turno.
+/// </remarks>
+public enum PresenceWatcher
+{
+    /// <summary>Il quadro dei colleghi in turno.</summary>
+    Colleagues,
+
+    /// <summary>L'interno chiesto per nome, di solito prima di passargli una chiamata. Vedi <see cref="PresenceMonitorService.QueryAsync"/>.</summary>
+    Query,
+
+    /// <summary>I contatti proposti sopra il campo di composizione.</summary>
+    Dialer,
+
+    /// <summary>I risultati di una ricerca nella rubrica.</summary>
+    Contacts,
+}
+
+/// <summary>
 /// Tiene aggiornato lo stato degli interni: libero, occupato, fuori servizio.
 /// </summary>
 /// <remarks>
@@ -44,6 +67,12 @@ public sealed class PresenceMonitorService : IDisposable
     private readonly ITelephonyEngine? _telephony;
     private readonly ILogger<PresenceMonitorService> _log;
     private readonly ConcurrentDictionary<string, PresenceState> _states = new(StringComparer.Ordinal);
+
+    /// <summary>Interni chiesti da ciascuno, vedi <see cref="WatchAsync"/>.</summary>
+    private readonly SortedDictionary<PresenceWatcher, IReadOnlyList<string>> _watched = [];
+
+    /// <summary>Una dichiarazione alla volta: due unioni applicate fuori ordine lascerebbero la vecchia.</summary>
+    private readonly SemaphoreSlim _watchGate = new(1, 1);
 
     private IPresenceSource? _source;
     private bool _started;
@@ -138,30 +167,53 @@ public sealed class PresenceMonitorService : IDisposable
     }
 
     /// <summary>
-    /// Dichiara quali interni interessano in questo momento.
+    /// Dichiara quali interni interessano adesso a chi li chiede.
     /// </summary>
-    /// <param name="extensions">Interni che l'operatore ha davanti.</param>
+    /// <param name="watcher">Chi li chiede: ogni richiesta sostituisce solo la sua precedente.</param>
+    /// <param name="extensions">Interni che quella parte della postazione ha davanti; vuoto per lasciarli andare.</param>
     /// <param name="cancellationToken">Token di annullamento.</param>
     /// <remarks>
+    /// <para>
     /// Sulla strada SIP ogni interno costa una sottoscrizione al centralino, quindi si
-    /// sorveglia quello che l'operatore sta guardando — i risultati di una ricerca, i
-    /// contatti proposti sopra il campo di composizione — e si lascia andare il resto.
-    /// Sulla strada dell'API la chiamata non fa nulla, perché il centralino manda tutto
-    /// da solo.
+    /// sorveglia quello che l'operatore sta guardando — i colleghi in turno, i risultati
+    /// di una ricerca, i contatti proposti sopra il campo di composizione — e si lascia
+    /// andare il resto. Sulla strada dell'API la chiamata non fa nulla, perché il
+    /// centralino manda tutto da solo.
+    /// </para>
+    /// <para>
+    /// <b>Alla sorgente va l'unione di tutte le richieste.</b> La sorgente tiene un
+    /// elenco solo e ogni dichiarazione lo sostituisce: quando le richieste le arrivavano
+    /// una per una, la prima cifra scritta nel campo di composizione toglieva le
+    /// sottoscrizioni dei colleghi, e il quadro dei turni restava fermo allo stato letto
+    /// all'avvio.
+    /// </para>
     /// </remarks>
-    public async Task WatchAsync(IReadOnlyCollection<string> extensions, CancellationToken cancellationToken)
+    public async Task WatchAsync(
+        PresenceWatcher watcher,
+        IReadOnlyCollection<string> extensions,
+        CancellationToken cancellationToken)
     {
-        if (_source is not { RequiresExplicitWatch: true }) return;
+        if (_source is not { RequiresExplicitWatch: true } source) return;
+
+        await _watchGate.WaitAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            await _source.WatchAsync(extensions, cancellationToken).ConfigureAwait(false);
+            _watched[watcher] = [.. extensions];
+
+            await source
+                .WatchAsync([.. _watched.Values.SelectMany(e => e)], cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             // La sorveglianza e' un di piu': se non riesce, l'operatore perde lo stato
             // degli interni, non la possibilita' di telefonare.
             _log.LogWarning(ex, "Sorveglianza degli interni non riuscita");
+        }
+        finally
+        {
+            _watchGate.Release();
         }
     }
 
@@ -269,7 +321,7 @@ public sealed class PresenceMonitorService : IDisposable
 
         try
         {
-            await WatchAsync([key], cancellationToken).ConfigureAwait(false);
+            await WatchAsync(PresenceWatcher.Query, [key], cancellationToken).ConfigureAwait(false);
 
             // Puo' essere arrivato mentre ci si registrava all'evento.
             var adesso = Get(key);

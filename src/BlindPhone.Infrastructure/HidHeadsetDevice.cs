@@ -368,7 +368,7 @@ internal sealed class HidHeadsetDevice : IDisposable
         // Prima l'interprete e poi la cuffia: la conferma della cuffia puo' arrivare
         // appena scritta la spia, e a quel punto l'interprete deve gia' sapere che e'
         // un'eco.
-        _interpreter.Reflect(richiesto);
+        _interpreter.Reflect(richiesto, DateTimeOffset.Now);
         _shown = richiesto;
 
         if (_ledReports.Count == 0) return;

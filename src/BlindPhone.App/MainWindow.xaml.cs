@@ -1070,6 +1070,13 @@ public partial class MainWindow : Window
     /// cima ogni minuto — cioè proprio mentre sta scorrendo per trovare qualcuno.
     /// </para>
     /// <para>
+    /// <b>Si tocca solo la riga che è cambiata.</b> Il quadro avvisa a ogni giro, anche
+    /// quando nessuno si è mosso, perché deve cambiare l'ora della verifica. Svuotare e
+    /// riempire l'elenco ogni volta toglierebbe la riga da sotto il cursore di chi lo
+    /// sta leggendo, e il lettore di schermo ripartirebbe ogni due minuti. Si ricostruisce
+    /// tutto solo quando cambiano i colleghi sorvegliati.
+    /// </para>
+    /// <para>
     /// <b>Non parla da sé.</b> Un collega che si alza dalla scrivania non è un fatto
     /// che debba interrompere una conversazione in corso, e su una squadra di venti
     /// persone gli annunci sarebbero decine al giorno. Chi vuole sapere come stanno le
@@ -1079,20 +1086,31 @@ public partial class MainWindow : Window
     private void RefreshColleagues()
     {
         var selezionato = (ColleaguesList.SelectedItem as ColleagueRow)?.Number;
+        var avevaIlCursore = ColleaguesList.IsKeyboardFocusWithin;
         var quadro = _shift.Snapshot();
         var raggruppamento = _settingsService.Current.Accessibility.DigitGrouping;
 
-        _colleagueRows.Clear();
-
-        foreach (var voce in quadro)
-        {
-            _colleagueRows.Add(new ColleagueRow(
+        var righe = quadro
+            .Select(voce => new ColleagueRow(
                 ShiftBoardTexts.Status(voce),
                 voce.Name,
                 voce.Number,
                 voce.Since is { } da ? $"dalle {da:HH:mm}" : string.Empty,
                 ShiftBoardTexts.Accessible(voce, raggruppamento),
-                ShiftBoardTexts.StatusIcon(voce)));
+                ShiftBoardTexts.StatusIcon(voce)))
+            .ToList();
+
+        if (righe.Select(r => r.Number).SequenceEqual(_colleagueRows.Select(r => r.Number)))
+        {
+            for (var i = 0; i < righe.Count; i++)
+            {
+                if (_colleagueRows[i] != righe[i]) _colleagueRows[i] = righe[i];
+            }
+        }
+        else
+        {
+            _colleagueRows.Clear();
+            foreach (var nuova in righe) _colleagueRows.Add(nuova);
         }
 
         ColleaguesHeaderText.Text = _shift.CanTrustResults
@@ -1104,7 +1122,17 @@ public partial class MainWindow : Window
         if (selezionato is null) return;
 
         var riga = _colleagueRows.FirstOrDefault(r => r.Number == selezionato);
-        if (riga is not null) ColleaguesList.SelectedItem = riga;
+        if (riga is null || ReferenceEquals(ColleaguesList.SelectedItem, riga)) return;
+
+        ColleaguesList.SelectedItem = riga;
+
+        // La riga sotto il cursore e' stata sostituita: il cursore va riportato sulla
+        // nuova, non solo la selezione, altrimenti la freccia successiva riparte dalla
+        // cima. Senza un passaggio di impaginazione la riga non ha ancora un contenitore.
+        if (!avevaIlCursore) return;
+
+        ColleaguesList.UpdateLayout();
+        if (ColleaguesList.ItemContainerGenerator.ContainerFromItem(riga) is System.Windows.Controls.ListViewItem voce) voce.Focus();
     }
 
     /// <summary>Spiega da dove arriva lo stato, e quando non arriva perché.</summary>
@@ -4597,7 +4625,7 @@ public partial class MainWindow : Window
         // centralino lo stato arriva per sottoscrizione SIP, e ogni interno guardato
         // ne costa una. Lo stato arrivera' fra qualche decimo di secondo e la riga si
         // aggiornera' da sola.
-        _ = _presence.WatchAsync([.. _suggestions.Select(s => s.Number)], CancellationToken.None);
+        _ = _presence.WatchAsync(PresenceWatcher.Dialer, [.. _suggestions.Select(s => s.Number)], CancellationToken.None);
 
         if (announce) AnnounceSuggestions(found.Count > MaxSuggestions, query);
     }

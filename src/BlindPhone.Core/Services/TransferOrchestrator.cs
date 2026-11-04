@@ -811,18 +811,40 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             return RejectCommand();
         }
 
-        // Il chiamante va messo in attesa prima di qualunque altra cosa: durante
-        // l'inserimento della destinazione non deve sentire l'operatore digitare.
-        if (call.State == CallState.Active)
+        // LA PROCEDURA ESISTE PRIMA DELL'ATTESA, non dopo.
+        //
+        // La messa in attesa e' una transizione, e a ogni transizione la finestra
+        // ricalcola la barra e le spie della cuffia. Con la procedura creata dopo, quel
+        // ricalcolo vedeva un chiamante in attesa e nessun trasferimento: la spia della
+        // linea si spegneva e si riaccendeva in pochi millisecondi, e la conferma della
+        // cuffia arrivata in ritardo veniva presa per la pressione che chiude. Il
+        // chiamante cadeva nell'istante in cui l'operatore cominciava a passarlo.
+        var session = new TransferSession(call, _clock.Now);
+        lock (_gate) _session = session;
+
+        try
         {
-            await _telephony.HoldAsync(call.Id, cancellationToken).ConfigureAwait(false);
-            _calls.ApplyTrigger(call.Id, CallTrigger.Hold, suppressAnnouncement: true);
+            // Il chiamante va messo in attesa prima di qualunque altra cosa: durante
+            // l'inserimento della destinazione non deve sentire l'operatore digitare.
+            if (call.State == CallState.Active)
+            {
+                await _telephony.HoldAsync(call.Id, cancellationToken).ConfigureAwait(false);
+                _calls.ApplyTrigger(call.Id, CallTrigger.Hold, suppressAnnouncement: true);
+            }
+        }
+        catch
+        {
+            // Un'attesa non riuscita non deve lasciare una procedura senza chiamante
+            // parcheggiato: e' lo stato da cui nessun comando esce.
+            lock (_gate)
+            {
+                if (ReferenceEquals(_session, session)) _session = null;
+            }
+
+            throw;
         }
 
         _calls.ApplyTrigger(call.Id, CallTrigger.TransferStarted, suppressAnnouncement: true);
-
-        var session = new TransferSession(call, _clock.Now);
-        lock (_gate) _session = session;
 
         if (!string.IsNullOrWhiteSpace(preparedDestination))
         {

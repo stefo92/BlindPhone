@@ -188,6 +188,27 @@ public static class KeepAliveSchedule
     /// <param name="random">Un numero fra zero e uno.</param>
     public static TimeSpan NextDelay(TimeSpan interval, double random)
         => interval * (0.8 + 0.2 * Math.Clamp(random, 0, 1));
+
+    /// <summary>
+    /// Quanto manca ancora prima del segnale, contando dall'ultimo messaggio SIP
+    /// scambiato con il centralino invece che dal segnale precedente.
+    /// </summary>
+    /// <param name="delay">Attesa scelta con <see cref="NextDelay"/>.</param>
+    /// <param name="lastTraffic">Ultimo messaggio SIP con il centralino, se ce n'è stato uno.</param>
+    /// <param name="now">Adesso, sullo stesso orologio di <paramref name="lastTraffic"/>.</param>
+    /// <returns>Zero quando il segnale va mandato subito.</returns>
+    /// <remarks>
+    /// Ogni messaggio tiene aperto il passaggio quanto il segnale: mandarlo comunque non
+    /// aggiunge niente, e sulle connessioni TCP e TLS rischia di togliere. Vedi
+    /// <see cref="SipKeepAlive"/>.
+    /// </remarks>
+    public static TimeSpan Remaining(TimeSpan delay, DateTimeOffset? lastTraffic, DateTimeOffset now)
+    {
+        if (lastTraffic is not { } ultimo) return TimeSpan.Zero;
+
+        var trascorso = now - ultimo;
+        return trascorso < delay ? delay - trascorso : TimeSpan.Zero;
+    }
 }
 
 /// <summary>
@@ -205,26 +226,44 @@ public static class KeepAliveSchedule
 /// Prima della prima registrazione riuscita non c'è niente da tenere aperto, e non parte
 /// nulla.
 /// </para>
+/// <para>
+/// <b>Parte solo con la segnalazione ferma</b>, come chiede la RFC 5626: il conto
+/// riparte da ogni messaggio scambiato con il centralino. Non è solo risparmio. Su TLS
+/// SIPSorcery 10.0.17 consegna ogni messaggio alla connessione cifrata senza aspettare
+/// che il precedente sia uscito, e la connessione cifrata non accetta due scritture
+/// insieme: la seconda si perde, e la libreria lo dà per spedito. Durante un
+/// trasferimento i messaggi arrivano a raffica, e un segnale caduto nel mezzo poteva
+/// costare un BYE o la conferma di un NOTIFY, cioè un dialogo che il centralino
+/// tiene aperto e un interno che per lui resta occupato.
+/// </para>
 /// </remarks>
 internal sealed class SipKeepAlive : IDisposable
 {
     private readonly SIPTransport _transport;
     private readonly TimeSpan _interval;
     private readonly Func<(SIPEndPoint? Local, SIPEndPoint? Remote)> _target;
+    private readonly Func<DateTimeOffset?> _lastTraffic;
     private readonly ILogger _log;
     private readonly CancellationTokenSource _stop = new();
 
     private int _failures;
 
+    /// <param name="transport">Trasporto SIP dell'account.</param>
+    /// <param name="interval">Intervallo configurato; zero spegne il segnale.</param>
+    /// <param name="target">Socket locale e server dell'ultima registrazione accettata.</param>
+    /// <param name="lastTraffic">Ultimo messaggio SIP scambiato con quel server, in ora UTC.</param>
+    /// <param name="log">Registro diagnostico.</param>
     public SipKeepAlive(
         SIPTransport transport,
         TimeSpan interval,
         Func<(SIPEndPoint? Local, SIPEndPoint? Remote)> target,
+        Func<DateTimeOffset?> lastTraffic,
         ILogger log)
     {
         _transport = transport;
         _interval = interval;
         _target = target;
+        _lastTraffic = lastTraffic;
         _log = log;
     }
 
@@ -252,8 +291,16 @@ internal sealed class SipKeepAlive : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(KeepAliveSchedule.NextDelay(_interval, Random.Shared.NextDouble()), cancellationToken)
-                    .ConfigureAwait(false);
+                var attesa = KeepAliveSchedule.NextDelay(_interval, Random.Shared.NextDouble());
+                await Task.Delay(attesa, cancellationToken).ConfigureAwait(false);
+
+                // Nel frattempo e' passato un messaggio: il passaggio e' gia' aperto, e
+                // l'attesa si conta da li'.
+                while (KeepAliveSchedule.Remaining(attesa, _lastTraffic(), DateTimeOffset.UtcNow) is var resto
+                       && resto > TimeSpan.Zero)
+                {
+                    await Task.Delay(resto, cancellationToken).ConfigureAwait(false);
+                }
 
                 await SendOnceAsync().ConfigureAwait(false);
             }

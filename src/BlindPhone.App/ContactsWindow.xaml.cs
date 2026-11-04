@@ -123,7 +123,14 @@ public partial class ContactsWindow : Window
         // un elenco che mostra lo stato di dieci minuti prima e' peggio di uno che
         // non lo mostra affatto.
         _presence.PresenceChanged += OnPresenceChanged;
-        Closed += (_, _) => _presence.PresenceChanged -= OnPresenceChanged;
+        Closed += (_, _) =>
+        {
+            _presence.PresenceChanged -= OnPresenceChanged;
+
+            // I risultati della ricerca non li guarda piu' nessuno: le loro
+            // sottoscrizioni si lasciano andare, quelle dei colleghi restano.
+            _ = _presence.WatchAsync(PresenceWatcher.Contacts, [], CancellationToken.None);
+        };
 
         InitializeComponent();
 
@@ -273,6 +280,7 @@ public partial class ContactsWindow : Window
             // lo stato arriva per sottoscrizione SIP, e ogni interno guardato ne costa
             // una. Quelli della ricerca precedente vengono lasciati andare.
             _ = _presence.WatchAsync(
+                PresenceWatcher.Contacts,
                 [.. _results.Select(r => r.Contact.ExtensionNumber ?? r.Contact.PrimaryNumber ?? string.Empty)],
                 CancellationToken.None);
 

@@ -227,8 +227,65 @@ public sealed class PresenceMonitorTests
         Assert.True(cronometro.Elapsed < TimeSpan.FromSeconds(1), "Senza sorgente la risposta deve essere immediata");
     }
 
+    [Fact]
+    public async Task LeRichiesteDiSorveglianzaSiSommanoInveceDiSostituirsi()
+    {
+        // La sorgente SIP tiene un elenco solo e ogni dichiarazione lo sostituisce.
+        // Quando le richieste le arrivavano una per una, la prima cifra scritta nel
+        // campo di composizione toglieva le sottoscrizioni dei colleghi in turno, e il
+        // loro quadro restava fermo allo stato letto all'avvio.
+        var sorgente = new SorgenteCheRicorda();
+        using var servizio = new PresenceMonitorService(
+            new FakePresenceProvider(canReadPresence: false),
+            new FakeEngine { PresenceSource = sorgente });
+        servizio.Start();
+
+        await servizio.WatchAsync(PresenceWatcher.Contacts, ["7000"], CancellationToken.None);
+        await servizio.WatchAsync(PresenceWatcher.Colleagues, ["4021", "4022"], CancellationToken.None);
+        await servizio.WatchAsync(PresenceWatcher.Dialer, ["5000"], CancellationToken.None);
+        await servizio.WatchAsync(PresenceWatcher.Dialer, ["6000"], CancellationToken.None);
+
+        // Ognuno sostituisce solo la propria richiesta, e i colleghi vengono per primi
+        // anche se hanno chiesto dopo: la sorgente ha un tetto, e resta fuori l'ultimo.
+        Assert.Equal(["4021", "4022", "6000", "7000"], sorgente.Ultimo);
+
+        await servizio.WatchAsync(PresenceWatcher.Dialer, [], CancellationToken.None);
+
+        Assert.Equal(["4021", "4022", "7000"], sorgente.Ultimo);
+    }
+
+    /// <summary>Sorgente SIP finta: ricorda l'ultimo elenco che le è stato dichiarato.</summary>
+    private sealed class SorgenteCheRicorda : IPresenceSource
+    {
+        public IReadOnlyList<string> Ultimo { get; private set; } = [];
+
+        public string Name => "sottoscrizioni finte";
+
+        public bool IsAvailable => true;
+
+        public bool RequiresExplicitWatch => true;
+
+        public event EventHandler<PresenceChangedEventArgs>? PresenceChanged
+        {
+            add { }
+            remove { }
+        }
+
+        public void Start() { }
+
+        public Task WatchAsync(IReadOnlyCollection<string> extensions, CancellationToken cancellationToken)
+        {
+            Ultimo = [.. extensions];
+            return Task.CompletedTask;
+        }
+
+        public DialogReference? ActiveDialog(string extension) => null;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     /// <summary>Centralino finto che si limita a segnalare cambi di presenza.</summary>
-    private sealed class FakePresenceProvider(bool canReadPresence = true) : IQueueProvider
+    internal sealed class FakePresenceProvider(bool canReadPresence = true) : IQueueProvider
     {
         public string Name => "finto";
 

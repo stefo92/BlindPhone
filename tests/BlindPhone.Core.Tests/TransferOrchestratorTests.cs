@@ -86,6 +86,25 @@ public sealed class TransferOrchestratorTests
     }
 
     [Fact]
+    public async Task PrimaPressione_LaProceduraEsisteGiaQuandoIlChiamantePassaInAttesa()
+    {
+        // A ogni transizione la finestra ricalcola le spie della cuffia. Se alla messa
+        // in attesa la procedura non esisteva ancora, la postazione risultava per un
+        // istante senza nessuno in linea: la spia della cornetta si spegneva e si
+        // riaccendeva, e la conferma tardiva della cuffia chiudeva il chiamante.
+        var h = new Harness();
+        await h.ConChiamataAttivaAsync();
+
+        var fasi = new List<TransferPhase>();
+        h.Calls.CallStateChanged += (_, _) => fasi.Add(h.Transfer.Phase);
+
+        await h.Transfer.HandleTransferKeyAsync();
+
+        Assert.NotEmpty(fasi);
+        Assert.All(fasi, fase => Assert.Equal(TransferPhase.EnteringDestination, fase));
+    }
+
+    [Fact]
     public async Task PressioneSingola_AvviaLaConsultazioneDopoLaFinestra()
     {
         var h = new Harness(new TransferOptions { ConfirmExternalDestinations = false });

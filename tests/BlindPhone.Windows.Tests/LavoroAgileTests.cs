@@ -205,6 +205,22 @@ public sealed class LavoroAgileTests
         => Assert.Equal(TimeSpan.FromSeconds(secondi), KeepAliveSchedule.NextDelay(TimeSpan.FromSeconds(25), caso));
 
     [Theory]
+    [InlineData(null, 0)]   // nessun messaggio ancora: si manda
+    [InlineData(30, 0)]     // segnalazione ferma da piu' dell'attesa: si manda
+    [InlineData(22, 0)]     // ferma da esattamente l'attesa: si manda
+    [InlineData(2, 20)]     // un messaggio due secondi fa: si aspetta il resto da li'
+    [InlineData(0, 22)]     // un messaggio adesso, nel mezzo di un trasferimento: si riparte da capo
+    public void IlSegnaleAspettaCheLaSegnalazioneSiaFerma(int? secondiDallUltimo, int restoAtteso)
+    {
+        var adesso = new DateTimeOffset(2026, 11, 3, 10, 0, 0, TimeSpan.Zero);
+        var ultimo = secondiDallUltimo is { } s ? adesso.AddSeconds(-s) : (DateTimeOffset?)null;
+
+        Assert.Equal(
+            TimeSpan.FromSeconds(restoAtteso),
+            KeepAliveSchedule.Remaining(TimeSpan.FromSeconds(22), ultimo, adesso));
+    }
+
+    [Theory]
     [InlineData(25, 25)]
     [InlineData(0, 0)]
     [InlineData(-5, 0)]
