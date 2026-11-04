@@ -33,8 +33,35 @@ public static class InstantMessageTexts
     /// <summary>Destinazione mancante.</summary>
     public const string NoDestination = "manca il destinatario";
 
-    /// <summary>Nessuna risposta entro il tempo concesso.</summary>
-    public const string NoAnswer = "nessuna risposta dal centralino";
+    /// <summary>
+    /// Perché la consegna non è confermata: il centralino non ha risposto, oppure ha
+    /// risposto che a valle nessuno ha risposto.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Prima diceva «nessuna risposta dal centralino», e su un centralino Yeastar era
+    /// impreciso due volte. Il centralino una risposta la dava — un <c>408</c> dal suo
+    /// SBC, settanta secondi dopo, quando la postazione aveva già smesso di aspettare —
+    /// e la frase non diceva che cosa fare.
+    /// </para>
+    /// <para>
+    /// La causa che nomina è un'ipotesi, e la frase lo dice con «forse»: la stessa
+    /// assenza di risposta la produrrebbe una rete caduta. Ma è l'ipotesi giusta quasi
+    /// sempre, perché con la rete caduta non passerebbero neanche le chiamate.
+    /// </para>
+    /// </remarks>
+    public const string UnconfirmedReason = "il centralino non ha risposto, forse non inoltra i messaggi fra gli interni";
+
+    /// <summary>
+    /// Il suggerimento che si aggiunge quando la consegna resta senza conferma con più
+    /// colleghi diversi.
+    /// </summary>
+    /// <remarks>
+    /// Con un collega solo può essere il suo telefono; con due è il centralino, e
+    /// riprovare non serve: serve chi lo amministra. Si dice una volta, non a ogni invio.
+    /// </remarks>
+    public const string ForwardingAdvice =
+        "Succede con più colleghi: chiedi a chi amministra il centralino di abilitare i messaggi SIP fra gli interni.";
 
     /// <summary>Il messaggio non è nemmeno partito: rete o trasporto non disponibili.</summary>
     public const string NotSent = "il messaggio non è partito";
@@ -110,6 +137,15 @@ public static class InstantMessageTexts
     public static string NotDelivered(string? reason)
         => string.IsNullOrWhiteSpace(reason) ? "Messaggio non consegnato" : $"Messaggio non consegnato: {reason}";
 
+    /// <summary>Annuncio di un messaggio partito senza conferma.</summary>
+    /// <param name="reason">Motivo, già tradotto.</param>
+    /// <remarks>
+    /// «Consegna non confermata» e non «non consegnato»: senza una risposta non si sa, e
+    /// la frase non deve dire di più di quello che si sa.
+    /// </remarks>
+    public static string NotConfirmed(string? reason)
+        => string.IsNullOrWhiteSpace(reason) ? "Consegna non confermata" : $"Consegna non confermata: {reason}";
+
     /// <summary>
     /// Traduce il codice di risposta a un <c>MESSAGE</c> nel motivo da dire all'operatore.
     /// </summary>
@@ -133,7 +169,7 @@ public static class InstantMessageTexts
         403 or 603 => "il centralino non lo consente",
         404 or 484 or 604 => "l'interno non esiste",
         405 or 501 => "il centralino non inoltra i messaggi",
-        408 => NoAnswer,
+        408 => UnconfirmedReason,
         413 => "il messaggio è troppo lungo",
         415 or 488 or 606 => "il telefono del collega non accetta messaggi di testo",
         480 => "il collega non è raggiungibile",
@@ -162,6 +198,7 @@ public static class InstantMessageTexts
         {
             InstantMessageDelivery.Sending => $"{riga}, invio in corso",
             InstantMessageDelivery.Failed => $"{riga}, {NotDelivered(message.FailureReason).ToLowerInvariant()}",
+            InstantMessageDelivery.Unconfirmed => $"{riga}, {NotConfirmed(message.FailureReason).ToLowerInvariant()}",
             _ => riga,
         };
     }
@@ -172,6 +209,7 @@ public static class InstantMessageTexts
     {
         InstantMessageDelivery.Sending => "invio in corso",
         InstantMessageDelivery.Failed => NotDelivered(message.FailureReason),
+        InstantMessageDelivery.Unconfirmed => NotConfirmed(message.FailureReason),
         _ => string.Empty,
     };
 

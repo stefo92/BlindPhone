@@ -481,7 +481,9 @@ public static class HelpBook
 
         Le conversazioni durano finché BlindPhone resta aperto: chiudendo il programma si cancellano. Non vengono scritte sul disco, perché su una postazione condivisa a turni resterebbero a disposizione di chi siede dopo di te.
 
-        Perché i messaggi arrivino serve che il centralino li inoltri. Molti lo fanno da sé; se ogni messaggio torna indietro con «il centralino non inoltra i messaggi», va chiesto a chi lo amministra di abilitare i messaggi SIP fra gli interni.
+        Se il centralino non risponde affatto senti «consegna non confermata»: il messaggio è partito, ma nessuno ha detto di averlo ricevuto. Non è un rifiuto, e riprovare di solito non serve.
+
+        Perché i messaggi arrivino serve che il centralino li inoltri. Molti lo fanno da sé; altri rispondono «il centralino non inoltra i messaggi», altri ancora non rispondono per niente, e allora la consegna resta senza conferma. Quando succede con due colleghi diversi la voce te lo fa notare, una volta: è il segno che non dipende dal telefono di qualcuno ma dal centralino, e va chiesto a chi lo amministra di abilitare i messaggi SIP fra gli interni.
         """;
 
     private static string Rubrica(HotkeyProfile profile) =>

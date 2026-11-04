@@ -140,6 +140,60 @@ public sealed class MessaggiSipTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Un408DellSbcEUnaConsegnaNonConfermataNonUnRifiuto()
+    {
+        // E' la risposta che manda YSBC quando a valle nessuno risponde al MESSAGE.
+        CentralinoRisponde(r =>
+        {
+            var risposta = SIPResponse.GetResponse(r, SIPResponseStatusCodesEnum.RequestTimeout, null);
+            risposta.Header.UserAgent = "YSBC 2.12.30";
+            return risposta;
+        });
+
+        using var canale = new SipInstantMessaging(_telefono, Account());
+
+        var esito = await canale.SendAsync("7391", "ciao", CancellationToken.None);
+
+        Assert.False(esito.Delivered);
+        Assert.True(esito.Unconfirmed);
+        Assert.Equal(InstantMessageTexts.UnconfirmedReason, esito.FailureReason);
+    }
+
+    [Fact]
+    public async Task IlSilenzioDelCentralinoEUnaConsegnaNonConfermata()
+    {
+        // Il centralino riceve e non risponde: e' il caso misurato sul Yeastar, dove il
+        // 408 arriva solo dopo settanta secondi.
+        _centralino.SIPTransportRequestReceived += (_, _, richiesta) =>
+        {
+            if (richiesta.Method == SIPMethodsEnum.MESSAGE) _arrivate.Enqueue(richiesta);
+            return Task.CompletedTask;
+        };
+
+        using var canale = new SipInstantMessaging(
+            _telefono, Account(), sendTimeout: TimeSpan.FromMilliseconds(400));
+
+        var esito = await canale.SendAsync("7391", "ciao", CancellationToken.None);
+
+        Assert.NotEmpty(_arrivate);
+        Assert.False(esito.Delivered);
+        Assert.True(esito.Unconfirmed);
+        Assert.Equal(InstantMessageTexts.UnconfirmedReason, esito.FailureReason);
+    }
+
+    [Fact]
+    public async Task UnRifiutoVeroNonEUnaConsegnaNonConfermata()
+    {
+        CentralinoRisponde(r => SIPResponse.GetResponse(r, SIPResponseStatusCodesEnum.MethodNotAllowed, null));
+        using var canale = new SipInstantMessaging(_telefono, Account());
+
+        var esito = await canale.SendAsync("7391", "ciao", CancellationToken.None);
+
+        Assert.False(esito.Delivered);
+        Assert.False(esito.Unconfirmed);
+    }
+
+    [Fact]
     public async Task SulFiloLaLunghezzaDelCorpoSiContaInByte()
     {
         // Con una lettera accentata caratteri e byte divergono: «perché» sono sei

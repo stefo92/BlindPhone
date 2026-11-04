@@ -41,13 +41,21 @@ namespace BlindPhone.Telephony;
 /// </remarks>
 public sealed class SipInstantMessaging : IDisposable
 {
-    /// <summary>Quanto aspettare la risposta del destinatario prima di dichiarare il messaggio non consegnato.</summary>
+    /// <summary>Quanto aspettare la risposta del destinatario prima di dichiarare la consegna non confermata.</summary>
     /// <remarks>
+    /// <para>
     /// La transazione del protocollo dura trentadue secondi, e per un messaggio scritto a
     /// mano sono troppi da passare con «invio in corso» accanto. Quindici bastano a una
     /// rete lenta e restano un tempo che l'operatore aspetta senza ripremere Invio.
+    /// </para>
+    /// <para>
+    /// Aspettare di piu' non cambierebbe l'esito dove lo si e' misurato: dietro l'SBC di
+    /// Yeastar un MESSAGE che il centralino non tratta resta senza risposta per settanta
+    /// secondi, e poi arriva un 408 che dice la stessa cosa del silenzio. La risposta
+    /// tardiva non si perde comunque: finisce nel registro.
+    /// </para>
     /// </remarks>
-    public static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(15);
+    public static readonly TimeSpan DefaultSendTimeout = TimeSpan.FromSeconds(15);
 
     /// <summary>Per quanto ricordare un messaggio ricevuto, per riconoscerne le ritrasmissioni.</summary>
     /// <remarks>
@@ -63,6 +71,7 @@ public sealed class SipInstantMessaging : IDisposable
     private readonly SipAccountOptions _account;
     private readonly IClock _clock;
     private readonly ILogger<SipInstantMessaging> _log;
+    private readonly TimeSpan _sendTimeout;
 
     /// <summary>Proxy in uscita corrente dell'account: i messaggi passano di lì come le chiamate.</summary>
     private readonly Func<SIPEndPoint?> _outboundProxy;
@@ -78,18 +87,24 @@ public sealed class SipInstantMessaging : IDisposable
     /// <param name="clock">Sorgente del tempo.</param>
     /// <param name="logger">Log diagnostico.</param>
     /// <param name="outboundProxy">Fornisce il proxy in uscita corrente dell'account, se c'è.</param>
+    /// <param name="sendTimeout">
+    /// Quanto aspettare la risposta; se omesso vale <see cref="DefaultSendTimeout"/>. Si
+    /// cambia solo nelle prove, che non vogliono aspettare quindici secondi.
+    /// </param>
     public SipInstantMessaging(
         SIPTransport transport,
         SipAccountOptions account,
         IClock? clock = null,
         ILogger<SipInstantMessaging>? logger = null,
-        Func<SIPEndPoint?>? outboundProxy = null)
+        Func<SIPEndPoint?>? outboundProxy = null,
+        TimeSpan? sendTimeout = null)
     {
         _transport = transport;
         _account = account;
         _clock = clock ?? SystemClock.Instance;
         _log = logger ?? NullLogger<SipInstantMessaging>.Instance;
         _outboundProxy = outboundProxy ?? (() => null);
+        _sendTimeout = sendTimeout ?? DefaultSendTimeout;
 
         _transport.SIPTransportRequestReceived += OnRequestReceived;
     }
@@ -119,7 +134,7 @@ public sealed class SipInstantMessaging : IDisposable
         try
         {
             var richiesta = BuildRequest(destination, text);
-            var risposta = await SendAndWaitAsync(richiesta, cancellationToken).ConfigureAwait(false);
+            var risposta = await SendAndWaitAsync(richiesta, destination, cancellationToken).ConfigureAwait(false);
 
             // UNA SFIDA DI AUTENTICAZIONE NON E' UN RIFIUTO: e' il modo normale con cui un
             // centralino accetta un MESSAGE da un interno. Si rimanda una volta firmata,
@@ -137,24 +152,35 @@ public sealed class SipInstantMessaging : IDisposable
                     _account.AuthId ?? _account.Username,
                     _account.Password);
 
-                risposta = await SendAndWaitAsync(firmata, cancellationToken).ConfigureAwait(false);
+                risposta = await SendAndWaitAsync(firmata, destination, cancellationToken).ConfigureAwait(false);
             }
 
+            // IL SILENZIO NON E' UN RIFIUTO, e il 408 nemmeno: dicono tutti e due che
+            // nessuno ha confermato. Si tengono distinti dai rifiuti veri perche' la loro
+            // causa piu' comune e' una sola — un centralino che non inoltra i messaggi —
+            // e chi ascolta deve sentirsela nominare invece di riprovare.
             if (risposta is null)
             {
-                _log.LogInformation("Messaggio a {Destinazione}: nessuna risposta entro {Attesa}", destination, SendTimeout);
-                return InstantMessageSendResult.Failure(InstantMessageTexts.NoAnswer);
+                _log.LogInformation(
+                    "Messaggio a {Destinazione}: nessuna risposta entro {Attesa}, consegna non confermata",
+                    destination, _sendTimeout);
+
+                return InstantMessageSendResult.NotConfirmed(InstantMessageTexts.UnconfirmedReason);
             }
 
             var codice = (int)risposta.Status;
 
             _log.LogInformation(
-                "Messaggio a {Destinazione}: {Codice} {Motivo}",
-                destination, codice, risposta.ReasonPhrase);
+                "Messaggio a {Destinazione}: {Codice} {Motivo}, apparato {Apparato}",
+                destination, codice, risposta.ReasonPhrase,
+                string.IsNullOrWhiteSpace(risposta.Header.UserAgent) ? "non dichiarato" : risposta.Header.UserAgent);
 
-            return codice is >= 200 and < 300
-                ? InstantMessageSendResult.Success
-                : InstantMessageSendResult.Failure(InstantMessageTexts.DeliveryFailure(codice));
+            return codice switch
+            {
+                >= 200 and < 300 => InstantMessageSendResult.Success,
+                408 => InstantMessageSendResult.NotConfirmed(InstantMessageTexts.UnconfirmedReason),
+                _ => InstantMessageSendResult.Failure(InstantMessageTexts.DeliveryFailure(codice)),
+            };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -199,15 +225,30 @@ public sealed class SipInstantMessaging : IDisposable
         return richiesta;
     }
 
-    /// <summary>Manda una richiesta e attende la risposta definitiva, entro <see cref="SendTimeout"/>.</summary>
-    private async Task<SIPResponse?> SendAndWaitAsync(SIPRequest richiesta, CancellationToken cancellationToken)
+    /// <summary>Manda una richiesta e attende la risposta definitiva, entro il tempo concesso.</summary>
+    /// <remarks>
+    /// Una risposta che arriva dopo la scadenza non cambia piu' l'esito, che l'operatore
+    /// ha gia' sentito, ma si scrive nel registro: e' il 408 dell'SBC che dice chi ha
+    /// smesso di rispondere, ed e' il dato che serve a chi diagnostica.
+    /// </remarks>
+    private async Task<SIPResponse?> SendAndWaitAsync(
+        SIPRequest richiesta,
+        string destination,
+        CancellationToken cancellationToken)
     {
         var attesa = new TaskCompletionSource<SIPResponse?>(TaskCreationOptions.RunContinuationsAsynchronously);
         var transazione = new SIPNonInviteTransaction(_transport, richiesta, _outboundProxy());
 
         transazione.NonInviteTransactionFinalResponseReceived += (_, _, _, risposta) =>
         {
-            attesa.TrySetResult(risposta);
+            if (!attesa.TrySetResult(risposta))
+            {
+                _log.LogInformation(
+                    "Messaggio a {Destinazione}: risposta arrivata dopo l'attesa, {Codice} {Motivo}, apparato {Apparato}",
+                    destination, (int)risposta.Status, risposta.ReasonPhrase,
+                    string.IsNullOrWhiteSpace(risposta.Header.UserAgent) ? "non dichiarato" : risposta.Header.UserAgent);
+            }
+
             return Task.FromResult(SocketError.Success);
         };
 
@@ -217,10 +258,13 @@ public sealed class SipInstantMessaging : IDisposable
 
         using var scadenza = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var completata = await Task.WhenAny(attesa.Task, Task.Delay(SendTimeout, scadenza.Token))
+        var completata = await Task.WhenAny(attesa.Task, Task.Delay(_sendTimeout, scadenza.Token))
             .ConfigureAwait(false);
 
         await scadenza.CancelAsync().ConfigureAwait(false);
+
+        // Da qui in poi una risposta e' tardiva: la si lascia al registro.
+        if (completata != attesa.Task) attesa.TrySetResult(null);
         cancellationToken.ThrowIfCancellationRequested();
 
         return completata == attesa.Task ? await attesa.Task.ConfigureAwait(false) : null;

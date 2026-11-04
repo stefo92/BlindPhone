@@ -34,8 +34,21 @@ public enum InstantMessageDelivery
     /// <summary>Accettato dalla destinazione.</summary>
     Delivered,
 
-    /// <summary>Rifiutato, o nessuna risposta entro il tempo concesso.</summary>
+    /// <summary>Rifiutato: chi doveva riceverlo, o il centralino, ha risposto di no.</summary>
     Failed,
+
+    /// <summary>
+    /// Nessuna conferma: il centralino non ha risposto, oppure ha risposto che a valle
+    /// non ha risposto nessuno (<c>408</c>).
+    /// </summary>
+    /// <remarks>
+    /// Non è un rifiuto e non va detto come tale. Dire «non consegnato» sarebbe
+    /// affermare una cosa che non si sa; la causa più comune però è nota, ed è un
+    /// centralino che non inoltra i messaggi fra gli interni: su un Yeastar dietro il
+    /// suo SBC il <c>MESSAGE</c> resta senza risposta per settanta secondi, poi l'SBC
+    /// risponde <c>408</c>.
+    /// </remarks>
+    Unconfirmed,
 }
 
 /// <summary>Un messaggio della conversazione con un collega.</summary>
@@ -71,7 +84,11 @@ public sealed record InstantMessage(
 /// Perché non è stato accettato, già tradotto in italiano: «l'interno non esiste» e non
 /// «404 Not Found». <c>null</c> se è stato accettato.
 /// </param>
-public sealed record InstantMessageSendResult(bool Delivered, string? FailureReason = null)
+/// <param name="Unconfirmed">
+/// Se nessuno ha confermato né rifiutato: il messaggio è partito, ma il centralino non
+/// ha risposto, o ha risposto <c>408</c>. Vedi <see cref="InstantMessageDelivery.Unconfirmed"/>.
+/// </param>
+public sealed record InstantMessageSendResult(bool Delivered, string? FailureReason = null, bool Unconfirmed = false)
 {
     /// <summary>Consegna riuscita.</summary>
     public static InstantMessageSendResult Success { get; } = new(true);
@@ -79,4 +96,8 @@ public sealed record InstantMessageSendResult(bool Delivered, string? FailureRea
     /// <summary>Consegna non riuscita, con il motivo da dire all'operatore.</summary>
     /// <param name="reason">Motivo, in italiano.</param>
     public static InstantMessageSendResult Failure(string reason) => new(false, reason);
+
+    /// <summary>Messaggio partito, ma nessuna conferma dal centralino.</summary>
+    /// <param name="reason">Motivo, in italiano.</param>
+    public static InstantMessageSendResult NotConfirmed(string reason) => new(false, reason, Unconfirmed: true);
 }

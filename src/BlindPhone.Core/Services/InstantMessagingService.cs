@@ -162,6 +162,19 @@ public sealed class InstantMessagingService : IDisposable
 
     private long _counter;
 
+    /// <summary>
+    /// Colleghi a cui un messaggio è partito senza conferma, dall'ultima consegna riuscita.
+    /// </summary>
+    /// <remarks>
+    /// Serve a distinguere il telefono di un collega dal centralino: con un interno solo
+    /// può essere il suo apparecchio, con due diversi è il centralino che non inoltra, e
+    /// lì riprovare non serve. Si svuota alla prima consegna riuscita.
+    /// </remarks>
+    private readonly HashSet<string> _unconfirmedPeers = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Se il suggerimento di rivolgersi a chi amministra il centralino è già stato dato.</summary>
+    private bool _forwardingAdviceGiven;
+
     /// <summary>Crea il servizio e lo aggancia al motore.</summary>
     /// <param name="engine">Motore telefonico, possibilmente l'involucro commutabile.</param>
     /// <param name="announcer">Pipeline di annuncio.</param>
@@ -366,28 +379,82 @@ public sealed class InstantMessagingService : IDisposable
 
         var aggiornato = messaggio with
         {
-            Delivery = esito.Delivered ? InstantMessageDelivery.Delivered : InstantMessageDelivery.Failed,
+            Delivery = esito switch
+            {
+                { Delivered: true } => InstantMessageDelivery.Delivered,
+                { Unconfirmed: true } => InstantMessageDelivery.Unconfirmed,
+                _ => InstantMessageDelivery.Failed,
+            },
             FailureReason = esito.Delivered ? null : esito.FailureReason,
         };
 
         lock (_gate) conversazione.Replace(aggiornato);
         MessageUpdated?.Invoke(this, new InstantMessageEventArgs(conversazione, aggiornato));
 
+        AnnounceOutcome(conversazione.Peer, esito);
+
+        return aggiornato;
+    }
+
+    /// <summary>
+    /// Dice com'è andato un invio: consegnato, rifiutato, oppure senza conferma.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Senza conferma non si dice «non consegnato»</b>, che affermerebbe una cosa non
+    /// saputa: si dice «consegna non confermata», con la causa più probabile.
+    /// </para>
+    /// <para>
+    /// <b>Alla seconda volta con un collega diverso si aggiunge cosa fare</b>, una volta
+    /// sola: è il momento in cui si capisce che non è il telefono di qualcuno ma il
+    /// centralino, e che la soluzione non sta sulla postazione. Ripeterlo a ogni invio
+    /// lo trasformerebbe in un rumore da ignorare.
+    /// </para>
+    /// </remarks>
+    private void AnnounceOutcome(string peer, InstantMessageSendResult esito)
+    {
         if (esito.Delivered)
         {
+            lock (_gate)
+            {
+                _unconfirmedPeers.Clear();
+                _forwardingAdviceGiven = false;
+            }
+
             _announcer.Announce(Announcement.CommandResponse(InstantMessageTexts.Delivered, _clock.Now));
+            return;
+        }
+
+        string testo;
+
+        if (esito.Unconfirmed)
+        {
+            bool consiglia;
+            int quanti;
+
+            lock (_gate)
+            {
+                _unconfirmedPeers.Add(peer);
+                quanti = _unconfirmedPeers.Count;
+                consiglia = !_forwardingAdviceGiven && quanti >= 2;
+                if (consiglia) _forwardingAdviceGiven = true;
+            }
+
+            _log.LogInformation(
+                "Messaggio a {Destinazione} senza conferma: {Motivo}. Interni senza conferma dall'ultima consegna: {Quanti}",
+                peer, esito.FailureReason, quanti);
+
+            testo = InstantMessageTexts.NotConfirmed(esito.FailureReason);
+            if (consiglia) testo = $"{testo}. {InstantMessageTexts.ForwardingAdvice}";
         }
         else
         {
-            _log.LogInformation(
-                "Messaggio a {Destinazione} non consegnato: {Motivo}", conversazione.Peer, esito.FailureReason);
-
-            _announcer.Announce(Announcement.CommandResponse(
-                InstantMessageTexts.NotDelivered(esito.FailureReason), _clock.Now));
-            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            _log.LogInformation("Messaggio a {Destinazione} non consegnato: {Motivo}", peer, esito.FailureReason);
+            testo = InstantMessageTexts.NotDelivered(esito.FailureReason);
         }
 
-        return aggiornato;
+        _announcer.Announce(Announcement.CommandResponse(testo, _clock.Now));
+        _announcer.PlayEarcon(EarconKind.CommandRejected);
     }
 
     // -----------------------------------------------------------------------

@@ -243,6 +243,92 @@ public sealed class MessaggiIstantaneiTests
         Assert.All(_annunci.Announcements, a => Assert.True(a.BypassConversationSilence));
     }
 
+    // -----------------------------------------------------------------------
+    // Consegna senza conferma
+    // -----------------------------------------------------------------------
+
+    private static InstantMessageSendResult SenzaConferma()
+        => InstantMessageSendResult.NotConfirmed(InstantMessageTexts.UnconfirmedReason);
+
+    [Fact]
+    public async Task SenzaConfermaNonSiDiceNonConsegnatoMaConsegnaNonConfermata()
+    {
+        // E' quello che succede dietro l'SBC di Yeastar: nessuna risposta per settanta
+        // secondi, poi un 408. Non si sa se il messaggio sia arrivato, e la frase non
+        // deve dire di piu'.
+        using var servizio = Servizio();
+        _motore.NextSendResult = SenzaConferma();
+
+        var esito = await servizio.SendAsync("7391", "ciao");
+
+        Assert.Equal(InstantMessageDelivery.Unconfirmed, esito!.Delivery);
+        Assert.Equal(InstantMessageTexts.UnconfirmedReason, esito.FailureReason);
+
+        var annuncio = Assert.Single(_annunci.Announcements);
+        Assert.Equal($"Consegna non confermata: {InstantMessageTexts.UnconfirmedReason}", annuncio.Text);
+        Assert.DoesNotContain("non consegnato", annuncio.Text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(EarconKind.CommandRejected, _annunci.Earcons);
+    }
+
+    [Fact]
+    public async Task IlSuggerimentoArrivaAllaSecondaVoltaConUnCollegaDiversoEUnaVoltaSola()
+    {
+        using var servizio = Servizio();
+        _motore.NextSendResult = SenzaConferma();
+
+        // Lo stesso collega due volte puo' essere il suo telefono: niente suggerimento.
+        await servizio.SendAsync("7381", "uno");
+        await servizio.SendAsync("7381", "due");
+        Assert.DoesNotContain(_annunci.Texts, t => t.Contains(InstantMessageTexts.ForwardingAdvice));
+
+        // Un secondo collega diverso: e' il centralino, e lo si dice.
+        await servizio.SendAsync("7394", "tre");
+        Assert.EndsWith(InstantMessageTexts.ForwardingAdvice, _annunci.Announcements[^1].Text);
+
+        // Una volta sola: al terzo collega la frase torna quella breve.
+        await servizio.SendAsync("7391", "quattro");
+        Assert.Equal(
+            1,
+            _annunci.Texts.Count(t => t.Contains(InstantMessageTexts.ForwardingAdvice)));
+    }
+
+    [Fact]
+    public async Task UnaConsegnaRiuscitaRicominciaIlConto()
+    {
+        using var servizio = Servizio();
+
+        _motore.NextSendResult = SenzaConferma();
+        await servizio.SendAsync("7381", "uno");
+
+        _motore.NextSendResult = InstantMessageSendResult.Success;
+        await servizio.SendAsync("7388", "arrivato");
+
+        // Dopo una consegna riuscita il centralino inoltra: un collega senza conferma
+        // e' di nuovo il primo, non il secondo.
+        _motore.NextSendResult = SenzaConferma();
+        await servizio.SendAsync("7394", "due");
+
+        Assert.DoesNotContain(_annunci.Texts, t => t.Contains(InstantMessageTexts.ForwardingAdvice));
+    }
+
+    [Fact]
+    public void LaVoceDelloStoricoDiceConsegnaNonConfermata()
+    {
+        var messaggio = new InstantMessage(
+            "im-1", "7391", "ciao", InstantMessageDirection.Outgoing,
+            new DateTimeOffset(2026, 11, 4, 11, 6, 0, TimeSpan.Zero),
+            InstantMessageDelivery.Unconfirmed,
+            InstantMessageTexts.UnconfirmedReason);
+
+        Assert.EndsWith(
+            $"consegna non confermata: {InstantMessageTexts.UnconfirmedReason}",
+            InstantMessageTexts.Accessible(messaggio, null));
+
+        Assert.Equal(
+            $"Consegna non confermata: {InstantMessageTexts.UnconfirmedReason}",
+            InstantMessageTexts.DeliveryShown(messaggio));
+    }
+
     [Fact]
     public async Task UnMessaggioVuotoNonParteESiDiceDiScriverlo()
     {
@@ -319,7 +405,7 @@ public sealed class MessaggiIstantaneiTests
     [InlineData(501, "il centralino non inoltra i messaggi")]
     [InlineData(403, "il centralino non lo consente")]
     [InlineData(415, "il telefono del collega non accetta messaggi di testo")]
-    [InlineData(408, InstantMessageTexts.NoAnswer)]
+    [InlineData(408, InstantMessageTexts.UnconfirmedReason)]
     [InlineData(503, "errore del centralino, codice 503")]
     [InlineData(420, "rifiutato dal centralino, codice 420")]
     public void IRifiutiDelCentralinoSiDiconoInItaliano(int codice, string atteso)

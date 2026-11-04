@@ -10,9 +10,10 @@ Senza nessuno davanti Alt M apre l'elenco delle conversazioni, con quelle da leg
 Ogni conversazione ha la sua finestra, con il nome del collega nel titolo per ritrovarla con ALT+TAB: Invio manda, Maiusc Invio va a capo, il pulsante Chiama telefona al collega
 Negli elenchi di interni - colleghi in turno, contatti proposti, rubrica, conversazioni - il tasto Applicazioni apre il menu con Chiama e Invia messaggio; in rubrica c'e' anche il pulsante Invia messaggio, Alt M
 Dopo ogni invio la voce dice messaggio consegnato, oppure perche' non lo e': l'interno non esiste, il collega non e' raggiungibile, il centralino non inoltra i messaggi
+Se il centralino non risponde affatto la voce dice consegna non confermata, con la causa piu' probabile: un centralino che non inoltra i messaggi fra gli interni
 Un messaggio in arrivo non sposta il cursore: la voce dice chi ha scritto e che cosa, con un segnale nuovo di due note acute; durante una telefonata resta il solo segnale
 Il pulsante Messaggi conta quelli da leggere e Control F5 li nomina; le conversazioni durano finche' BlindPhone resta aperto e non vengono scritte sul disco
-I messaggi passano dal centralino con il metodo SIP MESSAGE: se tornano tutti indietro, va chiesto a chi amministra il centralino di abilitarli fra gli interni
+I messaggi passano dal centralino con il metodo SIP MESSAGE: se tornano indietro o restano senza conferma con due colleghi diversi, la voce suggerisce di chiedere a chi amministra il centralino di abilitarli fra gli interni
 Le impostazioni salvate valgono subito, senza riavviare BlindPhone: voce, dispositivi audio, segnali, suoneria, annunci, trasferimento, rubrica e collegamento al centralino
 Un cambio dell'account SIP si applica subito se non c'e' nessuna chiamata in corso; altrimenti la voce lo dice e lo applica quando la chiamata si chiude
 Le spunte Segnali acustici e Braille della scheda Accessibilita' fanno quello che dicono: spente, tacciono i segnali che accompagnano un annuncio e BlindPhone non scrive piu' sul display braille
