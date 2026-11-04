@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using BlindPhone.Audio;
 using BlindPhone.Contacts;
 using BlindPhone.Core.Abstractions;
@@ -78,6 +79,10 @@ switch (command.ToLowerInvariant())
         await TestCallAsync(args.SkipWhile(a => a != "chiamata").Skip(1).FirstOrDefault(a => !a.StartsWith("--")));
         break;
 
+    case "presenza":
+        await TestPresenceAsync(args.SkipWhile(a => a != "presenza").Skip(1).FirstOrDefault(a => !a.StartsWith("--")));
+        break;
+
     case "rubrica":
         await TestCsvImportAsync(args.SkipWhile(a => a != "rubrica").Skip(1).FirstOrDefault(a => !a.StartsWith("--")));
         break;
@@ -100,6 +105,7 @@ void PrintHelp()
     Console.WriteLine("  nat                    dice se la postazione e' dietro NAT e qual e' l'indirizzo pubblico");
     Console.WriteLine("  pbx                    verifica il collegamento all'Open API del centralino");
     Console.WriteLine("  chiamata <numero>      chiama un numero e misura il flusso RTP nelle due direzioni");
+    Console.WriteLine("  presenza <interno>     scrive quello che il centralino manda sullo stato di un interno");
     Console.WriteLine("  rubrica <file.csv>     analizza un file CSV e mostra come verrebbe importato");
     Console.WriteLine();
     Console.WriteLine("Opzioni:");
@@ -474,6 +480,140 @@ async Task TestPbxAsync()
     {
         Console.WriteLine($"ESITO: {ex.Message} (codice {ex.ErrorCode})");
     }
+}
+
+// -----------------------------------------------------------------------------
+// Stato di un collega: che cosa manda il centralino
+// -----------------------------------------------------------------------------
+
+// Risponde a una domanda sola: lo stato «non disturbare» di un collega arriva fino alla
+// postazione, e per quale strada? Il programma usa il pacchetto dialog, che descrive le
+// chiamate e non ha posto per il non disturbare; il centralino dichiara anche presence,
+// che esiste apposta per gli stati di disponibilita'. Si sottoscrivono tutti e due sullo
+// stesso interno e si scrive ogni notifica per intero, a schermo e in un file accanto ai
+// registri. Chi fa la prova accende e spegne il non disturbare sul centralino e scrive
+// una parola quando lo fa: nel file le notifiche si leggono accanto ai gesti.
+async Task TestPresenceAsync(string? extension)
+{
+    if (string.IsNullOrWhiteSpace(extension) || !extension.All(char.IsAsciiDigit))
+    {
+        Console.WriteLine("Indica l'interno da osservare. Esempio: blindphone-diag presenza 7388");
+        return;
+    }
+
+    var account = BuildAccount();
+    if (account is null) return;
+
+    var cartella = Path.Combine(settingsService.DataDirectory, "log");
+    Directory.CreateDirectory(cartella);
+
+    var file = Path.Combine(cartella, $"presenza-{extension}-{DateTime.Now:yyyyMMdd-HHmmss}.txt");
+    await using var scrittura = new StreamWriter(file, append: false, Encoding.UTF8) { AutoFlush = true };
+    var gate = new Lock();
+
+    void Scrivi(string riga)
+    {
+        var testo = $"{DateTime.Now:HH:mm:ss.fff} {riga}";
+
+        lock (gate)
+        {
+            Console.WriteLine(testo);
+            scrittura.WriteLine(testo);
+        }
+    }
+
+    Console.WriteLine($"Interno osservato: {extension}");
+    Console.WriteLine($"File della prova : {file}");
+    Console.WriteLine();
+    // La diagnostica si registra con lo stesso interno: con BlindPhone aperto, durante la
+    // prova le chiamate potrebbero arrivare qui, dove nessuno risponde.
+    if (System.Diagnostics.Process.GetProcessesByName("BlindPhone.App").Length > 0)
+    {
+        Console.WriteLine($"BlindPhone e' aperto. Chiudilo e premi Invio: la diagnostica si registra con lo stesso");
+        Console.WriteLine($"interno, {account.Username}, e durante la prova le chiamate potrebbero arrivare qui.");
+        Console.ReadLine();
+
+        if (System.Diagnostics.Process.GetProcessesByName("BlindPhone.App").Length > 0)
+        {
+            Console.WriteLine("BlindPhone e' ancora aperto: la prova parte lo stesso.");
+        }
+
+        Console.WriteLine();
+    }
+
+    Console.WriteLine("Registrazione in corso, attendere fino a 15 secondi...");
+
+    await using var engine = new SipTelephonyEngine(
+        account,
+        audioEngine: null,
+        clock: null,
+        logger: loggerFactory.CreateLogger<SipTelephonyEngine>());
+
+    var registrato = new TaskCompletionSource<SipRegistrationState>();
+
+    engine.RegistrationStateChanged += (_, state) =>
+    {
+        if (state.Status is RegistrationStatus.Registered or RegistrationStatus.Failed)
+        {
+            registrato.TrySetResult(state);
+        }
+    };
+
+    await engine.StartAsync(CancellationToken.None);
+
+    if (await Task.WhenAny(registrato.Task, Task.Delay(TimeSpan.FromSeconds(15))) != registrato.Task
+        || !(await registrato.Task).IsReachable)
+    {
+        Console.WriteLine("ESITO: registrazione non riuscita, la prova non puo' partire. Prova prima: blindphone-diag sip");
+        await engine.StopAsync(CancellationToken.None);
+        return;
+    }
+
+    Scrivi($"Registrato come {account.Username} su {account.Domain}, trasporto {account.Transport}");
+
+    var sottoscrizioni = new List<IDisposable>();
+
+    foreach (var pacchetto in new[] { "presence", "dialog" })
+    {
+        var sottoscrizione = engine.ObserveEventPackage(
+            extension,
+            pacchetto,
+            corpo => Scrivi($"[{pacchetto}] notifica:{Environment.NewLine}{corpo.Trim()}{Environment.NewLine}"),
+            esito => Scrivi($"[{pacchetto}] sottoscrizione {esito}"));
+
+        if (sottoscrizione is null) Scrivi($"[{pacchetto}] sottoscrizione non partita");
+        else sottoscrizioni.Add(sottoscrizione);
+    }
+
+    Console.WriteLine();
+    Console.WriteLine($"Adesso metti l'interno {extension} in non disturbare sul centralino, aspetta trenta secondi,");
+    Console.WriteLine("poi togli il non disturbare e aspetta altri trenta secondi.");
+    Console.WriteLine("Ogni riga che scrivi qui finisce nel file con l'ora: scrivi per esempio «dnd acceso» e Invio");
+    Console.WriteLine("quando lo accendi, «dnd spento» quando lo spegni.");
+    Console.WriteLine("Scrivi «fine» e Invio per chiudere. La prova si chiude da sola dopo dieci minuti.");
+    Console.WriteLine();
+
+    using var limite = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+
+    while (!limite.IsCancellationRequested)
+    {
+        var lettura = Task.Run(Console.ReadLine);
+
+        if (await Task.WhenAny(lettura, Task.Delay(Timeout.Infinite, limite.Token)) != lettura) break;
+
+        var riga = (await lettura)?.Trim();
+        if (riga is null || riga.Equals("fine", StringComparison.OrdinalIgnoreCase)) break;
+
+        if (riga.Length > 0) Scrivi($"--- segnato da chi prova: {riga} ---");
+    }
+
+    foreach (var sottoscrizione in sottoscrizioni) sottoscrizione.Dispose();
+
+    Scrivi("Prova chiusa");
+    await engine.StopAsync(CancellationToken.None);
+
+    Console.WriteLine();
+    Console.WriteLine($"Il file della prova e' {file}. Contiene i numeri degli interni: cancellalo quando non serve piu'.");
 }
 
 // -----------------------------------------------------------------------------

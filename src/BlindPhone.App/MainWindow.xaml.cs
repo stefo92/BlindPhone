@@ -165,7 +165,7 @@ public sealed record DialerSuggestion(string Name, string Number, string Presenc
     /// <param name="id">Chiave del campo, come in <c>DialerFieldCatalog</c>.</param>
     /// <remarks>
     /// L'indicizzatore esiste per legare le colonne facoltative senza una proprietà
-    /// per ciascuna: quali colonne ci sono lo decide l'operatore dal pannello, e un
+    /// per ciascuna: quali colonne ci sono lo decide la rubrica importata, e un
     /// modello con un campo fisso per ognuna andrebbe riscritto ogni volta che se ne
     /// aggiunge uno al catalogo.
     /// </remarks>
@@ -253,10 +253,15 @@ public partial class MainWindow : Window
     private readonly ILogger<MainWindow> _log;
     private readonly ILogger<TrayIcon> _trayLog;
     private readonly SettingsService _settingsService;
-    private readonly AppSettings _settings;
 
     /// <summary>Segreteria telefonica dell'account in uso, se il servizio c'è.</summary>
     private readonly VoicemailService? _voicemail;
+
+    /// <summary>Messaggi istantanei ai colleghi, se il servizio c'è.</summary>
+    private readonly InstantMessagingService? _messaging;
+
+    /// <summary>Finestre delle conversazioni a messaggi.</summary>
+    private readonly FinestreDeiMessaggi? _chats;
 
     private readonly ObservableCollection<QueueRow> _queueRows = [];
     private readonly ObservableCollection<ColleagueRow> _colleagueRows = [];
@@ -408,7 +413,6 @@ public partial class MainWindow : Window
         _globalHotkeys = globalHotkeys;
         _speech = speech;
         _contacts = contacts;
-        _settings = settings;
         _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
         _settingsService = settingsService;
         _serviceProvider = serviceProvider;
@@ -454,6 +458,20 @@ public partial class MainWindow : Window
         _voicemail = _serviceProvider.GetService<VoicemailService>();
         if (_voicemail is not null) _voicemail.Changed += OnVoicemailChanged;
 
+        // I messaggi dei colleghi, con la stessa regola della segreteria: dal
+        // contenitore, prima che il motore parta, e la finestra parte anche senza.
+        _messaging = _serviceProvider.GetService<InstantMessagingService>();
+        if (_messaging is not null) _messaging.ConversationsChanged += OnConversationsChanged;
+
+        _chats = _serviceProvider.GetService<FinestreDeiMessaggi>();
+        if (_chats is not null)
+        {
+            _chats.Owner = this;
+            _chats.Dial = CallExtensionAsync;
+        }
+
+        AttachExtensionMenus();
+
         // La gestione a livello di finestra intercetta i tasti prima dei controlli:
         // e' cio' che permette a F2 di rispondere anche mentre il focus e' nel campo
         // di composizione, senza costringere l'operatore a spostarsi.
@@ -486,7 +504,7 @@ public partial class MainWindow : Window
         RegisterGlobalHotkeys();
         ApplyTraySettings(_settingsService.Current);
         ApplyQueueVisibility(_settingsService.Current);
-        BuildSuggestionColumns(_settingsService.Current);
+        _ = RefreshSuggestionColumnsAsync();
 
         // Il turno comincia quando la finestra e' pronta, non quando il processo parte:
         // fra i due momenti c'e' l'avviso di versione, che puo' restare aperto per il
@@ -686,7 +704,8 @@ public partial class MainWindow : Window
         IsMuted: _telephony.IsMuted,
         IsServicePaused: _duty.IsPaused,
         HasUpdateAvailable: _updateFound is { HasUpdate: true },
-        CanBargeIn: _transfer.CanBargeIn);
+        CanBargeIn: _transfer.CanBargeIn,
+        UnreadMessages: _messaging?.UnreadTotal ?? 0);
 
     /// <summary>
     /// Blocca il campo di composizione mentre una chiamata squilla, in modalità
@@ -871,7 +890,7 @@ public partial class MainWindow : Window
             // funzione, perche' cambia quando cambia il personale: chiedere un riavvio
             // per una riga aggiunta sarebbe sproporzionato.
             _ = ApplyColleaguesSettingsAsync(settings);
-            BuildSuggestionColumns(settings);
+            _ = RefreshSuggestionColumnsAsync();
 
             // La modalita' di interazione si applica subito, e con essa il nome del
             // tasto che gli annunci del trasferimento pronunciano: chi passa al
@@ -883,6 +902,9 @@ public partial class MainWindow : Window
             // scelta di aspetto, e chiedere un riavvio per vederne l'effetto
             // costringerebbe a provarla alla cieca.
             ApplyHotkeysOnButtons(settings);
+
+            // Le cifre negli annunci dei messaggi seguono la stessa scelta del resto.
+            if (_messaging is not null) _messaging.DigitGrouping = settings.Accessibility.DigitGrouping;
         });
 
     /// <summary>
@@ -921,25 +943,58 @@ public partial class MainWindow : Window
             settings.Interaction == InteractionMode.Simplified,
             profile.Get(HotkeyCommand.Transfer, HotkeyScope.Local)?.SpeechText ?? "F9");
 
+    /// <summary>Campi facoltativi delle colonne a schermo, oppure <c>null</c> prima della prima lettura.</summary>
+    private string[]? _suggestionFieldIds;
+
     /// <summary>
-    /// Costruisce le colonne dei contatti proposti secondo la scelta dell'operatore.
+    /// Rilegge dalla rubrica quali campi mostrare fra i contatti proposti, e rifà le
+    /// colonne se sono cambiati.
     /// </summary>
-    /// <param name="settings">Configurazione corrente.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>I campi li decide la rubrica</b>, cioè l'abbinamento delle colonne fatto
+    /// all'importazione: vedi <see cref="DialerFieldCatalog.Present"/>. Per questo si
+    /// rileggono quando la rubrica può essere cambiata — all'avvio e alla chiusura
+    /// delle impostazioni, da cui si importa — e non a ogni ricerca: le colonne
+    /// cambiano quando cambia la rubrica, non mentre l'operatore scorre un elenco.
+    /// </para>
+    /// <para>
+    /// Se la rubrica non si lascia leggere resta lo stato da solo, che non viene dalla
+    /// rubrica: meglio una colonna in meno che un elenco dei contatti senza colonne.
+    /// </para>
+    /// </remarks>
+    private async Task RefreshSuggestionColumnsAsync()
+    {
+        IReadOnlyList<DialerField> campi;
+
+        try
+        {
+            var voci = await _contacts.GetAllAsync(CancellationToken.None).ConfigureAwait(true);
+            campi = DialerFieldCatalog.Present(voci);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Lettura dei campi della rubrica non riuscita: resta il solo stato");
+            campi = DialerFieldCatalog.Present([]);
+        }
+
+        var ids = campi.Select(c => c.Id).ToArray();
+        if (_suggestionFieldIds is { } attuali && attuali.SequenceEqual(ids)) return;
+
+        _suggestionFieldIds = ids;
+        BuildSuggestionColumns(campi);
+    }
+
+    /// <summary>
+    /// Costruisce le colonne dei contatti proposti.
+    /// </summary>
+    /// <param name="fields">Campi facoltativi da mostrare dopo nominativo e interno.</param>
     /// <remarks>
     /// <para>
     /// <b>Nominativo e interno ci sono sempre.</b> Una riga senza nome non si
     /// riconosce e una senza numero non si chiama: non sono una scelta, sono la riga.
-    /// Le altre le sceglie l'operatore in Impostazioni, scheda Rubrica, perché
-    /// dipendono da come è fatta la rubrica dell'ente — dove i nominativi si
-    /// assomigliano serve la descrizione, dove bisogna dire al chiamante dove
-    /// presentarsi serve la collocazione.
-    /// </para>
-    /// <para>
-    /// <b>Anche l'ordine è dell'operatore</b>, e per lo stesso motivo: chi legge la
-    /// riga con lo screen reader la percorre da sinistra a destra e si ferma quando
-    /// ha saputo quello che gli serve, quindi il campo che decide deve venire subito
-    /// dopo il numero. Le colonne escono nell'ordine in cui il catalogo le risolve,
-    /// che è quello configurato.
+    /// Le altre colonne seguono la rubrica importata — vedi
+    /// <see cref="RefreshSuggestionColumnsAsync"/> — nell'ordine del catalogo.
     /// </para>
     /// <para>
     /// <b>Il nome accessibile dell'interno resta dichiarato in due punti</b>, cella e
@@ -949,7 +1004,7 @@ public partial class MainWindow : Window
     /// errore — solo un numero che nessuno può trascrivere.
     /// </para>
     /// </remarks>
-    private void BuildSuggestionColumns(AppSettings settings)
+    private void BuildSuggestionColumns(IReadOnlyList<DialerField> fields)
     {
         SuggestionsGrid.Columns.Clear();
 
@@ -969,9 +1024,7 @@ public partial class MainWindow : Window
             ElementStyle = (Style)FindResource("SpokenNumberText"),
         });
 
-        var scelti = settings.Contacts.DialerFields ?? DialerFieldCatalog.Default;
-
-        foreach (var campo in DialerFieldCatalog.Resolve(scelti))
+        foreach (var campo in fields)
         {
             SuggestionsGrid.Columns.Add(new System.Windows.Controls.DataGridTextColumn
             {
@@ -1141,7 +1194,9 @@ public partial class MainWindow : Window
         if (_shift.MethodRefused) return ShiftBoardTexts.ProbeRefused;
         if (_shift.AnswersForAnyone) return ShiftBoardTexts.CannotDistinguish;
 
-        return "Usa le frecce per scorrere. Invio chiama il collega selezionato. "
+        return "Usa le frecce per scorrere. Invio chiama il collega selezionato, "
+               + $"{LocalKeyName(_hotkeys, HotkeyCommand.OpenMessages, "Alt M")} gli scrive un messaggio, "
+               + "il tasto Applicazioni apre il menu con le due scelte. "
                + $"Lo stato arriva da: {_shift.SourceName}.";
     }
 
@@ -1323,15 +1378,14 @@ public partial class MainWindow : Window
         // All'avvio non si annuncia: previous vale null solo la prima volta.
         if (previous is null) return;
 
-        // Quando si riattiva si dice anche che il collegamento vero parte al riavvio:
-        // il connettore viene scelto all'avvio, quindi la sezione ricompare subito ma
-        // resterebbe vuota, e senza dirlo sembrerebbe una coda ferma invece di un
-        // collegamento non ancora aperto. E' la stessa cosa che dice il pannello delle
-        // impostazioni quando propone di riavviare.
+        // Quando si riattiva si dice anche che il collegamento si sta aprendo: la
+        // sezione ricompare subito e resta vuota per il tempo del collegamento, e senza
+        // dirlo sembrerebbe una coda ferma. L'esito lo annuncia chi apre il
+        // collegamento, vedi LiveSettingsApplier.
         _announcer.Announce(Announcement.CommandResponse(
             visible
                 ? "Collegamento al centralino attivo: la sezione delle chiamate in coda torna nella "
-                  + "finestra. Il collegamento si apre al riavvio di BlindPhone"
+                  + "finestra. Collegamento in corso"
                 : "Collegamento al centralino disattivato: la sezione delle chiamate in coda "
                   + "e' stata tolta dalla finestra",
             DateTimeOffset.Now));
@@ -1561,6 +1615,11 @@ public partial class MainWindow : Window
         // presenza e dopo l'elenco chiamate perche' e' la meno urgente delle tre: una
         // rubrica vecchia di un'ora funziona, un posto operatore senza presenza no.
         ((App)Application.Current).Services.GetRequiredService<ContactsSyncService>().Start();
+
+        // Da qui in poi un salvataggio delle impostazioni vale subito: i servizi che
+        // aggiorna sono tutti avviati. Prima del centralino, perche' un collegamento
+        // fallito all'avvio si corregge proprio cambiando la configurazione.
+        ((App)Application.Current).Services.GetRequiredService<LiveSettingsApplier>().Start();
 
         var conservazione = CallHistoryRetention.ToTimeSpan(
             CallHistoryRetention.Normalize(_settingsService.Current.CallHistoryRetentionDays));
@@ -2152,6 +2211,10 @@ public partial class MainWindow : Window
                     OpenCallHistory();
                     break;
 
+                case HotkeyCommand.OpenMessages:
+                    OpenMessages();
+                    break;
+
                 case HotkeyCommand.OpenHelp:
                     OpenHelp();
                     break;
@@ -2277,8 +2340,10 @@ public partial class MainWindow : Window
     {
         // Nella firma entra anche l'acceso e spento: «Registra» disponibile e
         // «Registra» spento sono lo stesso pulsante ma non lo stesso pulsante, e senza
-        // questo la barra resterebbe ferma mentre la chiamata va in attesa.
-        var signature = string.Join('|', azioni.Select(a => $"{a.Action}:{a.IsEnabled}"));
+        // questo la barra resterebbe ferma mentre la chiamata va in attesa. Entra anche
+        // l'etichetta, per la stessa ragione: «Messaggi (2)» e «Messaggi» sono la stessa
+        // azione, e il conteggio dei messaggi da leggere deve comparire appena cambia.
+        var signature = string.Join('|', azioni.Select(a => $"{a.Action}:{a.IsEnabled}:{a.Label}"));
         if (signature == firma) return;
 
         firma = signature;
@@ -2586,6 +2651,7 @@ public partial class MainWindow : Window
         CallAction.ServicePauseOn or CallAction.ServicePauseOff => HotkeyCommand.ToggleServicePause,
         CallAction.OpenContacts => HotkeyCommand.OpenContacts,
         CallAction.OpenCallHistory => HotkeyCommand.OpenCallHistory,
+        CallAction.OpenMessages => HotkeyCommand.OpenMessages,
         CallAction.OpenSettings => HotkeyCommand.OpenSettings,
         CallAction.OpenSipAccounts => HotkeyCommand.OpenSipAccounts,
         _ => null,
@@ -2826,7 +2892,7 @@ public partial class MainWindow : Window
     private void HandleQueueCountKey()
     {
         var now = DateTimeOffset.Now;
-        var window = TimeSpan.FromMilliseconds(_settings.Accessibility.DoubleTapWindowMs);
+        var window = TimeSpan.FromMilliseconds(_settingsService.Current.Accessibility.DoubleTapWindowMs);
 
         if (now - _lastQueueCountKeyPress <= window)
         {
@@ -2918,6 +2984,14 @@ public partial class MainWindow : Window
             _calls.ConferencedCalls,
             _voicemail?.Current,
             queueLinked: QueueLinked);
+
+        // I messaggi dei colleghi si nominano solo quando ce n'e' da leggere, come la
+        // segreteria: «nessun messaggio» a ogni riepilogo sarebbe una frase in piu' da
+        // ascoltare per non sapere niente.
+        if (_messaging?.UnreadTotal is > 0 and var daLeggere)
+        {
+            text = $"{text.TrimEnd().TrimEnd('.')}. Messaggi dei colleghi: {InstantMessageTexts.Unread(daLeggere)}.";
+        }
 
         _announcer.Announce(Announcement.CommandResponse(text, DateTimeOffset.Now));
     }
@@ -3207,7 +3281,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var parlato = SpeechFormatter.Digits(interno, _settings.Accessibility.DigitGrouping);
+        var parlato = SpeechFormatter.Digits(interno, _settingsService.Current.Accessibility.DigitGrouping);
 
         var stato = await _presence
             .QueryAsync(interno, TimeSpan.FromMilliseconds(1500), CancellationToken.None)
@@ -3284,6 +3358,163 @@ public partial class MainWindow : Window
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Messaggi ai colleghi
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Apre i messaggi: la conversazione con l'interno che si ha davanti, oppure l'elenco.
+    /// </summary>
+    /// <remarks>
+    /// «Davanti» vuol dire, in quest'ordine: il collega evidenziato nell'elenco dei
+    /// colleghi, il contatto evidenziato fra quelli proposti, l'interno scritto nel campo
+    /// di composizione. È lo stesso criterio con cui il trasferimento sceglie la
+    /// destinazione, ed è quello che l'operatore si aspetta da un tasto premuto sopra un
+    /// nome.
+    /// </remarks>
+    private void OpenMessages()
+    {
+        if (_chats is null || _messaging is null)
+        {
+            _announcer.Announce(Announcement.CommandResponse(
+                "Messaggi non disponibili su questa postazione", DateTimeOffset.Now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        if (ExtensionUnderCursor() is { } interno)
+        {
+            _chats.Show(interno.Number, interno.Name);
+            return;
+        }
+
+        _chats.ShowList();
+    }
+
+    /// <summary>L'interno su cui il tasto dei messaggi deve agire, se ce n'è uno.</summary>
+    private Interno? ExtensionUnderCursor()
+    {
+        if (ColleaguesList.IsKeyboardFocusWithin
+            && ColleaguesList.SelectedItem is ColleagueRow collega
+            && !string.IsNullOrWhiteSpace(collega.Number))
+        {
+            return new Interno(collega.Number, NameOrNull(collega.Name));
+        }
+
+        if (SuggestionsGrid.IsKeyboardFocusWithin && SuggestionsGrid.SelectedItem is DialerSuggestion proposto)
+        {
+            return new Interno(proposto.Number, NameOrNull(proposto.Name));
+        }
+
+        var scritto = DialerBox.Text.Trim();
+        if (scritto.Length == 0) return null;
+
+        // Un nome scritto vale solo se la ricerca ha trovato qualcuno: il contatto
+        // evidenziato, o il primo. Scrivere a «Rossi» come se fosse un interno
+        // manderebbe il messaggio a un indirizzo che non esiste.
+        if (LooksLikeName(scritto))
+        {
+            var scelto = SuggestionsGrid.Visibility == Visibility.Visible
+                ? SuggestionsGrid.SelectedItem as DialerSuggestion ?? _suggestions.FirstOrDefault()
+                : null;
+
+            return scelto is null ? null : new Interno(scelto.Number, NameOrNull(scelto.Name));
+        }
+
+        var nome = _suggestions.FirstOrDefault(s => s.Number == scritto)?.Name;
+        return new Interno(scritto, NameOrNull(nome));
+    }
+
+    private static string? NameOrNull(string? name) => string.IsNullOrWhiteSpace(name) ? null : name;
+
+    private void OnConversationsChanged(object? sender, EventArgs e)
+        => Dispatcher.BeginInvoke(UpdateCommandBar);
+
+    /// <summary>
+    /// Chiama un interno su richiesta esplicita: menu contestuale, finestra dei messaggi.
+    /// </summary>
+    /// <param name="number">Interno da chiamare.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Durante un trasferimento sceglie la destinazione</b>, come Invio sull'elenco dei
+    /// colleghi: comporre lascerebbe due linee aperte al posto di una destinazione scelta.
+    /// </para>
+    /// <para>
+    /// <b>Con qualcuno in linea non compone, e lo dice.</b> È la differenza con Invio nel
+    /// campo di composizione, che in quel caso tace di proposito: lì il tasto premuto è
+    /// spesso uno sbaglio di trasferimento, qui l'operatore ha scelto «Chiama» da un menu
+    /// o ha premuto un pulsante, e un pulsante che non fa niente senza dire perché è
+    /// indistinguibile da un pulsante rotto.
+    /// </para>
+    /// </remarks>
+    private async Task CallExtensionAsync(string number)
+    {
+        if (string.IsNullOrWhiteSpace(number)) return;
+
+        if (_transfer.Phase == TransferPhase.EnteringDestination)
+        {
+            await _transfer.SetDestinationAsync(number).ConfigureAwait(true);
+            await _transfer.AttendedTransferNowAsync(number).ConfigureAwait(true);
+            return;
+        }
+
+        if (!CurrentActionContext().CanDial)
+        {
+            _announcer.Announce(Announcement.CommandResponse(
+                "Sei in conversazione: metti in attesa prima di chiamare, oppure usa il trasferimento",
+                DateTimeOffset.Now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        DialerBox.Text = number;
+        await DialAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Il menu contestuale «Chiama, Invia messaggio» sugli elenchi di interni della finestra.
+    /// </summary>
+    /// <remarks>
+    /// Sull'elenco dei colleghi e sui contatti proposti sopra il campo di composizione: i
+    /// due posti della finestra in cui c'è un interno sotto il cursore. Il tasto accanto a
+    /// «Chiama» è Invio, che in entrambi gli elenchi fa la stessa cosa.
+    /// </remarks>
+    private void AttachExtensionMenus()
+    {
+        string? TastoMessaggi() => _hotkeys.Get(HotkeyCommand.OpenMessages, HotkeyScope.Local)?.DisplayText;
+
+        void Scrivi(Interno interno)
+        {
+            if (_chats is null)
+            {
+                OpenMessages();
+                return;
+            }
+
+            _chats.Show(interno.Number, interno.Name);
+        }
+
+        MenuDellInterno.Collega(
+            ColleaguesList,
+            () => ColleaguesList.SelectedItem is ColleagueRow r && !string.IsNullOrWhiteSpace(r.Number)
+                ? new Interno(r.Number, NameOrNull(r.Name))
+                : null,
+            interno => CallExtensionAsync(interno.Number),
+            Scrivi,
+            "Invio",
+            TastoMessaggi);
+
+        MenuDellInterno.Collega(
+            SuggestionsGrid,
+            () => SuggestionsGrid.SelectedItem is DialerSuggestion s
+                ? new Interno(s.Number, NameOrNull(s.Name))
+                : null,
+            interno => CallExtensionAsync(interno.Number),
+            Scrivi,
+            "Invio",
+            TastoMessaggi);
+    }
+
     /// <summary>
     /// Apre l'elenco delle ultime chiamate.
     /// </summary>
@@ -3353,6 +3584,11 @@ public partial class MainWindow : Window
             if (diagnostics) window.ShowDiagnostics();
 
             window.ShowDialog();
+
+            // L'importazione scrive in rubrica anche se poi si chiude con Annulla: le
+            // colonne si rileggono comunque, o un reparto appena importato
+            // comparirebbe solo al riavvio.
+            _ = RefreshSuggestionColumnsAsync();
         }
         catch (Exception ex)
         {
@@ -4707,7 +4943,7 @@ public partial class MainWindow : Window
             message = byExtension
                 ? $"{only.Contact.SpeechName}{warning}"
                 : $"{only.Contact.SpeechName}, interno "
-                  + $"{SpeechFormatter.Digits(only.Number, _settings.Accessibility.DigitGrouping)}{warning}";
+                  + $"{SpeechFormatter.Digits(only.Number, _settingsService.Current.Accessibility.DigitGrouping)}{warning}";
         }
         else if (truncated)
         {
@@ -4892,7 +5128,7 @@ public partial class MainWindow : Window
                 SpeechFormatter.Party(
                     caller.CallerName,
                     caller.CallerNumber,
-                    _settings.Accessibility.DigitGrouping),
+                    _settingsService.Current.Accessibility.DigitGrouping),
                 // A schermo il numero va nella riga di dettaglio solo se sopra c'e' un
                 // nome: altrimenti il chiamante e' gia' il numero, e lo si leggerebbe due
                 // volte nella stessa voce.
@@ -5703,6 +5939,7 @@ public partial class MainWindow : Window
         _hotkeyStore.ActiveProfileChanged -= OnHotkeyProfileChanged;
         _settingsService.SettingsChanged -= OnSettingsChanged;
         if (_voicemail is not null) _voicemail.Changed -= OnVoicemailChanged;
+        if (_messaging is not null) _messaging.ConversationsChanged -= OnConversationsChanged;
 
         _globalHotkeys.Dispose();
         _headset?.Dispose();

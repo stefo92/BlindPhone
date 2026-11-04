@@ -100,6 +100,9 @@ public enum CallAction
     /// <summary>Apre l'elenco delle ultime chiamate.</summary>
     OpenCallHistory,
 
+    /// <summary>Apre i messaggi istantanei con i colleghi.</summary>
+    OpenMessages,
+
     /// <summary>Apre le impostazioni.</summary>
     OpenSettings,
 
@@ -147,6 +150,10 @@ public enum CallActionGroup
 /// <param name="HasUpdateAvailable">
 /// Sul server dell'ente c'è una versione più recente di quella installata.
 /// </param>
+/// <param name="UnreadMessages">
+/// Messaggi dei colleghi arrivati e non ancora letti: il pulsante dei messaggi li conta
+/// nell'etichetta, come la spia di un telefono da tavolo.
+/// </param>
 /// <param name="CanBargeIn">
 /// L'interno a cui si sta passando la chiamata è occupato <b>e</b> il centralino ha
 /// comunicato gli identificativi della sua conversazione, quindi l'inclusione è
@@ -167,7 +174,8 @@ public readonly record struct CallActionContext(
     bool IsMuted = false,
     bool IsServicePaused = false,
     bool HasUpdateAvailable = false,
-    bool CanBargeIn = false)
+    bool CanBargeIn = false,
+    int UnreadMessages = 0)
 {
     /// <summary>C'è qualcuno in linea che sente l'operatore.</summary>
     public bool IsTalking => HasActiveCall || IsConferenceActive;
@@ -414,6 +422,17 @@ public static class CallActionCatalog
 
         buttons.Add(new(CallAction.OpenCallHistory, "\uE8FD", "Elenco chiamate",
             "Apre l'elenco delle ultime chiamate", CallActionGroup.Station));
+
+        // I messaggi stanno accanto alle altre due finestre in cui si cerca un collega.
+        // L'etichetta porta il numero dei messaggi da leggere: chi guarda lo schermo lo
+        // vede da lontano, e chi ascolta lo sente arrivando sul pulsante, senza aprire
+        // niente.
+        buttons.Add(context.UnreadMessages > 0
+            ? new(CallAction.OpenMessages, "\uE8BD", $"Messaggi ({context.UnreadMessages})",
+                $"Apre i messaggi ai colleghi: {Speech.InstantMessageTexts.Unread(context.UnreadMessages)}",
+                CallActionGroup.Station)
+            : new(CallAction.OpenMessages, "\uE8BD", "Messaggi",
+                "Apre i messaggi ai colleghi", CallActionGroup.Station));
 
         buttons.Add(new(CallAction.OpenSettings, "\uE713", "Impostazioni",
             "Apre le impostazioni", CallActionGroup.Station));

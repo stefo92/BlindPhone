@@ -200,6 +200,15 @@
             <Button x:Name="TransferButton" Content="_Trasferisci qui" Margin="0,0,8,0"
                     AutomationProperties.Name="Usa il contatto selezionato come destinazione del trasferimento in corso"
                     Click="OnTransferClick" />
+            <!--
+                Alt M scrive al contatto selezionato da qualunque punto della rubrica: e'
+                la stessa lettera del tasto dei messaggi nella finestra principale, cosi'
+                il gesto e' uno solo. Lo stesso comando c'e' nel menu contestuale della
+                tabella, accanto a «Chiama».
+            -->
+            <Button x:Name="MessageButton" Content="Invia _messaggio" Margin="0,0,8,0"
+                    AutomationProperties.Name="Scrivi un messaggio al contatto selezionato"
+                    Click="OnMessageClick" />
             <Button x:Name="CloseButton" Content="Chi_udi" IsCancel="True"
                     AutomationProperties.Name="Chiudi la rubrica"
                     Click="OnCloseClick" />

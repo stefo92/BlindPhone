@@ -165,4 +165,14 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <!--
+      Come per BlindPhone.Telephony: i confronti con cui LiveSettingsApplier decide se
+      ricostruire il motore telefonico o riaprire il collegamento al centralino sono
+      dettagli interni, ma sbagliarli vuol dire far cadere la registrazione a ogni
+      salvataggio. Si collaudano da li'.
+    -->
+    <InternalsVisibleTo Include="BlindPhone.Windows.Tests" />
+  </ItemGroup>
+
 </Project>

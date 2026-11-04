@@ -37,10 +37,16 @@ public enum TransferInteractionMode
 }
 
 /// <summary>Parametri della procedura di trasferimento.</summary>
+/// <remarks>
+/// <b>Le proprietà che vengono dalle impostazioni si possono cambiare dopo la
+/// costruzione</b>, sulla stessa istanza che il trasferimento usa: una modifica
+/// salvata vale dal trasferimento successivo, senza riavviare. Vedi
+/// <c>LiveSettingsApplier</c>.
+/// </remarks>
 public sealed record TransferOptions
 {
     /// <summary>Modalità di interazione del tasto unico.</summary>
-    public TransferInteractionMode Mode { get; init; } = TransferInteractionMode.ProgressiveDoubleTap;
+    public TransferInteractionMode Mode { get; set; } = TransferInteractionMode.ProgressiveDoubleTap;
 
     /// <summary>
     /// Finestra entro cui due pressioni valgono come doppia pressione.
@@ -67,13 +73,13 @@ public sealed record TransferOptions
     /// <see cref="TransferInteractionMode.ProgressiveOnly"/> ed eliminare l'attesa.
     /// </para>
     /// </remarks>
-    public TimeSpan DoubleTapWindow { get; init; } = TimeSpan.FromMilliseconds(400);
+    public TimeSpan DoubleTapWindow { get; set; } = TimeSpan.FromMilliseconds(400);
 
     /// <summary>
     /// Tempo oltre il quale una consultazione senza risposta viene annullata e il
     /// chiamante originale ripreso.
     /// </summary>
-    public TimeSpan ConsultationTimeout { get; init; } = TimeSpan.FromSeconds(20);
+    public TimeSpan ConsultationTimeout { get; set; } = TimeSpan.FromSeconds(20);
 
     /// <summary>
     /// Se richiedere una conferma esplicita prima di trasferire verso un numero
@@ -83,18 +89,18 @@ public sealed record TransferOptions
     /// Protezione contro la composizione errata e contro l'uso improprio del
     /// centralino verso numerazioni a valore aggiunto.
     /// </remarks>
-    public bool ConfirmExternalDestinations { get; init; } = true;
+    public bool ConfirmExternalDestinations { get; set; } = true;
 
     /// <summary>
     /// Se avvisare quando la destinazione risulta occupata, in non disturbare o non
     /// registrata.
     /// </summary>
-    public bool WarnOnUnavailableDestination { get; init; } = true;
+    public bool WarnOnUnavailableDestination { get; set; } = true;
 
     /// <summary>
     /// Lunghezza massima di un numero perché sia considerato un interno.
     /// </summary>
-    public int MaxInternalNumberLength { get; init; } = 5;
+    public int MaxInternalNumberLength { get; set; } = 5;
 
     /// <summary>Nome pronunciabile del tasto di trasferimento configurato.</summary>
     /// <remarks>
@@ -104,11 +110,11 @@ public sealed record TransferOptions
     /// aggiornato dal servizio delle scorciatoie a ogni cambio di configurazione.
     /// </para>
     /// <para>
-    /// È l'unica proprietà modificabile dopo la costruzione, e la ragione è quella
-    /// appena detta: il profilo dei tasti si cambia a caldo, mentre queste opzioni
-    /// vengono composte all'avvio. Un'istruzione vocale che nomina un tasto non più
-    /// assegnato è peggio di nessuna istruzione, perché manda a premere qualcosa che
-    /// non fa nulla proprio mentre un chiamante è in attesa.
+    /// Come le altre proprietà modificabili, si aggiorna sulla stessa istanza che il
+    /// trasferimento sta usando: il profilo dei tasti si cambia a caldo, e
+    /// un'istruzione vocale che nomina un tasto non più assegnato è peggio di nessuna
+    /// istruzione, perché manda a premere qualcosa che non fa nulla proprio mentre un
+    /// chiamante è in attesa.
     /// </para>
     /// </remarks>
     public string TransferKeyName { get; set; } = "F9";
@@ -121,7 +127,7 @@ public sealed record TransferOptions
     /// impostata nella scheda Accessibilità, così la lettura è la stessa in tutto il
     /// prodotto.
     /// </remarks>
-    public DigitGrouping DigitGrouping { get; init; } = DigitGrouping.Single;
+    public DigitGrouping DigitGrouping { get; set; } = DigitGrouping.Single;
 
     /// <summary>Impostazioni predefinite.</summary>
     public static TransferOptions Default { get; } = new();

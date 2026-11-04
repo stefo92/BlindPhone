@@ -105,6 +105,17 @@ public enum HotkeyCommand
     /// <summary>Apre il pannello delle ultime chiamate.</summary>
     OpenCallHistory,
 
+    /// <summary>
+    /// Apre i messaggi istantanei: la conversazione con l'interno che si ha davanti, o
+    /// l'elenco delle conversazioni.
+    /// </summary>
+    /// <remarks>
+    /// Un tasto solo per due gesti, distinti da quello che c'è sotto il cursore: con un
+    /// collega evidenziato, o un interno scritto nel campo di composizione, si scrive a
+    /// lui; senza, si sceglie a chi.
+    /// </remarks>
+    OpenMessages,
+
     /// <summary>Apre le impostazioni.</summary>
     OpenSettings,
 

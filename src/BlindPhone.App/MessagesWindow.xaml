@@ -1,0 +1,156 @@
+<!--
+    I MESSAGGI: l'elenco delle conversazioni, e il campo per cominciarne una nuova.
+
+    E' la finestra che si apre dal pulsante «Messaggi» della postazione, o con il tasto
+    dei messaggi quando non si ha nessun collega davanti. Le conversazioni vere stanno
+    ciascuna nella sua finestra: questa serve a sceglierne una, o ad aprirne una nuova.
+
+    ShowInTaskbar="True" per ALT+TAB, come ogni finestra di lavoro: vedi
+    FinestreInAltTabTests.
+-->
+<Window x:Class="BlindPhone.App.MessagesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Messaggi ai colleghi"
+        Height="560" Width="620"
+        MinHeight="380" MinWidth="440"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="True"
+        Background="{DynamicResource SurfaceBrush}"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
+
+    <Window.Resources>
+        <!-- Stessa voce degli elenchi della finestra principale: vedi WatchedItem. -->
+        <Style x:Key="ConversationItem" TargetType="ListViewItem"
+               BasedOn="{StaticResource {x:Type ListViewItem}}">
+            <Setter Property="MinHeight" Value="32" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ConversationText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <DataTemplate x:Key="ConversationTemplate">
+            <StackPanel>
+                <StackPanel.Resources>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource ConversationText}" />
+                </StackPanel.Resources>
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Right"
+                               Margin="12,0,0,0"
+                               FontWeight="SemiBold"
+                               Text="{Binding UnreadText}" />
+                    <TextBlock FontWeight="Bold" Text="{Binding Who}" />
+                </DockPanel>
+                <TextBlock Margin="0,2,0,0"
+                           FontSize="{StaticResource FontCaption}"
+                           TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap"
+                           Text="{Binding Last}" />
+            </StackPanel>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="{StaticResource SpaceWindow}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- UNA CONVERSAZIONE NUOVA: l'interno, oppure un nome da cercare in rubrica. -->
+        <Grid Grid.Row="0" Margin="{StaticResource SpaceStack}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Label Grid.Column="0"
+                   Target="{Binding ElementName=NewPeerBox}"
+                   Content="_Scrivi a"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0" />
+
+            <TextBox Grid.Column="1"
+                     x:Name="NewPeerBox"
+                     AutomationProperties.Name="Interno o nome del collega a cui scrivere"
+                     AutomationProperties.HelpText="Scrivi un interno, oppure un nome da cercare in rubrica, e premi Invio: si apre la conversazione con quel collega."
+                     KeyDown="OnNewPeerKeyDown" />
+
+            <Button Grid.Column="2"
+                    x:Name="NewConversationButton"
+                    Content="_Apri conversazione"
+                    Margin="8,0,0,0"
+                    AutomationProperties.HelpText="Apre la conversazione con l'interno scritto nel campo."
+                    Click="OnNewConversationClick" />
+        </Grid>
+
+        <TextBlock Grid.Row="1"
+                   x:Name="ListHeaderText"
+                   FontWeight="Bold"
+                   Margin="{StaticResource SpaceStackTight}"
+                   Text="Conversazioni" />
+
+        <!--
+            LE CONVERSAZIONI, quelle da leggere in cima, poi dalla piu' recente. Invio
+            riapre la conversazione; il menu contestuale chiama o scrive, come in ogni
+            elenco di interni della postazione.
+        -->
+        <ListView Grid.Row="2"
+                  x:Name="ConversationsList"
+                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                  SelectionMode="Single"
+                  ItemContainerStyle="{StaticResource ConversationItem}"
+                  ItemTemplate="{StaticResource ConversationTemplate}"
+                  AutomationProperties.Name="Elenco delle conversazioni"
+                  AutomationProperties.HelpText="Usa le frecce per scorrere: prima quelle con messaggi da leggere. Invio apre la conversazione. Il tasto Applicazioni apre il menu per chiamare o scrivere."
+                  KeyDown="OnConversationsKeyDown"
+                  MouseDoubleClick="OnConversationsDoubleClick" />
+
+        <!--
+            Senza conversazioni l'elenco vuoto non dice niente a chi ci arriva con il
+            Tab: questa riga spiega come cominciarne una. Sta sopra l'elenco, nella sua
+            stessa cella, e si nasconde appena ce n'e' una.
+        -->
+        <TextBlock Grid.Row="2"
+                   x:Name="EmptyText"
+                   Margin="8"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource MutedTextBrush}"
+                   Visibility="Collapsed" />
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Content="_Chiudi"
+                    IsCancel="True"
+                    MinWidth="110"
+                    AutomationProperties.Name="Chiudi l'elenco dei messaggi"
+                    Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>

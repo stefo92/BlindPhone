@@ -112,6 +112,11 @@ public static class HotkeyCommandCatalog
         new(HotkeyCommand.OpenCallHistory, HotkeyCategory.Navigation, "Apri le ultime chiamate",
             "Apre l'elenco delle chiamate ricevute ed effettuate."),
 
+        new(HotkeyCommand.OpenMessages, HotkeyCategory.Navigation, "Messaggi ai colleghi",
+            "Apre la conversazione a messaggi con il collega evidenziato nell'elenco dei colleghi o con "
+            + "l'interno scritto nel campo di composizione. Senza nessuno davanti apre l'elenco delle "
+            + "conversazioni, con quelle da leggere in cima. Ogni conversazione ha la sua finestra."),
+
         new(HotkeyCommand.OpenSettings, HotkeyCategory.Navigation, "Apri le impostazioni",
             "Apre questo pannello di configurazione."),
 

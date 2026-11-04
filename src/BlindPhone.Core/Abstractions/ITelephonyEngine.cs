@@ -134,6 +134,46 @@ public interface ITelephonyEngine : IAsyncDisposable
     /// </remarks>
     event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
 
+    /// <summary>Sollevato all'arrivo di un messaggio istantaneo scritto da un collega.</summary>
+    /// <remarks>
+    /// <para>
+    /// Alimentato dalle richieste <c>MESSAGE</c> della RFC 3428, il metodo con cui i
+    /// telefoni SIP si scambiano testo senza aprire una chiamata. Si solleva una volta
+    /// per messaggio: le ritrasmissioni dello stesso, che su UDP arrivano quando la
+    /// nostra risposta si perde per strada, il motore le riconosce e le lascia cadere.
+    /// </para>
+    /// <para>
+    /// <b>Arriva anche a postazione in pausa.</b> La pausa rifiuta le chiamate perché una
+    /// chiamata che squilla a vuoto tiene fermo il chiamante; un messaggio non tiene
+    /// fermo nessuno, e chi lo ha scritto si aspetta di trovarlo letto al rientro.
+    /// </para>
+    /// </remarks>
+    event EventHandler<InstantMessageReceivedEventArgs>? InstantMessageReceived;
+
+    /// <summary>
+    /// <c>true</c> se il motore sa scambiare messaggi istantanei.
+    /// </summary>
+    /// <remarks>
+    /// Dice se il <b>motore</b> lo sa fare, non se il centralino li inoltra: quello si
+    /// scopre solo mandandone uno, e la risposta di rifiuto torna all'operatore in
+    /// italiano con l'esito dell'invio. Vedi <see cref="SendInstantMessageAsync"/>.
+    /// </remarks>
+    bool SupportsInstantMessaging { get; }
+
+    /// <summary>Manda un messaggio istantaneo a un interno o a un numero.</summary>
+    /// <param name="destination">Interno o numero del destinatario.</param>
+    /// <param name="text">Testo da mandare.</param>
+    /// <param name="cancellationToken">Token di annullamento.</param>
+    /// <returns>
+    /// L'esito della consegna, con il motivo già tradotto quando non è riuscita.
+    /// <b>Non solleva per un rifiuto</b>: un messaggio respinto è un esito normale, da
+    /// mostrare accanto al messaggio, non un guasto del programma.
+    /// </returns>
+    Task<InstantMessageSendResult> SendInstantMessageAsync(
+        string destination,
+        string text,
+        CancellationToken cancellationToken);
+
     /// <summary>Avvia il motore e la registrazione presso il registrar.</summary>
     /// <param name="cancellationToken">Token di annullamento.</param>
     Task StartAsync(CancellationToken cancellationToken);
@@ -445,4 +485,17 @@ public sealed record TransferProgressEventArgs(
 public sealed record MessageWaitingEventArgs(
     string AccountName,
     MessageSummary Summary,
+    DateTimeOffset At);
+
+/// <summary>Messaggio istantaneo arrivato da un collega.</summary>
+/// <param name="From">Interno o numero di chi l'ha scritto, in cifre.</param>
+/// <param name="FromName">
+/// Nome dichiarato dal mittente, se ne ha dichiarato uno che non sia il numero stesso.
+/// </param>
+/// <param name="Text">Testo del messaggio.</param>
+/// <param name="At">Istante di ricezione.</param>
+public sealed record InstantMessageReceivedEventArgs(
+    string From,
+    string? FromName,
+    string Text,
     DateTimeOffset At);

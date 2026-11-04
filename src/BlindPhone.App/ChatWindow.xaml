@@ -1,0 +1,191 @@
+<!--
+    LA CONVERSAZIONE CON UN COLLEGA, in una finestra sua.
+
+    Una finestra per collega, e il nome del collega nel titolo: con piu' conversazioni
+    aperte ALT+TAB le elenca per nome, ed e' l'unico modo, per chi non vede, di sapere
+    in quale e' arrivato. ShowInTaskbar="True" per la stessa ragione delle altre
+    finestre di lavoro: senza, una finestra di proprieta' della principale sparisce da
+    ALT+TAB. Vedi FinestreInAltTabTests.
+
+    L'ORDINE DI TABULAZIONE parte dalla casella in cui si scrive, che e' dove la
+    finestra si apre: chi apre una conversazione lo fa per scrivere. Poi i pulsanti,
+    poi lo storico. Maiusc Tab dalla casella porta allo storico in un passo solo.
+-->
+<Window x:Class="BlindPhone.App.ChatWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Messaggi"
+        Height="600" Width="560"
+        MinHeight="380" MinWidth="400"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="True"
+        Background="{DynamicResource SurfaceBrush}"
+        PreviewKeyDown="OnWindowPreviewKeyDown">
+
+    <Window.Resources>
+        <!--
+            UNA VOCE DELLO STORICO SI LEGGE COME UNA COSA SOLA: chi, che cosa, quando.
+            Il nome accessibile e' la frase intera, e lo stile della voce e' quello degli
+            elenchi della finestra principale, per la stessa ragione: il modello di
+            Windows, a elenco senza focus, disegna la selezione con un grigio suo e il
+            testo bianco della selezione spariva.
+        -->
+        <Style x:Key="ChatItem" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource HoverRowBrush}" />
+                </Trigger>
+                <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            Il testo dentro la voce eredita il colore della voce, invece di prendere
+            quello del tema: chiaro sulla selezione, scuro fuori. Vedi ItemText nella
+            finestra principale.
+        -->
+        <Style x:Key="ChatText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="{StaticResource FontBody}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!--
+            I MESSAGGI DELL'OPERATORE HANNO UN FILO A SINISTRA, quelli del collega no. La
+            differenza la porta anche la prima riga, che dice «Tu» o il nome: il colore
+            aiuta a scorrere a occhio, non porta l'informazione da solo.
+        -->
+        <DataTemplate x:Key="ChatLineTemplate">
+            <Border x:Name="Filo" BorderThickness="4,0,0,0" BorderBrush="Transparent" Padding="10,0,0,0">
+                <StackPanel>
+                    <StackPanel.Resources>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource ChatText}" />
+                    </StackPanel.Resources>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right"
+                                   Margin="12,0,0,0"
+                                   FontSize="{StaticResource FontCaption}"
+                                   Text="{Binding Time}" />
+                        <TextBlock FontWeight="Bold" Text="{Binding Who}" />
+                    </DockPanel>
+                    <TextBlock Margin="0,2,0,0" Text="{Binding Text}" />
+                    <TextBlock Margin="0,2,0,0"
+                               FontSize="{StaticResource FontCaption}"
+                               FontStyle="Italic"
+                               Text="{Binding Delivery}"
+                               Visibility="{Binding DeliveryVisibility}" />
+                </StackPanel>
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsOutgoing}" Value="True">
+                    <Setter TargetName="Filo" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="{StaticResource SpaceWindow}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!--
+            CON CHI SI STA PARLANDO, in grande. Non e' una regione dinamica: il titolo
+            della finestra dice gia' la stessa cosa a chi ci arriva, e una regione che
+            cambia quando la rubrica trova il nome parlerebbe senza che nessuno l'abbia
+            chiesto.
+        -->
+        <TextBlock Grid.Row="0"
+                   x:Name="HeaderText"
+                   FontSize="{StaticResource FontSection}"
+                   FontWeight="Bold"
+                   TextWrapping="Wrap"
+                   Margin="{StaticResource SpaceStackTight}"
+                   Text="" />
+
+        <!--
+            LO STORICO. Un ListBox e non una casella di testo: ogni messaggio e' una voce
+            che si raggiunge con le frecce e si legge da sola, con chi l'ha scritto
+            davanti. In una casella di testo unica lo screen reader leggerebbe riga per
+            riga, e un messaggio su tre righe diventerebbe tre pezzi senza mittente.
+
+            NON E' UNA REGIONE DINAMICA. I messaggi in arrivo li annuncia la pipeline
+            degli annunci, una volta, con la priorita' giusta; la regione li farebbe
+            ripetere.
+        -->
+        <ListBox Grid.Row="1"
+                 x:Name="HistoryList"
+                 Margin="{StaticResource SpaceStack}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 SelectionMode="Single"
+                 ItemContainerStyle="{StaticResource ChatItem}"
+                 ItemTemplate="{StaticResource ChatLineTemplate}"
+                 AutomationProperties.Name="Storico della conversazione"
+                 AutomationProperties.HelpText="Un messaggio per riga, dal piu' vecchio al piu' recente: prima chi l'ha scritto, poi il testo, poi l'ora. Control C copia il messaggio selezionato."
+                 PreviewKeyDown="OnHistoryPreviewKeyDown" />
+
+        <Label Grid.Row="2"
+               Target="{Binding ElementName=ComposeBox}"
+               Content="_Scrivi un messaggio"
+               Padding="0,0,0,4" />
+
+        <TextBox Grid.Row="3"
+                 x:Name="ComposeBox"
+                 MinHeight="64"
+                 MaxHeight="160"
+                 TextWrapping="Wrap"
+                 AcceptsReturn="False"
+                 VerticalScrollBarVisibility="Auto"
+                 MaxLength="2000"
+                 AutomationProperties.Name="Messaggio da inviare"
+                 AutomationProperties.HelpText="Invio manda il messaggio. Maiusc Invio va a capo senza mandarlo. Maiusc Tab porta allo storico della conversazione."
+                 PreviewKeyDown="OnComposePreviewKeyDown" />
+
+        <StackPanel Grid.Row="4"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button x:Name="SendButton"
+                    Content="_Invia"
+                    MinWidth="110"
+                    Margin="0,0,8,0"
+                    AutomationProperties.Name="Invia il messaggio"
+                    Click="OnSendClick" />
+            <Button x:Name="CallButton"
+                    Content="C_hiama"
+                    MinWidth="110"
+                    Margin="0,0,8,0"
+                    AutomationProperties.HelpText="Chiama il collega e riporta in primo piano la postazione, dove ci sono i tasti della chiamata."
+                    Click="OnCallClick" />
+            <Button Content="_Chiudi"
+                    IsCancel="True"
+                    MinWidth="110"
+                    AutomationProperties.Name="Chiudi la conversazione"
+                    AutomationProperties.HelpText="La conversazione resta: riaprendola ritrovi i messaggi."
+                    Click="OnCloseClick" />
+        </StackPanel>
+    </Grid>
+</Window>

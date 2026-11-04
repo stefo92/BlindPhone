@@ -572,6 +572,9 @@ public sealed class RubricaLdapTests : IDisposable
 
         public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 
+        public Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken)
+            => Task.FromResult<IReadOnlyList<Contact>>([]);
+
         public Task<int> ClearAsync(string? sourceName, CancellationToken cancellationToken) => Task.FromResult(0);
     }
 }

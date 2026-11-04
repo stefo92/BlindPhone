@@ -189,6 +189,7 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
         engine.TransferProgress += OnTransferProgress;
         engine.SrtpDowngraded += OnSrtpDowngraded;
         engine.MessageWaitingChanged += OnMessageWaitingChanged;
+        engine.InstantMessageReceived += OnInstantMessageReceived;
     }
 
     private void Detach(ITelephonyEngine engine)
@@ -199,6 +200,7 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
         engine.TransferProgress -= OnTransferProgress;
         engine.SrtpDowngraded -= OnSrtpDowngraded;
         engine.MessageWaitingChanged -= OnMessageWaitingChanged;
+        engine.InstantMessageReceived -= OnInstantMessageReceived;
     }
 
     // Il mittente riportato ai sottoscrittori e' questo involucro e non il motore
@@ -221,6 +223,9 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
     private void OnMessageWaitingChanged(object? sender, MessageWaitingEventArgs e)
         => MessageWaitingChanged?.Invoke(this, e);
 
+    private void OnInstantMessageReceived(object? sender, InstantMessageReceivedEventArgs e)
+        => InstantMessageReceived?.Invoke(this, e);
+
     /// <inheritdoc />
     public event EventHandler<SipRegistrationState>? RegistrationStateChanged;
 
@@ -238,6 +243,14 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Le conversazioni stanno sopra l'involucro e non sotto: cambiare account non le
+    /// chiude, e un collega che scrive dopo il cambio finisce nella stessa finestra di
+    /// prima.
+    /// </remarks>
+    public event EventHandler<InstantMessageReceivedEventArgs>? InstantMessageReceived;
 
     // -----------------------------------------------------------------------
     // Inoltro del contratto
@@ -270,6 +283,16 @@ public sealed class SwitchableTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public bool SupportsConference => _inner.SupportsConference;
+
+    /// <inheritdoc />
+    public bool SupportsInstantMessaging => _inner.SupportsInstantMessaging;
+
+    /// <inheritdoc />
+    public Task<InstantMessageSendResult> SendInstantMessageAsync(
+        string destination,
+        string text,
+        CancellationToken cancellationToken)
+        => _inner.SendInstantMessageAsync(destination, text, cancellationToken);
 
     /// <inheritdoc />
     public Task StartAsync(CancellationToken cancellationToken)

@@ -71,26 +71,13 @@ public sealed record ContactsSettings
     public ContactsLdapSettings Ldap { get; init; } = new();
 
     /// <summary>Lettura dei contatti di Outlook, usata quando la modalità lo prevede.</summary>
-    public ContactsOutlookSettings Outlook { get; init; } = new();
-
-    /// <summary>
-    /// Campi della rubrica mostrati accanto ai contatti proposti sopra il campo di
-    /// composizione.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// Nominativo e numero ci sono sempre e non compaiono qui: sono la riga stessa.
-    /// Le chiavi ammesse sono quelle di <c>DialerFieldCatalog</c>; quelle che non
-    /// riconosce vengono ignorate, così una configurazione scritta a mano o arrivata
-    /// da un pacchetto di provisioning non lascia il posto operatore senza elenco.
-    /// </para>
-    /// <para>
-    /// L'elenco vuoto è una scelta legittima e significa «solo nominativo e numero»:
-    /// per questo non si ricade sul valore predefinito quando è vuoto, ma solo quando
-    /// non è mai stato scritto.
-    /// </para>
+    /// <b>Qui non c'è più l'elenco dei campi mostrati nella ricerca rapida.</b> Quei
+    /// campi li decide la rubrica — vedi <c>DialerFieldCatalog.Present</c> — cioè
+    /// l'abbinamento delle colonne fatto all'importazione. Un <c>dialerFields</c>
+    /// rimasto in un file di impostazioni di una versione precedente viene ignorato.
     /// </remarks>
-    public IReadOnlyList<string>? DialerFields { get; init; }
+    public ContactsOutlookSettings Outlook { get; init; } = new();
 }
 
 /// <summary>

@@ -687,8 +687,8 @@ public sealed class CallActionCatalogTests
         Assert.Equal(
             new[]
             {
-                CallAction.OpenContacts, CallAction.OpenCallHistory, CallAction.OpenSettings,
-                CallAction.OpenSipAccounts, CallAction.OpenUpdate,
+                CallAction.OpenContacts, CallAction.OpenCallHistory, CallAction.OpenMessages,
+                CallAction.OpenSettings, CallAction.OpenSipAccounts, CallAction.OpenUpdate,
             },
             postazione);
     }

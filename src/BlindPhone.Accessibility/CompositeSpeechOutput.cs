@@ -146,6 +146,24 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
         }
     }
 
+    /// <summary>
+    /// Se BlindPhone scrive sul display braille la forma compatta degli annunci.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// È la spunta «Aggiorna la riga di stato sul display braille». Il messaggio
+    /// occupa la riga per qualche secondo e copre quello che l'operatore stava
+    /// leggendo: chi legge una scheda della rubrica, o il numero che sta componendo,
+    /// può preferire che la coda che cambia non glielo porti via.
+    /// </para>
+    /// <para>
+    /// Spenta, tace solo ciò che BlindPhone manda di suo. Il braille dello screen
+    /// reader — il controllo con il fuoco, la navigazione — resta com'è, e resta
+    /// affare suo. Si legge a ogni annuncio, quindi cambiarla vale dal successivo.
+    /// </para>
+    /// </remarks>
+    public bool BrailleEnabled { get; set; } = true;
+
     /// <summary>Velocità della voce interna, da -10 a 10.</summary>
     public int InternalVoiceRate { get; set; } = 2;
 
@@ -359,7 +377,7 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
     /// <inheritdoc />
     public void Braille(string text)
     {
-        if (string.IsNullOrWhiteSpace(text)) return;
+        if (!BrailleEnabled || string.IsNullOrWhiteSpace(text)) return;
 
         foreach (var bridge in _bridges)
         {

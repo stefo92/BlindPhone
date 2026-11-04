@@ -68,6 +68,38 @@ internal sealed class FakeEngine : ITelephonyEngine
 
     public event EventHandler<MessageWaitingEventArgs>? MessageWaitingChanged;
 
+    public event EventHandler<InstantMessageReceivedEventArgs>? InstantMessageReceived;
+
+    /// <summary>Messaggi istantanei mandati, nell'ordine.</summary>
+    public List<(string Destination, string Text)> SentMessages { get; } = [];
+
+    /// <summary>Esito che il prossimo invio deve produrre.</summary>
+    public InstantMessageSendResult NextSendResult { get; set; } = InstantMessageSendResult.Success;
+
+    /// <summary>
+    /// Se impostato, l'invio resta in volo finché la prova non completa questo compito.
+    /// </summary>
+    public TaskCompletionSource<InstantMessageSendResult>? PendingSend { get; set; }
+
+    public bool SupportsInstantMessaging { get; set; } = true;
+
+    public Task<InstantMessageSendResult> SendInstantMessageAsync(
+        string destination,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        SentMessages.Add((destination, text));
+        return PendingSend?.Task ?? Task.FromResult(NextSendResult);
+    }
+
+    /// <summary>Simula un messaggio istantaneo arrivato da un collega.</summary>
+    public void SimulateInstantMessage(string from, string text, string? fromName = null)
+        => InstantMessageReceived?.Invoke(this, new InstantMessageReceivedEventArgs(from, fromName, text, DateTimeOffset.Now));
+
+    /// <summary>Simula un messaggio istantaneo arrivato in un istante preciso.</summary>
+    public void InstantMessageAt(string from, string text, DateTimeOffset at)
+        => InstantMessageReceived?.Invoke(this, new InstantMessageReceivedEventArgs(from, null, text, at));
+
     /// <summary>Simula una notifica della segreteria arrivata dal centralino.</summary>
     public void SimulateMessageWaiting(MessageSummary summary, string account = "test")
         => MessageWaitingChanged?.Invoke(this, new MessageWaitingEventArgs(account, summary, DateTimeOffset.Now));

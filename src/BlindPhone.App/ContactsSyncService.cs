@@ -106,6 +106,23 @@ public sealed class ContactsSyncService : IDisposable
     }
 
     /// <summary>
+    /// Riparte con la configurazione corrente, dopo che è cambiata.
+    /// </summary>
+    /// <remarks>
+    /// Il giro periodico si pianificava solo all'avvio: chi collegava la rubrica al
+    /// server, o ne cambiava la frequenza, doveva riavviare perché il riallineamento
+    /// cominciasse o seguisse la frequenza nuova. Un riallineamento già in corso
+    /// finisce con la configurazione con cui era partito.
+    /// </remarks>
+    public void Restart()
+    {
+        _timer?.Dispose();
+        _timer = null;
+
+        Start();
+    }
+
+    /// <summary>
     /// Perché la provenienza configurata non si può riallineare, oppure <c>null</c>.
     /// </summary>
     /// <param name="settings">Impostazioni della rubrica.</param>

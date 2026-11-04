@@ -43,7 +43,6 @@ public sealed class NomiDelleVociTests
     {
         { "SettingsWindow.xaml.cs", "HotkeyRow" },
         { "SettingsWindow.xaml.cs", "CodecEntry" },
-        { "SettingsWindow.xaml.cs", "DialerFieldEntry" },
         { "RicercaImpostazioni.cs", "VoceDiRicerca" },
         { "MainWindow.xaml.cs", "DialerSuggestion" },
         { "ContactsWindow.xaml.cs", "ContactRow" },
@@ -77,15 +76,12 @@ public sealed class NomiDelleVociTests
         // due volte: prima la voce, poi la casella dentro.
         var xaml = Sorgente("SettingsWindow.xaml");
 
-        foreach (var elenco in new[] { "CodecList", "DialerFieldList" })
-        {
-            var inizio = xaml.IndexOf($"x:Name=\"{elenco}\"", StringComparison.Ordinal);
-            var fine = xaml.IndexOf("</ListBox>", inizio, StringComparison.Ordinal);
+        var inizio = xaml.IndexOf("x:Name=\"CodecList\"", StringComparison.Ordinal);
+        var fine = xaml.IndexOf("</ListBox>", inizio, StringComparison.Ordinal);
 
-            Assert.DoesNotContain(
-                "AutomationProperties.Name=\"{Binding AccessibleName}\"",
-                xaml[inizio..fine],
-                StringComparison.Ordinal);
-        }
+        Assert.DoesNotContain(
+            "AutomationProperties.Name=\"{Binding AccessibleName}\"",
+            xaml[inizio..fine],
+            StringComparison.Ordinal);
     }
 }

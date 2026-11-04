@@ -72,6 +72,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private readonly ILogger<SipPresenceSource> _presenceLogger;
     private readonly ILogger<SipOptionsProbe> _probeLogger;
     private readonly ILogger<SipMessageWaitingSource> _messageWaitingLogger;
+    private readonly ILogger<SipInstantMessaging> _instantMessagingLogger;
 
     private readonly ConcurrentDictionary<string, CallContext> _calls = new();
 
@@ -79,6 +80,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private SipPresenceSource? _presenceSource;
     private SipOptionsProbe? _optionsProbe;
     private SipMessageWaitingSource? _messageWaiting;
+    private SipInstantMessaging? _instantMessaging;
     private SIPRegistrationUserAgent? _registration;
     private SipRegistrationState _registrationState;
     private int _callCounter;
@@ -168,6 +170,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// rifiutato senza appello.
     /// </param>
     /// <param name="messageWaitingLogger">Log della segreteria telefonica.</param>
+    /// <param name="instantMessagingLogger">Log dei messaggi istantanei.</param>
     public SipTelephonyEngine(
         SipAccountOptions account,
         NAudioEngine? audioEngine = null,
@@ -178,7 +181,8 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         ILogger<SipPresenceSource>? presenceLogger = null,
         ILogger<SipOptionsProbe>? probeLogger = null,
         CertificateTrustService? certificateTrust = null,
-        ILogger<SipMessageWaitingSource>? messageWaitingLogger = null)
+        ILogger<SipMessageWaitingSource>? messageWaitingLogger = null,
+        ILogger<SipInstantMessaging>? instantMessagingLogger = null)
     {
         _account = account;
         _audioEngine = audioEngine;
@@ -190,6 +194,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _presenceLogger = presenceLogger ?? NullLogger<SipPresenceSource>.Instance;
         _probeLogger = probeLogger ?? NullLogger<SipOptionsProbe>.Instance;
         _messageWaitingLogger = messageWaitingLogger ?? NullLogger<SipMessageWaitingSource>.Instance;
+        _instantMessagingLogger = instantMessagingLogger ?? NullLogger<SipInstantMessaging>.Instance;
         _registrationState = new SipRegistrationState(RegistrationStatus.Unregistered, account.Name);
     }
 
@@ -451,6 +456,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _messageWaiting.SummaryReceived += (_, stato) =>
             MessageWaitingChanged?.Invoke(this, new MessageWaitingEventArgs(_account.Name, stato, _clock.Now));
 
+        // I messaggi dei colleghi si ascoltano dal primo istante, come la segreteria: un
+        // collega puo' scrivere prima ancora che la registrazione sia confermata, se il
+        // centralino ha in memoria l'indirizzo della sessione precedente.
+        _instantMessaging = new SipInstantMessaging(
+            _transport, _account, _clock, _instantMessagingLogger, () => CurrentProxy);
+        _instantMessaging.MessageReceived += (_, messaggio) => InstantMessageReceived?.Invoke(this, messaggio);
+
         StartRegistration();
     }
 
@@ -663,6 +675,64 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// </summary>
     /// <remarks>Esposto per lo strumento di diagnostica, che ci confronta il server STUN.</remarks>
     public IPEndPoint? RegistrarEndPoint => _registrarRemote?.GetIPEndPoint();
+
+    /// <summary>
+    /// Sottoscrive su un interno un pacchetto di eventi qualunque e consegna il testo di
+    /// ogni notifica così come arriva.
+    /// </summary>
+    /// <param name="extension">Interno da osservare.</param>
+    /// <param name="eventPackage">Nome del pacchetto, per esempio <c>presence</c> o <c>dialog</c>.</param>
+    /// <param name="notification">Riceve il corpo di ogni notifica.</param>
+    /// <param name="outcome">Riceve l'esito della sottoscrizione, in una frase.</param>
+    /// <returns>
+    /// La sottoscrizione, che si chiude con <see cref="IDisposable.Dispose"/>; <c>null</c>
+    /// se il motore non è avviato o il pacchetto non è uno di quelli che la libreria conosce.
+    /// </returns>
+    /// <remarks>
+    /// Esposto per lo strumento di diagnostica. Serve a guardare che cosa il centralino
+    /// manda su un pacchetto che il programma non usa ancora, prima di decidere se
+    /// usarlo: il centralino di riferimento dichiara <c>presence</c> fra gli eventi che
+    /// sa servire, ed è lì che uno stato come «non disturbare» avrebbe posto, mentre
+    /// <c>dialog</c> descrive soltanto le chiamate.
+    /// </remarks>
+    public IDisposable? ObserveEventPackage(
+        string extension,
+        string eventPackage,
+        Action<string> notification,
+        Action<string> outcome)
+    {
+        if (_transport is null) return null;
+        if (!Enum.TryParse<SIPEventPackagesEnum>(eventPackage.Replace("-", string.Empty), ignoreCase: true, out var pacchetto))
+        {
+            return null;
+        }
+
+        // Stessa forma delle sottoscrizioni vere, compreso il trasporto: vedi
+        // SipPresenceSource.TrySubscribe.
+        var client = new SIPNotifierClient(
+            _transport,
+            outboundProxy: CurrentProxy,
+            pacchetto,
+            SIPURI.ParseSIPURIRelaxed($"{extension}@{_account.Domain}{_account.TransportParameter}"),
+            _account.AuthId ?? _account.Username,
+            _account.Domain,
+            _account.Password,
+            180,
+            filter: null);
+
+        client.NotificationReceived += (_, corpo) => notification(corpo ?? string.Empty);
+        client.SubscriptionSuccessful += _ => outcome("accettata dal centralino");
+        client.SubscriptionFailed += (_, codice, motivo) => outcome($"rifiutata: {(int)codice} {motivo}");
+        client.Start();
+
+        return new DiagnosticSubscription(client);
+    }
+
+    /// <summary>Chiude una sottoscrizione aperta da <see cref="ObserveEventPackage"/>.</summary>
+    private sealed class DiagnosticSubscription(SIPNotifierClient client) : IDisposable
+    {
+        public void Dispose() => client.Stop();
+    }
 
     /// <summary>
     /// Indirizzo del centralino per una chiamata entrante: quello a cui va mandata la voce.
@@ -1021,6 +1091,9 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // trasporto non partirebbe.
         _messageWaiting?.Dispose();
         _messageWaiting = null;
+
+        _instantMessaging?.Dispose();
+        _instantMessaging = null;
 
         if (_registration is not null)
         {
@@ -2886,6 +2959,30 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public bool IsSignallingEncrypted => _account.Transport == SipTransportKind.Tls;
+
+    // -----------------------------------------------------------------------
+    // Messaggi istantanei
+    // -----------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public event EventHandler<InstantMessageReceivedEventArgs>? InstantMessageReceived;
+
+    /// <inheritdoc />
+    public bool SupportsInstantMessaging => true;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Prima dell'avvio, o dopo l'arresto, non c'e' un trasporto da cui far partire il
+    /// messaggio: lo si dice come esito, con la stessa frase di quando la postazione non
+    /// e' collegata, invece di sollevare.
+    /// </remarks>
+    public Task<InstantMessageSendResult> SendInstantMessageAsync(
+        string destination,
+        string text,
+        CancellationToken cancellationToken)
+        => _instantMessaging is { } canale
+            ? canale.SendAsync(destination, text, cancellationToken)
+            : Task.FromResult(InstantMessageSendResult.Failure(InstantMessageTexts.NotSupported));
 
     // -----------------------------------------------------------------------
     // Ausiliari

@@ -63,16 +63,50 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
     /// <summary>Insieme degli earcon disattivati dall'operatore.</summary>
     public HashSet<EarconKind> Disabled { get; } = [];
 
+    /// <summary>
+    /// Se suonano i segnali che accompagnano un annuncio, oltre a quelli essenziali.
+    /// </summary>
+    /// <remarks>
+    /// È la spunta «Riproduci i segnali acustici». Spenta, tacciono solo i segnali che
+    /// ripetono in un suono ciò che la voce dice già; suoneria, toni della linea e
+    /// allarmi restano. Quali sono, e perché, lo decide <see cref="EarconSwitch"/>.
+    /// Si legge a ogni segnale, quindi cambiarla vale dal segnale successivo.
+    /// </remarks>
+    public bool Enabled { get; set; } = true;
+
     /// <inheritdoc />
     public void Play(EarconKind kind)
     {
-        if (kind == EarconKind.None || Disabled.Contains(kind)) return;
+        if (!WillPlay(kind)) return;
 
         // Deliberatamente non atteso: un earcon che blocca il chiamante rallenta la
         // risposta a un tasto, e sono proprio i millisecondi che l'operatore
         // percepisce come "il comando non ha funzionato".
         _ = PlayInternalAsync(kind, CancellationToken.None);
     }
+
+    /// <summary>
+    /// Riproduce un earcon anche con i segnali acustici spenti.
+    /// </summary>
+    /// <param name="kind">Segnale da riprodurre.</param>
+    /// <remarks>
+    /// Serve alla prova dei dispositivi nel pannello: è una richiesta esplicita di
+    /// sentire, e una prova che tace non si distingue da un dispositivo guasto.
+    /// </remarks>
+    public void PlayPreview(EarconKind kind)
+    {
+        if (kind == EarconKind.None) return;
+
+        _ = PlayInternalAsync(kind, CancellationToken.None);
+    }
+
+    /// <summary>Se un earcon suona, secondo le scelte dell'operatore.</summary>
+    /// <remarks>
+    /// <b>internal e non private</b>: è il punto in cui una spunta salvata diventa un
+    /// silenzio, e serve poterlo collaudare senza ascoltare.
+    /// </remarks>
+    internal bool WillPlay(EarconKind kind)
+        => !Disabled.Contains(kind) && EarconSwitch.ShouldPlay(kind, Enabled);
 
     private async Task PlayInternalAsync(EarconKind kind, CancellationToken cancellationToken)
     {
@@ -189,6 +223,11 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
         EarconKind.PbxLinkDegraded => Sequence(pan, (349, 100), (0, 50), (294, 130)),
         EarconKind.PbxLinkRestored => Sequence(pan, (587, 70), (784, 100)),
 
+        // Messaggio da un collega: due note brevi e acute, staccate. Piu' in alto di
+        // ogni segnale della chiamata, perche' non si confonda con niente che riguardi
+        // chi e' in linea, e corto abbastanza da passare sopra una conversazione.
+        EarconKind.InstantMessageReceived => Sequence(pan, (988, 50), (0, 40), (1319, 90)),
+
         _ => Sequence(pan, (523, 60)),
     };
 
@@ -239,7 +278,7 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
     {
         // Un earcon spento dall'operatore resta spento anche quando si ripete: la
         // scelta vale per il segnale, non per il modo in cui viene suonato.
-        if (kind == EarconKind.None || Disabled.Contains(kind)) return;
+        if (!WillPlay(kind)) return;
 
         StopRepeating(kind);
 

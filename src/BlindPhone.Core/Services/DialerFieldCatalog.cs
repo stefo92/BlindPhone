@@ -8,7 +8,7 @@ namespace BlindPhone.Core.Services;
 /// </summary>
 /// <param name="Id">Chiave stabile, salvata nella configurazione.</param>
 /// <param name="Label">Intestazione della colonna.</param>
-/// <param name="Description">A che cosa serve, per chi sceglie nel pannello.</param>
+/// <param name="Description">A che cosa serve il campo.</param>
 /// <param name="Value">Come si ricava il valore da un contatto.</param>
 public sealed record DialerField(
     string Id,
@@ -17,20 +17,20 @@ public sealed record DialerField(
     Func<Contact, string?> Value);
 
 /// <summary>
-/// Campi che l'operatore può far comparire accanto ai contatti proposti.
+/// Campi che possono comparire accanto ai contatti proposti.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>Nominativo e numero non sono qui, e non è una dimenticanza.</b> Una riga senza
 /// nome non si riconosce e una senza numero non si chiama: sono la riga stessa, non
-/// una scelta. Questo catalogo contiene solo ciò che si può aggiungere o togliere.
+/// un'aggiunta. Questo catalogo contiene solo ciò che può esserci o mancare.
 /// </para>
 /// <para>
-/// <b>Perché la scelta serve.</b> In un ospedale i nomi si assomigliano e gli
-/// ambulatori pure: a un centralinista che cerca «cardiologia» serve vedere il
-/// reparto, a un altro serve il padiglione perché deve dire al chiamante dove
-/// presentarsi. Sono due postazioni con esigenze diverse e nessun valore
-/// predefinito le accontenta entrambe.
+/// <b>Quali compaiono lo decide la rubrica, non un secondo pannello.</b> I campi si
+/// scelgono già una volta, abbinando le colonne all'importazione: chi non abbina il
+/// reparto non ha reparti in rubrica, e una colonna «Reparto» sempre vuota sarebbe
+/// solo una freccia destra in più. Chiedere di nuovo la stessa scelta in un elenco a
+/// parte costringeva a farla due volte, e a tenerle allineate a mano.
 /// </para>
 /// <para>
 /// <b>Non è solo questione di spazio a schermo.</b> Ogni colonna in più è una
@@ -108,57 +108,48 @@ public static class DialerFieldCatalog
             ? null
             : contact.Category;
 
-    /// <summary>Tutti i campi disponibili, nell'ordine in cui si propongono.</summary>
+    /// <summary>Tutti i campi disponibili, nell'ordine in cui si leggono.</summary>
     public static IReadOnlyList<DialerField> All => Catalog;
 
     /// <summary>
-    /// Campi mostrati quando non è stato scelto niente.
+    /// Campi da mostrare per una rubrica: lo stato sempre, gli altri se almeno una voce
+    /// li porta.
     /// </summary>
-    /// <remarks>
-    /// Lo stato da solo: è quello che cambia una decisione — se l'interno è occupato
-    /// l'operatore fa un'altra cosa — mentre gli altri campi aiutano a riconoscere il
-    /// contatto giusto e servono solo dove i nominativi si assomigliano.
-    /// </remarks>
-    public static IReadOnlyList<string> Default => ["Presence"];
-
-    /// <summary>
-    /// Traduce le chiavi salvate nei campi corrispondenti, scartando le sconosciute.
-    /// </summary>
-    /// <param name="ids">Chiavi come compaiono nella configurazione, nell'ordine scelto.</param>
+    /// <param name="contacts">Tutte le voci della rubrica.</param>
     /// <remarks>
     /// <para>
-    /// <b>L'ordine è quello della configurazione, non quello del catalogo.</b> Conta
-    /// perché chi legge la riga con lo screen reader la percorre da sinistra a destra
-    /// e si ferma quando ha saputo quello che gli serve: il campo che decide — di
-    /// solito lo stato, o il reparto dove i nominativi si assomigliano — deve stare
-    /// subito dopo il numero, non in fondo dietro due campi che a quella postazione
-    /// non dicono niente.
+    /// <b>Lo stato c'è sempre</b> perché non viene dalla rubrica ma dal centralino, e
+    /// nessun abbinamento di colonne lo può dire. È anche il campo che cambia una
+    /// decisione: se l'interno è occupato l'operatore fa un'altra cosa.
     /// </para>
     /// <para>
-    /// La stabilità che serve davvero è quella nel tempo, non fra postazioni diverse:
-    /// una volta scelto, l'ordine non cambia più da solo, e le frecce destra da
-    /// contare restano sempre le stesse.
+    /// <b>Gli altri seguono i dati, quindi l'abbinamento fatto all'importazione.</b>
+    /// Basta una voce che porti il campo perché la colonna compaia: una soglia diversa
+    /// farebbe sparire il reparto proprio dalla rubrica in cui lo hanno solo i pochi
+    /// che servono, e non si saprebbe spiegare a chi ascolta perché.
     /// </para>
     /// <para>
-    /// Una chiave ripetuta produce una colonna sola: due colonne identiche sarebbero
-    /// una freccia destra sprecata su ogni contatto scorso.
+    /// <b>L'ordine è sempre quello del catalogo</b>, che mette prima ciò che decide e
+    /// poi ciò che aiuta a riconoscere. Conta perché chi legge la riga con lo screen
+    /// reader la percorre da sinistra a destra e si ferma quando ha saputo quello che
+    /// gli serve, e perché le frecce destra da contare restano le stesse finché la
+    /// rubrica non cambia.
     /// </para>
     /// </remarks>
-    public static IReadOnlyList<DialerField> Resolve(IEnumerable<string>? ids)
+    public static IReadOnlyList<DialerField> Present(IEnumerable<Contact> contacts)
     {
-        if (ids is null) return [];
+        var mancanti = Catalog.Where(f => f.Id != "Presence").ToList();
 
-        List<DialerField> scelti = [];
-
-        foreach (var id in ids)
+        foreach (var contatto in contacts)
         {
-            if (Find(id?.Trim()) is not { } campo) continue;
-            if (scelti.Any(g => string.Equals(g.Id, campo.Id, StringComparison.Ordinal))) continue;
+            mancanti.RemoveAll(f => !string.IsNullOrWhiteSpace(f.Value(contatto)));
 
-            scelti.Add(campo);
+            // Su qualche migliaio di voci i campi si trovano quasi sempre nelle prime
+            // righe: inutile scorrere il resto quando non manca piu' niente.
+            if (mancanti.Count == 0) break;
         }
 
-        return scelti;
+        return [.. Catalog.Where(f => !mancanti.Contains(f))];
     }
 
     /// <summary>Descrizione di un campo, se il catalogo lo conosce.</summary>

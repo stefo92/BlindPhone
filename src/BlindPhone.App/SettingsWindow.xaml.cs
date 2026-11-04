@@ -11,6 +11,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Threading;
 using BlindPhone.Accessibility;
+using BlindPhone.Audio;
 using BlindPhone.Contacts;
 using BlindPhone.Contacts.Ldap;
 using BlindPhone.Contacts.Outlook;
@@ -84,9 +85,6 @@ public partial class SettingsWindow : Window
 
     private readonly ObservableCollection<CodecEntry> _codecs = [];
 
-    /// <summary>Campi della rubrica mostrabili nella ricerca rapida, con la scelta corrente.</summary>
-    private readonly ObservableCollection<DialerFieldEntry> _dialerFields = [];
-
     /// <summary>Crea il pannello.</summary>
     /// <param name="settingsService">Servizio di configurazione.</param>
     /// <param name="announcer">Pipeline di annuncio.</param>
@@ -156,7 +154,6 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         CodecList.ItemsSource = _codecs;
-        DialerFieldList.ItemsSource = _dialerFields;
         HotkeyGrid.ItemsSource = _hotkeyRows;
 
         // Le etichette originali si conservano prima di toccarle: il criterio vi
@@ -1014,7 +1011,6 @@ public partial class SettingsWindow : Window
         InternalVoiceEnabled.IsChecked = settings.Accessibility.InternalVoiceEnabled;
         SelectByTag(SpeechChannel, settings.Accessibility.SpeechChannel);
         UpdateSpeechRoutingHint();
-        LoadDialerFields(settings.Contacts.DialerFields);
         SelectByTag(Theme, settings.Accessibility.Theme.ToString());
         UpdateThemeHint();
         ShowHotkeysOnButtons.IsChecked = settings.Accessibility.ShowHotkeysOnButtons;
@@ -2375,125 +2371,6 @@ public partial class SettingsWindow : Window
     // -----------------------------------------------------------------------
 
     /// <summary>
-    /// Popola l'elenco dei campi mostrabili nella ricerca rapida.
-    /// </summary>
-    /// <param name="scelti">
-    /// Campi già scelti, oppure <c>null</c> se la postazione non ha mai deciso.
-    /// </param>
-    /// <remarks>
-    /// <b>Un elenco vuoto è una scelta, l'assenza di elenco no.</b> Chi ha tolto tutte
-    /// le spunte vuole vedere solo nominativo e interno, e ricadere sul valore
-    /// predefinito gliele rimetterebbe a ogni riapertura del pannello. Per questo si
-    /// distingue fra elenco vuoto e impostazione mai scritta.
-    /// </remarks>
-    private void LoadDialerFields(IReadOnlyList<string>? scelti)
-    {
-        _dialerFields.Clear();
-
-        // Prima gli attivi nell'ordine scelto, poi gli altri: la stessa forma
-        // dell'elenco dei codec, dove l'ordine e' l'informazione principale e
-        // leggerlo dall'alto in basso deve bastare a conoscerlo.
-        var attivi = DialerFieldCatalog.Resolve(scelti ?? DialerFieldCatalog.Default);
-
-        foreach (var campo in attivi)
-        {
-            _dialerFields.Add(new DialerFieldEntry(campo, isEnabled: true, RenumberDialerFields));
-        }
-
-        foreach (var campo in DialerFieldCatalog.All)
-        {
-            if (attivi.Any(a => string.Equals(a.Id, campo.Id, StringComparison.Ordinal))) continue;
-
-            _dialerFields.Add(new DialerFieldEntry(campo, isEnabled: false, RenumberDialerFields));
-        }
-
-        RenumberDialerFields();
-        if (_dialerFields.Count > 0) DialerFieldList.SelectedIndex = 0;
-    }
-
-    /// <summary>Aggiorna le posizioni mostrate accanto ai campi attivi.</summary>
-    private void RenumberDialerFields()
-    {
-        var position = 1;
-
-        foreach (var entry in _dialerFields)
-        {
-            entry.Position = entry.IsEnabled ? position++ : null;
-        }
-    }
-
-    /// <summary>
-    /// Gestisce barra spaziatrice e Alt più frecce sull'elenco dei campi.
-    /// </summary>
-    /// <remarks>
-    /// Gemello di <see cref="OnCodecListKeyDown"/>: due elenchi che governano cose
-    /// diverse ma si usano con gli stessi tasti. Chi ha imparato a ordinare i codec
-    /// sa già ordinare i campi, e non deve scoprire una seconda convenzione.
-    /// </remarks>
-    private void OnDialerFieldListKeyDown(object sender, KeyEventArgs e)
-    {
-        if (DialerFieldList.SelectedItem is not DialerFieldEntry entry) return;
-
-        if (e.Key == Key.Space)
-        {
-            entry.IsEnabled = !entry.IsEnabled;
-            Report(entry.IsEnabled
-                ? $"{entry.Field.Label} mostrato, posizione {entry.Position}"
-                : $"{entry.Field.Label} nascosto");
-            e.Handled = true;
-            return;
-        }
-
-        if (Keyboard.Modifiers != ModifierKeys.Alt) return;
-
-        if (e.Key == Key.Up)
-        {
-            MoveSelectedDialerField(-1);
-            e.Handled = true;
-        }
-        else if (e.Key == Key.Down)
-        {
-            MoveSelectedDialerField(1);
-            e.Handled = true;
-        }
-    }
-
-    private void OnDialerFieldUpClick(object sender, RoutedEventArgs e) => MoveSelectedDialerField(-1);
-
-    private void OnDialerFieldDownClick(object sender, RoutedEventArgs e) => MoveSelectedDialerField(1);
-
-    private void MoveSelectedDialerField(int delta)
-    {
-        var index = DialerFieldList.SelectedIndex;
-        if (index < 0) return;
-
-        var target = index + delta;
-        if (target < 0 || target >= _dialerFields.Count)
-        {
-            _announcer.PlayEarcon(EarconKind.CommandRejected);
-            return;
-        }
-
-        var entry = _dialerFields[index];
-        _dialerFields.Move(index, target);
-        DialerFieldList.SelectedIndex = target;
-
-        RenumberDialerFields();
-
-        // Dopo lo spostamento va detto dove e' finito: su una lista letta a voce,
-        // contare a ritroso le voci scorse e' lento e si sbaglia.
-        Report(entry.Position is { } position
-            ? $"{entry.Field.Label} spostato in posizione {position}"
-            : $"{entry.Field.Label} spostato, non mostrato");
-    }
-
-    private void OnDialerFieldResetClick(object sender, RoutedEventArgs e)
-    {
-        LoadDialerFields(null);
-        Report("Campi consigliati ripristinati: accanto a nominativo e interno resta solo lo stato dell'interno");
-    }
-
-    /// <summary>
     /// Popola l'elenco dei codec: prima quelli attivi nell'ordine configurato, poi
     /// i restanti disattivati.
     /// </summary>
@@ -3426,27 +3303,16 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // La voce si applica subito, senza riavvio: e' l'impostazione che si viene a
-        // cambiare proprio mentre si sta sentendo il problema, e farla verificare al
-        // riavvio successivo significherebbe cambiarla alla cieca.
-        _speech.Mode = ParseEnum(speechChannel, SpeechChannelMode.Automatic);
-        _speech.InternalVoiceEnabled = internalVoice;
-
-        // Lo stesso vale per i dispositivi audio: chi cambia l'uscita della suoneria
-        // preme il pulsante di prova subito dopo aver salvato. Il percorso audio di
-        // una chiamata gia' in corso non si sposta — quello lo prende all'apertura —
-        // ma suoneria, annunci e segnali seguono da subito.
-        AudioSettingsApplier.Apply(_audio, updated, _log);
-
-        Report($"Impostazioni salvate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
+        // NESSUN RIAVVIO DA CHIEDERE.
+        //
+        // Il salvataggio arriva ai servizi gia' avviati — voce, dispositivi audio,
+        // annunci, centralino, account SIP — tramite LiveSettingsApplier, che rimanda a
+        // fine chiamata solo cio' che la farebbe cadere e lo dice. Prima si chiedeva di
+        // riavviare a ogni salvataggio, anche dopo aver cambiato soltanto il tema: una
+        // domanda che compare sempre si impara a rifiutarla senza leggerla.
+        Report($"Impostazioni salvate e applicate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
         DialogResult = true;
         Close();
-
-        // La domanda si pone quando questa finestra e' effettivamente sparita, non
-        // mentre si sta chiudendo: altrimenti lo screen reader legge la finestra in
-        // uscita al posto della domanda, e l'operatore sente parlare di riavvio senza
-        // sapere che gli e' stato chiesto qualcosa.
-        Dispatcher.BeginInvoke(new Action(PromptForRestart), DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>
@@ -3504,94 +3370,6 @@ public partial class SettingsWindow : Window
             "Credenziale {Chiave} rilegata dal pannello: da {Prima} a {Adesso}", key, precedente, adesso);
 
         notices.Add($"{what} ora vale per {adesso ?? "nessun server"} e non piu' per {precedente}.");
-    }
-
-    /// <summary>
-    /// Chiede se riavviare subito per applicare le impostazioni salvate.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Il riavvio serve davvero: motore telefonico, connettore del centralino,
-    /// suoneria e instradamento audio vengono costruiti all'avvio con i parametri di
-    /// allora. Senza una richiesta esplicita l'operatore salva, non vede cambiare
-    /// nulla e conclude che l'impostazione non ha funzionato.
-    /// </para>
-    /// <para>
-    /// È una domanda e non un riavvio automatico perché <b>può esserci una chiamata
-    /// in corso</b>: riavviare senza chiedere la farebbe cadere. Il valore
-    /// predefinito è No proprio per questo — chi preme Invio distrattamente non
-    /// perde la conversazione.
-    /// </para>
-    /// <para>
-    /// La finestra viene mostrata dopo la chiusura del pannello, così lo screen
-    /// reader legge la domanda invece della finestra che sta sparendo. Il proprietario
-    /// è la finestra principale, che a quel punto è quella attiva.
-    /// </para>
-    /// </remarks>
-    private void PromptForRestart()
-    {
-        var answer = MessageBox.Show(
-            Application.Current.MainWindow,
-            "Le impostazioni sono state salvate.\n\n"
-            + "Voce degli annunci e tasti rapidi sono gia' attivi.\n"
-            + "Account SIP, centralino e dispositivi audio richiedono il riavvio.\n\n"
-            + "Vuoi riavviare adesso?\n"
-            + "Se hai una chiamata in corso, scegli No: la chiamata cadrebbe.",
-            "Riavviare BlindPhone?",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question,
-            MessageBoxResult.No);
-
-        if (answer != MessageBoxResult.Yes)
-        {
-            _announcer.Announce(Announcement.CommandResponse(
-                "Impostazioni salvate. Verranno applicate al prossimo avvio di BlindPhone",
-                DateTimeOffset.Now));
-            return;
-        }
-
-        Restart();
-    }
-
-    /// <summary>Riavvia l'applicazione.</summary>
-    /// <remarks>
-    /// Se l'avvio del nuovo processo fallisce non si chiude quello corrente: meglio
-    /// un posto operatore con impostazioni vecchie che un posto operatore spento.
-    /// </remarks>
-    private void Restart()
-    {
-        var executable = Environment.ProcessPath;
-
-        if (string.IsNullOrWhiteSpace(executable))
-        {
-            _log.LogWarning("Percorso dell'eseguibile non determinabile: riavvio automatico non possibile");
-            Report("Riavvio automatico non riuscito. Chiudi e riapri BlindPhone a mano");
-            return;
-        }
-
-        try
-        {
-            _announcer.Announce(Announcement.CommandResponse("Riavvio di BlindPhone in corso", DateTimeOffset.Now));
-
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(executable)
-            {
-                UseShellExecute = true,
-            });
-
-            Application.Current.Shutdown();
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Riavvio automatico non riuscito");
-
-            MessageBox.Show(
-                Application.Current.MainWindow,
-                "Non e' stato possibile riavviare automaticamente.\n\n"
-                + "Chiudi e riapri BlindPhone a mano per applicare le impostazioni.",
-                "Riavvio non riuscito",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-        }
     }
 
     /// <summary>
@@ -3733,12 +3511,12 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        // La verifica reale della registrazione richiede il riavvio del motore
-        // telefonico, che porterebbe giu' le chiamate in corso. Si conferma quindi
-        // solo la completezza dei dati, dicendolo con chiarezza invece di lasciar
-        // credere a una verifica che non e' avvenuta.
+        // La verifica reale della registrazione ricostruisce il motore telefonico, che
+        // porterebbe giu' le chiamate in corso: la fa il salvataggio, a linea libera.
+        // Qui si conferma solo la completezza dei dati, dicendolo con chiarezza invece
+        // di lasciar credere a una verifica che non e' avvenuta.
         Report($"Dati SIP completi per l'interno {SpeechFormatter.Digits(SipUsername.Text)} "
-               + $"sul centralino {SipDomain.Text}. La registrazione viene provata al riavvio");
+               + $"sul centralino {SipDomain.Text}. La registrazione viene provata al salvataggio");
     }
 
     private async void OnTestPbxClick(object sender, RoutedEventArgs e)
@@ -3827,7 +3605,9 @@ public partial class SettingsWindow : Window
         _audio.AssignDevice(route, deviceId);
         Report($"Suono di prova sulla via {label}");
 
-        _announcer.PlayEarcon(route == AudioRoute.Ringer
+        // Direttamente dal riproduttore e non dagli annunci: la prova deve suonare
+        // anche con i segnali acustici spenti, o sembrerebbe un dispositivo guasto.
+        _serviceProvider.GetRequiredService<ToneEarconPlayer>().PlayPreview(route == AudioRoute.Ringer
             ? EarconKind.QueueCallArrived
             : EarconKind.CallAnswered);
 
@@ -4608,8 +4388,108 @@ public partial class SettingsWindow : Window
         await AnalyzeCsvAsync().ConfigureAwait(true);
     }
 
-    private async void OnAnalyzeCsvClick(object sender, RoutedEventArgs e)
-        => await AnalyzeCsvAsync().ConfigureAwait(true);
+    /// <summary>Percorso dell'ultima analisi, per non ripeterla su un percorso che non è cambiato.</summary>
+    private string? _analyzedPath;
+
+    /// <summary>Il percorso a schermo non è quello dell'ultima analisi.</summary>
+    private bool IsCsvPathPending
+        => !string.IsNullOrWhiteSpace(CsvPath.Text)
+           && !string.Equals(CsvPath.Text.Trim(), _analyzedPath, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Invio sul percorso analizza il file, invece di salvare e chiudere le impostazioni.
+    /// </summary>
+    /// <remarks>
+    /// Analizza anche se il percorso non è cambiato: è il modo di rileggere un file
+    /// corretto nel frattempo, che prima chiedeva il pulsante «Analizza il file».
+    /// </remarks>
+    private async void OnCsvPathPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+
+        e.Handled = true;
+        await AnalyzeTypedPathAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>Uscendo dalla casella con un percorso nuovo, il file si analizza da solo.</summary>
+    private async void OnCsvPathLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (!IsCsvPathPending) return;
+
+        await AnalyzeTypedPathAsync().ConfigureAwait(true);
+    }
+
+    private async Task AnalyzeTypedPathAsync()
+    {
+        // Stessa regola di Sfoglia: un file nuovo merita un rilevamento nuovo.
+        if (IsCsvPathPending) _csvHeaderModeChosen = false;
+
+        await AnalyzeCsvAsync().ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Mostra i passi che servono alla provenienza scelta e a quella preparata, e li
+    /// numera di seguito.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Il file solo per la rubrica da file.</b> Con server, directory o Outlook i
+    /// contatti arrivano dal pannello della provenienza, e un percorso da compilare in
+    /// mezzo mandava a cercare un file che in quella modalità non serve.
+    /// </para>
+    /// <para>
+    /// L'abbinamento compare solo quando ci sono colonne da abbinare: dopo l'analisi
+    /// di un file o di un backup, o dopo essersi collegati al server. Directory e
+    /// Outlook i campi li hanno già per nome, e prima di aver scelto qualcosa le nove
+    /// caselle erano vuote: in entrambi i casi erano tabulazioni spese per niente.
+    /// </para>
+    /// <para>
+    /// <b>I numeri si ricontano ogni volta</b>: la sequenza resta 1, 2, 3 per chi la
+    /// ascolta, perché il conteggio dei passi è l'unico modo che ha per sapere a che
+    /// punto è, e un passo che manca sembrerebbe un passo saltato.
+    /// </para>
+    /// </remarks>
+    private void AggiornaPassi()
+    {
+        // Durante InitializeComponent gli elementi non ci sono ancora; questo e'
+        // l'ultimo dei passi nella scheda, quindi se c'e' lui ci sono tutti.
+        if (ReplaceExisting is null) return;
+
+        var conFile = SelectedContactsMode() == ContactsMode.LocalFile;
+        var conColonne = CurrentImport is ImportKind.Csv or ImportKind.Backup or ImportKind.SqlServer
+                         && MapNumber.Items.Count > 0;
+
+        FileStep.Visibility = conFile ? Visibility.Visible : Visibility.Collapsed;
+        MappingStep.Visibility = conColonne ? Visibility.Visible : Visibility.Collapsed;
+        CsvNoHeader.Visibility = conColonne && CurrentImport == ImportKind.Csv
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        var passo = 1;
+        if (conFile) StepFileHeading.Text = $"{passo++}. File da importare";
+        if (conColonne) StepMappingHeading.Text = $"{passo++}. Abbinamento delle colonne";
+        StepPreviewHeading.Text = $"{passo++}. Anteprima";
+        StepImportHeading.Text = $"{passo}. Importazione";
+
+        // "Dallo stesso file" e' la frase giusta solo quando si importa un file.
+        var stessa = conFile ? "dallo stesso file" : "dalla stessa provenienza";
+        ReplaceExisting.Content = $"Sostituisci i contatti importati in precedenza {stessa}";
+        System.Windows.Automation.AutomationProperties.SetName(
+            ReplaceExisting, $"Sostituisci i contatti gia' importati {stessa} invece di duplicarli");
+    }
+
+    /// <summary>
+    /// Toglie colonne e anteprima di una provenienza che non è più quella scelta.
+    /// </summary>
+    private void SvuotaAbbinamento()
+    {
+        foreach (var (combo, _) in MappingCombos) combo.Items.Clear();
+
+        PreviewText.Text = string.Empty;
+        _analyzedPath = null;
+
+        AggiornaPassi();
+    }
 
     /// <summary>
     /// Legge le intestazioni del file, propone l'abbinamento e mostra l'anteprima.
@@ -4617,6 +4497,10 @@ public partial class SettingsWindow : Window
     private async Task AnalyzeCsvAsync()
     {
         var path = CsvPath.Text.Trim();
+
+        // Anche quando il file non c'e': uscire di nuovo dalla casella senza averla
+        // toccata non deve ripetere lo stesso avviso.
+        _analyzedPath = path;
 
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
@@ -4633,12 +4517,12 @@ public partial class SettingsWindow : Window
         // per intero ogni CSV solo per non trovarci istruzioni SQL.
         if (LooksLikeBackup(path))
         {
-            _importKind = ImportKind.Backup;
+            CurrentImport = ImportKind.Backup;
             await AnalyzeBackupAsync(path).ConfigureAwait(true);
             return;
         }
 
-        _importKind = ImportKind.Csv;
+        CurrentImport = ImportKind.Csv;
 
         try
         {
@@ -4731,6 +4615,24 @@ public partial class SettingsWindow : Window
     private ImportKind _importKind = ImportKind.Csv;
 
     /// <summary>
+    /// Da dove si sta importando; cambiarlo rifà i passi a schermo.
+    /// </summary>
+    /// <remarks>
+    /// I passi dipendono dalla provenienza — l'abbinamento c'è per file, backup e
+    /// server, non per directory e Outlook — e legarli all'assegnazione evita di
+    /// doverlo ricordare in ognuno dei punti che la cambiano.
+    /// </remarks>
+    private ImportKind CurrentImport
+    {
+        get => _importKind;
+        set
+        {
+            _importKind = value;
+            AggiornaPassi();
+        }
+    }
+
+    /// <summary>
     /// Servizio di riallineamento, preso dal contenitore.
     /// </summary>
     /// <remarks>
@@ -4791,7 +4693,7 @@ public partial class SettingsWindow : Window
     {
         var corrente = CurrentSqlServerSettings();
 
-        var server = _importKind == ImportKind.SqlServer
+        var server = CurrentImport == ImportKind.SqlServer
             ? corrente
             : precedenti.SqlServer with
             {
@@ -4812,10 +4714,6 @@ public partial class SettingsWindow : Window
             // quello che si salva e' quello che si vede a schermo.
             Ldap = CurrentLdapSettings(),
             Outlook = CurrentOutlookSettings(),
-
-            // Le spunte tolte tutte sono una scelta legittima — solo nominativo e
-            // interno — e vanno salvate come elenco vuoto, non come "mai deciso".
-            DialerFields = [.. _dialerFields.Where(f => f.IsEnabled).Select(f => f.Field.Id)],
         };
     }
 
@@ -4825,21 +4723,39 @@ public partial class SettingsWindow : Window
 
         MostraPannelloProvenienza(modalita);
 
-        if (modalita != ContactsMode.SqlServer && _importKind == ImportKind.SqlServer)
+        if (modalita != ContactsMode.SqlServer && CurrentImport == ImportKind.SqlServer)
         {
             // Tornando alla rubrica da file l'elenco delle tabelle del server non ha
             // piu' significato: lasciarlo a schermo inviterebbe a importare da un
             // collegamento che non e' piu' quello scelto.
             ShowBackupTables([]);
-            _importKind = ImportKind.Csv;
+            CurrentImport = ImportKind.Csv;
+
+            // Per la stessa ragione se ne vanno le colonne e l'anteprima del server:
+            // abbinate a un file che non le ha, sarebbero un'importazione sbagliata
+            // gia' pronta.
+            SvuotaAbbinamento();
         }
 
         // Lo stesso per directory e Outlook: il pulsante di importazione non deve
         // continuare a leggere da una provenienza che non e' piu' quella scelta.
-        if ((modalita != ContactsMode.Ldap && _importKind == ImportKind.Ldap)
-            || (modalita != ContactsMode.Outlook && _importKind == ImportKind.Outlook))
+        if ((modalita != ContactsMode.Ldap && CurrentImport == ImportKind.Ldap)
+            || (modalita != ContactsMode.Outlook && CurrentImport == ImportKind.Outlook))
         {
-            _importKind = ImportKind.Csv;
+            CurrentImport = ImportKind.Csv;
+            SvuotaAbbinamento();
+        }
+
+        // E il file preparato resta indietro quando si passa a una provenienza
+        // collegata: il suo passo non c'e' piu', e il pulsante di importazione non
+        // deve leggere da un percorso che a schermo non si vede.
+        if (modalita != ContactsMode.LocalFile
+            && (CurrentImport is ImportKind.Csv or ImportKind.Backup)
+            && (MapNumber.Items.Count > 0 || IsBackupSelected))
+        {
+            ShowBackupTables([]);
+            CurrentImport = ImportKind.Csv;
+            SvuotaAbbinamento();
         }
     }
 
@@ -4851,13 +4767,17 @@ public partial class SettingsWindow : Window
     /// <remarks>
     /// Un pannello alla volta, e non tutti e tre: chi scorre la scheda con Tab
     /// attraverserebbe altrimenti una trentina di campi che non riguardano la
-    /// provenienza scelta, senza poter sapere a quale appartengano.
+    /// provenienza scelta, senza poter sapere a quale appartengano. Vale anche per il
+    /// passo del file, che c'è solo con la rubrica da file: vedi
+    /// <see cref="AggiornaPassi"/>.
     /// </remarks>
     private void MostraPannelloProvenienza(ContactsMode modalita)
     {
         SqlServerPanel.Visibility = modalita == ContactsMode.SqlServer ? Visibility.Visible : Visibility.Collapsed;
         LdapPanel.Visibility = modalita == ContactsMode.Ldap ? Visibility.Visible : Visibility.Collapsed;
         OutlookPanel.Visibility = modalita == ContactsMode.Outlook ? Visibility.Visible : Visibility.Collapsed;
+
+        AggiornaPassi();
     }
 
     private void OnSqlServerAuthChanged(object sender, SelectionChangedEventArgs e)
@@ -4955,7 +4875,7 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            _importKind = ImportKind.SqlServer;
+            CurrentImport = ImportKind.SqlServer;
             ShowBackupTables(tabelle);
 
             var scelta = PickLikelyTable(tabelle);
@@ -5207,7 +5127,7 @@ public partial class SettingsWindow : Window
 
             if (!esito.Success) return;
 
-            _importKind = ImportKind.Ldap;
+            CurrentImport = ImportKind.Ldap;
             ShowBackupTables([]);
 
             await RefreshPreviewAsync((righe, token) => sorgente.PreviewAsync(righe, token)).ConfigureAwait(true);
@@ -5294,7 +5214,7 @@ public partial class SettingsWindow : Window
 
             if (!esito.Success) return;
 
-            _importKind = ImportKind.Outlook;
+            CurrentImport = ImportKind.Outlook;
             ShowBackupTables([]);
 
             await RefreshPreviewAsync((righe, token) => sorgente.PreviewAsync(righe, token)).ConfigureAwait(true);
@@ -5538,11 +5458,11 @@ public partial class SettingsWindow : Window
         if (BackupTable.SelectedIndex < 0 || BackupTable.SelectedIndex >= _backupTables.Count) return;
 
         var path = CsvPath.Text.Trim();
-        if (_importKind != ImportKind.SqlServer && !File.Exists(path)) return;
+        if (CurrentImport != ImportKind.SqlServer && !File.Exists(path)) return;
 
         var tabella = _backupTables[BackupTable.SelectedIndex];
 
-        if (_importKind == ImportKind.SqlServer)
+        if (CurrentImport == ImportKind.SqlServer)
         {
             FillMappingCombos(tabella.Columns);
             var riconoscimentoServer = ApplyMappingFor(tabella.Columns);
@@ -5629,6 +5549,9 @@ public partial class SettingsWindow : Window
 
             combo.SelectedIndex = 0;
         }
+
+        // Adesso c'e' qualcosa da abbinare: il passo compare.
+        AggiornaPassi();
     }
 
     /// <summary>L'operatore ha cambiato idea sulla riga dei titoli: si rianalizza.</summary>
@@ -5787,7 +5710,26 @@ public partial class SettingsWindow : Window
     {
         // Directory e Outlook non passano dall'abbinamento delle colonne: i loro
         // campi hanno gia' un nome, e la casella del numero resta vuota di proposito.
-        var conColonne = _importKind is ImportKind.Csv or ImportKind.Backup or ImportKind.SqlServer;
+        var conColonne = CurrentImport is ImportKind.Csv or ImportKind.Backup or ImportKind.SqlServer;
+
+        if (SelectedContactsMode() == ContactsMode.LocalFile
+            && (CurrentImport is ImportKind.Csv or ImportKind.Backup)
+            && IsCsvPathPending)
+        {
+            // Un percorso scritto e non ancora analizzato: con il tasto di accesso il
+            // fuoco non lascia la casella, e l'analisi non partirebbe. Si analizza e ci
+            // si ferma, perche' l'anteprima va ascoltata prima di importare.
+            await AnalyzeTypedPathAsync().ConfigureAwait(true);
+            return;
+        }
+
+        if (conColonne && MapNumber.Items.Count == 0)
+        {
+            // Non c'e' ancora niente da abbinare: il motivo e' la provenienza, non la
+            // colonna del numero, che a schermo non c'e' nemmeno.
+            ReportNothingPrepared();
+            return;
+        }
 
         if (conColonne && SelectedTag(MapNumber) is null)
         {
@@ -5818,7 +5760,7 @@ public partial class SettingsWindow : Window
 
             if (contacts.Count == 0)
             {
-                Report(_importKind switch
+                Report(CurrentImport switch
                 {
                     ImportKind.Csv => "Nessun contatto con numero telefonico trovato nel file",
                     ImportKind.Ldap => "Nessun contatto con numero telefonico trovato nella directory",
@@ -5846,12 +5788,12 @@ public partial class SettingsWindow : Window
             _log.LogError(ex, "Importazione della rubrica dal server non riuscita");
             Report(SqlServerContactSource.DescribeSqlFailure(ex));
         }
-        catch (Exception ex) when (_importKind == ImportKind.Ldap)
+        catch (Exception ex) when (CurrentImport == ImportKind.Ldap)
         {
             _log.LogError(ex, "Importazione della rubrica dalla directory non riuscita");
             Report(LdapContactSource.DescribeFailure(ex, ContactsSyncService.ToLdapOptions(CurrentLdapSettings())));
         }
-        catch (Exception ex) when (_importKind == ImportKind.Outlook)
+        catch (Exception ex) when (CurrentImport == ImportKind.Outlook)
         {
             _log.LogError(ex, "Importazione dei contatti di Outlook non riuscita");
             Report(OutlookContactSource.DescribeFailure(ex));
@@ -5868,6 +5810,41 @@ public partial class SettingsWindow : Window
     }
 
     /// <summary>
+    /// Dice che cosa preparare quando non è stato preparato niente, e porta il fuoco
+    /// dove si comincia.
+    /// </summary>
+    /// <remarks>
+    /// Segue la provenienza scelta in cima alla scheda: a chi ha scelto il server,
+    /// «scegli prima un file» indicava un campo che in quella modalità non va
+    /// compilato.
+    /// </remarks>
+    private void ReportNothingPrepared()
+    {
+        switch (SelectedContactsMode())
+        {
+            case ContactsMode.SqlServer:
+                Report("Collegati prima al server e scegli la tabella da importare");
+                SqlServerConnectButton.Focus();
+                break;
+
+            case ContactsMode.Ldap:
+                Report("Chiedi prima i contatti alla directory");
+                LdapTestButton.Focus();
+                break;
+
+            case ContactsMode.Outlook:
+                Report("Leggi prima i contatti di Outlook");
+                OutlookTestButton.Focus();
+                break;
+
+            default:
+                Report("Scegli prima un file da importare");
+                CsvPath.Focus();
+                break;
+        }
+    }
+
+    /// <summary>
     /// Costruisce la sorgente corrispondente a ciò che è a schermo.
     /// </summary>
     /// <returns>
@@ -5876,7 +5853,7 @@ public partial class SettingsWindow : Window
     /// </returns>
     private IContactSource? BuildSourceFromUi()
     {
-        if (_importKind == ImportKind.SqlServer)
+        if (CurrentImport == ImportKind.SqlServer)
         {
             var collegamento = CurrentSqlServerSettings();
 
@@ -5890,8 +5867,8 @@ public partial class SettingsWindow : Window
             return _contactsSync.BuildSource(collegamento);
         }
 
-        if (_importKind == ImportKind.Ldap) return _contactsSync.BuildLdapSource(CurrentLdapSettings());
-        if (_importKind == ImportKind.Outlook) return _contactsSync.BuildOutlookSource(CurrentOutlookSettings());
+        if (CurrentImport == ImportKind.Ldap) return _contactsSync.BuildLdapSource(CurrentLdapSettings());
+        if (CurrentImport == ImportKind.Outlook) return _contactsSync.BuildOutlookSource(CurrentOutlookSettings());
 
         var path = CsvPath.Text.Trim();
 
@@ -6171,108 +6148,8 @@ internal sealed class CodecEntry : INotifyPropertyChanged
 
     /// <summary>Rappresentazione testuale della voce.</summary>
     /// <remarks>
-    /// Stessa ragione della riga dei tasti e della voce dei campi: senza, sulla voce
-    /// dell'elenco lo screen reader pronunciava il nome della classe.
-    /// </remarks>
-    public override string ToString() => AccessibleName;
-
-    /// <inheritdoc />
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    private void Raise([CallerMemberName] string? name = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
-}
-
-/// <summary>
-/// Un campo della rubrica nell'elenco di quelli mostrabili, con la sua spunta e la
-/// sua posizione nell'ordine di lettura.
-/// </summary>
-/// <remarks>
-/// <para>
-/// Notifica i cambiamenti perché la spunta viene legata in scrittura: senza, la
-/// scelta dell'operatore resterebbe nell'interfaccia e non arriverebbe mai al
-/// salvataggio.
-/// </para>
-/// <para>
-/// La posizione compare nel testo perché è l'informazione che l'operatore sta
-/// governando: «Reparto» da solo non dice se il reparto si leggerà prima o dopo lo
-/// stato, e chi ascolta non ha modo di dedurlo dalla riga.
-/// </para>
-/// </remarks>
-internal sealed class DialerFieldEntry : INotifyPropertyChanged
-{
-    private readonly Action _onEnabledChanged;
-    private bool _isEnabled;
-    private int? _position;
-
-    /// <summary>Crea la voce.</summary>
-    /// <param name="field">Campo descritto dal catalogo.</param>
-    /// <param name="isEnabled">Se l'operatore vuole vederlo.</param>
-    /// <param name="onEnabledChanged">Azione da eseguire quando la spunta cambia.</param>
-    public DialerFieldEntry(DialerField field, bool isEnabled, Action onEnabledChanged)
-    {
-        Field = field;
-        _isEnabled = isEnabled;
-        _onEnabledChanged = onEnabledChanged;
-    }
-
-    /// <summary>Campo descritto dal catalogo.</summary>
-    public DialerField Field { get; }
-
-    /// <summary>Se il campo viene mostrato accanto ai contatti proposti.</summary>
-    public bool IsEnabled
-    {
-        get => _isEnabled;
-        set
-        {
-            if (_isEnabled == value) return;
-
-            _isEnabled = value;
-            Raise();
-            Raise(nameof(Display));
-            Raise(nameof(AccessibleName));
-            _onEnabledChanged();
-        }
-    }
-
-    /// <summary>Posizione nell'ordine di lettura, oppure <c>null</c> se nascosto.</summary>
-    public int? Position
-    {
-        get => _position;
-        set
-        {
-            if (_position == value) return;
-
-            _position = value;
-            Raise();
-            Raise(nameof(Display));
-            Raise(nameof(AccessibleName));
-        }
-    }
-
-    /// <summary>Testo mostrato a schermo.</summary>
-    public string Display => Position is { } position
-        ? $"{position}. {Field.Label}"
-        : Field.Label;
-
-    /// <summary>Testo letto dallo screen reader: dice se il campo si vede e dove.</summary>
-    public string AccessibleName => Position is { } position
-        ? $"{Field.Label}, mostrato, posizione {position}"
-        : $"{Field.Label}, non mostrato";
-
-    /// <summary>Rappresentazione testuale della voce.</summary>
-    /// <remarks>
-    /// <para>
-    /// <b>È quello che lo screen reader pronuncia sulla voce dell'elenco.</b> WPF non
-    /// mette un nome accessibile sul contenitore della voce e ricade sul risultato di
-    /// questo metodo: senza, era il nome della classe, e l'operatore si sentiva
-    /// annunciare «BlindPhone punto App punto Dialer Field Entry» prima di ogni campo.
-    /// </para>
-    /// <para>
-    /// Verificato sull'albero di accessibilità con la stessa interfaccia usata da NVDA
-    /// e JAWS: prima <c>ListItem nome: "BlindPhone.App.DialerFieldEntry"</c>, dopo
-    /// <c>ListItem nome: "Stato, mostrato, posizione 1"</c>.
-    /// </para>
+    /// Stessa ragione della riga dei tasti: senza, sulla voce dell'elenco lo screen
+    /// reader pronunciava il nome della classe.
     /// </remarks>
     public override string ToString() => AccessibleName;
 

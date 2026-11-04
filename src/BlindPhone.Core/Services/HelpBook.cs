@@ -76,6 +76,9 @@ public static class HelpBook
     /// <summary>Argomento della segreteria telefonica.</summary>
     public const string VoicemailTopicId = "segreteria";
 
+    /// <summary>Argomento dei messaggi istantanei ai colleghi.</summary>
+    public const string MessagesTopicId = "messaggi";
+
     /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
     public const string CallLinksTopicId = "link-di-chiamata";
 
@@ -111,6 +114,7 @@ public static class HelpBook
         Topic(DialerTopicId, "Comporre un numero o cercare un nome", Composizione(profile)),
         Topic(QueueTopicId, "La coda e lo stato agente", Coda(profile)),
         Topic(ColleaguesTopicId, "Sapere chi e' in turno", Colleghi(profile)),
+        Topic(MessagesTopicId, "Scrivere un messaggio a un collega", Messaggi(profile)),
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
         Topic(VoicemailTopicId, "La segreteria telefonica", Segreteria(profile)),
@@ -339,9 +343,7 @@ public static class HelpBook
 
         Scegliere fra due omonimi. Digitando un nome compare sopra il campo l'elenco dei contatti che corrispondono: freccia giu' scende dentro l'elenco, le frecce su e giu' scorrono i contatti, destra e sinistra leggono i campi di quello su cui ti trovi, Invio chiama. Freccia su dal primo contatto riporta al campo.
 
-        Quali campi vedi accanto a ogni contatto lo decidi tu, in Impostazioni, scheda Rubrica: nominativo e interno ci sono sempre, gli altri - descrizione, reparto, collocazione, stato - si spuntano uno per uno con la barra spaziatrice. Tienine pochi: ogni campo in piu' e' una freccia destra in piu' da percorrere su ogni contatto.
-
-        Anche l'ordine lo decidi tu, nello stesso elenco: Alt con freccia su e Alt con freccia giu' spostano il campo selezionato, e la voce ti dice in che posizione e' finito. Metti per primo quello che ti fa decidere - di solito lo stato, oppure il reparto se i nominativi si assomigliano - cosi' lo trovi subito dopo l'interno e sugli altri non devi arrivare. Sono gli stessi tasti dell'elenco dei codec.
+        Accanto a ogni contatto vedi nominativo, interno e stato, e poi i campi che la tua rubrica contiene: il tipo, se ci sono fax, emergenze o numeri brevi, e descrizione, reparto, collocazione, riferimento. Li decide l'importazione, in Impostazioni, scheda Rubrica: un campo che non abbini a nessuna colonna non arriva in rubrica e non compare nemmeno qui, cosi' non ti costa una freccia destra in piu' su ogni contatto. L'ordine e' sempre lo stesso: prima quello che ti fa decidere, poi quello che ti aiuta a riconoscere il contatto.
 
         Il campo non lo devi svuotare mai. Quando rispondi, quando chiudi e quando il trasferimento finisce, il cursore ci torna da solo e quello che era rimasto scritto risulta già selezionato: la prima cifra che digiti prende il posto del numero vecchio. Se invece quel numero ti serve ancora — l'interno era occupato e vuoi riprovare — non toccarlo e premi {key}: è sempre lì.
         """;
@@ -459,6 +461,29 @@ public static class HelpBook
         Se il centralino risponde di si' a qualunque interno, anche a uno che non esiste, BlindPhone se ne accorge e lo dichiara invece di mostrare tutti presenti. Un elenco che dice il falso e' peggio di un elenco che dice di non sapere, perche' ci si agisce sopra: si passerebbe una chiamata a una scrivania vuota.
 
         La verifica si ripete da sola a intervalli, un minuto per impostazione predefinita, e riparte anche ogni volta che apri l'elenco con il tasto rapido. L'intestazione dice l'ora dell'ultima verifica riuscita: se resta indietro, il centralino non sta rispondendo.
+        """;
+
+    private static string Messaggi(HotkeyProfile profile) =>
+        $"""
+        Un messaggio serve quando una telefonata sarebbe troppo: «ti passo una chiamata dell'ufficio tributi», «sei libero?», «richiama il 3491234567». Il collega lo legge sul suo telefono o sul suo programma, senza che nessuno squilli.
+
+        Per scrivere a un collega hai tre strade, e portano tutte allo stesso posto.
+
+        - Dall'elenco dei colleghi o dai contatti proposti sopra il campo di composizione: mettiti sul collega e premi {K(profile, HotkeyCommand.OpenMessages)}. Oppure apri il menu contestuale, con il tasto Applicazioni o Maiusc F10, e scegli «Invia messaggio». Lo stesso menu ha anche «Chiama».
+        - Dal campo di composizione: scrivi l'interno e premi {K(profile, HotkeyCommand.OpenMessages)}.
+        - Dal pulsante «Messaggi» nella barra della postazione, o con {K(profile, HotkeyCommand.OpenMessages)} quando non hai nessuno davanti: si apre l'elenco delle conversazioni. Scrivi un interno nel campo in alto e premi Invio per cominciarne una nuova, oppure scegli una conversazione dall'elenco e premi Invio per riaprirla.
+
+        Ogni conversazione ha la sua finestra, con il nome del collega nel titolo: con più conversazioni aperte le ritrovi con Alt Tab, e il titolo ti dice dove sei arrivato. La finestra si apre con il cursore nella casella in cui si scrive. Invio manda il messaggio; Maiusc Invio va a capo senza mandarlo. Tab porta allo storico della conversazione, che si scorre con le frecce, un messaggio per riga: prima chi l'ha scritto, poi il testo, poi l'ora. La finestra ha anche il pulsante «Chiama», per quando un messaggio non basta. Esc la chiude; la conversazione resta, e riaprendola ritrovi tutto.
+
+        Dopo ogni invio la voce dice «messaggio consegnato», oppure perché non è stato consegnato: l'interno non esiste, il collega non è raggiungibile, il centralino non inoltra i messaggi. Consegnato vuol dire che il telefono del collega l'ha ricevuto, non che qualcuno l'abbia letto.
+
+        Quando un collega ti scrive senti due note acute e la voce dice chi è e che cosa ha scritto. Il cursore non si sposta: se stavi componendo un numero, continui a scriverlo lì. Durante una telefonata la voce tace, per non coprire chi è in linea, e resta il solo segnale acustico. Il messaggio aspetta fra quelli da leggere: il pulsante «Messaggi» ne porta il numero, e l'elenco delle conversazioni mette in cima quelle con messaggi nuovi. Se hai già davanti la conversazione con quel collega, la voce legge subito il messaggio, anche durante una telefonata.
+
+        Le conversazioni durano finché BlindPhone resta aperto: chiudendo il programma si cancellano. Non vengono scritte sul disco, perché su una postazione condivisa a turni resterebbero a disposizione di chi siede dopo di te.
+
+        Se il centralino non risponde affatto senti «consegna non confermata»: il messaggio è partito, ma nessuno ha detto di averlo ricevuto. Non è un rifiuto, e riprovare di solito non serve.
+
+        Perché i messaggi arrivino serve che il centralino li inoltri. Molti lo fanno da sé; altri rispondono «il centralino non inoltra i messaggi», altri ancora non rispondono per niente, e allora la consegna resta senza conferma. Quando succede con due colleghi diversi la voce te lo fa notare, una volta: è il segno che non dipende dal telefono di qualcuno ma dal centralino, e va chiesto a chi lo amministra di abilitare i messaggi SIP fra gli interni.
         """;
 
     private static string Rubrica(HotkeyProfile profile) =>
@@ -604,7 +629,9 @@ public static class HelpBook
 
         Oltre alla voce ci sono i segnali acustici, brevi e riconoscibili: chiamata in arrivo, chiamata risposta, comando rifiutato, collegamento perduto. Passano anche quando la voce tace, che è il motivo per cui esistono. Si possono posizionare nello spazio stereo per famiglia di evento: coda a sinistra, chiamata al centro, linea a destra.
 
-        Se hai un display braille, la riga di stato viene aggiornata con la stessa informazione degli annunci, in forma compatta.
+        Se i segnali che accompagnano gli annunci ti sembrano di troppo, togli la spunta a «Riproduci i segnali acustici». Restano quelli che sono l'unica notizia di qualcosa: la suoneria, i toni di libero, di occupato e di numero inesistente, la registrazione perduta, il promemoria della chiamata in attesa e il comando rifiutato.
+
+        Se hai un display braille, la riga di stato viene aggiornata con la stessa informazione degli annunci, in forma compatta. Se ti copre la riga che stai leggendo, togli la spunta a «Aggiorna la riga di stato sul display braille»: il braille dello screen reader resta com'è. Le due spunte valgono subito, senza riavviare.
 
         Ripeti l'ultimo annuncio con {K(profile, HotkeyCommand.RepeatLastAnnouncement)}, interrompi la voce con {K(profile, HotkeyCommand.SilenceSpeech)}.
         """;
@@ -684,7 +711,7 @@ public static class HelpBook
 
         Aggiornamenti, nella scheda Diagnostica. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
-        Voce e tasti rapidi si applicano subito. Account SIP, centralino e dispositivi audio richiedono il riavvio, e viene chiesto al salvataggio: se hai una chiamata in corso rispondi No, perché riavviando cadrebbe.
+        Tutto quello che salvi vale subito, senza riavviare BlindPhone. L'unica cosa che aspetta è una modifica all'account SIP o al buffer audio fatta mentre sei in linea: per applicarla il telefono rifà la registrazione al centralino, e la chiamata cadrebbe. Te lo dice, e la applica da solo appena chiudi; subito dopo senti la nuova registrazione.
         """;
 
     /// <summary>
