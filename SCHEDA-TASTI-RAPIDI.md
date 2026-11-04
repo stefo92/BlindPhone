@@ -113,6 +113,10 @@ sola delle due linee senza che si possa dire quale.
 - Focus sull'elenco chiamate in coda — Locale: Control F10 — Globale: Control Maiusc F10
 - Apri rubrica — Locale: F6 — Globale: Control Maiusc F6
 - Apri ultime chiamate — Locale: F11 — Globale: Control Maiusc F11
+- Messaggi ai colleghi — Locale: Alt M. Sul collega evidenziato, o con un interno
+  scritto nel campo di composizione, apre la conversazione con lui; altrimenti
+  l'elenco delle conversazioni. Negli elenchi di interni il tasto Applicazioni apre
+  il menu «Chiama, Invia messaggio»
 - Torna alla chiamata attiva — Locale: Control Home — Globale: Control Maiusc Home
 - Passa al pannello successivo o precedente — Locale: Control Tab, Control Maiusc Tab
 - Impostazioni — Locale: Control virgola

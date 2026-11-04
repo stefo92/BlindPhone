@@ -76,6 +76,9 @@ public static class HelpBook
     /// <summary>Argomento della segreteria telefonica.</summary>
     public const string VoicemailTopicId = "segreteria";
 
+    /// <summary>Argomento dei messaggi istantanei ai colleghi.</summary>
+    public const string MessagesTopicId = "messaggi";
+
     /// <summary>Argomento dei link di chiamata tel:, sip: e callto:.</summary>
     public const string CallLinksTopicId = "link-di-chiamata";
 
@@ -111,6 +114,7 @@ public static class HelpBook
         Topic(DialerTopicId, "Comporre un numero o cercare un nome", Composizione(profile)),
         Topic(QueueTopicId, "La coda e lo stato agente", Coda(profile)),
         Topic(ColleaguesTopicId, "Sapere chi e' in turno", Colleghi(profile)),
+        Topic(MessagesTopicId, "Scrivere un messaggio a un collega", Messaggi(profile)),
         Topic(ContactsTopicId, "La rubrica", Rubrica(profile)),
         Topic(CallHistoryTopicId, "Le ultime chiamate", UltimeChiamate(profile)),
         Topic(VoicemailTopicId, "La segreteria telefonica", Segreteria(profile)),
@@ -457,6 +461,27 @@ public static class HelpBook
         Se il centralino risponde di si' a qualunque interno, anche a uno che non esiste, BlindPhone se ne accorge e lo dichiara invece di mostrare tutti presenti. Un elenco che dice il falso e' peggio di un elenco che dice di non sapere, perche' ci si agisce sopra: si passerebbe una chiamata a una scrivania vuota.
 
         La verifica si ripete da sola a intervalli, un minuto per impostazione predefinita, e riparte anche ogni volta che apri l'elenco con il tasto rapido. L'intestazione dice l'ora dell'ultima verifica riuscita: se resta indietro, il centralino non sta rispondendo.
+        """;
+
+    private static string Messaggi(HotkeyProfile profile) =>
+        $"""
+        Un messaggio serve quando una telefonata sarebbe troppo: «ti passo una chiamata dell'ufficio tributi», «sei libero?», «richiama il 3491234567». Il collega lo legge sul suo telefono o sul suo programma, senza che nessuno squilli.
+
+        Per scrivere a un collega hai tre strade, e portano tutte allo stesso posto.
+
+        - Dall'elenco dei colleghi o dai contatti proposti sopra il campo di composizione: mettiti sul collega e premi {K(profile, HotkeyCommand.OpenMessages)}. Oppure apri il menu contestuale, con il tasto Applicazioni o Maiusc F10, e scegli «Invia messaggio». Lo stesso menu ha anche «Chiama».
+        - Dal campo di composizione: scrivi l'interno e premi {K(profile, HotkeyCommand.OpenMessages)}.
+        - Dal pulsante «Messaggi» nella barra della postazione, o con {K(profile, HotkeyCommand.OpenMessages)} quando non hai nessuno davanti: si apre l'elenco delle conversazioni. Scrivi un interno nel campo in alto e premi Invio per cominciarne una nuova, oppure scegli una conversazione dall'elenco e premi Invio per riaprirla.
+
+        Ogni conversazione ha la sua finestra, con il nome del collega nel titolo: con più conversazioni aperte le ritrovi con Alt Tab, e il titolo ti dice dove sei arrivato. La finestra si apre con il cursore nella casella in cui si scrive. Invio manda il messaggio; Maiusc Invio va a capo senza mandarlo. Tab porta allo storico della conversazione, che si scorre con le frecce, un messaggio per riga: prima chi l'ha scritto, poi il testo, poi l'ora. La finestra ha anche il pulsante «Chiama», per quando un messaggio non basta. Esc la chiude; la conversazione resta, e riaprendola ritrovi tutto.
+
+        Dopo ogni invio la voce dice «messaggio consegnato», oppure perché non è stato consegnato: l'interno non esiste, il collega non è raggiungibile, il centralino non inoltra i messaggi. Consegnato vuol dire che il telefono del collega l'ha ricevuto, non che qualcuno l'abbia letto.
+
+        Quando un collega ti scrive senti due note acute e la voce dice chi è e che cosa ha scritto. Il cursore non si sposta: se stavi componendo un numero, continui a scriverlo lì. Durante una telefonata la voce tace, per non coprire chi è in linea, e resta il solo segnale acustico. Il messaggio aspetta fra quelli da leggere: il pulsante «Messaggi» ne porta il numero, e l'elenco delle conversazioni mette in cima quelle con messaggi nuovi. Se hai già davanti la conversazione con quel collega, la voce legge subito il messaggio, anche durante una telefonata.
+
+        Le conversazioni durano finché BlindPhone resta aperto: chiudendo il programma si cancellano. Non vengono scritte sul disco, perché su una postazione condivisa a turni resterebbero a disposizione di chi siede dopo di te.
+
+        Perché i messaggi arrivino serve che il centralino li inoltri. Molti lo fanno da sé; se ogni messaggio torna indietro con «il centralino non inoltra i messaggi», va chiesto a chi lo amministra di abilitare i messaggi SIP fra gli interni.
         """;
 
     private static string Rubrica(HotkeyProfile profile) =>

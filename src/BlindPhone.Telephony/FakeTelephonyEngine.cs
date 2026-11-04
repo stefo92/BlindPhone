@@ -304,6 +304,55 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
         RegistrationStateChanged?.Invoke(this, RegistrationState);
     }
 
+    // -----------------------------------------------------------------------
+    // Messaggi istantanei
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Dopo quanto il collega simulato risponde a un messaggio.
+    /// </summary>
+    /// <remarks>
+    /// Abbastanza per sentire prima la conferma della consegna e poi la risposta, come
+    /// succede con un collega vero; abbastanza poco da non far pensare che si sia perso.
+    /// Zero nei collaudi, che non vogliono aspettare.
+    /// </remarks>
+    public TimeSpan SimulatedReplyDelay { get; set; } = TimeSpan.FromSeconds(2);
+
+    /// <inheritdoc />
+    public event EventHandler<InstantMessageReceivedEventArgs>? InstantMessageReceived;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Dichiarati disponibili, come la conferenza: la finestra dei messaggi si impara
+    /// come il resto, e senza un centralino il solo modo di impararla è che qualcuno
+    /// risponda. Risponde il collega simulato, con una frase che dice di esserlo.
+    /// </remarks>
+    public bool SupportsInstantMessaging => true;
+
+    /// <inheritdoc />
+    public Task<InstantMessageSendResult> SendInstantMessageAsync(
+        string destination,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        _ = ReplyLaterAsync(destination);
+        return Task.FromResult(InstantMessageSendResult.Success);
+    }
+
+    private async Task ReplyLaterAsync(string destination)
+    {
+        if (SimulatedReplyDelay > TimeSpan.Zero) await Task.Delay(SimulatedReplyDelay).ConfigureAwait(false);
+
+        SimulateInstantMessage(destination, "Risposta della modalità simulata: messaggio ricevuto, nessun collega l'ha letto davvero.");
+    }
+
+    /// <summary>Simula un messaggio istantaneo arrivato da un collega.</summary>
+    /// <param name="from">Interno del mittente.</param>
+    /// <param name="text">Testo del messaggio.</param>
+    /// <param name="fromName">Nome del mittente, se noto.</param>
+    public void SimulateInstantMessage(string from, string text, string? fromName = null)
+        => InstantMessageReceived?.Invoke(this, new InstantMessageReceivedEventArgs(from, fromName, text, _clock.Now));
+
     /// <inheritdoc />
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }

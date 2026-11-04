@@ -223,6 +223,11 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
         EarconKind.PbxLinkDegraded => Sequence(pan, (349, 100), (0, 50), (294, 130)),
         EarconKind.PbxLinkRestored => Sequence(pan, (587, 70), (784, 100)),
 
+        // Messaggio da un collega: due note brevi e acute, staccate. Piu' in alto di
+        // ogni segnale della chiamata, perche' non si confonda con niente che riguardi
+        // chi e' in linea, e corto abbastanza da passare sopra una conversazione.
+        EarconKind.InstantMessageReceived => Sequence(pan, (988, 50), (0, 40), (1319, 90)),
+
         _ => Sequence(pan, (523, 60)),
     };
 

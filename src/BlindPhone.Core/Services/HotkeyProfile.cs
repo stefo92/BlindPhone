@@ -257,6 +257,17 @@ public sealed class HotkeyProfile
         AddPair(profile, HotkeyCommand.BargeIn, "Alt B");
         AddPair(profile, HotkeyCommand.OpenCallHistory, "F11");
 
+        // MESSAGGI SU ALT M, e solo locale.
+        //
+        // "M" come messaggi, con Alt come l'inclusione e la registrazione: i comandi che
+        // non riguardano la chiamata in corso. Non Control Alt M, che sta a un tasto da
+        // Control M del microfono (vedi la segreteria piu' sotto). Alt M apre una
+        // finestra e non fa partire niente, quindi una pressione sbagliata costa un Esc.
+        // Locale perche' si scrive nella finestra di BlindPhone: da un altro programma
+        // non ci sarebbe nessuna casella in cui scrivere.
+        profile.Set(new HotkeyBinding(
+            HotkeyCommand.OpenMessages, "M", HotkeyModifiers.Alt, HotkeyScope.Local));
+
         // RUBRICA SU F6, CODA SU CONTROL F10.
         //
         // La rubrica stava su F10 e la coda su F6. F10 e' pero' un tasto che Windows

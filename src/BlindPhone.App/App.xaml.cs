@@ -904,6 +904,30 @@ public partial class App : Application
             sp.GetRequiredService<IAnnouncer>(),
             sp.GetRequiredService<ILogger<VoicemailService>>()));
 
+        // MESSAGGI ISTANTANEI AI COLLEGHI.
+        //
+        // Si agganciano al motore commutabile per la stessa ragione della segreteria:
+        // le conversazioni sopravvivono al cambio di account. La finestra principale
+        // prende il servizio quando nasce, cioe' prima che il motore parta, e per
+        // questo non perde un messaggio arrivato nei primi istanti.
+        services.AddSingleton(sp => new InstantMessagingService(
+            sp.GetRequiredService<ITelephonyEngine>(),
+            sp.GetRequiredService<IAnnouncer>(),
+            sp.GetRequiredService<IContactRepository>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<ILogger<InstantMessagingService>>())
+        {
+            DigitGrouping = settings.Accessibility.DigitGrouping,
+        });
+
+        services.AddSingleton(sp => new FinestreDeiMessaggi(
+            sp.GetRequiredService<InstantMessagingService>(),
+            sp.GetRequiredService<IContactRepository>(),
+            sp.GetRequiredService<IAnnouncer>(),
+            sp.GetRequiredService<HotkeyProfile>(),
+            settingsService,
+            sp.GetRequiredService<ILogger<ChatWindow>>()));
+
         // Voce degli avvisi destinati a chi e' in linea. Distinta da quella degli
         // annunci: quella parla all'operatore e obbedisce alla sua configurazione,
         // questa parla all'interlocutore e non ha nulla da configurare.
@@ -1031,7 +1055,8 @@ public partial class App : Application
             // dell'API: un certificato gia' approvato per il centralino non va
             // riapprovato quando la stessa macchina si presenta sulla porta SIP.
             sp.GetRequiredService<CertificateTrustService>(),
-            messageWaitingLogger: sp.GetRequiredService<ILogger<SipMessageWaitingSource>>());
+            messageWaitingLogger: sp.GetRequiredService<ILogger<SipMessageWaitingSource>>(),
+            instantMessagingLogger: sp.GetRequiredService<ILogger<SipInstantMessaging>>());
     }
 
     /// <summary>

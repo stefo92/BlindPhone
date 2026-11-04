@@ -87,6 +87,7 @@ public partial class ContactsWindow : Window
     private readonly IAnnouncer _announcer;
     private readonly HotkeyProfile _hotkeys;
     private readonly PresenceMonitorService _presence;
+    private readonly FinestreDeiMessaggi _chats;
     private readonly ILogger<ContactsWindow> _log;
 
     private readonly ObservableCollection<ContactRow> _results = [];
@@ -101,6 +102,7 @@ public partial class ContactsWindow : Window
     /// <param name="announcer">Pipeline di annuncio.</param>
     /// <param name="hotkeys">Profilo di scorciatoie attivo, per la guida in linea.</param>
     /// <param name="presence">Stato degli interni: libero, occupato, fuori servizio.</param>
+    /// <param name="chats">Finestre dei messaggi, per scrivere al contatto selezionato.</param>
     /// <param name="logger">Log diagnostico.</param>
     public ContactsWindow(
         IContactRepository contacts,
@@ -109,8 +111,10 @@ public partial class ContactsWindow : Window
         IAnnouncer announcer,
         HotkeyProfile hotkeys,
         PresenceMonitorService presence,
+        FinestreDeiMessaggi chats,
         ILogger<ContactsWindow> logger)
     {
+        _chats = chats;
         _contacts = contacts;
         _calls = calls;
         _transfer = transfer;
@@ -136,6 +140,18 @@ public partial class ContactsWindow : Window
 
         ResultsGrid.ItemsSource = _results;
         ResultsGrid.SelectionChanged += OnSelectionChanged;
+
+        // Lo stesso menu degli elenchi di interni della finestra principale: chiama, o
+        // scrivi. «Chiama» fa quello che fa Invio in questa tabella.
+        MenuDellInterno.Collega(
+            ResultsGrid,
+            () => SelectedContact() is { } c && MessageNumber(c) is { } numero
+                ? new Interno(numero, c.NameOrDescription)
+                : null,
+            _ => CallSelectedAsync(),
+            interno => _chats.Show(interno.Number, interno.Name),
+            "Invio",
+            () => "Alt+M");
 
         _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _searchTimer.Tick += async (_, _) =>
@@ -587,6 +603,43 @@ public partial class ContactsWindow : Window
             _announcer.Announce(Announcement.CommandResponse("Chiamata non riuscita", DateTimeOffset.Now));
         }
     }
+
+    private void OnMessageClick(object sender, RoutedEventArgs e) => MessageSelected();
+
+    /// <summary>
+    /// Apre la conversazione a messaggi con il contatto selezionato.
+    /// </summary>
+    /// <remarks>
+    /// La rubrica resta aperta, al contrario di quando si chiama: chi scrive a un collega
+    /// spesso cerca subito dopo il prossimo, e la ricerca fatta non va persa.
+    /// </remarks>
+    private void MessageSelected()
+    {
+        var contact = SelectedContact();
+
+        if (contact is null || MessageNumber(contact) is not { } numero)
+        {
+            _announcer.Announce(Announcement.CommandResponse(
+                "Il contatto selezionato non ha un numero", DateTimeOffset.Now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        _chats.Show(numero, contact.NameOrDescription);
+    }
+
+    /// <summary>
+    /// Il numero a cui scrivere: l'interno se c'è, altrimenti il numero principale.
+    /// </summary>
+    /// <remarks>
+    /// I messaggi viaggiano fra telefoni dello stesso centralino, quindi l'interno viene
+    /// prima: il numero principale di un collega è spesso la linea diretta dall'esterno,
+    /// che il centralino non sa a quale telefono consegnare.
+    /// </remarks>
+    private static string? MessageNumber(Contact contact)
+        => contact.ExtensionNumber is { Length: > 0 } interno
+            ? interno
+            : contact.PrimaryNumber is { Length: > 0 } numero ? numero : null;
 
     private async Task UseAsTransferDestinationAsync()
     {

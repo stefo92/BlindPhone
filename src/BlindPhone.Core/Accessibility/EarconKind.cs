@@ -115,6 +115,15 @@ public enum EarconKind
 
     /// <summary>Il collegamento con il centralino è tornato disponibile.</summary>
     PbxLinkRestored,
+
+    /// <summary>È arrivato un messaggio istantaneo da un collega.</summary>
+    /// <remarks>
+    /// Accompagna l'annuncio del messaggio, e durante una conversazione ne prende il
+    /// posto: la voce tace per non coprire chi è in linea, il suono dice che c'è
+    /// qualcosa da leggere appena si riaggancia. Sta a destra, dalla parte dei colleghi
+    /// e del trasferimento, lontano dalla coda.
+    /// </remarks>
+    InstantMessageReceived,
 }
 
 /// <summary>Famiglie di earcon, usate per il posizionamento stereo.</summary>
@@ -161,7 +170,8 @@ public static class EarconCategoryExtensions
             or EarconKind.ConferenceStarted
             or EarconKind.ConferenceEnded
             or EarconKind.TransferSucceeded
-            or EarconKind.TransferFailed => EarconCategory.LineControl,
+            or EarconKind.TransferFailed
+            or EarconKind.InstantMessageReceived => EarconCategory.LineControl,
 
         EarconKind.RegistrationLost
             or EarconKind.RegistrationRestored

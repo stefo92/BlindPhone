@@ -53,6 +53,8 @@ public sealed class FinestreInAltTabTests
         "CallHistoryWindow",
         "HelpWindow",
         "ContactsWindow",
+        "MessagesWindow",
+        "ChatWindow",
     ];
 
     private static string Xaml(string finestra)

@@ -118,6 +118,7 @@ public sealed class InterruttoreDeiSegnaliTests
             EarconKind.RegistrationRestored,
             EarconKind.PbxLinkDegraded,
             EarconKind.PbxLinkRestored,
+            EarconKind.InstantMessageReceived,
         ];
 
         foreach (var kind in Enum.GetValues<EarconKind>())

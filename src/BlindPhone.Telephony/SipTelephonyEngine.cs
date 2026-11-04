@@ -72,6 +72,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private readonly ILogger<SipPresenceSource> _presenceLogger;
     private readonly ILogger<SipOptionsProbe> _probeLogger;
     private readonly ILogger<SipMessageWaitingSource> _messageWaitingLogger;
+    private readonly ILogger<SipInstantMessaging> _instantMessagingLogger;
 
     private readonly ConcurrentDictionary<string, CallContext> _calls = new();
 
@@ -79,6 +80,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private SipPresenceSource? _presenceSource;
     private SipOptionsProbe? _optionsProbe;
     private SipMessageWaitingSource? _messageWaiting;
+    private SipInstantMessaging? _instantMessaging;
     private SIPRegistrationUserAgent? _registration;
     private SipRegistrationState _registrationState;
     private int _callCounter;
@@ -168,6 +170,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// rifiutato senza appello.
     /// </param>
     /// <param name="messageWaitingLogger">Log della segreteria telefonica.</param>
+    /// <param name="instantMessagingLogger">Log dei messaggi istantanei.</param>
     public SipTelephonyEngine(
         SipAccountOptions account,
         NAudioEngine? audioEngine = null,
@@ -178,7 +181,8 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         ILogger<SipPresenceSource>? presenceLogger = null,
         ILogger<SipOptionsProbe>? probeLogger = null,
         CertificateTrustService? certificateTrust = null,
-        ILogger<SipMessageWaitingSource>? messageWaitingLogger = null)
+        ILogger<SipMessageWaitingSource>? messageWaitingLogger = null,
+        ILogger<SipInstantMessaging>? instantMessagingLogger = null)
     {
         _account = account;
         _audioEngine = audioEngine;
@@ -190,6 +194,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _presenceLogger = presenceLogger ?? NullLogger<SipPresenceSource>.Instance;
         _probeLogger = probeLogger ?? NullLogger<SipOptionsProbe>.Instance;
         _messageWaitingLogger = messageWaitingLogger ?? NullLogger<SipMessageWaitingSource>.Instance;
+        _instantMessagingLogger = instantMessagingLogger ?? NullLogger<SipInstantMessaging>.Instance;
         _registrationState = new SipRegistrationState(RegistrationStatus.Unregistered, account.Name);
     }
 
@@ -450,6 +455,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         _messageWaiting = new SipMessageWaitingSource(_transport, _account, _messageWaitingLogger, () => CurrentProxy);
         _messageWaiting.SummaryReceived += (_, stato) =>
             MessageWaitingChanged?.Invoke(this, new MessageWaitingEventArgs(_account.Name, stato, _clock.Now));
+
+        // I messaggi dei colleghi si ascoltano dal primo istante, come la segreteria: un
+        // collega puo' scrivere prima ancora che la registrazione sia confermata, se il
+        // centralino ha in memoria l'indirizzo della sessione precedente.
+        _instantMessaging = new SipInstantMessaging(
+            _transport, _account, _clock, _instantMessagingLogger, () => CurrentProxy);
+        _instantMessaging.MessageReceived += (_, messaggio) => InstantMessageReceived?.Invoke(this, messaggio);
 
         StartRegistration();
     }
@@ -1021,6 +1033,9 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         // trasporto non partirebbe.
         _messageWaiting?.Dispose();
         _messageWaiting = null;
+
+        _instantMessaging?.Dispose();
+        _instantMessaging = null;
 
         if (_registration is not null)
         {
@@ -2886,6 +2901,30 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public bool IsSignallingEncrypted => _account.Transport == SipTransportKind.Tls;
+
+    // -----------------------------------------------------------------------
+    // Messaggi istantanei
+    // -----------------------------------------------------------------------
+
+    /// <inheritdoc />
+    public event EventHandler<InstantMessageReceivedEventArgs>? InstantMessageReceived;
+
+    /// <inheritdoc />
+    public bool SupportsInstantMessaging => true;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Prima dell'avvio, o dopo l'arresto, non c'e' un trasporto da cui far partire il
+    /// messaggio: lo si dice come esito, con la stessa frase di quando la postazione non
+    /// e' collegata, invece di sollevare.
+    /// </remarks>
+    public Task<InstantMessageSendResult> SendInstantMessageAsync(
+        string destination,
+        string text,
+        CancellationToken cancellationToken)
+        => _instantMessaging is { } canale
+            ? canale.SendAsync(destination, text, cancellationToken)
+            : Task.FromResult(InstantMessageSendResult.Failure(InstantMessageTexts.NotSupported));
 
     // -----------------------------------------------------------------------
     // Ausiliari
