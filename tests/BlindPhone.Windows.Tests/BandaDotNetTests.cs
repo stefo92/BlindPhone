@@ -66,6 +66,7 @@ public sealed class BandaDotNetTests
         "System.Speech",
         "System.DirectoryServices.Protocols",
         "System.Security.Cryptography.ProtectedData",
+        "System.Security.Cryptography.Pkcs",
         "Microsoft.Data.Sqlite.Core",
     ];
 

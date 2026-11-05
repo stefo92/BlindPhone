@@ -39,8 +39,16 @@
     <!-- Banda del motore di esecuzione. Una sola: .NET 10, LTS. -->
     <BandaDotNet Condition="'$(BandaDotNet)' == ''">net10.0</BandaDotNet>
 
-    <!-- Pacchetti versionati insieme al motore di esecuzione: seguono la banda. -->
-    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.12</BandaPacchetti>
+    <!--
+      Pacchetti versionati insieme al motore di esecuzione: seguono la banda.
+
+      La 10.0.13 e' il rilascio di sicurezza di ottobre 2026: corregge due difetti di
+      negazione del servizio in System.Security.Cryptography.Pkcs (CVE-2026-84008,
+      gravita' alta, e CVE-2026-70162, moderata) che la 10.0.12 ancora conteneva. E'
+      anche il motore di esecuzione che accompagna l'SDK 10.0.402, quindi pacchetti e
+      runtime pubblicato restano sulla stessa correzione.
+    -->
+    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.13</BandaPacchetti>
   </PropertyGroup>
 
   <PropertyGroup>
