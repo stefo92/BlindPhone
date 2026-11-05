@@ -2716,7 +2716,7 @@
                         <Label Target="{Binding ElementName=UpdateServerUrl}" Content="I_ndirizzo della cartella degli aggiornamenti" />
                         <TextBox x:Name="UpdateServerUrl"
                                  AutomationProperties.Name="Indirizzo della cartella degli aggiornamenti"
-                                 AutomationProperties.HelpText="Per esempio ftps://aggiornamenti.esempio.it/blindphone/. Deve essere una cartella e finire con la barra. Usa ftps se il server lo consente: su ftp semplice la password e il pacchetto viaggiano in chiaro." />
+                                 AutomationProperties.HelpText="Per esempio ftps://aggiornamenti.esempio.it/blindphone/. Deve essere una cartella e finire con la barra. Serve ftps: su ftp semplice il controllo viene rifiutato, perche' la password e il pacchetto viaggerebbero in chiaro." />
 
                         <Label Target="{Binding ElementName=UpdateUsername}" Content="_Utente del server (vuoto per accesso anonimo)" />
                         <TextBox x:Name="UpdateUsername"
