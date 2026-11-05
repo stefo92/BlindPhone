@@ -227,4 +227,4 @@ I backup con estensioni non previste - punto bkp, punto dmp, punto backup o ness
 # BlindPhone la confronta con quella del file scaricato e rifiuta l'aggiornamento
 # se non corrisponde: se il pacchetto viene ricostruito, questa riga va rifatta.
 # La scrive tools\crea-installatore.ps1: non modificarla a mano.
-SHA256: 76671BB82EBB84E4AF26B57808BD021C42F9243AB24F7F19093B1462045C150A
+SHA256: 5C5F7123B54D7D1947B6A95FE85C37BB508802BFC314EF44789884F571E5B95F
