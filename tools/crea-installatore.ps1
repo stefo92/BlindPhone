@@ -15,9 +15,17 @@
             wix extension add -g WixToolset.Util.wixext/5.0.2
 
 .PARAMETER Versione
-    Versione del pacchetto, nella forma X.Y.Z. Se omessa si legge da
-    Directory.Build.props, cosi' che i binari e il pacchetto non possano
+    Versione del pacchetto, nella forma X.Y.Z oppure X.Y.Z.W. Se omessa si legge
+    da Directory.Build.props, cosi' che i binari e il pacchetto non possano
     divergere.
+
+    Il quarto numero serve alle correzioni di una versione gia' pubblicata, come
+    la 1.0.20.1. L'installatore di Windows lo ignora quando confronta due
+    versioni, quindi per lui la 1.0.20.1 e' uguale alla 1.0.20: la sostituisce
+    lo stesso perche' il pacchetto ammette gli aggiornamenti alla stessa versione
+    (AllowSameVersionUpgrades in installer\BlindPhone.wxs). Il controllo degli
+    aggiornamenti di BlindPhone invece lo legge, e propone la 1.0.20.1 a chi ha
+    la 1.0.20.
 
 .PARAMETER Architettura
     Architettura del processore della postazione: x64 (predefinita) oppure arm64.
@@ -127,8 +135,8 @@ if ([string]::IsNullOrWhiteSpace($Versione)) {
 $etichetta = ($xml.Project.PropertyGroup.InformationalVersion | Where-Object { $_ }) | Select-Object -First 1
 if ([string]::IsNullOrWhiteSpace($etichetta)) { $etichetta = $Versione }
 
-if ($Versione -notmatch '^\d+\.\d+\.\d+$') {
-    throw "Versione non valida: '$Versione'. L'installatore di Windows accetta la sola forma X.Y.Z."
+if ($Versione -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
+    throw "Versione non valida: '$Versione'. L'installatore di Windows accetta le sole forme X.Y.Z e X.Y.Z.W."
 }
 
 Write-Host "BlindPhone $etichetta (versione del pacchetto $Versione)" -ForegroundColor Cyan
