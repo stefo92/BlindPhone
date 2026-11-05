@@ -46,8 +46,8 @@ public static class UpdateSignature
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>QUESTA È LA RIGA DA RIEMPIRE AL PRIMO RILASCIO FIRMATO.</b> Finché resta
-    /// vuota nessun aggiornamento automatico viene installato: non è un ripiego
+    /// <b>Generata il 5 novembre 2026</b>, curva P-256. Se questa costante fosse
+    /// vuota nessun aggiornamento automatico verrebbe installato: non è un ripiego
     /// prudente ma il comportamento corretto, perché l'alternativa — accettare un
     /// pacchetto non firmato — è esattamente la falla che questa classe chiude. Su una
     /// postazione in quello stato l'aggiornamento si fa a mano, scaricando il
@@ -73,7 +73,8 @@ public static class UpdateSignature
     /// vanno aggiornate a mano una volta.
     /// </para>
     /// </remarks>
-    public const string PublicKeySpki = "";
+    public const string PublicKeySpki =
+        "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEGWtpjP2sIiSeuEHciAMv4ncvUk0iVbqaoK4sGF1oj4DSfx98P8rPX2eRyeVWXOj1OIXVyZnHlRd+JdAP//KPHQ==";
 
     /// <summary>Estensione del file che porta la firma di un pacchetto.</summary>
     public const string SignatureExtension = ".sig";
