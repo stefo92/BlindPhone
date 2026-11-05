@@ -824,7 +824,7 @@ public partial class MainWindow : Window
             var finestra = new UpdateWindow(
                 CreateUpdateService(),
                 esito,
-                InstalledVersion().ToString(3),
+                UpdateCatalog.Describe(InstalledVersion()),
                 _announcer,
                 _serviceProvider.GetRequiredService<ILogger<UpdateWindow>>())
             {

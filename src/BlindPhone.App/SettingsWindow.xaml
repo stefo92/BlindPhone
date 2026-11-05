@@ -2472,6 +2472,61 @@
                             megabyte per turno.
                         -->
 
+                        <!-- ==================== VERSIONE, AUTORE E AGGIORNAMENTI ==================== -->
+
+                        <!--
+                            VERSIONE E AUTORE IN CAMPI DI SOLA LETTURA, NON IN TESTO.
+
+                            Un TextBlock non si raggiunge con Tab: chi non vede lo
+                            schermo dovrebbe andarlo a cercare con i comandi di
+                            esplorazione dello screen reader, proprio mentre l'assistenza
+                            al telefono gli chiede "che versione hai?". Un campo si
+                            raggiunge con Tab, si legge con le frecce e si copia.
+
+                            Il pulsante sta qui, accanto alla versione, perche' e' la
+                            domanda che viene subito dopo: "e ce n'e' una piu' recente?".
+                            Usa l'indirizzo, l'utente e la password scritti piu' sotto,
+                            nella parte Aggiornamenti, anche prima di salvarli: chi li ha
+                            appena scritti vuole sapere se funzionano.
+
+                            Senza tasto di accesso, come altri pulsanti di questa scheda:
+                            le lettere di "Cerca aggiornamenti" sono gia' tutte prese dai
+                            campi della scheda o dai pulsanti Salva, Annulla e Sblocca.
+                        -->
+
+                        <TextBlock Text="Versione e autore" FontWeight="Bold" FontSize="17" />
+
+                        <Label Target="{Binding ElementName=ProductVersionText}" Content="Versione installata" />
+                        <TextBox x:Name="ProductVersionText"
+                                 IsReadOnly="True"
+                                 IsReadOnlyCaretVisible="True"
+                                 AutomationProperties.Name="Versione di BlindPhone installata"
+                                 AutomationProperties.HelpText="E' il numero da dire all'assistenza. Fra parentesi il tipo di processore per cui e' fatto il pacchetto installato." />
+
+                        <Label Target="{Binding ElementName=AuthorText}" Content="Autore" />
+                        <TextBox x:Name="AuthorText"
+                                 IsReadOnly="True"
+                                 IsReadOnlyCaretVisible="True"
+                                 AutomationProperties.Name="Autore di BlindPhone e indirizzo di posta"
+                                 AutomationProperties.HelpText="Licenza GPL-3.0-only. Il testo completo e' nella guida, all'argomento Licenza e autore." />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button x:Name="CheckUpdatesButton" Content="Cerca aggiornamenti"
+                                    MinWidth="220"
+                                    AutomationProperties.Name="Cerca subito sul server una versione piu' recente di BlindPhone"
+                                    AutomationProperties.HelpText="Usa l'indirizzo, l'utente e la password scritti piu' sotto, nella parte Aggiornamenti, anche se non li hai ancora salvati. Se trova una versione nuova apre la finestra con le novita': non scarica e non installa niente finche' non lo chiedi tu."
+                                    Click="OnCheckUpdatesClick" />
+                        </StackPanel>
+
+                        <TextBlock x:Name="CheckUpdatesResult"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,0"
+                                   Text=""
+                                   AutomationProperties.Name="Esito della ricerca degli aggiornamenti"
+                                   AutomationProperties.LiveSetting="Polite" />
+
+                        <Separator Margin="0,24,0,16" />
+
                         <TextBlock TextWrapping="Wrap" Margin="0,0,0,12" Opacity="0.85"
                                    Text="Da qui si alza il dettaglio del registro mentre si sta cercando di capire un guasto, si leggono i contatori del percorso audio e si prepara il riepilogo da mandare all'assistenza. Il registro si trova nella cartella dati di BlindPhone." />
 

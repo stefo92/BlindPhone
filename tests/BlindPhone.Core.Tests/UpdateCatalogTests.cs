@@ -107,6 +107,28 @@ public sealed class UpdateCatalogTests
     }
 
     [Fact]
+    public void UnaCorrezioneAQuattroNumeriSiProponeSopraLaVersioneCheCorregge()
+    {
+        // L'assembly dichiara sempre quattro numeri: la 1.0.20 installata si presenta
+        // come 1.0.20.0. La 1.0.20.1 sul server e' piu' recente, la 1.0.20 no.
+        string[] cartella = ["BlindPhone-1.0.20-x64.msi", "BlindPhone-1.0.20.1-x64.msi"];
+
+        var trovato = UpdateCatalog.FindNewer(cartella, new Version(1, 0, 20, 0));
+
+        Assert.NotNull(trovato);
+        Assert.Equal(new Version(1, 0, 20, 1), trovato.Version);
+        Assert.Equal("BlindPhone-1.0.20.1-x64.txt", trovato.NotesFileName);
+    }
+
+    [Fact]
+    public void UnaCorrezioneGiaInstallataNonSiPropone()
+    {
+        string[] cartella = ["BlindPhone-1.0.20-x64.msi", "BlindPhone-1.0.20.1-x64.msi"];
+
+        Assert.Null(UpdateCatalog.FindNewer(cartella, new Version(1, 0, 20, 1)));
+    }
+
+    [Fact]
     public void IlPercorsoDavantiAlNomeNonDisturba()
     {
         // Alcuni server elencano la cartella con il percorso completo.
@@ -205,5 +227,17 @@ public sealed class UpdateCatalogTests
 
         Assert.Equal("1.2", due.DisplayVersion);
         Assert.Equal("1.2.3", tre.DisplayVersion);
+    }
+
+    [Fact]
+    public void IlQuartoNumeroSiDiceSoloQuandoCe()
+    {
+        // Tagliato a tre numeri, «installata 1.0.20, disponibile 1.0.20» sarebbe la
+        // frase della finestra che chiede di aggiornare alla 1.0.20.1.
+        var correzione = new AvailableUpdate(new Version(1, 0, 20, 1), "a.msi", "a.txt");
+
+        Assert.Equal("1.0.20.1", correzione.DisplayVersion);
+        Assert.Equal("1.0.20", UpdateCatalog.Describe(new Version(1, 0, 20, 0)));
+        Assert.Equal("1.0.20.1", UpdateCatalog.Describe(new Version(1, 0, 20, 1)));
     }
 }

@@ -1276,11 +1276,15 @@ public partial class App : Application
 
     /// <summary>Versione di BlindPhone nella forma numerica, quella delle statistiche.</summary>
     /// <remarks>
-    /// Tre numeri e non la versione «1.0.18 beta» che si legge nella finestra: il
-    /// catalogo accetta solo cifre e punti.
+    /// Numeri e punti, e non la versione «1.0.18 beta» che si legge nella finestra: il
+    /// catalogo accetta solo cifre e punti. Il quarto numero c'è solo quando non è
+    /// zero: una correzione come la 1.0.20.1 non deve confondersi con la 1.0.20.
     /// </remarks>
     private static string TelemetryVersion()
-        => (typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0)).ToString(3);
+    {
+        var versione = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
+        return versione.Revision > 0 ? versione.ToString(4) : versione.ToString(3);
+    }
 
     /// <summary>Quale screen reader sta girando, nelle voci del catalogo.</summary>
     /// <remarks>

@@ -137,7 +137,7 @@ public partial class BetaNoticeWindow : Window
     /// </summary>
     /// <remarks>
     /// Si prende quella informativa, che porta l'etichetta «beta», e non quella
-    /// numerica dell'assembly: l'installatore di Windows accetta solo tre numeri, e
+    /// numerica dell'assembly: l'installatore di Windows accetta solo numeri, e
     /// mostrare "1.0.0" in un avviso che parla di versione di prova toglierebbe
     /// all'avviso proprio la parola che conta.
     /// </remarks>

@@ -8,9 +8,7 @@ namespace BlindPhone.Core.Services;
 public sealed record AvailableUpdate(Version Version, string InstallerFileName, string NotesFileName)
 {
     /// <summary>Versione nella forma in cui si mostra e si pronuncia.</summary>
-    public string DisplayVersion => Version.Build > 0
-        ? $"{Version.Major}.{Version.Minor}.{Version.Build}"
-        : $"{Version.Major}.{Version.Minor}";
+    public string DisplayVersion => UpdateCatalog.Describe(Version);
 }
 
 /// <summary>Contenuto del file di testo che accompagna un pacchetto.</summary>
@@ -174,6 +172,40 @@ public static class UpdateCatalog
         if (parti.Length is < 2 or > 4) return null;
 
         return Version.TryParse(numeri, out var versione) ? versione : null;
+    }
+
+    /// <summary>
+    /// Versione nella forma in cui si mostra e si pronuncia.
+    /// </summary>
+    /// <param name="version">Versione da descrivere.</param>
+    /// <returns>
+    /// <c>1.2</c>, <c>1.2.3</c> oppure <c>1.2.3.4</c>: gli zeri in coda non si dicono.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Il quarto numero si dice quando c'è.</b> Una versione come <c>1.0.20.1</c> è
+    /// una correzione della <c>1.0.20</c>, e tagliarla a tre numeri farebbe leggere
+    /// «installata 1.0.20, disponibile 1.0.20» proprio nella finestra che chiede se
+    /// aggiornare: due versioni uguali, e nessuna ragione apparente per farlo.
+    /// </para>
+    /// <para>
+    /// Sta qui e non in ogni finestra perché la versione installata e quella trovata
+    /// sul server si leggono una accanto all'altra, e devono essere dette nello stesso
+    /// modo.
+    /// </para>
+    /// </remarks>
+    public static string Describe(Version version)
+    {
+        ArgumentNullException.ThrowIfNull(version);
+
+        if (version.Revision > 0)
+        {
+            return $"{version.Major}.{version.Minor}.{Math.Max(version.Build, 0)}.{version.Revision}";
+        }
+
+        return version.Build > 0
+            ? $"{version.Major}.{version.Minor}.{version.Build}"
+            : $"{version.Major}.{version.Minor}";
     }
 
     /// <summary>Nome del file delle novità che accompagna un pacchetto.</summary>
