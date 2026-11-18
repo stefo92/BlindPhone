@@ -197,6 +197,135 @@ public sealed class EncryptedSqliteTests : IDisposable
         Assert.True(EncryptedSqlite.IsPlaintext(file));
     }
 
+    /// <summary>Chiave degli archivi in <c>ArchiviSqlCipher4</c>.</summary>
+    /// <remarks>
+    /// Ha la forma delle chiavi vere, 32 byte casuali in Base64 (vedi
+    /// <c>SettingsService.GetOrCreateDatabaseKey</c>), con dentro <c>+</c>, <c>/</c>
+    /// e <c>=</c>: se la chiave arrivasse al motore con byte diversi da quelli di
+    /// allora, gli archivi non si aprirebbero.
+    /// </remarks>
+    private const string ChiaveArchiviDellaVersionePrecedente = "0McDTnkjn+63p/pMQzONSkgAW2L/fMy79s4AaOZPLLc=";
+
+    /// <summary>
+    /// Gli archivi cifrati dalla 1.0.20 si aprono con tutto il contenuto, e ci si
+    /// continua a scrivere.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// È la prova che il cambio di motore - da <c>SQLitePCLRaw.bundle_e_sqlcipher</c>
+    /// 2.1.11 (SQLite 3.39.2, SQLCipher 4.5.2) a SQLite3 Multiple Ciphers - non costa a
+    /// nessuna postazione la rubrica o il registro delle chiamate. Se fallisse,
+    /// <see cref="EncryptedSqlite.Open"/> scambierebbe ogni archivio esistente per uno
+    /// con la chiave sbagliata, lo sposterebbe da parte e ripartirebbe vuoto.
+    /// </para>
+    /// <para>
+    /// I due file sono stati scritti dall'<c>EncryptedSqlite</c> della 1.0.20 con il
+    /// suo motore, una volta sola, e coprono le due strade per cui un archivio è
+    /// diventato cifrato: nato cifrato, oppure nato in chiaro e convertito al primo
+    /// avvio da <c>sqlcipher_export</c>. Contengono la tabella <c>contatti</c> con 300
+    /// righe inventate, «Contatto di prova NNN - Niccolò Città» e «+39 06 0NNN», e un
+    /// indice sul nome: tredici pagine, quindi non solo la prima da decifrare.
+    /// </para>
+    /// <para>
+    /// <b>Non vanno rigenerati.</b> Riscritti con il motore di adesso, la prova
+    /// passerebbe sempre e non direbbe più niente sugli archivi che stanno sulle
+    /// postazioni.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("nato-cifrato-1.0.20.db")]
+    [InlineData("convertito-da-chiaro-1.0.20.db")]
+    public void UnArchivioCifratoDallaVersionePrecedenteSiApreConTuttoIlContenuto(string nome)
+    {
+        var file = Percorso(nome);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "ArchiviSqlCipher4", nome), file);
+
+        var (connessione, cifrato, azzerato) = EncryptedSqlite.Open(
+            file, ChiaveArchiviDellaVersionePrecedente, NullLogger.Instance);
+
+        using (connessione)
+        {
+            Assert.True(cifrato);
+            Assert.False(azzerato);
+
+            // integrity_check legge e verifica ogni pagina, non solo l'intestazione.
+            Assert.Equal("ok", Scalare(connessione, "PRAGMA integrity_check;"));
+            Assert.Equal(300L, Scalare(connessione, "SELECT count(*) FROM contatti;"));
+            Assert.Equal(
+                "Contatto di prova 001 - Niccolò Città | +39 06 0001",
+                Scalare(connessione, "SELECT nome || ' | ' || numero FROM contatti WHERE id = 1;"));
+            Assert.Equal(
+                "Contatto di prova 300 - Niccolò Città | +39 06 0300",
+                Scalare(connessione, "SELECT nome || ' | ' || numero FROM contatti WHERE id = 300;"));
+
+            using var inserisci = connessione.CreateCommand();
+            inserisci.CommandText = "INSERT INTO contatti (nome, numero) VALUES ('Contatto scritto dopo il cambio di motore', '+39 06 0301');";
+            inserisci.ExecuteNonQuery();
+        }
+
+        SqliteConnection.ClearAllPools();
+
+        var (riaperto, cifrato2, azzerato2) = EncryptedSqlite.Open(
+            file, ChiaveArchiviDellaVersionePrecedente, NullLogger.Instance);
+
+        using (riaperto)
+        {
+            Assert.True(cifrato2);
+            Assert.False(azzerato2);
+            Assert.Equal("ok", Scalare(riaperto, "PRAGMA integrity_check;"));
+            Assert.Equal(301L, Scalare(riaperto, "SELECT count(*) FROM contatti;"));
+        }
+
+        Assert.False(EncryptedSqlite.IsPlaintext(file));
+        Assert.Empty(Directory.GetFiles(_cartella, "*.non-leggibile-*"));
+    }
+
+    [Fact]
+    public void UnArchivioInChiaroConPagineDiAltraMisuraVieneConvertitoLoStesso()
+    {
+        var file = Percorso("pagine-piccole.db");
+
+        using (var vecchio = new SqliteConnection($"Data Source={file}"))
+        {
+            vecchio.Open();
+
+            using var pagine = vecchio.CreateCommand();
+            pagine.CommandText = "PRAGMA page_size = 1024;";
+            pagine.ExecuteNonQuery();
+
+            Scrivi(vecchio, "Rossi Mario");
+        }
+
+        SqliteConnection.ClearAllPools();
+
+        // Il formato SQLCipher 4 vuole pagine da 4096 byte: una copia con le pagine
+        // dell'originale verrebbe cifrata e poi non si riaprirebbe.
+        var (connessione, cifrato, azzerato) = EncryptedSqlite.Open(file, Chiave, NullLogger.Instance);
+
+        using (connessione)
+        {
+            Assert.True(cifrato);
+            Assert.False(azzerato);
+            Assert.Equal(["Rossi Mario"], Leggi(connessione));
+            Assert.Equal(4096L, Scalare(connessione, "PRAGMA page_size;"));
+        }
+    }
+
+    [Fact]
+    public void IlMotoreNonEPiuIlSqliteDel2022()
+    {
+        using var connessione = Apri(Percorso("motore.db"), Chiave);
+
+        // sqlite3mc_version esiste solo in SQLite3 Multiple Ciphers: se un altro
+        // pacchetto riportasse dentro un motore diverso, lo si vedrebbe qui.
+        Assert.StartsWith("SQLite3 Multiple Ciphers", (string)Scalare(connessione, "SELECT sqlite3mc_version();")!);
+
+        // CVE-2025-6965 riguarda tutte le versioni prima della 3.50.2. Il motore
+        // della 1.0.20 era la 3.39.2.
+        var versione = Version.Parse((string)Scalare(connessione, "SELECT sqlite_version();")!);
+        Assert.True(versione >= new Version(3, 50, 2), $"SQLite {versione} e' anteriore alla 3.50.2.");
+    }
+
     // -----------------------------------------------------------------------
 
     private string Percorso(string nome) => Path.Combine(_cartella, nome);
@@ -224,6 +353,14 @@ public sealed class EncryptedSqliteTests : IDisposable
             inserisci.Parameters.AddWithValue("$nome", valore);
             inserisci.ExecuteNonQuery();
         }
+    }
+
+    private static object? Scalare(SqliteConnection connessione, string sql)
+    {
+        using var comando = connessione.CreateCommand();
+        comando.CommandText = sql;
+
+        return comando.ExecuteScalar();
     }
 
     private static List<string> Leggi(SqliteConnection connessione)

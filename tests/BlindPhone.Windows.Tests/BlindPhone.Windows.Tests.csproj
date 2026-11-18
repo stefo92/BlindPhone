@@ -56,6 +56,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      Archivi cifrati dalla 1.0.20, con il motore che c'era allora: provano che quelli
+      gia' sulle postazioni si aprono ancora. Come sono stati fatti, e perche' non si
+      rigenerano, lo dice EncryptedSqliteTests.
+    -->
+    <None Update="ArchiviSqlCipher4\*.db" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- La variante senza MTP: la ragione per intero sta in BlindPhone.Core.Tests.csproj. -->
     <PackageReference Include="xunit.v3.mtp-off" Version="4.0.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
