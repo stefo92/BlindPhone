@@ -36,14 +36,32 @@
       chiamato chi e quando - cioe' dati personali ai sensi del GDPR, su un portatile
       che puo' essere rubato.
 
-      Si prende quindi il solo strato gestito (.Core) e gli si abbina il motore
-      SQLCipher, che cifra l'intero file con AES-256. Le due dipendenze vanno insieme:
-      aggiungere il bundle senza togliere il pacchetto completo caricherebbe due
-      provider nativi nello stesso processo, e a decidere quale vince sarebbe
-      l'ordine di inizializzazione.
+      Si prende quindi il solo strato gestito (.Core) e gli si abbina un motore che
+      cifra l'intero file con AES-256. Le due dipendenze vanno insieme: aggiungere il
+      bundle senza togliere il pacchetto completo caricherebbe due provider nativi
+      nello stesso processo, e a decidere quale vince sarebbe l'ordine di
+      inizializzazione.
+
+      IL MOTORE E' SQLITE3 MULTIPLE CIPHERS, NON PIU' SQLITEPCLRAW.BUNDLE_E_SQLCIPHER.
+
+      Fino alla 1.0.20 il motore era il bundle_e_sqlcipher di Eric Sink, che da marzo
+      2025 non esce piu': la versione 3 di SQLitePCLRaw ha smesso di distribuire
+      gratuitamente motori con la cifratura, e il pacchetto e' segnato come Legacy.
+      Dentro c'era SQLite 3.39.2 del 2022, con le vulnerabilita' corrette dopo, fra
+      cui CVE-2025-6965 (tutte le versioni prima della 3.50.2). SQLite3MC, di Ulrich
+      Telle, e' mantenuto, segue SQLite a pochi giorni dalle sue versioni e legge e
+      scrive il formato SQLCipher 4 degli archivi gia' sul disco: come, lo spiega
+      EncryptedSqlite.
+
+      Le versioni di SQLitePCLRaw.core non coincidono e va bene cosi'. Microsoft.Data.Sqlite.Core
+      10 chiede almeno la 2.1.12, il provider di SQLite3MC almeno la 3.0.2, e NuGet
+      prende la 3.0.2: nessun limite superiore, nessun conflitto. Il salto di versione
+      maggiore non tocca il codice di .core - lo dicono le note della 3.0 - e la
+      combinazione e' quella su cui girano le prove di SQLite3MC stesso. Il pacchetto
+      .Core che chiede la 3 nativamente arriva con la banda .NET 11.
     -->
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="$(BandaPacchetti)" />
-    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlcipher" Version="2.1.11" />
+    <PackageReference Include="SQLite3MC.PCLRaw.bundle" Version="2.7.1" />
 
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(BandaPacchetti)" />
     <PackageReference Include="System.DirectoryServices.Protocols" Version="$(BandaPacchetti)" />

@@ -1,10 +1,12 @@
+using System.Text;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using SQLitePCL;
 
 namespace BlindPhone.Contacts;
 
 /// <summary>
-/// Apre un archivio SQLite cifrato con SQLCipher, migrando quelli nati in chiaro.
+/// Apre un archivio SQLite cifrato nel formato SQLCipher 4, migrando quelli nati in chiaro.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -19,9 +21,25 @@ namespace BlindPhone.Contacts;
 /// tabelle e degli indici sono illeggibili, e non resta un'intestazione da cui
 /// dedurre di che archivio si tratti.
 /// </para>
+/// <para>
+/// <b>Il motore è SQLite3 Multiple Ciphers, il formato resta SQLCipher 4.</b> Fino
+/// alla 1.0.20 cifrava il motore SQLCipher di <c>SQLitePCLRaw.bundle_e_sqlcipher</c>,
+/// che non è più mantenuto. SQLite3MC sa scrivere molti formati e di suo ne
+/// sceglierebbe un altro (ChaCha20): qui viene impostato su SQLCipher 4 a ogni
+/// apertura, vedi <see cref="ApplyKey"/>, ed è l'unico modo in cui gli archivi già
+/// sulle postazioni restano leggibili.
+/// </para>
 /// </remarks>
 public static class EncryptedSqlite
 {
+    /// <summary>Dimensione delle pagine del formato SQLCipher 4.</summary>
+    /// <remarks>
+    /// Nel formato SQLCipher anche la dimensione della pagina è cifrata, quindi il
+    /// motore non la può leggere dal file e la deve sapere in anticipo: un archivio
+    /// con pagine di un'altra misura non si aprirebbe.
+    /// </remarks>
+    private const int SqlCipherPageSize = 4096;
+
     /// <summary>Intestazione di un file SQLite non cifrato.</summary>
     /// <remarks>
     /// Un file SQLCipher comincia invece con il sale di derivazione della chiave,
@@ -55,7 +73,7 @@ public static class EncryptedSqlite
 
         if (string.IsNullOrEmpty(key))
         {
-            var plain = new SqliteConnection(PlainConnectionString(databasePath));
+            var plain = new SqliteConnection(ConnectionString(databasePath));
             plain.Open();
 
             return (plain, false, false);
@@ -69,7 +87,7 @@ public static class EncryptedSqlite
                     "Archivio {File} rimasto IN CHIARO: la cifratura non e' riuscita e verra' ritentata al prossimo avvio",
                     Path.GetFileName(databasePath));
 
-                var degradato = new SqliteConnection(PlainConnectionString(databasePath));
+                var degradato = new SqliteConnection(ConnectionString(databasePath));
                 degradato.Open();
 
                 return (degradato, false, false);
@@ -102,10 +120,7 @@ public static class EncryptedSqlite
             + "Il contenuto e' recuperabile solo ripristinando il deposito dei segreti che lo ha cifrato",
             Path.GetFileName(databasePath), Path.GetFileName(scartato));
 
-        var nuovo = new SqliteConnection(ConnectionString(databasePath, key));
-        nuovo.Open();
-
-        return (nuovo, true, true);
+        return (OpenWithKey(databasePath, key), true, true);
     }
 
     /// <summary>
@@ -117,6 +132,12 @@ public static class EncryptedSqlite
     /// SQLCipher rifiuta la chiave, la connessione resta agganciata al file anche dopo
     /// <c>Dispose</c> e <c>Close</c>, e a rilasciarlo è solo il finalizzatore. Senza
     /// questa chiamata lo spostamento del file fallisce ogni volta.
+    /// </para>
+    /// <para>
+    /// Quella verifica è stata fatta con il motore della 1.0.20. Con SQLite3MC 2.7.1
+    /// la prova sulla chiave sbagliata passa anche senza la chiamata, che resta lo
+    /// stesso: costa niente, e se il comportamento tornasse il prezzo sarebbe la
+    /// rubrica di una postazione.
     /// </para>
     /// <para>
     /// Forzare la garbage collection è una cosa che di norma non si fa. Qui il codice
@@ -135,50 +156,115 @@ public static class EncryptedSqlite
     /// <summary>Prova ad aprire l'archivio con la chiave, verificando che decifri davvero.</summary>
     private static bool TryOpenWithKey(string databasePath, string key, out SqliteConnection connection)
     {
-        connection = new SqliteConnection(ConnectionString(databasePath, key));
+        SqliteConnection? candidata = null;
 
         try
         {
-            connection.Open();
+            candidata = OpenWithKey(databasePath, key);
 
-            // Open() non decifra nulla: SQLCipher verifica la chiave alla prima
+            // L'apertura non decifra nulla: la chiave si verifica alla prima
             // lettura vera. Senza questa interrogazione una chiave sbagliata
             // passerebbe inosservata fino alla prima ricerca in rubrica.
-            using var probe = connection.CreateCommand();
+            using var probe = candidata.CreateCommand();
             probe.CommandText = "SELECT count(*) FROM sqlite_master;";
             probe.ExecuteScalar();
+
+            connection = candidata;
 
             return true;
         }
         catch (SqliteException)
         {
-            connection.Dispose();
+            candidata?.Dispose();
             connection = null!;
 
             return false;
         }
     }
 
-    /// <summary>Stringa di connessione con la chiave di cifratura.</summary>
+    /// <summary>Apre l'archivio e gli applica formato e chiave di cifratura.</summary>
     /// <param name="databasePath">Percorso del file.</param>
     /// <param name="key">Chiave di cifratura.</param>
-    public static string ConnectionString(string databasePath, string key)
-        => new SqliteConnectionStringBuilder
-        {
-            DataSource = databasePath,
-            Password = key,
-            Pooling = false,
-        }.ToString();
+    private static SqliteConnection OpenWithKey(string databasePath, string key)
+    {
+        var connection = new SqliteConnection(ConnectionString(databasePath));
 
-    /// <summary>Stringa di connessione senza cifratura, per gli archivi ancora in chiaro.</summary>
+        try
+        {
+            connection.Open();
+            ApplyKey(connection, key);
+
+            return connection;
+        }
+        catch
+        {
+            connection.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Imposta il formato SQLCipher 4 e consegna la chiave al motore.
+    /// </summary>
     /// <remarks>
-    /// <b>Senza pool anche qui.</b> Ogni repository tiene una sola connessione aperta
-    /// per tutta la sessione, quindi il pool non fa risparmiare nulla; in compenso
-    /// trattiene il file aperto dopo la Dispose, e la conversione — che deve spostare
-    /// e sostituire quel file — fallirebbe a intermittenza per un handle che nessuno
-    /// sta piu' usando.
+    /// <para>
+    /// <b>Non si passa la chiave nella stringa di connessione</b>, come si faceva con
+    /// <c>Password=</c> fino alla 1.0.20. Microsoft.Data.Sqlite la consegnerebbe al
+    /// motore appena aperto il file, prima di qualunque altra istruzione, e SQLite3MC
+    /// la userebbe con il suo formato predefinito: gli archivi esistenti
+    /// risulterebbero illeggibili e, peggio, <see cref="Open"/> li scambierebbe per
+    /// archivi con la chiave sbagliata, spostandoli da parte e ripartendo vuoto.
+    /// </para>
+    /// <para>
+    /// L'ordine quindi conta: prima <c>cipher</c> e <c>legacy</c>, poi la chiave.
+    /// <c>legacy = 4</c> vuol dire SQLCipher 4 così com'è, con tutti i suoi
+    /// parametri: PBKDF2-HMAC-SHA512 a 256000 iterazioni, HMAC-SHA512 su ogni pagina,
+    /// pagine da 4096 byte e intestazione cifrata anche lei. Lo stesso formato vale
+    /// per gli archivi nuovi: una sola forma sul disco, qualunque sia l'anno in cui
+    /// l'archivio è nato, e una postazione riportata alla 1.0.20 continua ad aprirli.
+    /// </para>
+    /// <para>
+    /// La chiave passa da <c>sqlite3_key</c>, la stessa funzione che
+    /// <c>PRAGMA key</c> chiama dentro il motore, con gli stessi byte UTF-8: così
+    /// non entra mai nel testo di un'istruzione e non c'è niente da virgolettare.
+    /// </para>
     /// </remarks>
-    private static string PlainConnectionString(string databasePath)
+    private static void ApplyKey(SqliteConnection connection, string key)
+    {
+        SetSqlCipher4(connection);
+
+        var rc = raw.sqlite3_key(connection.Handle, Encoding.UTF8.GetBytes(key));
+        SqliteException.ThrowExceptionForRC(rc, connection.Handle);
+    }
+
+    /// <summary>Sceglie il formato SQLCipher 4 per le cifrature che seguono.</summary>
+    /// <remarks>
+    /// Va eseguita prima della chiave e fuori da ogni transazione: queste istruzioni
+    /// non si annullano con un rollback.
+    /// </remarks>
+    private static void SetSqlCipher4(SqliteConnection connection)
+    {
+        using var formato = connection.CreateCommand();
+        formato.CommandText = "PRAGMA cipher = 'sqlcipher'; PRAGMA legacy = 4;";
+        formato.ExecuteNonQuery();
+    }
+
+    /// <summary>Stringa di connessione, senza chiave: la chiave la applica <see cref="ApplyKey"/>.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Senza pool.</b> Ogni repository tiene una sola connessione aperta per tutta
+    /// la sessione, quindi il pool non fa risparmiare nulla; in compenso trattiene il
+    /// file aperto dopo la Dispose, e la conversione — che deve spostare e sostituire
+    /// quel file — fallirebbe a intermittenza per un handle che nessuno sta piu'
+    /// usando.
+    /// </para>
+    /// <para>
+    /// C'è una ragione in più, adesso che la chiave si applica dopo l'apertura: una
+    /// connessione tornata nel pool la porterebbe con sé, e la successiva apertura
+    /// dello stesso file - anche senza chiave - la ritroverebbe già applicata.
+    /// </para>
+    /// </remarks>
+    private static string ConnectionString(string databasePath)
         => new SqliteConnectionStringBuilder
         {
             DataSource = databasePath,
@@ -219,8 +305,8 @@ public static class EncryptedSqlite
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Si scrive prima una copia cifrata a fianco, la si verifica riaprendola con la
-    /// chiave, e solo allora si sostituisce l'originale. L'ordine conta: convertire
+    /// Si scrive prima una copia a fianco, la si cifra, la si verifica riaprendola con
+    /// la chiave, e solo allora si sostituisce l'originale. L'ordine conta: convertire
     /// sul posto e interrompersi a metà lascerebbe un operatore senza rubrica, cioè
     /// senza il modo in cui trasferisce le chiamate.
     /// </para>
@@ -236,25 +322,42 @@ public static class EncryptedSqlite
 
         try
         {
-            foreach (var residuo in new[] { temporaneo, temporaneo + "-wal", temporaneo + "-shm" })
+            // Anche il giornale: e' quello della cifratura della copia, e se un
+            // tentativo precedente si e' interrotto a meta' verrebbe riapplicato
+            // alla copia nuova.
+            foreach (var residuo in new[] { temporaneo, temporaneo + "-journal", temporaneo + "-wal", temporaneo + "-shm" })
             {
                 if (File.Exists(residuo)) File.Delete(residuo);
             }
 
-            using (var origine = new SqliteConnection(PlainConnectionString(databasePath)))
+            using (var origine = new SqliteConnection(ConnectionString(databasePath)))
             {
                 origine.Open();
 
-                // sqlcipher_export copia schema e dati dentro l'archivio collegato,
-                // che essendo stato aperto con una chiave nasce gia' cifrato.
-                using var command = origine.CreateCommand();
-                command.CommandText = "ATTACH DATABASE $file AS cifrato KEY $chiave; SELECT sqlcipher_export('cifrato'); DETACH DATABASE cifrato;";
-                command.Parameters.AddWithValue("$file", temporaneo);
-                command.Parameters.AddWithValue("$chiave", key);
-                command.ExecuteNonQuery();
+                // VACUUM INTO scrive a fianco una copia coerente di schema e dati,
+                // passando dal motore e non dal file system. La copia ha le pagine
+                // della misura che il formato SQLCipher 4 pretende, qualunque fosse
+                // quella dell'originale.
+                using var copia = origine.CreateCommand();
+                copia.CommandText = $"PRAGMA page_size = {SqlCipherPageSize}; VACUUM INTO $file;";
+                copia.Parameters.AddWithValue("$file", temporaneo);
+                copia.ExecuteNonQuery();
             }
 
-            var tabelle = CountTables(ConnectionString(temporaneo, key));
+            using (var lavoro = new SqliteConnection(ConnectionString(temporaneo)))
+            {
+                lavoro.Open();
+
+                // La copia e' ancora in chiaro, e la si cifra sul posto: rekey su un
+                // archivio senza chiave lo cifra. Prende il posto di sqlcipher_export,
+                // che SQLite3MC non ha.
+                SetSqlCipher4(lavoro);
+
+                var rc = raw.sqlite3_rekey(lavoro.Handle, Encoding.UTF8.GetBytes(key));
+                SqliteException.ThrowExceptionForRC(rc, lavoro.Handle);
+            }
+
+            var tabelle = CountTables(temporaneo, key);
 
             if (tabelle == 0)
             {
@@ -294,10 +397,9 @@ public static class EncryptedSqlite
         }
     }
 
-    private static int CountTables(string connectionString)
+    private static int CountTables(string databasePath, string key)
     {
-        using var verifica = new SqliteConnection(connectionString);
-        verifica.Open();
+        using var verifica = OpenWithKey(databasePath, key);
 
         using var command = verifica.CreateCommand();
         command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table';";
