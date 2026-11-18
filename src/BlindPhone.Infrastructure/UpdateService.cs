@@ -99,6 +99,65 @@ public sealed class UpdateService
            || _settings.ServerUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// Dice perché un indirizzo non serve come server degli aggiornamenti.
+    /// </summary>
+    /// <param name="serverUrl">Indirizzo della cartella, come è scritto nelle impostazioni.</param>
+    /// <returns>
+    /// La frase da dire, che comincia in minuscolo per stare dopo un'introduzione,
+    /// oppure <c>null</c> se l'indirizzo è utilizzabile. Anche un indirizzo vuoto
+    /// restituisce <c>null</c>: nessun aggiornamento automatico è una scelta legittima.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Una frase per ogni schema, perché i motivi sono diversi.</b> Prima tutto
+    /// quello che non era <c>ftps://</c> o <c>https://</c> diventava «canale non
+    /// cifrato». Per <c>ftp://</c> è vero. Per <c>sftp://</c> è falso: SFTP è
+    /// cifrato, ma è il trasferimento di file di SSH, un protocollo diverso da FTP che
+    /// questa applicazione non parla. Chi leggeva «non cifrato» andava a cercare la
+    /// cifratura sul server, che c'era già, invece di attivare FTPS.
+    /// </para>
+    /// <para>
+    /// Su <c>https://</c> il canale andrebbe bene, ma la lettura della cartella su HTTP
+    /// non è implementata (vedi <see cref="ListDirectoryAsync"/>): lo si dice qui, prima
+    /// di provarci, invece di lasciarlo scoprire da un'eccezione.
+    /// </para>
+    /// </remarks>
+    public static string? DescribeAddressProblem(string? serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl)) return null;
+
+        var indirizzo = serverUrl.Trim();
+        var separatore = indirizzo.IndexOf("://", StringComparison.Ordinal);
+        var schema = separatore > 0 ? indirizzo[..separatore].ToLowerInvariant() : string.Empty;
+
+        return schema switch
+        {
+            "ftps" => null,
+
+            "sftp" or "ssh" or "scp" =>
+                $"l'indirizzo comincia con {schema}://, ma BlindPhone non sa collegarsi a un server SFTP. "
+                + "SFTP e' il trasferimento di file di SSH, un protocollo diverso da FTP: serve un server FTPS, "
+                + "cioe' FTP cifrato con TLS, e un indirizzo che comincia con ftps://",
+
+            "ftp" =>
+                "l'indirizzo comincia con ftp://, cioe' FTP in chiaro: la password e il pacchetto viaggerebbero "
+                + "leggibili sulla rete, e chi sta sul percorso potrebbe sostituire il pacchetto. Serve lo stesso "
+                + "server con la cifratura TLS attiva, e un indirizzo che comincia con ftps://",
+
+            "http" or "https" =>
+                $"su {schema}:// BlindPhone non sa leggere l'elenco della cartella degli aggiornamenti: "
+                + "serve un server FTPS, con un indirizzo che comincia con ftps://",
+
+            "" =>
+                "l'indirizzo deve cominciare con ftps://, per esempio ftps://aggiornamenti.esempio.it/blindphone/",
+
+            _ =>
+                $"BlindPhone non sa collegarsi a un indirizzo {schema}://: serve un server FTPS, "
+                + "con un indirizzo che comincia con ftps://",
+        };
+    }
+
+    /// <summary>
     /// Chiede al server se c'è una versione più recente, e con quali novità.
     /// </summary>
     /// <param name="cancellationToken">Token di annullamento.</param>
@@ -114,20 +173,22 @@ public sealed class UpdateService
             return new UpdateCheckResult(null, UpdateNotes.Empty, "Nessun server degli aggiornamenti configurato");
         }
 
-        if (!IsSecureChannel)
+        if (DescribeAddressProblem(_settings.ServerUrl) is { } problema)
         {
-            // Prima era un avviso nel registro e si proseguiva. Il percorso che si
-            // apriva — sostituire il pacchetto a chi sta in mezzo alla rete — porta
-            // all'esecuzione di codice arbitrario come amministratore, e non e' una
-            // cosa su cui lasciare una scelta implicita a chi non l'ha fatta.
+            // Su ftp:// prima era un avviso nel registro e si proseguiva. Il percorso
+            // che si apriva — sostituire il pacchetto a chi sta in mezzo alla rete —
+            // porta all'esecuzione di codice arbitrario come amministratore, e non e'
+            // una cosa su cui lasciare una scelta implicita a chi non l'ha fatta. Gli
+            // altri schemi — sftp:// per primo — non sono insicuri: sono protocolli che
+            // questa applicazione non parla, e la frase lo dice.
             _log.LogError(
-                "Server degli aggiornamenti su canale non cifrato ({Server}): controllo rifiutato. "
-                + "Serve ftps:// oppure https://",
-                _settings.ServerUrl);
+                "Indirizzo del server degli aggiornamenti non utilizzabile ({Server}): {Motivo}. Controllo rifiutato",
+                _settings.ServerUrl,
+                problema);
 
             return new UpdateCheckResult(null, UpdateNotes.Empty,
-                "Il server degli aggiornamenti usa un canale non cifrato: "
-                + "serve un indirizzo ftps:// oppure https://. Avvisa chi amministra la postazione");
+                $"Indirizzo del server degli aggiornamenti non utilizzabile: {problema}. "
+                + "Avvisa chi amministra la postazione");
         }
 
         if (!UpdateSignature.IsConfigured)
@@ -222,11 +283,11 @@ public sealed class UpdateService
         IProgress<int>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        if (!IsSecureChannel)
+        if (DescribeAddressProblem(_settings.ServerUrl) is { } problema)
         {
             throw new InvalidOperationException(
-                "Il server degli aggiornamenti usa un canale non cifrato: "
-                + "serve un indirizzo ftps:// oppure https://. Non e' stato scaricato nulla.");
+                $"Indirizzo del server degli aggiornamenti non utilizzabile: {problema}. "
+                + "Non e' stato scaricato nulla.");
         }
 
         if (!UpdateSignature.IsConfigured)
@@ -444,7 +505,7 @@ public sealed class UpdateService
             // Su HTTP non esiste un elenco: si chiede direttamente il file delle
             // novita' della versione che il server dichiara corrente.
             throw new NotSupportedException(
-                "Su HTTPS l'elenco della cartella non e' disponibile: usare un indirizzo ftp:// o ftps://");
+                "Su HTTPS l'elenco della cartella non e' disponibile: usare un indirizzo ftps://");
         }
 
         var richiesta = CreateRequest(string.Empty, WebRequestMethods.Ftp.ListDirectory);

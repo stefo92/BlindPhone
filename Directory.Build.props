@@ -78,16 +78,19 @@
       DUE VERSIONI, E SERVONO ENTRAMBE.
 
       Version e' quella numerica, l'unica forma che l'installatore di Windows
-      accetta: tre numeri separati da punti, senza etichette. E' quella con cui il
-      pacchetto riconosce di essere piu' recente di quello installato.
+      accetta: tre o quattro numeri separati da punti, senza etichette. E' quella
+      con cui il pacchetto riconosce di essere piu' recente di quello installato.
+      Il quarto numero e' per le correzioni di una versione gia' pubblicata, come
+      la 1.0.20.1: l'installatore di Windows lo ignora, il controllo degli
+      aggiornamenti di BlindPhone no (vedi tools\crea-installatore.ps1).
 
       InformationalVersion e' quella che legge una persona. La porta la finestra di
       avvio, il riepilogo diagnostico e le proprieta' del file, ed e' li' che
       compare la parola "beta": una versione dichiarata beta nei documenti e non
       nel programma sarebbe una dichiarazione che nessuno vede.
     -->
-    <Version>1.0.20</Version>
-    <InformationalVersion>1.0.20 beta</InformationalVersion>
+    <Version>1.0.20.1</Version>
+    <InformationalVersion>1.0.20.1 beta</InformationalVersion>
     <NeutralLanguage>it-IT</NeutralLanguage>
 
     <!--

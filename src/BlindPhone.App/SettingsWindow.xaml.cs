@@ -174,6 +174,7 @@ public partial class SettingsWindow : Window
 
         LoadDevices();
         LoadSettings(_settingsService.Current);
+        LoadProductInfo();
         LoadHeadset(_settingsService.Current.Headset);
         LoadHotkeys();
         LoadProvisioning(_settingsService.Current);
@@ -1385,14 +1386,176 @@ public partial class SettingsWindow : Window
                 DebugModeEnabled.Focus();
 
                 _announcer.Announce(Announcement.CommandResponse(
-                    "Diagnostica. "
+                    $"Diagnostica. BlindPhone {ProductVersionText.Text}. "
                     + (DebugModeEnabled.IsChecked == true
                         ? "Modalita' debug attiva."
                         : "Modalita' debug spenta.")
-                    + " Sotto trovi il riepilogo da mandare all'assistenza",
+                    + " Sopra trovi il pulsante Cerca aggiornamenti, sotto il riepilogo da mandare all'assistenza",
                     DateTimeOffset.Now));
             }),
             DispatcherPriority.Input);
+    }
+
+    // -----------------------------------------------------------------------
+    // Versione, autore e ricerca degli aggiornamenti
+    // -----------------------------------------------------------------------
+
+    /// <summary>Una ricerca degli aggiornamenti è in corso.</summary>
+    private bool _checkingUpdates;
+
+    /// <summary>Versione numerica di questa copia di BlindPhone.</summary>
+    private static Version InstalledVersion()
+        => typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
+
+    /// <summary>
+    /// Versione leggibile di BlindPhone, con il processore per cui è fatto il pacchetto.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La versione informativa, come nel riepilogo diagnostico: è quella che porta la
+    /// parola «beta», ed è quella che chi riceve una segnalazione deve sentire.
+    /// </para>
+    /// <para>
+    /// Il processore conta perché i pacchetti x64 e arm64 sono due pacchetti distinti,
+    /// e un guasto che dipende dall'audio si indaga in modo diverso se il programma gira
+    /// sotto emulazione. Un pacchetto x64 su Windows on ARM dice «x64», ed è giusto
+    /// così: è il pacchetto installato, ed è quello che va sostituito.
+    /// </para>
+    /// </remarks>
+    private static string ProductVersion()
+    {
+        var informativa = typeof(App).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+            .InformationalVersion;
+
+        // Il compilatore puo' appendere l'identificativo della revisione dopo un segno
+        // piu': all'operatore non serve.
+        var versione = string.IsNullOrWhiteSpace(informativa)
+            ? UpdateCatalog.Describe(InstalledVersion())
+            : informativa.Split('+')[0];
+
+        var processore = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture switch
+        {
+            System.Runtime.InteropServices.Architecture.X64 => "x64",
+            System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+            var altro => altro.ToString().ToLowerInvariant(),
+        };
+
+        return $"{versione} ({processore})";
+    }
+
+    /// <summary>Riempie i campi della versione e dell'autore.</summary>
+    /// <remarks>
+    /// L'autore è lo stesso della guida e delle proprietà dei binari: si prende da
+    /// <see cref="HelpBook"/> e non si riscrive qui, perché quelle righe vanno tenute
+    /// allineate e una copia in più è una copia che prima o poi resta indietro.
+    /// </remarks>
+    private void LoadProductInfo()
+    {
+        ProductVersionText.Text = ProductVersion();
+        AuthorText.Text = $"{HelpBook.AuthorName}, {HelpBook.AuthorEmail}";
+    }
+
+    /// <summary>
+    /// Cerca subito una versione più recente sul server scritto nella scheda.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Usa i campi come sono scritti, non come sono salvati.</b> Chi ha appena scritto
+    /// indirizzo e password vuole sapere se funzionano prima di salvarli, come con le
+    /// prove di collegamento delle altre schede. Da qui non si salva niente.
+    /// </para>
+    /// <para>
+    /// <b>Al contrario del controllo all'avvio, ogni esito si dice</b>, anche «nessun
+    /// aggiornamento»: la ricerca l'ha chiesta l'operatore, e il silenzio sarebbe
+    /// indistinguibile da un pulsante che non ha fatto niente.
+    /// </para>
+    /// <para>
+    /// Se trova una versione nuova apre la stessa finestra del pulsante della barra dei
+    /// comandi, con le novità, la verifica della firma e «Più tardi» come pulsante
+    /// predefinito: da qui non si scarica e non si installa niente senza un'altra
+    /// conferma.
+    /// </para>
+    /// </remarks>
+    private async void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
+    {
+        if (_checkingUpdates) return;
+
+        var indirizzo = UpdateServerUrl.Text.Trim();
+
+        if (indirizzo.Length == 0)
+        {
+            ReportUpdateCheck(
+                "Nessun server degli aggiornamenti: scrivi l'indirizzo della cartella piu' sotto in questa "
+                + "scheda, nella parte Aggiornamenti, e premi di nuovo Cerca aggiornamenti.");
+            return;
+        }
+
+        var installata = InstalledVersion();
+
+        var servizio = new UpdateService(
+            _settingsService.Current.Updates with
+            {
+                ServerUrl = indirizzo,
+                Username = NullIfEmpty(UpdateUsername.Text),
+            },
+            UpdatePassword.Password,
+            installata,
+            _serviceProvider.GetRequiredService<ILogger<UpdateService>>());
+
+        _checkingUpdates = true;
+        CheckUpdatesButton.IsEnabled = false;
+        ReportUpdateCheck("Ricerca degli aggiornamenti in corso");
+
+        try
+        {
+            var esito = await servizio.CheckAsync().ConfigureAwait(true);
+
+            if (esito.Failed)
+            {
+                ReportUpdateCheck($"Ricerca degli aggiornamenti non riuscita. {esito.Error}");
+                return;
+            }
+
+            if (esito.Update is not { } trovato)
+            {
+                ReportUpdateCheck(
+                    $"Nessun aggiornamento: la versione installata, la {UpdateCatalog.Describe(installata)}, "
+                    + "e' la piu' recente sul server.");
+                return;
+            }
+
+            ReportUpdateCheck($"Trovata la versione {trovato.DisplayVersion}. Si apre la finestra con le novita'.");
+
+            var finestra = new UpdateWindow(
+                servizio,
+                esito,
+                UpdateCatalog.Describe(installata),
+                _announcer,
+                _serviceProvider.GetRequiredService<ILogger<UpdateWindow>>())
+            {
+                Owner = this,
+            };
+
+            finestra.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Ricerca degli aggiornamenti dalle impostazioni non riuscita");
+            ReportUpdateCheck("Ricerca degli aggiornamenti non riuscita: il dettaglio e' nel registro.");
+        }
+        finally
+        {
+            _checkingUpdates = false;
+            CheckUpdatesButton.IsEnabled = true;
+        }
+    }
+
+    /// <summary>Scrive l'esito della ricerca accanto al pulsante e lo annuncia.</summary>
+    private void ReportUpdateCheck(string message)
+    {
+        LiveRegion.Update(CheckUpdatesResult, message);
+        _announcer.Announce(Announcement.CommandResponse(message, DateTimeOffset.Now));
     }
 
     /// <summary>
@@ -3109,6 +3272,15 @@ public partial class SettingsWindow : Window
                        + "altrimenti la finestra sparirebbe senza un modo sicuro di riaverla.";
         }
 
+        // Un indirizzo degli aggiornamenti che non puo' funzionare non blocca il
+        // salvataggio: correggerlo spetta a chi amministra il server, e chi sta
+        // salvando un cambio della voce non deve restare fermo su un campo che non sa
+        // correggere. Ma si dice adesso, invece di lasciarlo scoprire dal registro:
+        // all'avvio il controllo fallito resta muto per scelta.
+        var updateNote = UpdateService.DescribeAddressProblem(UpdateServerUrl.Text) is { } problemaAggiornamenti
+            ? $" Attenzione, gli aggiornamenti non verranno cercati: {problemaAggiornamenti}."
+            : string.Empty;
+
         var current = _settingsService.Current;
 
         // I campi appartengono all'account selezionato: si riportano dentro prima di
@@ -3310,7 +3482,7 @@ public partial class SettingsWindow : Window
         // fine chiamata solo cio' che la farebbe cadere e lo dice. Prima si chiedeva di
         // riavviare a ogni salvataggio, anche dopo aver cambiato soltanto il tema: una
         // domanda che compare sempre si impara a rifiutarla senza leggerla.
-        Report($"Impostazioni salvate e applicate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
+        Report($"Impostazioni salvate e applicate.{speechNote}{trayNote}{hotkeyNote}{secretNote}{updateNote}");
         DialogResult = true;
         Close();
     }

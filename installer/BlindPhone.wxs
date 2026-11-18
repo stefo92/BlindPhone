@@ -78,6 +78,11 @@
         AllowSameVersionUpgrades evita che reinstallare la stessa versione, cosa
         che capita durante le prove sul campo, lasci due voci nell'elenco
         programmi.
+
+        Serve anche alle correzioni a quattro numeri, come la 1.0.20.1:
+        l'installatore di Windows ignora il quarto numero, quindi per lui sono la
+        stessa versione della 1.0.20, e senza questo attributo le due resterebbero
+        installate una accanto all'altra.
     -->
     <MajorUpgrade
       AllowSameVersionUpgrades="yes"

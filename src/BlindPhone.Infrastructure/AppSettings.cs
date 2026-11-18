@@ -277,12 +277,15 @@ public sealed record SupportSettings
 /// precedenza sulla costante.
 /// </para>
 /// <para>
-/// <b>Sul server servono due file per versione</b>, con lo stesso nome ed estensione
-/// diversa: <c>BlindPhone-1.2.0-x64.msi</c> e <c>BlindPhone-1.2.0-x64.txt</c>. Il
-/// primo è il pacchetto prodotto dall'installatore, il secondo è il file di testo con
-/// le novità — una per riga — che BlindPhone mostra prima di proporre
-/// l'aggiornamento. L'abbinamento è il nome e nient'altro: nessun indice da tenere
-/// aggiornato.
+/// <b>Sul server servono tre file per versione</b>, con lo stesso nome:
+/// <c>BlindPhone-1.2.0-x64.msi</c>, <c>BlindPhone-1.2.0-x64.msi.sig</c> e
+/// <c>BlindPhone-1.2.0-x64.txt</c>. Il primo è il pacchetto prodotto
+/// dall'installatore. Il secondo è la sua firma (vedi <see cref="UpdateSignature"/>):
+/// senza, l'aggiornamento viene rifiutato. Il terzo è il file di testo con le novità —
+/// una per riga — che BlindPhone mostra prima di proporre l'aggiornamento, insieme
+/// all'impronta <c>SHA256:</c>. Li produce tutti e tre
+/// <c>tools\crea-installatore.ps1</c>. L'abbinamento è il nome e nient'altro: nessun
+/// indice da tenere aggiornato.
 /// </para>
 /// </remarks>
 public sealed record UpdateSettings
@@ -297,12 +300,14 @@ public sealed record UpdateSettings
     /// <c>ftps://aggiornamenti.example.it/blindphone/</c>.
     /// </para>
     /// <para>
-    /// Sono ammessi tre schemi. <c>ftps://</c> è FTP con la connessione cifrata
-    /// (AUTH TLS) ed è quello da usare: le credenziali e il pacchetto viaggiano
-    /// protetti. <c>ftp://</c> è FTP in chiaro, che questa applicazione accetta ma
-    /// segnala, perché chi sta sul percorso di rete vede la password e può sostituire
-    /// il pacchetto con un altro. <c>https://</c> vale se un giorno i file venissero
-    /// pubblicati su un sito invece che su un server FTP.
+    /// Lo schema da usare è <c>ftps://</c>: FTP con la connessione cifrata (AUTH TLS),
+    /// in cui le credenziali e il pacchetto viaggiano protetti. Non va confuso con
+    /// SFTP, che è un altro protocollo — quello di SSH — e che questa applicazione non
+    /// parla. <c>ftp://</c> in chiaro viene rifiutato, perché chi sta sul percorso di
+    /// rete vedrebbe la password e potrebbe sostituire il pacchetto con un altro.
+    /// <c>https://</c> è accettato come canale, ma su HTTP la lettura della cartella
+    /// non è implementata (vedi <see cref="UpdateService"/>): oggi il controllo su
+    /// quello schema non riesce.
     /// </para>
     /// <para>
     /// Vuoto significa «nessun aggiornamento automatico»: è il valore con cui parte
