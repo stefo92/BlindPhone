@@ -257,6 +257,38 @@ $fileP = Get-ChildItem $cartellaPubblicazione -Recurse -File
 Write-Host ("  {0} file, {1:N1} MB" -f $fileP.Count, (($fileP | Measure-Object Length -Sum).Sum / 1MB))
 
 # ---------------------------------------------------------------------------
+# Il motore di esecuzione incluso non e' piu' vecchio della banda dei pacchetti
+# ---------------------------------------------------------------------------
+#
+# Il pacchetto autonomo porta dentro il motore di esecuzione .NET, e quel motore
+# non lo sceglie Directory.Build.props: e' quello che accompagna l'SDK installato
+# su questa macchina. Con un SDK rimasto indietro i pacchetti salgono alla banda e
+# il motore no, e l'installatore distribuisce proprio i difetti di sicurezza che la
+# banda dichiara corretti, senza che niente lo dica. Il controllo e' bloccante per
+# questo: e' l'unico punto in cui la differenza si vede.
+
+if ($Autonomo) {
+    $banda = $xml.Project.PropertyGroup | ForEach-Object { $_.BandaPacchetti } | Where-Object { $_ } | Select-Object -First 1
+    if ($banda -is [System.Xml.XmlElement]) { $banda = $banda.InnerText }
+
+    $nucleo = Join-Path $cartellaPubblicazione 'System.Private.CoreLib.dll'
+    $motore = if (Test-Path $nucleo) { ((Get-Item $nucleo).VersionInfo.ProductVersion -split '[-+]')[0] } else { $null }
+
+    if ([string]::IsNullOrWhiteSpace($banda) -or [string]::IsNullOrWhiteSpace($motore)) {
+        throw "Impossibile confrontare il motore di esecuzione incluso ('$motore') con la banda dei pacchetti ('$banda')."
+    }
+
+    if ([version] $motore -lt [version] $banda) {
+        throw ("Il motore di esecuzione incluso e' il $motore, piu' vecchio della banda dei pacchetti $banda " +
+               "(Directory.Build.props): l'installatore porterebbe difetti di sicurezza gia' corretti. " +
+               "Installa l'SDK .NET che accompagna il motore $banda, per esempio con " +
+               "'winget install Microsoft.DotNet.SDK.10', e ricostruisci.")
+    }
+
+    Write-Host "  motore di esecuzione incluso $motore, banda dei pacchetti $banda"
+}
+
+# ---------------------------------------------------------------------------
 # Nessun dato personale nel pacchetto
 # ---------------------------------------------------------------------------
 #
