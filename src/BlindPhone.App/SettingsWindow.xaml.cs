@@ -3272,6 +3272,15 @@ public partial class SettingsWindow : Window
                        + "altrimenti la finestra sparirebbe senza un modo sicuro di riaverla.";
         }
 
+        // Un indirizzo degli aggiornamenti che non puo' funzionare non blocca il
+        // salvataggio: correggerlo spetta a chi amministra il server, e chi sta
+        // salvando un cambio della voce non deve restare fermo su un campo che non sa
+        // correggere. Ma si dice adesso, invece di lasciarlo scoprire dal registro:
+        // all'avvio il controllo fallito resta muto per scelta.
+        var updateNote = UpdateService.DescribeAddressProblem(UpdateServerUrl.Text) is { } problemaAggiornamenti
+            ? $" Attenzione, gli aggiornamenti non verranno cercati: {problemaAggiornamenti}."
+            : string.Empty;
+
         var current = _settingsService.Current;
 
         // I campi appartengono all'account selezionato: si riportano dentro prima di
@@ -3473,7 +3482,7 @@ public partial class SettingsWindow : Window
         // fine chiamata solo cio' che la farebbe cadere e lo dice. Prima si chiedeva di
         // riavviare a ogni salvataggio, anche dopo aver cambiato soltanto il tema: una
         // domanda che compare sempre si impara a rifiutarla senza leggerla.
-        Report($"Impostazioni salvate e applicate.{speechNote}{trayNote}{hotkeyNote}{secretNote}");
+        Report($"Impostazioni salvate e applicate.{speechNote}{trayNote}{hotkeyNote}{secretNote}{updateNote}");
         DialogResult = true;
         Close();
     }
