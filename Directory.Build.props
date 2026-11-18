@@ -39,8 +39,26 @@
     <!-- Banda del motore di esecuzione. Una sola: .NET 10, LTS. -->
     <BandaDotNet Condition="'$(BandaDotNet)' == ''">net10.0</BandaDotNet>
 
-    <!-- Pacchetti versionati insieme al motore di esecuzione: seguono la banda. -->
-    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.12</BandaPacchetti>
+    <!--
+      Pacchetti versionati insieme al motore di esecuzione: seguono la banda.
+
+      La 10.0.15 e' il rilascio di sicurezza del 10 novembre 2026. Con la 10.0.14 del
+      25 ottobre corregge, fra quello che tocca un programma desktop, il decompressore
+      Brotli (CVE-2026-111497), la corruzione di memoria in SocketAsyncEventArgs su cui
+      poggiano i socket dello stack SIP (CVE-2026-70197, che la 10.0.13 non chiudeva
+      del tutto) e quattro difetti del motore (CVE-2026-109475, CVE-2026-118747,
+      CVE-2026-105544, CVE-2026-114155). Le correzioni di Pkcs della 10.0.13
+      (CVE-2026-84008, CVE-2026-70162) restano.
+
+      LA BANDA DEI PACCHETTI NON BASTA: CONTA L'SDK.
+      Il motore di esecuzione che finisce nell'installatore autonomo non e' scritto
+      qui, e' quello che accompagna l'SDK con cui si compila: la 10.0.15 arriva con
+      l'SDK 10.0.404. Con un SDK piu' vecchio i pacchetti salgono e il motore resta
+      indietro, cioe' l'installatore porta proprio i difetti che questa riga dice
+      corretti. Per questo tools\crea-installatore.ps1 confronta il motore pubblicato
+      con questa banda e si ferma se e' piu' vecchio.
+    -->
+    <BandaPacchetti Condition="'$(BandaPacchetti)' == ''">10.0.15</BandaPacchetti>
   </PropertyGroup>
 
   <PropertyGroup>
