@@ -707,7 +707,7 @@ public static class HelpBook
 
         Diagnostica, nel gruppo Assistenza. Il dettaglio del registro, il riepilogo da mandare all'assistenza, lo spazio su disco, la segnalazione di un problema, le statistiche d'uso, gli aggiornamenti e i certificati del centralino.
 
-        Statistiche d'uso, nella scheda Diagnostica. Sono spente finché non le accendi: la casella «Invia statistiche d'uso anonime», Alt T, le accende e le spegne. Che cosa mandano, e soprattutto che cosa non mandano mai, lo dice l'argomento dedicato.
+        Statistiche d'uso, nella scheda Diagnostica. Sono spente finché non le accendi, rispondendo sì alla domanda del primo avvio oppure da qui: la casella «Invia statistiche d'uso anonime», Alt T, le accende e le spegne. Che cosa mandano, e soprattutto che cosa non mandano mai, lo dice l'argomento dedicato.
 
         Aggiornamenti, nella scheda Diagnostica. Se chi amministra la postazione ha indicato un server, all'avvio BlindPhone guarda se è uscita una versione più recente. Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
 
@@ -715,19 +715,30 @@ public static class HelpBook
         """;
 
     /// <summary>
-    /// Le statistiche d'uso: che cosa parte, che cosa no, come si spengono.
+    /// Le statistiche d'uso: la domanda del primo avvio, che cosa parte, che cosa no,
+    /// chi le riceve, come si spengono.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// <b>L'elenco di che cosa parte non è scritto qui</b>: lo legge dal catalogo, dalla
     /// frase che accompagna ogni evento. È lo stesso principio della scheda dei tasti —
     /// la guida e il programma non possono dire cose diverse — e qui conta di più,
     /// perché è la frase a cui l'operatore dà il consenso.
+    /// </para>
+    /// <para>
+    /// <b>Fa da informativa per il server dell'autore</b>: la domanda del primo avvio
+    /// rimanda qui. Titolare, finalità, base, chi tratta i dati per lui, per quanto
+    /// tempo, come si esercitano i diritti. Con un altro server l'informativa la dà chi
+    /// lo gestisce, e il testo lo dice. Vedi <c>CONFORMITA-PA-ITALIANA.md</c>, §7.2.
+    /// </para>
     /// </remarks>
     private static string Statistiche() =>
         $"""
         Le statistiche d'uso servono a chi sviluppa BlindPhone per sapere quante postazioni lo usano e quali funzioni servono davvero. Sono spente finché non le accendi tu, o chi amministra la postazione per conto dell'ente.
 
-        Si accendono e si spengono da Impostazioni, scheda Diagnostica, con la casella «Invia statistiche d'uso anonime», Alt T. Parte qualcosa solo se chi amministra la postazione ha indicato un server: la riga sotto la casella dice se c'è, e qual è.
+        La domanda del primo avvio. La prima volta che apri BlindPhone ti chiede se inviarle, una volta sola: Alt S risponde sì, Alt N risponde no, Esc vale come no. Nessuna delle due risposte è scelta in anticipo. La domanda non compare se le statistiche sono già accese, o se chi amministra la postazione ha bloccato la scheda Diagnostica: in quel caso la decisione è dell'ente.
+
+        Si accendono e si spengono da Impostazioni, scheda Diagnostica, con la casella «Invia statistiche d'uso anonime», Alt T. La riga sotto la casella dice a quale server andrebbero, o che un server non c'è.
 
         Che cosa parte. Ogni postazione ha un identificativo fatto di lettere a caso, che non dice niente della macchina né di chi la usa. Con lui partono queste cose, e nessun'altra.
 
@@ -737,7 +748,11 @@ public static class HelpBook
 
         Quando parte. Qualche minuto dopo l'avvio, a gruppi, e mai durante una chiamata. Se il server non risponde non succede niente: si riprova più tardi, e la cosa resta nel registro.
 
-        Spegnerle. Togli la spunta e salva: la postazione dimentica il proprio identificativo e quello che non era ancora partito. Se la casella non si lascia cambiare, la scheda è bloccata dall'amministratore: la decisione è dell'ente, ed è a chi amministra che va chiesto.
+        Chi le riceve. Di partenza vanno a {TelemetryConsentPrompt.AuthorServerHost}, il server di {AuthorName}, autore di BlindPhone, che le passa a PostHog Cloud, il servizio di statistiche della società statunitense PostHog, nella sua regione europea: gli eventi stanno in Germania. Prima di passarle, il server dell'autore toglie l'indirizzo di rete della postazione. Se chi amministra la postazione ha indicato un altro server, la riga sotto la casella ne dice il nome: le riceve chi gestisce quel server, l'informativa che segue non vale, e te la deve dare lui.
+
+        Informativa, per il server dell'autore. Titolare: {AuthorName}, autore di BlindPhone, che si raggiunge a {AuthorEmail}. Perché: sapere quali funzioni si usano, per decidere che cosa migliorare. Su quale base: il tuo consenso, cioè il sì alla domanda o la casella spuntata, che puoi ritirare quando vuoi senza nessuna conseguenza. Chi le tratta per conto dell'autore: PostHog, che le conserva nella regione europea ma, secondo il suo accordo sul trattamento dei dati, può trattarle anche negli Stati Uniti, con le garanzie previste dalla legge europea. Per quanto tempo: quello fissato dal piano di PostHog, un anno con il piano gratuito. I tuoi diritti: puoi chiedere all'autore quali dati ci sono, e farli correggere o cancellare. Per farli trovare serve l'identificativo della postazione, che sta nel file telemetria.json, nella cartella dei dati di BlindPhone: copialo prima di spegnere le statistiche, perché spegnendole la postazione lo dimentica. Puoi anche rivolgerti al Garante per la protezione dei dati personali.
+
+        Spegnerle. Togli la spunta e salva: la postazione dimentica il proprio identificativo e quello che non era ancora partito. Quello che è già arrivato resta sul server, finché non ne chiedi la cancellazione. Se la casella non si lascia cambiare, la scheda è bloccata dall'amministratore: la decisione è dell'ente, ed è a chi amministra che va chiesto.
         """;
 
     /// <summary>

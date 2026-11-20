@@ -966,7 +966,7 @@ circolano più pacchetti firmati con quello.
 
 ---
 
-## 11. Statistiche d'uso: PostHog Cloud UE o un server proprio
+## 11. Statistiche d'uso: il server dell'autore, PostHog Cloud UE o un server proprio
 
 BlindPhone sa mandare a un server [PostHog](https://posthog.com) delle statistiche
 d'uso anonime: quante postazioni ci sono, con quale versione, con quale screen reader,
@@ -979,8 +979,60 @@ insieme**:
 - il consenso, spento di partenza.
 
 Ne manca una e non succede niente: niente identificativo, niente file, niente
-connessioni. Una copia compilata senza toccare niente ha indirizzo e chiave vuoti, e
-quindi è muta su qualunque postazione.
+connessioni.
+
+**Indirizzo e chiave arrivano con il programma.** Di partenza BlindPhone conosce il
+server dell'autore, `https://telemetry.curti.cloud/`: un ponte che riceve i lotti e li
+passa a PostHog Cloud nella regione UE, senza i cookie e senza l'indirizzo IP della
+postazione. **Il consenso invece resta spento**: al primo avvio BlindPhone chiede
+all'operatore, una volta sola, se inviarle (paragrafo «La domanda del primo avvio»).
+Un ente che vuole un altro server, o nessuno, lo scrive con il pacchetto di
+configurazione (paragrafo «Dove si scrivono indirizzo e chiave»).
+
+Le postazioni installate con una versione precedente avevano indirizzo e chiave vuoti.
+All'aggiornamento ricevono quelli dell'autore, **una volta sola e solo se erano vuoti
+tutti e due**: un indirizzo o una chiave scritti da qualcuno non si toccano. Il
+consenso riparte spento, anche dove qualcuno aveva spuntato la casella quando un server
+non c'era: non sapeva verso chi, e la domanda glielo dice.
+
+### La domanda del primo avvio
+
+Al primo avvio, prima della finestra principale, compare una finestra intitolata
+«BlindPhone - statistiche d'uso anonime». Dice perché servono, che cosa parte — le
+stesse frasi della guida, prese dallo stesso catalogo —, che cosa non parte mai, verso
+quale server, e dove si cambia idea. Con il server dell'autore dice anche che le
+riceve l'autore e che l'informativa è nella guida in linea; con un altro server dice
+solo il suo nome, e che l'informativa la dà chi lo gestisce.
+
+- **Né sì né no sono scelti in anticipo.** All'apertura NVDA e JAWS leggono il titolo e
+  tutto il testo, e il fuoco sta nel testo, che si rilegge con le frecce. Nessun
+  pulsante è quello predefinito: un Invio dato per abitudine non sceglie niente.
+- **Dire no costa quanto dire sì**: Alt S risponde sì, Alt N risponde no, e Tab porta ai
+  due pulsanti, uguali. **Esc vale come no**, e anche chiudere la finestra.
+- Dopo la risposta BlindPhone dice «Statistiche d'uso accese» o «spente», e ricorda che
+  si cambia da Impostazioni, scheda Diagnostica, Alt T.
+
+La domanda si fa **una volta sola**, e solo se servono tutte queste condizioni:
+
+| Condizione | Perché |
+|---|---|
+| Indirizzo `https://` e chiave `phc_` validi | Senza server un sì non manderebbe niente |
+| Statistiche ancora spente | Se le ha già accese l'operatore o l'ente, la scelta è fatta |
+| Scheda Diagnostica non bloccata | Se l'ente l'ha bloccata, con il pacchetto (§8, §9) o con il criterio di postazione, la decisione è sua |
+| Domanda mai fatta a questo utente di Windows | Chi ha risposto sì, no o Esc, o ha cambiato la casella nella scheda Diagnostica, ha già deciso |
+
+**Un ente che non vuole che i propri operatori decidano da soli** distribuisce un
+pacchetto con la sezione *Diagnostica* e la blocca (§9): con il consenso spento le
+statistiche restano spente, con il consenso acceso partono, e in tutti e due i casi la
+domanda non compare. Un pacchetto che porta la sezione *Diagnostica* senza bloccarla
+lascia la scelta agli operatori, e la domanda compare. Che cosa deve fare l'ente in
+ciascun caso sta in [CONFORMITA-PA-ITALIANA.md](../CONFORMITA-PA-ITALIANA.md), §7.
+
+Il ricordo della domanda fatta sta in `settings.json`, alla voce
+`telemetryConsentAsked`, ed è dell'utente di Windows: se il primo avvio lo fa il
+tecnico che installa, con la propria utenza, l'operatore la sentirà al suo primo avvio.
+Il pacchetto di configurazione non la porta, di proposito: altrimenti la risposta di
+chi prepara il pacchetto varrebbe per tutti.
 
 ### Che cosa arriva al server
 
@@ -1012,18 +1064,24 @@ la città. I rinvii HTTP non si seguono. Se il server non risponde si riprova pi
 tardi, con un'attesa che raddoppia fino a sei ore; gli eventi in attesa sono al
 massimo cinquecento e stanno in `telemetria.json`.
 
-### Due strade: PostHog Cloud UE o un'istanza propria
+### Tre strade: il server dell'autore, PostHog Cloud UE o un'istanza propria
 
-BlindPhone parla allo stesso modo con tutte e due: cambia solo l'indirizzo. Cambia
+BlindPhone parla allo stesso modo con tutte e tre: cambia solo l'indirizzo. Cambia
 invece chi ha in mano i dati, e quindi che cosa deve fare l'ente.
 
-| | PostHog Cloud UE | Istanza propria |
-|---|---|---|
-| Dove stanno gli eventi | Nei centri dati di PostHog in Germania | Sulla macchina scelta da chi la ospita |
-| Chi li tratta | PostHog Inc., come responsabile del trattamento, con un DPA | Solo chi ospita l'istanza |
-| Trasferimenti fuori dallo Spazio economico europeo | Previsti dal DPA, con le garanzie che il DPA elenca | Nessuno, se la macchina e il fornitore sono nell'UE |
-| Conservazione | La decide il piano e non si accorcia | La decide e la applica chi ospita l'istanza |
-| Manutenzione | Di PostHog | Di chi ospita l'istanza |
+| | Server dell'autore (predefinito) | PostHog Cloud UE dell'ente | Istanza propria |
+|---|---|---|---|
+| Indirizzo | `https://telemetry.curti.cloud/` | `https://eu.i.posthog.com/` | Quello dell'istanza |
+| Chi riceve le statistiche | L'autore di BlindPhone, titolare | L'ente, o il fornitore secondo il contratto | Chi ospita l'istanza |
+| Dove stanno gli eventi | Nei centri dati di PostHog in Germania, attraverso il ponte dell'autore | Nei centri dati di PostHog in Germania | Sulla macchina scelta da chi la ospita |
+| Chi li tratta | PostHog Inc., come responsabile dell'autore, con il DPA firmato dall'autore | PostHog Inc., come responsabile del trattamento, con un DPA | Solo chi ospita l'istanza |
+| L'IP della postazione | Lo vede il ponte, che non lo passa a PostHog | Lo riceve PostHog, che va impostato per scartarlo | Lo vede il proxy dell'istanza |
+| Trasferimenti fuori dallo Spazio economico europeo | Previsti dal DPA di PostHog, con le garanzie che elenca | Previsti dal DPA, con le garanzie che il DPA elenca | Nessuno, se la macchina e il fornitore sono nell'UE |
+| Conservazione | La decide il piano dell'autore e non si accorcia | La decide il piano e non si accorcia | La decide e la applica chi ospita l'istanza |
+| Che cosa deve preparare l'ente | Niente per farla funzionare; decidere se lasciare la scelta agli operatori (paragrafo «La domanda del primo avvio») | Tutto quello che segue | Tutto quello che segue |
+
+Il resto del capitolo, fino a «Dove si scrivono indirizzo e chiave», serve solo a chi
+sceglie una delle ultime due strade.
 
 ### PostHog Cloud UE
 
@@ -1105,8 +1163,9 @@ Tre condizioni per un'istanza propria, prima di accendere qualunque postazione:
 
 ### Le impostazioni del progetto
 
-Nel progetto PostHog che riceverà le statistiche, su tutte e due le strade salvo dove
-è detto:
+Nel progetto PostHog che riceverà le statistiche, su PostHog Cloud UE e sull'istanza
+propria salvo dove è detto. Valgono anche per il progetto dell'autore, dietro il ponte
+`telemetry.curti.cloud`, e le cura l'autore:
 
 1. **Scartare l'IP del client.** Nella guida di PostHog sulla conservazione dei dati
    la voce è Settings → Project → IP data capture configuration, «Discard client IP
@@ -1143,17 +1202,23 @@ pagine web. **Non va mai usata una chiave personale**, quelle che cominciano con
 ### Dove si scrivono indirizzo e chiave
 
 Tre posti, dal più generale al più particolare. L'indirizzo è quello base, senza il
-percorso dell'API: `https://eu.i.posthog.com/` per PostHog Cloud UE, oppure quello
+percorso dell'API: `https://telemetry.curti.cloud/` per il server dell'autore,
+`https://eu.i.posthog.com/` per un proprio progetto su PostHog Cloud UE, oppure quello
 dell'istanza propria, per esempio `https://statistiche.example.it/`. Il percorso
 `batch/` lo aggiunge il programma, anche dietro un proxy che pubblica PostHog sotto un
 percorso.
 
 **Nel codice, prima di compilare**: le costanti `TelemetrySettings.DefaultServerUrl` e
 `TelemetrySettings.DefaultProjectKey` in `src\BlindPhone.Infrastructure\AppSettings.cs`.
-Ogni postazione installata da quella copia conosce il server, e il consenso resta
-spento. La chiave **non va scritta nel repository pubblico**, anche se non è un
-segreto: chiunque la legga potrebbe riempire il progetto di eventi falsi. Si scrive
-nella copia che si compila per la distribuzione.
+Oggi sono quelle del server dell'autore. Ogni postazione installata da una copia conosce
+il server, e il consenso resta spento. La chiave del server dell'autore **sta nel
+repository pubblico, e va bene così**: chi la legge potrebbe mandare eventi falsi, ma
+potrebbe farlo comunque, perché da qualunque copia installata la chiave si legge in
+`settings.json`. Contro gli eventi falsi non protegge il segreto, protegge il ponte, che
+si può fermare o limitare dal lato del server. Nel codice è scritta in due pezzi,
+`"phc_" + "..."`, perché tutta d'un pezzo la protezione dei segreti di GitHub potrebbe
+rifiutare il push. Chi compila una copia per un altro server cambia le due costanti: la
+domanda del primo avvio nomina l'autore solo se il server è `telemetry.curti.cloud`.
 
 **Su una postazione**, in `%APPDATA%\BlindPhone\settings.json`. Con PostHog Cloud UE:
 
@@ -1166,26 +1231,38 @@ nella copia che si compila per la distribuzione.
 ```
 
 Con un'istanza propria cambia solo `serverUrl`, per esempio
-`"https://statistiche.example.it/"`.
+`"https://statistiche.example.it/"`. Per una postazione che non deve conoscere nessun
+server si lasciano vuoti tutti e due, `""`: dopo l'aggiornamento a questa versione un
+indirizzo vuoto resta vuoto, la postazione è muta e la domanda non compare.
 
 **Su tutte le postazioni**, con il pacchetto di configurazione (§8): la sezione
 *Diagnostica* porta indirizzo, chiave **e consenso**. È la strada quando a decidere è
-l'ente: chi prepara il pacchetto accende le statistiche per tutte le postazioni, e
-bloccando la sezione Diagnostica (§9) la decisione resta quella. All'applicazione
-l'operatore sente «ATTENZIONE: sono state accese le statistiche d'uso anonime», e lo
-stesso se il pacchetto sposta il server. Prima di farlo, l'ente deve aver fatto quello
-che chiede la nota in [CONFORMITA-PA-ITALIANA.md](../CONFORMITA-PA-ITALIANA.md), §7.
+l'ente: chi prepara il pacchetto accende o spegne le statistiche per tutte le
+postazioni, o sposta il server, e bloccando la sezione Diagnostica (§9) la decisione
+resta quella e la domanda del primo avvio non compare. All'applicazione l'operatore
+sente «ATTENZIONE: sono state accese le statistiche d'uso anonime», e lo stesso se il
+pacchetto sposta il server. Prima di farlo, l'ente deve aver fatto quello che chiede la
+nota in [CONFORMITA-PA-ITALIANA.md](../CONFORMITA-PA-ITALIANA.md), §7. **Con il server
+dell'autore il pacchetto non le accende per tutti**: lì la base è il consenso del singolo
+operatore, e la nota spiega perché (§7.7). Attenzione anche a un
+pacchetto preparato con una versione precedente: porta indirizzo e chiave vuoti, e
+applicato oggi toglie il server dell'autore.
 
 Nella scheda Diagnostica l'operatore vede solo la casella «Invia statistiche d'uso
 anonime», Alt T, e una riga che dice se il server c'è e qual è. Indirizzo e chiave non
-si cambiano da lì.
+si cambiano da lì. Cambiare la casella vale come una risposta alla domanda del primo
+avvio, che da quel momento non compare più.
 
 ### Verificarlo
 
 - **Sulla postazione**: la riga sotto la casella dice, per esempio, «Accese: partono verso
-  eu.i.posthog.com». Nel registro diagnostico, tre minuti dopo l'avvio, compare
-  «Statistiche d'uso attive verso eu.i.posthog.com»; i problemi di rete
+  telemetry.curti.cloud». Nel registro diagnostico, tre minuti dopo l'avvio, compare
+  «Statistiche d'uso attive verso telemetry.curti.cloud»; i problemi di rete
   compaiono come righe «Statistiche d'uso: ...» e restano lì, senza annunci.
+- **La domanda**: il registro dice la risposta, per esempio «Domanda sulle statistiche
+  d'uso: risposta no, verso telemetry.curti.cloud», oppure che non è stata fatta perché
+  la scheda Diagnostica è bloccata. Per farla ricomparire su una postazione di prova si
+  mette `"telemetryConsentAsked": false` e `"enabled": false` in `settings.json`.
 - **Sul server**: nella vista degli eventi arrivano `installazione`, `avvio` e
   `attivita_giornaliera`, tutti con l'ora delle 12:00 UTC del giorno. Non è un errore:
   è il modo di dire il giorno senza dire l'ora.

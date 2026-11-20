@@ -28,6 +28,11 @@ namespace BlindPhone.Windows.Tests;
 /// campo per campo contro il catalogo, con una configurazione piena di interni, nomi e
 /// indirizzi che non devono comparire.
 /// </para>
+/// <para>
+/// <b>Ogni prova che accende il consenso scrive l'indirizzo del server finto</b>, con
+/// <c>Configura</c>. I valori predefiniti puntano al server vero dell'autore: una prova
+/// che li lasciasse e accendesse il consenso manderebbe eventi a PostHog.
+/// </para>
 /// </remarks>
 public sealed class StatisticheDusoReteTests : IAsyncLifetime
 {
@@ -126,17 +131,18 @@ public sealed class StatisticheDusoReteTests : IAsyncLifetime
     // -----------------------------------------------------------------------
 
     [Fact]
-    public void LeStatisticheNasconoSpenteESenzaServer()
+    public void LeStatisticheNasconoSpenteConIlServerDellAutore()
     {
         var predefinite = new AppSettings().Telemetry;
 
-        // Le due costanti si leggono dalle impostazioni nate da loro: confrontarle con un
-        // testo vuoto scritto qui farebbe protestare l'analizzatore di xUnit, che vuole la
-        // costante dalla parte del valore atteso.
+        // Il server c'e' di partenza, il consenso no: una copia appena compilata non
+        // manda niente finche' qualcuno non dice si'. Il dettaglio, compresa la domanda
+        // del primo avvio, sta in PrimoAvvioStatisticheTests.
         Assert.False(predefinite.Enabled);
-        Assert.True(predefinite.ServerUrl.Length == 0, "l'indirizzo predefinito deve essere vuoto");
-        Assert.True(predefinite.ProjectKey.Length == 0, "la chiave predefinita deve essere vuota");
-        Assert.False(predefinite.IsConfigured);
+        Assert.Equal(TelemetrySettings.DefaultServerUrl, predefinite.ServerUrl);
+        Assert.Equal(TelemetrySettings.DefaultProjectKey, predefinite.ProjectKey);
+        Assert.True(predefinite.IsConfigured);
+        Assert.False(predefinite.IsActive);
 
         // I valori derivati non finiscono nel file: chi lo apre con un editor non deve
         // trovare un «isActive» da cambiare che non cambia niente.

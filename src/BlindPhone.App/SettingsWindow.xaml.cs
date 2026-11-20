@@ -3317,6 +3317,13 @@ public partial class SettingsWindow : Window
             {
                 Enabled = TelemetryEnabled.IsChecked == true,
             },
+
+            // Chi cambia la casella ha deciso da se', e la domanda del primo avvio non
+            // gli va piu' fatta: e' il caso di chi l'ha spenta qui prima che la
+            // postazione ricevesse un server. Chi salva senza toccarla non ha deciso
+            // niente, e la domanda resta com'era.
+            TelemetryConsentAsked = current.TelemetryConsentAsked
+                                    || (TelemetryEnabled.IsChecked == true) != current.Telemetry.Enabled,
             Updates = current.Updates with
             {
                 ServerUrl = UpdateServerUrl.Text.Trim(),

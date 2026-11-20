@@ -314,11 +314,18 @@ di consenso di Windows. Se il server non risponde la cosa finisce nel registro e
 
 BlindPhone può dire a chi lo sviluppa quante postazioni lo usano e quali funzioni
 servono: versione, Windows, screen reader, funzioni accese, quali comandi si usano e se
-da tastiera o dal pulsante. Le manda a [PostHog](https://posthog.com), al servizio
-ufficiale nella regione UE (`https://eu.i.posthog.com/`) oppure a un'istanza ospitata
-in proprio, e **non parte niente finché non ci sono tre cose insieme**: un indirizzo
-`https://`, una chiave di progetto `phc_` e il consenso, che è spento di partenza. Una
-copia compilata senza toccare niente non conosce nessun server, ed è muta.
+da tastiera o dal pulsante. Le manda a [PostHog](https://posthog.com): di partenza
+attraverso il server dell'autore, `https://telemetry.curti.cloud/`, che le passa a
+PostHog Cloud nella regione UE senza l'IP della postazione; oppure a un progetto PostHog
+o a un'istanza scelti dall'ente. **Non parte niente finché non ci sono tre cose
+insieme**: un indirizzo `https://`, una chiave di progetto `phc_` e il consenso, che è
+spento di partenza. Indirizzo e chiave arrivano con il programma; il consenso no.
+
+**Al primo avvio BlindPhone chiede all'operatore, una volta sola, se mandarle.** La
+finestra legge che cosa parte e verso chi; nessuna delle due risposte è scelta in
+anticipo, Alt S dice sì, Alt N e Esc dicono no. La domanda non compare se l'ente ha
+bloccato la scheda Diagnostica con il pacchetto di configurazione: in quel caso decide
+l'ente.
 
 **L'elenco di che cosa può partire è chiuso** e sta in un file solo,
 [TelemetryCatalog.cs](src/BlindPhone.Core/Services/TelemetryCatalog.cs): ogni valore è
@@ -328,13 +335,14 @@ Le prove lo verificano sui byte che arrivano a un server HTTPS finto. **Niente c
 e niente orari**: le statistiche dicono che cosa si usa del prodotto, non quanto lavora
 chi lo usa.
 
-Il consenso è la casella «Invia statistiche d'uso anonime» in *Impostazioni →
-Diagnostica*, e viaggia con il pacchetto di configurazione insieme a indirizzo e
-chiave. La guida in linea ha un argomento che legge all'operatore, dallo stesso
-catalogo, che cosa parte. Come preparare PostHog, sul cloud UE o in proprio:
-[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) §11. Che cosa deve fare l'ente prima di
-accenderle, compreso il DPA di PostHog con il cloud:
-[CONFORMITA-PA-ITALIANA.md](CONFORMITA-PA-ITALIANA.md) §7.
+Dopo la domanda, il consenso è la casella «Invia statistiche d'uso anonime» in
+*Impostazioni → Diagnostica*, e viaggia con il pacchetto di configurazione insieme a
+indirizzo e chiave. La guida in linea ha un argomento che legge all'operatore, dallo
+stesso catalogo, che cosa parte, e che per il server dell'autore fa da informativa. Come
+preparare PostHog, sul cloud UE o in proprio:
+[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) §11. Che cosa deve fare l'ente, per
+lasciare la scelta agli operatori, per toglierla o per accenderle, compreso il DPA di
+PostHog con il cloud: [CONFORMITA-PA-ITALIANA.md](CONFORMITA-PA-ITALIANA.md) §7.
 
 ## La finestra principale
 

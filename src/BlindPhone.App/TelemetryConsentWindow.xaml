@@ -1,0 +1,81 @@
+<Window x:Class="BlindPhone.App.TelemetryConsentWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="BlindPhone - statistiche d'uso anonime"
+        Width="720"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        Background="{DynamicResource SurfaceBrush}">
+
+    <!--
+        DOMANDA SULLE STATISTICHE D'USO, AL PRIMO AVVIO
+
+        Compare una volta sola, prima della finestra principale, e solo se il server
+        delle statistiche e' valido, le statistiche sono spente e l'ente non ha
+        bloccato la scheda Diagnostica: vedi TelemetryConsentPrompt.ShouldAsk.
+
+        NE' SI' NE' NO SONO PRESELEZIONATI.
+
+        All'apertura il fuoco sta nel testo, e nessuno dei due pulsanti e' quello
+        predefinito (niente IsDefault): un Invio dato per abitudine - quello con cui
+        si chiudeva l'avviso di versione - non sceglie niente. Alt S risponde si',
+        Alt N risponde no, e i due pulsanti hanno la stessa forma e la stessa
+        larghezza. Esc vale come no: chiudere senza rispondere non e' un consenso.
+
+        Il testo sta in una casella di sola lettura e non in un'etichetta, come
+        nell'avviso di versione e nella guida: dentro una casella il cursore si
+        muove riga per riga con le frecce, e lo screen reader legge quello su cui
+        passa. Il nome della casella e' la domanda stessa, cosi' e' la prima cosa
+        che si sente quando il fuoco ci arriva.
+
+        Il titolo della finestra e' scritto qui per intero, e non solo dal codice:
+        e' la prima cosa che lo screen reader legge, e una prova verifica che ogni
+        finestra ne abbia uno.
+    -->
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   x:Name="QuestionText"
+                   FontWeight="Bold"
+                   FontSize="19"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,12"
+                   Text="" />
+
+        <TextBox Grid.Row="1"
+                 x:Name="ExplanationText"
+                 Height="320"
+                 IsReadOnly="True"
+                 IsReadOnlyCaretVisible="True"
+                 AcceptsReturn="True"
+                 TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"
+                 FontSize="16"
+                 Text=""
+                 AutomationProperties.Name="Vuoi inviare statistiche d'uso anonime a chi sviluppa BlindPhone?"
+                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga. Alt S risponde si', Alt N risponde no, Esc vale come no." />
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="YesButton" Content="_Sì, invia le statistiche"
+                    MinWidth="240" Margin="0,0,8,0"
+                    AutomationProperties.Name="Sì, invia le statistiche d'uso anonime"
+                    AutomationProperties.HelpText="Accende le statistiche. Si spengono quando vuoi da Impostazioni, scheda Diagnostica, Alt T."
+                    Click="OnYesClick" />
+
+            <Button x:Name="NoButton" Content="_No, non inviarle"
+                    MinWidth="240"
+                    IsCancel="True"
+                    AutomationProperties.Name="No, non inviare le statistiche d'uso"
+                    AutomationProperties.HelpText="Lascia le statistiche spente. Si accendono quando vuoi da Impostazioni, scheda Diagnostica, Alt T."
+                    Click="OnNoClick" />
+        </StackPanel>
+    </Grid>
+</Window>
