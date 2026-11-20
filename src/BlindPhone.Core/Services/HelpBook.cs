@@ -644,7 +644,7 @@ public static class HelpBook
 
         - Chiudi BlindPhone: Alt F4, oppure {K(profile, HotkeyCommand.QuitApplication)}
         - Riapri la finestra da qualunque programma: {G(profile, HotkeyCommand.ShowWindow)}
-        - Raggiungi l'icona da tastiera: Windows B, poi il tasto applicazione oppure Maiusc F10 per il menu, con «Apri BlindPhone» ed «Esci»
+        - Raggiungi l'icona da tastiera: Windows B, poi il tasto applicazione oppure Maiusc F10 per il menu, con «Apri BlindPhone», «Ricerca aggiornamenti», «Impostazioni» ed «Esci». «Ricerca aggiornamenti» cerca subito e, se trova una versione nuova, apre la finestra delle novità; «Impostazioni» apre il pannello senza riaprire la finestra principale
 
         Se esci mentre una chiamata è in corso ti viene chiesta conferma, perché uscendo cadrebbe. Vale per tutti e due i modi di uscire.
 

@@ -67,13 +67,26 @@ public partial class UpdateWindow : Window
 
         DisableInstallIfUnverifiable();
 
+        // Il nome della casella dice di quale versione sono le novita': e' la prima cosa
+        // che lo screen reader legge arrivandoci, cioe' all'apertura.
+        System.Windows.Automation.AutomationProperties.SetName(
+            NotesText, $"Novità della versione {_update.DisplayVersion}");
+
         Loaded += (_, _) =>
         {
-            LaterButton.Focus();
+            // Il cursore va sulle novita', in cima: lo screen reader legge il nome della
+            // casella e la prima novita', e le altre si leggono con le frecce. Vedi il
+            // commento in testa a UpdateWindow.xaml.
+            NotesText.CaretIndex = 0;
+            NotesText.Focus();
 
+            // Non interrompe: arriva dopo la lettura della casella, e dice quello che la
+            // casella non dice - da quale versione si parte, da dove arriva il pacchetto,
+            // e come si chiude.
             _announcer.Announce(Announcement.High(
-                $"Aggiornamento disponibile: versione {_update.DisplayVersion}. "
-                + "Premi Tab per leggere le novita', Invio per aggiornare piu' tardi.",
+                $"Aggiornamento disponibile: versione {_update.DisplayVersion}, installata la {installed}. "
+                + $"{CountNotes()} Invio o Esc per aggiornare piu' tardi, Alt S per scaricare e installare. "
+                + ChannelText.Text,
                 DateTimeOffset.Now,
                 coalesceKey: "update:available"));
         };
@@ -88,6 +101,14 @@ public partial class UpdateWindow : Window
     /// non sono state pubblicate, che è un'informazione, e non «errore nella lettura
     /// del file», che è un rimprovero a qualcuno che non è l'operatore.
     /// </remarks>
+    /// <summary>Quante novità ci sono, detto in una frase.</summary>
+    private string CountNotes() => _notes.Features.Count switch
+    {
+        0 => "Per questa versione non sono state pubblicate note sulle novita'.",
+        1 => "Una novita', nella casella.",
+        var n => $"{n} novita', nella casella: frecce su e giu' per leggerle.",
+    };
+
     private string DescribeNotes()
     {
         if (_notes.Features.Count == 0)

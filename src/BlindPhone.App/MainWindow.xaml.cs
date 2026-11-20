@@ -829,6 +829,11 @@ public partial class MainWindow : Window
                 _serviceProvider.GetRequiredService<ILogger<UpdateWindow>>())
             {
                 Owner = this,
+
+                // Aperta dall'area di notifica la finestra principale e' riposta: senza
+                // il posto nella barra delle applicazioni, e quindi in Alt Tab, una
+                // finestra delle novita' che perde il fuoco non si ritroverebbe piu'.
+                ShowInTaskbar = !IsVisible,
             };
 
             finestra.ShowDialog();
@@ -840,6 +845,133 @@ public partial class MainWindow : Window
             _announcer.Announce(Announcement.CommandResponse(
                 "Non e' stato possibile aprire la finestra dell'aggiornamento", DateTimeOffset.Now));
         }
+    }
+
+    private bool _checkingUpdatesFromTray;
+
+    /// <summary>
+    /// Cerca gli aggiornamenti su richiesta, dalla voce del menu dell'area di notifica.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Come il pulsante della scheda Diagnostica, ogni esito si dice</b>, anche
+    /// «nessun aggiornamento»: la ricerca l'ha chiesta l'operatore, e il silenzio dopo
+    /// una voce di menu sarebbe indistinguibile da una voce che non fa niente.
+    /// </para>
+    /// <para>
+    /// Se trova una versione apre la stessa finestra delle novità del pulsante della
+    /// barra dei comandi. La finestra principale resta dov'è: chi cerca gli
+    /// aggiornamenti dall'area di notifica non ha chiesto di riaprirla.
+    /// </para>
+    /// </remarks>
+    private async Task CheckForUpdatesFromTrayAsync()
+    {
+        if (BringOpenDialogForward()) return;
+
+        if (_checkingUpdatesFromTray)
+        {
+            _announcer.Announce(Announcement.CommandResponse("Ricerca degli aggiornamenti gia' in corso", DateTimeOffset.Now));
+            return;
+        }
+
+        _checkingUpdatesFromTray = true;
+        _announcer.Announce(Announcement.CommandResponse("Ricerca degli aggiornamenti in corso", DateTimeOffset.Now));
+
+        try
+        {
+            var esito = await CreateUpdateService().CheckAsync().ConfigureAwait(true);
+
+            if (esito.Failed)
+            {
+                _announcer.Announce(Announcement.CommandResponse(
+                    $"Ricerca degli aggiornamenti non riuscita. {esito.Error}", DateTimeOffset.Now));
+                return;
+            }
+
+            if (esito.Update is not { } trovato)
+            {
+                _announcer.Announce(Announcement.CommandResponse(
+                    $"Nessun aggiornamento: la versione installata, la {UpdateCatalog.Describe(InstalledVersion())}, "
+                    + "e' la piu' recente sul server",
+                    DateTimeOffset.Now));
+                return;
+            }
+
+            _telemetry?.RecordUpdateFound(trovato.Version);
+            _updateFound = esito;
+            UpdateCommandBar();
+
+            // Nel frattempo l'operatore puo' aver aperto un'altra finestra modale:
+            // aprirne una seconda sopra la prima le chiuderebbe entrambe fuori dalla sua
+            // portata. Si dice dove trovare l'aggiornamento, come fa il controllo
+            // all'avvio.
+            if (System.Windows.Interop.ComponentDispatcher.IsThreadModal)
+            {
+                _announcer.Announce(Announcement.CommandResponse(
+                    $"Aggiornamento disponibile: versione {trovato.DisplayVersion}. "
+                    + "Il pulsante per installarlo e' nella barra dei comandi della postazione.",
+                    DateTimeOffset.Now));
+                return;
+            }
+
+            ShowUpdateWindow();
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Ricerca degli aggiornamenti dall'area di notifica non riuscita");
+            _announcer.Announce(Announcement.CommandResponse(
+                "Ricerca degli aggiornamenti non riuscita: il dettaglio e' nel registro", DateTimeOffset.Now));
+        }
+        finally
+        {
+            _checkingUpdatesFromTray = false;
+        }
+    }
+
+    /// <summary>
+    /// Apre le impostazioni dalla voce del menu dell'area di notifica.
+    /// </summary>
+    /// <remarks>
+    /// Senza riaprire la finestra principale: chi chiede le impostazioni dall'area di
+    /// notifica vuole quelle. Il pannello resta raggiungibile da solo, perché compare
+    /// nella barra delle applicazioni e in Alt Tab anche con la finestra principale
+    /// riposta (vedi FinestreInAltTabTests).
+    /// </remarks>
+    private void OpenSettingsFromTray()
+    {
+        if (BringOpenDialogForward()) return;
+
+        OpenSettings();
+    }
+
+    /// <summary>
+    /// Se una finestra modale è già aperta, la riporta in primo piano e lo dice.
+    /// </summary>
+    /// <returns><c>true</c> se c'era una finestra aperta, e quindi non se ne apre un'altra.</returns>
+    /// <remarks>
+    /// Il menu dell'area di notifica funziona anche mentre una finestra modale è aperta.
+    /// Senza questo controllo «Impostazioni» ne avrebbe aperta una seconda sopra la
+    /// prima, e chiudendo quella di sopra l'operatore si sarebbe ritrovato in una
+    /// finestra che non ricordava di aver lasciato aperta.
+    /// </remarks>
+    private bool BringOpenDialogForward()
+    {
+        if (!System.Windows.Interop.ComponentDispatcher.IsThreadModal) return false;
+
+        var aperta = Application.Current.Windows
+            .OfType<Window>()
+            .LastOrDefault(w => !ReferenceEquals(w, this) && w.IsVisible);
+
+        if (aperta is null) return false;
+
+        if (aperta.WindowState == WindowState.Minimized) aperta.WindowState = WindowState.Normal;
+        aperta.Activate();
+        ForegroundActivator.TryTake(aperta);
+
+        _announcer.Announce(Announcement.CommandResponse(
+            $"E' gia' aperta la finestra {aperta.Title}: chiudila prima di aprirne un'altra", DateTimeOffset.Now));
+
+        return true;
     }
 
     // -----------------------------------------------------------------------
@@ -864,6 +996,8 @@ public partial class MainWindow : Window
             _tray = new TrayIcon(_trayLog);
             _tray.OpenRequested += (_, _) => Dispatcher.Invoke(() => RestoreWindow("Riaperto dall'area di notifica"));
             _tray.ExitRequested += (_, _) => Dispatcher.Invoke(QuitApplication);
+            _tray.UpdatesRequested += (_, _) => Dispatcher.Invoke(() => _ = CheckForUpdatesFromTrayAsync());
+            _tray.SettingsRequested += (_, _) => Dispatcher.Invoke(OpenSettingsFromTray);
 
             UpdateRegistrationText();
             _log.LogInformation("Icona nell'area di notifica attiva");

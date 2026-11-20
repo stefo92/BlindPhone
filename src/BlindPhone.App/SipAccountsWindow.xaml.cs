@@ -294,5 +294,23 @@ public partial class SipAccountsWindow : Window
         public string ActiveText { get; } = isActive ? "si" : "no";
 
         public string DefaultText { get; } = isDefault ? "si" : "no";
+
+        /// <summary>La riga come la legge lo screen reader.</summary>
+        /// <remarks>
+        /// Senza, WPF dà alla riga il nome del tipo, e lo screen reader diceva
+        /// «BlindPhone.App.SipAccountsWindow più AccountRow» a ogni account. Dice le
+        /// stesse cose delle colonne, nell'ordine, come le righe delle altre tabelle.
+        /// </remarks>
+        public override string ToString()
+            => string.Join(", ", new[]
+            {
+                Name,
+                $"interno {Username}",
+                $"centralino {Domain}",
+                Transport,
+                IsActive ? "in uso" : null,
+                isDefault ? "all'avvio" : null,
+                IsChosen ? "scelto" : null,
+            }.Where(parte => !string.IsNullOrWhiteSpace(parte)));
     }
 }

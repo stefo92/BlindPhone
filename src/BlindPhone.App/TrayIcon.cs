@@ -20,9 +20,14 @@ namespace BlindPhone.App;
 /// <b>Perché ha anche un menu.</b> L'area di notifica è raggiungibile da tastiera con
 /// Windows più B, e da lì il menu contestuale si apre con il tasto applicazione o con
 /// Maiusc F10: è la via di ritorno che funziona anche quando la scorciatoia globale
-/// di riapertura risulta occupata da un altro programma. Le due voci sono deliberate
-/// e sono solo due, perché un menu contestuale letto a voce si percorre una voce alla
-/// volta.
+/// di riapertura risulta occupata da un altro programma.
+/// </para>
+/// <para>
+/// <b>Quattro voci, e non di più.</b> Un menu contestuale letto a voce si percorre una
+/// voce alla volta. Oltre ad aprire e uscire ci sono le due cose che si cercano con la
+/// finestra riposta: la ricerca degli aggiornamenti, che porta alla stessa finestra
+/// delle novità del pulsante della barra, e le impostazioni. Ognuna ha la sua lettera
+/// di accesso, e le lettere non si ripetono.
 /// </para>
 /// <para>
 /// L'unico tipo di Windows Forms usato nel prodotto vive qui, e non esce da questa
@@ -52,13 +57,23 @@ public sealed class TrayIcon : IDisposable
         var font = _openItem.Font;
         _openItem.Font = new Font(font, FontStyle.Bold);
 
+        var updatesItem = new System.Windows.Forms.ToolStripMenuItem("&Ricerca aggiornamenti");
+        updatesItem.Click += (_, _) => UpdatesRequested?.Invoke(this, EventArgs.Empty);
+
+        var settingsItem = new System.Windows.Forms.ToolStripMenuItem("&Impostazioni");
+        settingsItem.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+
         var exitItem = new System.Windows.Forms.ToolStripMenuItem("&Esci da BlindPhone");
         exitItem.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add(_openItem);
+        menu.Items.Add(updatesItem);
+        menu.Items.Add(settingsItem);
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add(exitItem);
+
+        MenuLabels = [.. menu.Items.OfType<System.Windows.Forms.ToolStripMenuItem>().Select(v => v.Text ?? string.Empty)];
 
         _icon = new System.Windows.Forms.NotifyIcon
         {
@@ -76,6 +91,16 @@ public sealed class TrayIcon : IDisposable
 
     /// <summary>Sollevato quando l'operatore chiede di uscire davvero.</summary>
     public event EventHandler? ExitRequested;
+
+    /// <summary>Sollevato quando l'operatore chiede di cercare gli aggiornamenti.</summary>
+    public event EventHandler? UpdatesRequested;
+
+    /// <summary>Sollevato quando l'operatore chiede le impostazioni.</summary>
+    public event EventHandler? SettingsRequested;
+
+    /// <summary>Le voci del menu, nell'ordine, con la lettera di accesso segnata da «&amp;».</summary>
+    /// <remarks>Per le prove: il menu di Windows Forms non si legge dall'albero di WPF.</remarks>
+    internal IReadOnlyList<string> MenuLabels { get; }
 
     /// <summary>
     /// Aggiorna il testo mostrato passando sopra l'icona.

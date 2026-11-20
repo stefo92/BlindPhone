@@ -22,6 +22,18 @@
         quello su cui passa. E' la stessa scelta dell'avviso di versione beta e della
         guida in linea.
 
+        LA FINESTRA SI APRE CON IL CURSORE SULLE NOVITA', e non su un pulsante. Prima
+        il fuoco andava a «Piu' tardi»: lo screen reader leggeva il titolo e il
+        pulsante, e le novita' - cioe' la ragione per cui la finestra esiste - si
+        raggiungevano soltanto con un Tab che nessuno annunciava abbastanza. La
+        casella non accetta Invio, cosi' Invio ed Esc chiudono con «Piu' tardi» anche
+        da li'.
+
+        NIENTE NOME FISSO SULLE RIGHE DI TESTO. Versione e provenienza avevano un nome
+        accessibile scritto a mano, «Versione installata e versione disponibile», che
+        copriva il testo: lo screen reader diceva l'etichetta e non le versioni.
+        Senza, legge quello che c'e' scritto.
+
         Il pulsante predefinito e' "Piu' tardi" e non "Installa". Un aggiornamento non
         e' un'emergenza, la finestra puo' comparire mentre squilla il telefono, e un
         Invio dato per chiudere qualcosa non deve far partire un'installazione che
@@ -51,29 +63,27 @@
                    x:Name="VersionText"
                    FontSize="16"
                    Margin="0,0,0,12"
-                   Text=""
-                   AutomationProperties.Name="Versione installata e versione disponibile" />
+                   Text="" />
 
         <TextBox Grid.Row="2"
                  x:Name="NotesText"
                  Height="220"
                  IsReadOnly="True"
                  IsReadOnlyCaretVisible="True"
-                 AcceptsReturn="True"
+                 AcceptsReturn="False"
                  TextWrapping="Wrap"
                  VerticalScrollBarVisibility="Auto"
                  FontSize="16"
                  Text=""
                  AutomationProperties.Name="Novità introdotte da questa versione"
-                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga." />
+                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga. Invio o Esc per aggiornare piu' tardi, Alt S per scaricare e installare." />
 
         <TextBlock Grid.Row="3"
                    x:Name="ChannelText"
                    FontSize="14"
                    Margin="0,12,0,0"
                    TextWrapping="Wrap"
-                   Text=""
-                   AutomationProperties.Name="Provenienza del pacchetto" />
+                   Text="" />
 
         <!--
             Avanzamento dello scaricamento. La barra e' accompagnata da una riga di

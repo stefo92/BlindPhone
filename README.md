@@ -1306,7 +1306,7 @@ chiusura accidentale resta dov'è utile, cioè sul gesto che si compie per sbagl
 | `Alt+F4` | Esce davvero. Con una chiamata in corso chiede conferma |
 | Chiudi la finestra con la X | BlindPhone resta in servizio nell'area di notifica, e lo annuncia |
 | `Ctrl+Maiusc+B` (globale) | Riapre la finestra da qualunque programma |
-| `Windows+B`, poi menu contestuale | Raggiunge l'icona da tastiera: *Apri BlindPhone*, *Esci* |
+| `Windows+B`, poi menu contestuale | Raggiunge l'icona da tastiera: *Apri BlindPhone*, *Ricerca aggiornamenti*, *Impostazioni*, *Esci* |
 | `Ctrl+Maiusc+Q` (con la finestra aperta) | Esce davvero. Con una chiamata in corso chiede conferma |
 | Chiamata entrante | La finestra torna in primo piano da sola |
 

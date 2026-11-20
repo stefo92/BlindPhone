@@ -862,11 +862,35 @@
         <Setter Property="HorizontalContentAlignment" Value="Left" />
     </Style>
 
+    <!--
+        OGNI CELLA SI LEGGE CON IL TESTO CHE MOSTRA.
+
+        Senza un nome dichiarato, WPF dava alle celle vuote e alle caselle di spunta
+        «Elemento: <tutta la riga>, indice visualizzazione colonna: N», e dove la riga
+        non aveva un testo suo al posto della riga c'era il nome del tipo:
+        «BlindPhone.App.SipAccountsWindow più AccountRow». Il nome si ricava dal
+        contenuto della cella con TestoDellaCella: il testo, «vuoto», «selezionato» o
+        «non selezionato». Gli stili di cella delle finestre estendono questo con
+        BasedOn, e dove dichiarano un nome loro vince il loro.
+
+        I primi due percorsi esistono solo su un tipo di contenuto per volta: sull'altro
+        non si risolvono e arrivano al convertitore come valore mancante, che e' quello
+        che serve.
+    -->
     <Style TargetType="DataGridCell">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
         <Setter Property="Padding" Value="8,0" />
+        <Setter Property="AutomationProperties.Name">
+            <Setter.Value>
+                <MultiBinding Converter="{x:Static app:TestoDellaCella.Instance}">
+                    <Binding RelativeSource="{RelativeSource Self}" Path="Content.Text" />
+                    <Binding RelativeSource="{RelativeSource Self}" Path="Content.IsChecked" />
+                    <Binding RelativeSource="{RelativeSource Self}" Path="Content" />
+                </MultiBinding>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <Trigger Property="IsSelected" Value="True">
                 <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
