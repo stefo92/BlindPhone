@@ -970,11 +970,14 @@ public partial class SettingsWindow : Window
         // Aggiornamenti. La password si legge dal deposito protetto e si riscrive nel
         // campo: lasciarlo vuoto quando una password c'e' farebbe credere che non sia
         // configurata, e salvando la si cancellerebbe senza volerlo.
-        UpdateServerUrl.Text = settings.Updates.ServerUrl;
+        //
+        // Il campo mostra la cartella che si usa davvero: con l'indirizzo vuoto nel file
+        // e' quella del portale, e un campo vuoto si leggeva come «nessun server».
+        UpdateServerUrl.Text = settings.Updates.EffectiveServerUrl;
         UpdateUsername.Text = settings.Updates.Username ?? string.Empty;
         UpdatePassword.Password = _settingsService.Secrets.GetForHost(
             settings.Updates.PasswordKey,
-            settings.Updates.ServerUrl,
+            settings.Updates.EffectiveServerUrl,
             "la password del server degli aggiornamenti");
         UpdateCheckOnStartup.IsChecked = settings.Updates.CheckOnStartup;
 
@@ -987,6 +990,10 @@ public partial class SettingsWindow : Window
         SelectByTag(ConversationDevice, settings.Conversation.DeviceId);
         SelectByTag(RingerDevice, settings.Ringer.DeviceId);
         SelectByTag(AnnouncementDevice, settings.Announcements.DeviceId);
+
+        ConversationVolume.Value = AudioRouteSettings.ToPercent(settings.Conversation.Volume);
+        RingerVolume.Value = AudioRouteSettings.ToPercent(settings.Ringer.Volume);
+        AnnouncementVolume.Value = AudioRouteSettings.ToPercent(settings.Announcements.Volume);
 
         // L'elaborazione del microfono si carica prima di agganciare il commento
         // sull'effetto: la casella e l'elenco lo aggiornano a ogni cambio, e a finestra
@@ -1481,15 +1488,12 @@ public partial class SettingsWindow : Window
     {
         if (_checkingUpdates) return;
 
+        // Un campo vuoto vale come la cartella del portale, come all'avvio: prima qui
+        // rispondeva «nessun server», e chi aveva cancellato il vecchio indirizzo per
+        // passare al portale restava senza aggiornamenti. Vedi
+        // UpdateSettings.EffectiveServerUrl.
         var indirizzo = UpdateServerUrl.Text.Trim();
-
-        if (indirizzo.Length == 0)
-        {
-            ReportUpdateCheck(
-                "Nessun server degli aggiornamenti: scrivi l'indirizzo della cartella piu' sotto in questa "
-                + "scheda, nella parte Aggiornamenti, e premi di nuovo Cerca aggiornamenti.");
-            return;
-        }
+        var cartella = indirizzo.Length == 0 ? UpdateSettings.DefaultServerUrl : indirizzo;
 
         var installata = InstalledVersion();
 
@@ -1505,7 +1509,9 @@ public partial class SettingsWindow : Window
 
         _checkingUpdates = true;
         CheckUpdatesButton.IsEnabled = false;
-        ReportUpdateCheck("Ricerca degli aggiornamenti in corso");
+        ReportUpdateCheck(indirizzo.Length == 0
+            ? $"Indirizzo vuoto: ricerca degli aggiornamenti nella cartella del portale, {cartella}"
+            : "Ricerca degli aggiornamenti in corso");
 
         try
         {
@@ -2385,7 +2391,9 @@ public partial class SettingsWindow : Window
             // state salvate.
             _audio.AssignDevice(AudioRoute.Ringer, SelectedTag(RingerDevice));
 
-            await _audio.PlayAsync(AudioRoute.Ringer, path, 0f, CancellationToken.None);
+            await ConVolumeDelPannelloAsync(
+                AudioRoute.Ringer,
+                () => _audio.PlayAsync(AudioRoute.Ringer, path, 0f, CancellationToken.None));
 
             Report("Suoneria riprodotta sul dispositivo della suoneria. "
                    + "Se non l'hai sentita, controlla quale dispositivo hai scelto per la suoneria");
@@ -3333,9 +3341,24 @@ public partial class SettingsWindow : Window
             Contacts = ComponiRubricaCollegata(current.Contacts),
             Policy = ComposePolicy(),
             Microphone = current.Microphone with { DeviceId = SelectedTag(MicDevice), DeviceName = SelectedName(MicDevice) },
-            Conversation = current.Conversation with { DeviceId = SelectedTag(ConversationDevice), DeviceName = SelectedName(ConversationDevice) },
-            Ringer = current.Ringer with { DeviceId = SelectedTag(RingerDevice), DeviceName = SelectedName(RingerDevice) },
-            Announcements = current.Announcements with { DeviceId = SelectedTag(AnnouncementDevice), DeviceName = SelectedName(AnnouncementDevice) },
+            Conversation = current.Conversation with
+            {
+                DeviceId = SelectedTag(ConversationDevice),
+                DeviceName = SelectedName(ConversationDevice),
+                Volume = AudioRouteSettings.FromPercent(ConversationVolume.Value),
+            },
+            Ringer = current.Ringer with
+            {
+                DeviceId = SelectedTag(RingerDevice),
+                DeviceName = SelectedName(RingerDevice),
+                Volume = AudioRouteSettings.FromPercent(RingerVolume.Value),
+            },
+            Announcements = current.Announcements with
+            {
+                DeviceId = SelectedTag(AnnouncementDevice),
+                DeviceName = SelectedName(AnnouncementDevice),
+                Volume = AudioRouteSettings.FromPercent(AnnouncementVolume.Value),
+            },
             RingtonePath = NullIfEmpty(RingtonePath.Text),
             MicrophoneProcessing = new MicrophoneProcessing
             {
@@ -3443,7 +3466,7 @@ public partial class SettingsWindow : Window
         SaveSecretForHost(
             updated.Updates.PasswordKey,
             UpdatePassword.Password,
-            updated.Updates.ServerUrl,
+            updated.Updates.EffectiveServerUrl,
             "La password del server degli aggiornamenti",
             spostamenti);
 
@@ -3766,6 +3789,8 @@ public partial class SettingsWindow : Window
             await TestRouteAsync(AudioRoute.Ringer, SelectedTag(RingerDevice), "suoneria")
                 .ConfigureAwait(true);
 
+            await TestAnnouncementVoiceAsync().ConfigureAwait(true);
+
             Report("Prova audio completata");
         }
         catch (Exception ex)
@@ -3784,13 +3809,105 @@ public partial class SettingsWindow : Window
         _audio.AssignDevice(route, deviceId);
         Report($"Suono di prova sulla via {label}");
 
-        // Direttamente dal riproduttore e non dagli annunci: la prova deve suonare
-        // anche con i segnali acustici spenti, o sembrerebbe un dispositivo guasto.
-        _serviceProvider.GetRequiredService<ToneEarconPlayer>().PlayPreview(route == AudioRoute.Ringer
-            ? EarconKind.QueueCallArrived
-            : EarconKind.CallAnswered);
+        await ConVolumeDelPannelloAsync(route, async () =>
+        {
+            // Direttamente dal riproduttore e non dagli annunci: la prova deve suonare
+            // anche con i segnali acustici spenti, o sembrerebbe un dispositivo guasto.
+            _serviceProvider.GetRequiredService<ToneEarconPlayer>().PlayPreview(route == AudioRoute.Ringer
+                ? EarconKind.QueueCallArrived
+                : EarconKind.CallAnswered);
 
-        await Task.Delay(900).ConfigureAwait(true);
+            await Task.Delay(900).ConfigureAwait(true);
+        }).ConfigureAwait(true);
+    }
+
+    /// <summary>
+    /// Fa parlare la voce di BlindPhone sul dispositivo e al volume scelti nel pannello.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La frase dice da sé che cosa si sta provando, e non la precede un annuncio:
+    /// annuncio e frase di prova uscirebbero dalla stessa voce, una sopra l'altra.
+    /// </para>
+    /// <para>
+    /// Con la voce di BlindPhone spenta non si prova niente, e lo si dice: farla parlare
+    /// qui farebbe credere che sia accesa.
+    /// </para>
+    /// </remarks>
+    private async Task TestAnnouncementVoiceAsync()
+    {
+        if (InternalVoiceEnabled.IsChecked != true)
+        {
+            Report("Voce degli annunci non provata: la voce di BlindPhone è spenta nella scheda Accessibilità");
+            await Task.Delay(900).ConfigureAwait(true);
+            return;
+        }
+
+        _audio.AssignDevice(AudioRoute.Announcements, SelectedTag(AnnouncementDevice));
+
+        // Come per le altre vie, il volume del cursore vale per la prova e poi torna
+        // quello salvato.
+        var salvato = _speech.InternalVoiceVolume;
+        _speech.InternalVoiceVolume = AudioRouteSettings.ToPercent(AudioRouteSettings.FromPercent(AnnouncementVolume.Value));
+
+        try
+        {
+            _speech.SpeakWithInternalVoice("Questa è la voce degli annunci");
+            await Task.Delay(2500).ConfigureAwait(true);
+        }
+        finally
+        {
+            _speech.InternalVoiceVolume = salvato;
+        }
+    }
+
+    /// <summary>
+    /// Esegue una prova al volume che il cursore del pannello indica in quel momento,
+    /// poi rimette il volume salvato.
+    /// </summary>
+    /// <param name="route">Via provata: conversazione o suoneria.</param>
+    /// <param name="prova">La riproduzione di prova.</param>
+    /// <remarks>
+    /// <para>
+    /// Si prova al livello del cursore e non a quello salvato: chi sposta il cursore e
+    /// preme il pulsante vuole sentire il livello nuovo prima di decidere se tenerlo.
+    /// </para>
+    /// <para>
+    /// <b>Il volume salvato si rimette sempre</b>, anche se la prova non riesce. Una
+    /// suoneria provata al minimo e poi lasciata li' chiudendo con Annulla resterebbe al
+    /// minimo fino al riavvio, mentre il pannello continuerebbe a mostrare il valore di
+    /// prima: è il genere di guasto che fa perdere chiamate senza lasciare traccia.
+    /// </para>
+    /// </remarks>
+    private async Task ConVolumeDelPannelloAsync(AudioRoute route, Func<Task> prova)
+    {
+        var impostazioni = _settingsService.Current;
+
+        (Slider Cursore, float Salvato)? via = route switch
+        {
+            AudioRoute.Conversation => (ConversationVolume, impostazioni.Conversation.Volume),
+            AudioRoute.Ringer => (RingerVolume, impostazioni.Ringer.Volume),
+            AudioRoute.Announcements => (AnnouncementVolume, impostazioni.Announcements.Volume),
+            _ => null,
+        };
+
+        // Il microfono non ha un cursore: la prova va com'e'.
+        if (via is not (Slider cursore, float salvato))
+        {
+            await prova().ConfigureAwait(true);
+            return;
+        }
+
+        _audio.SetVolume(route, AudioRouteSettings.FromPercent(cursore.Value));
+
+        try
+        {
+            await prova().ConfigureAwait(true);
+        }
+        finally
+        {
+            _audio.SetVolume(route, salvato);
+        }
     }
 
     // -----------------------------------------------------------------------

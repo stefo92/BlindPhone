@@ -307,7 +307,7 @@ compie per spegnere, e fa quello che ci si aspetta.
 - **Alt F4** chiude BlindPhone
 - **Control Maiusc B** riapre la finestra da qualunque programma
 - **Windows B** raggiunge l'icona nell'area di notifica; da lì il tasto applicazione
-  o Maiusc F10 aprono il menu, con *Apri BlindPhone* ed *Esci*
+  o Maiusc F10 aprono il menu, con *Apri BlindPhone*, *Ricerca aggiornamenti*, *Impostazioni* ed *Esci*
 - **Control Maiusc Q**, con la finestra aperta, esce davvero
 
 Se c'è una chiamata in corso viene chiesta conferma, perché uscendo cadrebbe. Vale per

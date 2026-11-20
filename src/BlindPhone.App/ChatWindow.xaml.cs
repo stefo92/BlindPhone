@@ -21,14 +21,17 @@ public sealed record ChatLine(InstantMessage Message, string Who, string Accessi
     /// <summary>Ora del messaggio, a schermo.</summary>
     public string Time => Message.At.ToLocalTime().ToString("HH:mm");
 
-    /// <summary>Se l'ha scritto l'operatore: decide il filo colorato a sinistra.</summary>
+    /// <summary>Se l'ha scritto l'operatore: decide il lato e il colore del fumetto.</summary>
     public bool IsOutgoing => Message.IsOutgoing;
 
     /// <summary>Stato della consegna, vuoto quando è quello normale.</summary>
     public string Delivery => InstantMessageTexts.DeliveryShown(Message);
 
-    /// <summary>La riga dello stato sparisce quando non ha niente da dire.</summary>
-    public Visibility DeliveryVisibility => Delivery.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+    /// <summary>
+    /// La riga sotto il fumetto: «Tu, 10:42», e lo stato della consegna quando ha
+    /// qualcosa da dire, «Tu, 10:42 · invio in corso».
+    /// </summary>
+    public string Signature => Delivery.Length == 0 ? $"{Who}, {Time}" : $"{Who}, {Time} · {Delivery}";
 
     /// <summary>Evita che lo screen reader, senza un nome, legga il record per intero.</summary>
     public override string ToString() => AccessibleText;
@@ -210,6 +213,38 @@ public partial class ChatWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
 
+    /// <summary>
+    /// Larghezza della riga sotto la quale i pulsanti scendono sotto la casella.
+    /// </summary>
+    /// <remarks>
+    /// I tre pulsanti occupano circa 260 pixel; sotto questa misura la casella
+    /// resterebbe piu' stretta di 200, cioe' una decina di caratteri al corpo 20. Con
+    /// lo schermo ingrandito la finestra e' stretta in pixel logici, ed e' proprio
+    /// allora che la casella serve larga.
+    /// </remarks>
+    private const double LarghezzaPerUnaRiga = 480;
+
+    /// <summary>
+    /// A finestra stretta i pulsanti passano sotto la casella, allineati a destra.
+    /// </summary>
+    /// <remarks>
+    /// Cambia solo la posizione sullo schermo: l'ordine di tabulazione segue l'ordine
+    /// degli elementi nel documento, che resta casella, Invia, Chiama, Chiudi.
+    /// </remarks>
+    private void OnComposeBarSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (!e.WidthChanged) return;
+
+        var stretta = e.NewSize.Width < LarghezzaPerUnaRiga;
+
+        System.Windows.Controls.Grid.SetRow(ComposeButtons, stretta ? 1 : 0);
+        System.Windows.Controls.Grid.SetColumn(ComposeButtons, stretta ? 0 : 1);
+        System.Windows.Controls.Grid.SetColumnSpan(ComposeButtons, stretta ? 2 : 1);
+
+        ComposeButtons.HorizontalAlignment = stretta ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
+        ComposeButtons.Margin = stretta ? new Thickness(0, 10, 0, 0) : new Thickness(2, 0, 0, 0);
+    }
+
     // -----------------------------------------------------------------------
     // Storico
     // -----------------------------------------------------------------------
@@ -240,9 +275,21 @@ public partial class ChatWindow : Window
         }
     }
 
-    /// <summary>F1 apre la guida sull'argomento dei messaggi.</summary>
+    /// <summary>F1 apre la guida sull'argomento dei messaggi; Alt+S porta alla casella.</summary>
+    /// <remarks>
+    /// Alt+S arrivava con l'etichetta «Scrivi un messaggio» sopra la casella, che adesso
+    /// e' un suggerimento dentro la casella vuota, come nel sito: il tasto resta lo
+    /// stesso, e lo screen reader lo annuncia con la casella (AccessKey nel XAML).
+    /// </remarks>
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (e.Key == Key.System && e.SystemKey == Key.S && Keyboard.Modifiers == ModifierKeys.Alt)
+        {
+            e.Handled = true;
+            FocusCompose();
+            return;
+        }
+
         if (e.Key != Key.F1) return;
 
         e.Handled = true;

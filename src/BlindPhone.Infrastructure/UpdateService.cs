@@ -1,4 +1,7 @@
 using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using BlindPhone.Core.Services;
@@ -39,13 +42,27 @@ public sealed record UpdateCheckResult(AvailableUpdate? Update, UpdateNotes Note
 /// sarebbe un guasto, non una comodità.
 /// </para>
 /// <para>
-/// <b>FTP in chiaro viene rifiutato, e prima veniva soltanto segnalato.</b> Su
-/// <c>ftp://</c> la password e il pacchetto attraversano la rete in chiaro: chi sta
-/// sul percorso vede la prima e può sostituire il secondo con un altro programma, che
-/// l'operatore installerebbe con i privilegi di amministratore. Un avviso nel
-/// registro non è una difesa — nessuno lo legge prima di premere il pulsante — e la
-/// scelta non è davvero di chi amministra la postazione, perché l'esito lo paga
-/// l'operatore. Serve <c>ftps://</c> o <c>https://</c>.
+/// <b>Due trasporti, e la stessa cartella.</b> Su <c>ftps://</c> si legge l'elenco dei
+/// file e si sceglie il più recente. Su <c>https://</c> un elenco non esiste, e la
+/// cartella lo sostituisce con una domanda: <c>?per=x64</c> (o <c>?per=arm64</c>)
+/// risponde con un rimando al pacchetto più recente per quel processore. È ciò che fa
+/// il portale <c>https://blindphone.curti.cloud/download/</c>, ed è anche il link che
+/// le persone seguono dalla pagina per scaricare: il programma e il sito leggono la
+/// stessa risposta. Firma e novità stanno accanto al pacchetto, con lo stesso nome.
+/// </para>
+/// <para>
+/// <b>Del rimando si tiene il solo nome del file.</b> Pacchetto, firma e novità si
+/// scaricano sempre dalla cartella scritta nelle impostazioni, anche se il rimando
+/// indicasse un altro server: chi controlla la risposta può al più indicare un altro
+/// nome, che deve comunque essere un pacchetto di BlindPhone con la sua firma.
+/// </para>
+/// <para>
+/// <b>FTP e HTTP in chiaro vengono rifiutati, e prima <c>ftp://</c> veniva soltanto
+/// segnalato.</b> Su un canale in chiaro la password e il pacchetto attraversano la
+/// rete leggibili: chi sta sul percorso vede la prima e può sostituire il secondo. La
+/// firma ferma il pacchetto sostituito, ma la password resta letta, e un avviso nel
+/// registro non è una difesa — nessuno lo legge prima di premere il pulsante. Serve
+/// <c>ftps://</c> o <c>https://</c>.
 /// </para>
 /// <para>
 /// <b>Due verifiche, e la prima è obbligatoria.</b> La firma applicativa
@@ -68,9 +85,34 @@ public sealed record UpdateCheckResult(AvailableUpdate? Update, UpdateNotes Note
 /// </remarks>
 public sealed class UpdateService
 {
+    /// <summary>Quanto si aspetta che il server cominci a rispondere.</summary>
+    private static readonly TimeSpan ResponseTimeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>Quanto si aspetta il blocco successivo di un file che sta arrivando.</summary>
+    private static readonly TimeSpan ReadTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Il gestore HTTP di tutte le postazioni, uno per processo.
+    /// </summary>
+    /// <remarks>
+    /// <b>I rimandi non si seguono da soli.</b> Sulla cartella il rimando è la risposta
+    /// che si vuole leggere, non un passaggio da attraversare; sui file un rimando
+    /// porterebbe lo scaricamento fuori dalla cartella configurata, cosa che il nome
+    /// del file soltanto — vedi il commento della classe — esiste per impedire. Il
+    /// proxy è quello di sistema, come per il browser della postazione.
+    /// </remarks>
+    private static readonly Lazy<HttpMessageHandler> SharedHandler = new(() => new SocketsHttpHandler
+    {
+        AllowAutoRedirect = false,
+        ConnectTimeout = ResponseTimeout,
+        PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+    });
+
     private readonly UpdateSettings _settings;
     private readonly string _password;
     private readonly Version _installed;
+    private readonly string _architecture;
+    private readonly HttpClient _http;
     private readonly ILogger<UpdateService> _log;
 
     /// <summary>Crea il servizio.</summary>
@@ -78,20 +120,51 @@ public sealed class UpdateService
     /// <param name="password">Password del server, letta dal deposito protetto.</param>
     /// <param name="installed">Versione installata su questa postazione.</param>
     /// <param name="logger">Log diagnostico.</param>
+    /// <param name="httpHandler">
+    /// Gestore HTTP da usare al posto di quello condiviso. Serve alle prove, per fidarsi
+    /// del certificato di un server finto; non viene chiuso dal servizio.
+    /// </param>
+    /// <param name="architecture">
+    /// Processore del pacchetto da cercare. Se omesso è quello del processo, cioè
+    /// quello del pacchetto installato: un BlindPhone x64 su Windows on ARM resta x64.
+    /// </param>
     public UpdateService(
         UpdateSettings settings,
         string password,
         Version installed,
-        ILogger<UpdateService>? logger = null)
+        ILogger<UpdateService>? logger = null,
+        HttpMessageHandler? httpHandler = null,
+        string? architecture = null)
     {
-        _settings = settings;
+        // Un indirizzo vuoto vale come la cartella del portale, e lo si traduce qui una
+        // volta per tutte: elenco, note, firma e pacchetto si leggono tutti dalla stessa
+        // cartella. Vedi UpdateSettings.EffectiveServerUrl.
+        _settings = settings with { ServerUrl = settings.EffectiveServerUrl };
         _password = password;
         _installed = installed;
+        _architecture = string.IsNullOrWhiteSpace(architecture) ? CurrentArchitecture() : architecture.Trim();
+        _http = new HttpClient(httpHandler ?? SharedHandler.Value, disposeHandler: false)
+        {
+            // I tempi li governano ResponseTimeout e ReadTimeout: un tetto unico su
+            // tutta la richiesta interromperebbe a meta' un pacchetto da sessanta
+            // megabyte su una linea lenta che sta ancora trasferendo.
+            Timeout = Timeout.InfiniteTimeSpan,
+        };
         _log = logger ?? NullLogger<UpdateService>.Instance;
     }
 
-    /// <summary>Se la postazione è configurata per cercare aggiornamenti.</summary>
+    /// <summary>Processore per cui si cercano i pacchetti: <c>x64</c> o <c>arm64</c>.</summary>
+    public string Architecture => _architecture;
+
+    /// <summary>Se c'è una cartella a cui chiedere gli aggiornamenti.</summary>
+    /// <remarks>
+    /// Con un indirizzo vuoto nelle impostazioni c'è sempre: vale la cartella del
+    /// portale. Resta falso solo in una copia compilata senza indirizzo predefinito.
+    /// </remarks>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_settings.ServerUrl);
+
+    /// <summary>La cartella a cui il servizio si collega.</summary>
+    public string ServerUrl => _settings.ServerUrl;
 
     /// <summary>Se il canale verso il server è cifrato.</summary>
     public bool IsSecureChannel
@@ -105,7 +178,7 @@ public sealed class UpdateService
     /// <returns>
     /// La frase da dire, che comincia in minuscolo per stare dopo un'introduzione,
     /// oppure <c>null</c> se l'indirizzo è utilizzabile. Anche un indirizzo vuoto
-    /// restituisce <c>null</c>: nessun aggiornamento automatico è una scelta legittima.
+    /// restituisce <c>null</c>: vale come la cartella del portale.
     /// </returns>
     /// <remarks>
     /// <para>
@@ -117,9 +190,9 @@ public sealed class UpdateService
     /// cifratura sul server, che c'era già, invece di attivare FTPS.
     /// </para>
     /// <para>
-    /// Su <c>https://</c> il canale andrebbe bene, ma la lettura della cartella su HTTP
-    /// non è implementata (vedi <see cref="ListDirectoryAsync"/>): lo si dice qui, prima
-    /// di provarci, invece di lasciarlo scoprire da un'eccezione.
+    /// <c>https://</c> va bene dalla 1.0.21: la cartella risponde a <c>?per=</c> con il
+    /// pacchetto più recente (vedi il commento della classe). <c>http://</c> no, per la
+    /// stessa ragione di <c>ftp://</c>.
     /// </para>
     /// </remarks>
     public static string? DescribeAddressProblem(string? serverUrl)
@@ -132,28 +205,31 @@ public sealed class UpdateService
 
         return schema switch
         {
-            "ftps" => null,
+            "ftps" or "https" => null,
 
             "sftp" or "ssh" or "scp" =>
                 $"l'indirizzo comincia con {schema}://, ma BlindPhone non sa collegarsi a un server SFTP. "
                 + "SFTP e' il trasferimento di file di SSH, un protocollo diverso da FTP: serve un server FTPS, "
-                + "cioe' FTP cifrato con TLS, e un indirizzo che comincia con ftps://",
+                + "cioe' FTP cifrato con TLS, e un indirizzo che comincia con ftps://, oppure una cartella "
+                + "web con un indirizzo che comincia con https://",
 
             "ftp" =>
                 "l'indirizzo comincia con ftp://, cioe' FTP in chiaro: la password e il pacchetto viaggerebbero "
                 + "leggibili sulla rete, e chi sta sul percorso potrebbe sostituire il pacchetto. Serve lo stesso "
                 + "server con la cifratura TLS attiva, e un indirizzo che comincia con ftps://",
 
-            "http" or "https" =>
-                $"su {schema}:// BlindPhone non sa leggere l'elenco della cartella degli aggiornamenti: "
-                + "serve un server FTPS, con un indirizzo che comincia con ftps://",
+            "http" =>
+                "l'indirizzo comincia con http://, cioe' HTTP in chiaro: la password e il pacchetto viaggerebbero "
+                + "leggibili sulla rete, e chi sta sul percorso potrebbe sostituire il pacchetto. Serve lo stesso "
+                + "indirizzo con https://",
 
             "" =>
-                "l'indirizzo deve cominciare con ftps://, per esempio ftps://aggiornamenti.esempio.it/blindphone/",
+                "l'indirizzo deve cominciare con https:// oppure ftps://, per esempio "
+                + "https://aggiornamenti.esempio.it/blindphone/",
 
             _ =>
-                $"BlindPhone non sa collegarsi a un indirizzo {schema}://: serve un server FTPS, "
-                + "con un indirizzo che comincia con ftps://",
+                $"BlindPhone non sa collegarsi a un indirizzo {schema}://: serve un indirizzo che comincia "
+                + "con https:// oppure ftps://",
         };
     }
 
@@ -208,9 +284,11 @@ public sealed class UpdateService
         try
         {
             var files = await ListDirectoryAsync(cancellationToken).ConfigureAwait(false);
-            _log.LogInformation("Cartella degli aggiornamenti letta: {Conteggio} file", files.Count);
+            _log.LogInformation(
+                "Cartella degli aggiornamenti letta: {Conteggio} file, processore {Processore}",
+                files.Count, _architecture);
 
-            var update = UpdateCatalog.FindNewer(files, _installed);
+            var update = UpdateCatalog.FindNewer(files, _installed, _architecture);
 
             if (update is null)
             {
@@ -310,8 +388,22 @@ public sealed class UpdateService
 
         try
         {
-            await DownloadToFileAsync(update.InstallerFileName, parziale, progress, cancellationToken)
-                .ConfigureAwait(false);
+            try
+            {
+                await DownloadToFileAsync(update.InstallerFileName, parziale, progress, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is WebException or HttpRequestException or TimeoutException or FileNotFoundException)
+            {
+                // La finestra legge all'operatore il messaggio dell'eccezione: quello
+                // grezzo di .NET, in inglese e con i codici del protocollo, non gli
+                // dice cosa riferire.
+                _log.LogError(ex, "Scaricamento di {File} non riuscito", update.InstallerFileName);
+
+                throw new InvalidOperationException(
+                    $"Scaricamento del pacchetto non riuscito. {DescribeFailure(ex)}. Non e' stato installato nulla.",
+                    ex);
+            }
 
             // 1. PROVENIENZA. Il controllo che l'attaccante non puo' superare
             //    sostituendo i file sul server, perche' richiede la chiave privata.
@@ -500,13 +592,7 @@ public sealed class UpdateService
 
     private async Task<IReadOnlyList<string>> ListDirectoryAsync(CancellationToken cancellationToken)
     {
-        if (IsHttp)
-        {
-            // Su HTTP non esiste un elenco: si chiede direttamente il file delle
-            // novita' della versione che il server dichiara corrente.
-            throw new NotSupportedException(
-                "Su HTTPS l'elenco della cartella non e' disponibile: usare un indirizzo ftps://");
-        }
+        if (IsHttps) return [await FindLatestOverHttpsAsync(cancellationToken).ConfigureAwait(false)];
 
         var richiesta = CreateRequest(string.Empty, WebRequestMethods.Ftp.ListDirectory);
 
@@ -523,11 +609,8 @@ public sealed class UpdateService
     {
         try
         {
-            var richiesta = CreateRequest(update.NotesFileName, WebRequestMethods.Ftp.DownloadFile);
-
-            using var risposta = (FtpWebResponse)await richiesta.GetResponseAsync().ConfigureAwait(false);
-            await using var flusso = risposta.GetResponseStream();
-            using var lettore = new StreamReader(flusso, Encoding.UTF8);
+            await using var remoto = await OpenAsync(update.NotesFileName, cancellationToken).ConfigureAwait(false);
+            using var lettore = new StreamReader(remoto.Content, Encoding.UTF8);
 
             var testo = await lettore.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
             return UpdateNotes.Parse(testo);
@@ -536,12 +619,12 @@ public sealed class UpdateService
         {
             throw;
         }
-        catch (WebException ex)
-            when (ex.Response is FtpWebResponse { StatusCode: FtpStatusCode.ActionNotTakenFileUnavailable })
+        catch (FileNotFoundException)
         {
             // NOTE ASSENTI E NOTE NON LEGGIBILI SONO DUE COSE DIVERSE, E PRIMA NO.
             //
-            // Qui il server risponde "550 file non disponibile": il file non e' stato
+            // Qui il server risponde "550 file non disponibile" su FTPS, o "404" su
+            // HTTPS: il file non e' stato
             // pubblicato. Non impedisce di proporre l'aggiornamento — si dice che le
             // novita' non ci sono — e l'impronta mancante viene gestita al momento
             // dello scaricamento, che la rifiuta salvo configurazione contraria.
@@ -583,17 +666,16 @@ public sealed class UpdateService
     private async Task<byte[]> DownloadBytesAsync(
         string fileName, int maxBytes, CancellationToken cancellationToken)
     {
-        var richiesta = CreateRequest(fileName, WebRequestMethods.Ftp.DownloadFile);
-
-        using var risposta = (FtpWebResponse)await richiesta.GetResponseAsync().ConfigureAwait(false);
-        await using var origine = risposta.GetResponseStream();
+        await using var remoto = await OpenAsync(fileName, cancellationToken).ConfigureAwait(false);
+        using var inattivita = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         using var memoria = new MemoryStream();
         var buffer = new byte[1024];
 
         while (true)
         {
-            var letti = await origine.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            var letti = await ReadChunkAsync(remoto.Content, buffer, inattivita, cancellationToken)
+                .ConfigureAwait(false);
             if (letti == 0) break;
 
             if (memoria.Length + letti > maxBytes)
@@ -617,12 +699,10 @@ public sealed class UpdateService
         IProgress<int>? progress,
         CancellationToken cancellationToken)
     {
-        var richiesta = CreateRequest(fileName, WebRequestMethods.Ftp.DownloadFile);
+        await using var remoto = await OpenAsync(fileName, cancellationToken).ConfigureAwait(false);
+        using var inattivita = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var totale = remoto.Length;
 
-        using var risposta = (FtpWebResponse)await richiesta.GetResponseAsync().ConfigureAwait(false);
-        var totale = risposta.ContentLength;
-
-        await using var origine = risposta.GetResponseStream();
         await using var destinazione = File.Create(destination);
 
         var buffer = new byte[81920];
@@ -631,7 +711,8 @@ public sealed class UpdateService
 
         while (true)
         {
-            var letti = await origine.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            var letti = await ReadChunkAsync(remoto.Content, buffer, inattivita, cancellationToken)
+                .ConfigureAwait(false);
             if (letti == 0) break;
 
             await destinazione.WriteAsync(buffer.AsMemory(0, letti), cancellationToken).ConfigureAwait(false);
@@ -650,7 +731,233 @@ public sealed class UpdateService
         }
     }
 
-    private bool IsHttp => _settings.ServerUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase);
+    private bool IsHttps => _settings.ServerUrl.Trim().StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Chiede alla cartella HTTPS il pacchetto più recente per questo processore.
+    /// </summary>
+    /// <returns>Il nome del pacchetto, nella forma in cui sta nella cartella.</returns>
+    /// <remarks>
+    /// <para>
+    /// La domanda è <c>&lt;cartella&gt;?per=x64</c>, e la risposta attesa è un rimando
+    /// — 302 o simili — verso <c>BlindPhone-&lt;versione&gt;-x64.msi</c>. È lo stesso
+    /// link che le persone seguono dal portale per scaricare, quindi il programma e
+    /// il sito non possono indicare due versioni diverse.
+    /// </para>
+    /// <para>
+    /// <b>Ogni altra risposta è un guasto da dire, non «nessun aggiornamento».</b> Una
+    /// pagina al posto del rimando, un rimando che non porta a un pacchetto o porta al
+    /// pacchetto di un altro processore significano che la cartella non è quella
+    /// giusta o non sa rispondere: tacere lascerebbe la postazione indietro, senza
+    /// che nessuno se ne accorga.
+    /// </para>
+    /// </remarks>
+    private async Task<string> FindLatestOverHttpsAsync(CancellationToken cancellationToken)
+    {
+        var domanda = new Uri(FolderUri(), "?per=" + Uri.EscapeDataString(_architecture));
+
+        using var risposta = await SendHttpAsync(domanda, cancellationToken).ConfigureAwait(false);
+        var codice = (int)risposta.StatusCode;
+
+        if (codice is >= 300 and < 400 && risposta.Headers.Location is { } rimando)
+        {
+            var destinazione = rimando.IsAbsoluteUri ? rimando : new Uri(domanda, rimando);
+            var nome = Uri.UnescapeDataString(Path.GetFileName(destinazione.AbsolutePath));
+
+            if (UpdateCatalog.ParseVersion(nome) is null)
+            {
+                throw new InvalidOperationException(
+                    $"Il server degli aggiornamenti non indica un pacchetto per i processori {_architecture}: "
+                    + "la cartella non lo pubblica, oppure l'indirizzo non e' quello della cartella dei download");
+            }
+
+            if (!UpdateCatalog.IsForArchitecture(nome, _architecture))
+            {
+                throw new InvalidOperationException(
+                    $"Il server degli aggiornamenti indica {nome}, che non e' un pacchetto per i processori "
+                    + $"{_architecture}: non viene proposto. Avvisa chi gestisce il server");
+            }
+
+            _log.LogInformation("La cartella indica come piu' recente {File}", nome);
+            return nome;
+        }
+
+        EnsureHttpSuccess(risposta);
+
+        throw new InvalidOperationException(
+            $"Il server degli aggiornamenti ha risposto con una pagina invece che con il pacchetto piu' recente "
+            + $"(codice {codice}): l'indirizzo deve essere quello della cartella dei download, che a ?per= "
+            + "risponde con il nome del pacchetto");
+    }
+
+    /// <summary>Un file remoto aperto in lettura, su FTPS o su HTTPS.</summary>
+    private sealed class RemoteFile(Stream content, long length, IDisposable owner) : IAsyncDisposable
+    {
+        /// <summary>Il contenuto, da leggere fino alla fine.</summary>
+        public Stream Content => content;
+
+        /// <summary>La dimensione dichiarata dal server, o un numero negativo.</summary>
+        public long Length => length;
+
+        public async ValueTask DisposeAsync()
+        {
+            await content.DisposeAsync().ConfigureAwait(false);
+            owner.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// Apre un file della cartella remota.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">
+    /// Il server dice che il file non c'è: 550 su FTPS, 404 o 410 su HTTPS. È l'unico
+    /// caso che chi chiama può voler distinguere da un guasto, e su due trasporti si
+    /// presenta nello stesso modo.
+    /// </exception>
+    private async Task<RemoteFile> OpenAsync(string fileName, CancellationToken cancellationToken)
+    {
+        if (IsHttps)
+        {
+            var risposta = await SendHttpAsync(new Uri(FolderUri(), Uri.EscapeDataString(fileName)), cancellationToken)
+                .ConfigureAwait(false);
+
+            try
+            {
+                if (risposta.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+                {
+                    throw new FileNotFoundException($"Il file {fileName} non e' pubblicato sul server", fileName);
+                }
+
+                EnsureHttpSuccess(risposta);
+
+                var flusso = await risposta.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
+                return new RemoteFile(flusso, risposta.Content.Headers.ContentLength ?? -1, risposta);
+            }
+            catch
+            {
+                risposta.Dispose();
+                throw;
+            }
+        }
+
+        var richiesta = CreateRequest(fileName, WebRequestMethods.Ftp.DownloadFile);
+        FtpWebResponse ftp;
+
+        try
+        {
+            ftp = (FtpWebResponse)await richiesta.GetResponseAsync().ConfigureAwait(false);
+        }
+        catch (WebException ex)
+            when (ex.Response is FtpWebResponse { StatusCode: FtpStatusCode.ActionNotTakenFileUnavailable })
+        {
+            throw new FileNotFoundException($"Il file {fileName} non e' pubblicato sul server", fileName, ex);
+        }
+
+        return new RemoteFile(ftp.GetResponseStream(), ftp.ContentLength, ftp);
+    }
+
+    /// <summary>
+    /// Manda una richiesta GET e aspetta le intestazioni della risposta, non il corpo.
+    /// </summary>
+    /// <exception cref="TimeoutException">Il server non comincia a rispondere in tempo.</exception>
+    private async Task<HttpResponseMessage> SendHttpAsync(Uri indirizzo, CancellationToken cancellationToken)
+    {
+        using var richiesta = new HttpRequestMessage(HttpMethod.Get, indirizzo);
+
+        // Il nome del prodotto e la versione, come fa ogni programma che scarica: al
+        // server serve per distinguere le postazioni dai browser nei registri, e non
+        // dice niente della persona o dell'ente.
+        richiesta.Headers.UserAgent.Add(new ProductInfoHeaderValue("BlindPhone", UpdateCatalog.Describe(_installed)));
+
+        if (!string.IsNullOrWhiteSpace(_settings.Username))
+        {
+            // Sempre su HTTPS: http:// e' rifiutato prima di arrivare qui.
+            var credenziali = Encoding.UTF8.GetBytes($"{_settings.Username}:{_password}");
+            richiesta.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(credenziali));
+        }
+
+        using var attesa = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        attesa.CancelAfter(ResponseTimeout);
+
+        try
+        {
+            return await _http.SendAsync(richiesta, HttpCompletionOption.ResponseHeadersRead, attesa.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("Il server degli aggiornamenti non risponde", ex);
+        }
+    }
+
+    /// <summary>
+    /// Trasforma una risposta HTTP di errore in un'eccezione che porta il codice.
+    /// </summary>
+    private static void EnsureHttpSuccess(HttpResponseMessage risposta)
+    {
+        if (risposta.IsSuccessStatusCode) return;
+
+        var codice = (int)risposta.StatusCode;
+
+        var frase = risposta.StatusCode switch
+        {
+            HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden =>
+                "Il server ha rifiutato le credenziali degli aggiornamenti",
+            HttpStatusCode.NotFound => "La cartella degli aggiornamenti non esiste sul server",
+            _ when codice is >= 300 and < 400 =>
+                $"Il server degli aggiornamenti rimanda altrove (codice {codice}) invece di consegnare il file: "
+                + "pacchetto, firma e novita' devono stare nella cartella indicata",
+            _ => $"Il server degli aggiornamenti ha risposto con il codice {codice}",
+        };
+
+        throw new HttpRequestException(frase, inner: null, risposta.StatusCode);
+    }
+
+    /// <summary>
+    /// Legge il blocco successivo di un file, con un tetto sull'attesa.
+    /// </summary>
+    /// <param name="flusso">Il contenuto in arrivo.</param>
+    /// <param name="buffer">Dove scriverlo.</param>
+    /// <param name="inattivita">
+    /// Annullamento collegato a quello di chi chiama, riarmato a ogni blocco: il tetto
+    /// vale per il silenzio fra un blocco e l'altro, non per l'intero file.
+    /// </param>
+    /// <param name="cancellationToken">L'annullamento chiesto da chi chiama.</param>
+    /// <exception cref="TimeoutException">Il server ha smesso di mandare dati.</exception>
+    private static async Task<int> ReadChunkAsync(
+        Stream flusso, Memory<byte> buffer, CancellationTokenSource inattivita, CancellationToken cancellationToken)
+    {
+        inattivita.CancelAfter(ReadTimeout);
+
+        try
+        {
+            return await flusso.ReadAsync(buffer, inattivita.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("Il server degli aggiornamenti ha smesso di mandare dati", ex);
+        }
+    }
+
+    /// <summary>L'indirizzo della cartella, sempre con la barra in fondo.</summary>
+    /// <remarks>
+    /// Senza la barra, <c>…/download?per=x64</c> chiederebbe un file che si chiama
+    /// <c>download</c>, e i nomi relativi si risolverebbero nella cartella sopra.
+    /// </remarks>
+    private Uri FolderUri()
+    {
+        var radice = _settings.ServerUrl.Trim();
+        return new Uri(radice.EndsWith('/') ? radice : radice + "/");
+    }
+
+    /// <summary>Il processore di questo processo, come lo scrive l'installatore.</summary>
+    private static string CurrentArchitecture() => RuntimeInformation.ProcessArchitecture switch
+    {
+        System.Runtime.InteropServices.Architecture.X64 => "x64",
+        System.Runtime.InteropServices.Architecture.Arm64 => "arm64",
+        System.Runtime.InteropServices.Architecture.X86 => "x86",
+        var altro => altro.ToString().ToLowerInvariant(),
+    };
 
     /// <summary>
     /// Prepara una richiesta verso la cartella remota.
@@ -721,6 +1028,24 @@ public sealed class UpdateService
 
         WebException { Status: WebExceptionStatus.TrustFailure }
             => "Il certificato del server degli aggiornamenti non e' attendibile",
+
+        HttpRequestException { HttpRequestError: HttpRequestError.NameResolutionError }
+            => "Il nome del server degli aggiornamenti non si risolve",
+
+        HttpRequestException { HttpRequestError: HttpRequestError.SecureConnectionError }
+            => "Il certificato del server degli aggiornamenti non e' attendibile, oppure la connessione "
+               + "cifrata non si stabilisce",
+
+        HttpRequestException { HttpRequestError: HttpRequestError.ConnectionError }
+            => "Il server degli aggiornamenti non accetta il collegamento",
+
+        // Le risposte con un codice le traduce gia' EnsureHttpSuccess, con la frase giusta.
+        HttpRequestException { StatusCode: not null } => ex.Message,
+
+        TimeoutException => ex.Message,
+
+        // «Il file X non e' pubblicato sul server»: la frase e' di OpenAsync.
+        FileNotFoundException => ex.Message,
 
         UriFormatException => "L'indirizzo del server degli aggiornamenti non e' valido",
 

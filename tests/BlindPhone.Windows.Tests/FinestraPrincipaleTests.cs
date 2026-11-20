@@ -314,8 +314,9 @@ public sealed class FinestraPrincipaleTests
     [Fact]
     public void IlColoreDellAccentoNonEDichiaratoAMano()
     {
-        // Un solo pulsante colorato, quello che chiama: la fascia ha colori suoi ma li
-        // prende dai temi, e nessun altro pulsante della finestra ne dichiara uno.
+        // Un solo colore scritto a mano, il verde del pulsante che chiama. Riaggancia e
+        // la fascia sono colorati anch'essi, ma prendono i colori dai temi, che sanno
+        // cambiarli per il contrasto elevato; nessun altro stile ne dichiara uno.
         var documento = Finestra();
 
         var colorati = documento.Descendants(P + "Setter")

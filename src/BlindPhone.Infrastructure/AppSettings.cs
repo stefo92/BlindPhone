@@ -13,12 +13,33 @@ namespace BlindPhone.Infrastructure;
 /// </param>
 /// <param name="Volume">Volume, da 0 a 1.</param>
 /// <remarks>
+/// <para>
 /// Il nome viene conservato accanto all'identificativo perché serve a due cose che
 /// l'identificativo da solo non consente: dire all'operatore quale dispositivo era
 /// configurato quando non lo si trova più, e riconoscerlo se cambia identificativo
 /// dopo un aggiornamento di driver.
+/// </para>
+/// <para>
+/// Il volume resta nel file come frazione da 0 a 1, che è quello che il motore audio
+/// moltiplica; il pannello lo mostra in percentuale intera, che è quello che lo screen
+/// reader legge sul cursore. Le due conversioni stanno qui, una volta sola, perché la
+/// stessa percentuale serve anche alla voce interna, che ragiona da 0 a 100.
+/// </para>
 /// </remarks>
-public sealed record AudioRouteSettings(string? DeviceId, string? DeviceName, float Volume = 1f);
+public sealed record AudioRouteSettings(string? DeviceId, string? DeviceName, float Volume = 1f)
+{
+    /// <summary>Il volume in percentuale intera, da 0 a 100.</summary>
+    /// <param name="volume">Volume da 0 a 1; i valori fuori intervallo vengono limitati.</param>
+    public static int ToPercent(float volume)
+        => float.IsNaN(volume)
+            ? 100
+            : (int)Math.Round(Math.Clamp(volume, 0f, 1f) * 100, MidpointRounding.AwayFromZero);
+
+    /// <summary>Il volume da 0 a 1, a partire da una percentuale.</summary>
+    /// <param name="percent">Percentuale da 0 a 100; i valori fuori intervallo vengono limitati.</param>
+    public static float FromPercent(double percent)
+        => double.IsNaN(percent) ? 1f : (float)(Math.Clamp(Math.Round(percent), 0, 100) / 100.0);
+}
 
 /// <summary>Impostazioni dell'account SIP, senza la password.</summary>
 /// <remarks>
@@ -296,29 +317,58 @@ public sealed record UpdateSettings
     /// <remarks>
     /// <para>
     /// <b>È questa la riga da cambiare prima di compilare.</b> Deve essere l'indirizzo
-    /// di una <b>cartella</b> e non di un file, e finire con la barra:
-    /// <c>ftps://aggiornamenti.example.it/blindphone/</c>.
+    /// di una <b>cartella</b> e non di un file, e finire con la barra. Dalla 1.0.21 è
+    /// la cartella dei download del portale di BlindPhone, la stessa da cui le persone
+    /// scaricano il programma: pubblicare un rilascio lì basta perché le postazioni
+    /// lo trovino.
     /// </para>
     /// <para>
-    /// Lo schema da usare è <c>ftps://</c>: FTP con la connessione cifrata (AUTH TLS),
-    /// in cui le credenziali e il pacchetto viaggiano protetti. Non va confuso con
-    /// SFTP, che è un altro protocollo — quello di SSH — e che questa applicazione non
-    /// parla. <c>ftp://</c> in chiaro viene rifiutato, perché chi sta sul percorso di
-    /// rete vedrebbe la password e potrebbe sostituire il pacchetto con un altro.
-    /// <c>https://</c> è accettato come canale, ma su HTTP la lettura della cartella
-    /// non è implementata (vedi <see cref="UpdateService"/>): oggi il controllo su
-    /// quello schema non riesce.
+    /// Due schemi vanno bene. <c>https://</c> è una cartella web che a
+    /// <c>?per=x64</c> o <c>?per=arm64</c> risponde con un rimando al pacchetto più
+    /// recente per quel processore (vedi <see cref="UpdateService"/>). <c>ftps://</c> è
+    /// FTP con la connessione cifrata (AUTH TLS), di cui si legge l'elenco dei file: non
+    /// va confuso con SFTP, che è un altro protocollo — quello di SSH — e che questa
+    /// applicazione non parla. <c>ftp://</c> e <c>http://</c> in chiaro vengono
+    /// rifiutati, perché chi sta sul percorso di rete vedrebbe la password e potrebbe
+    /// sostituire il pacchetto con un altro.
     /// </para>
     /// <para>
-    /// Vuoto significa «nessun aggiornamento automatico»: è il valore con cui parte
-    /// una copia compilata senza aver scelto un server, e in quel caso il controllo
-    /// non viene nemmeno tentato.
+    /// <b>Vuoto vale come questa cartella</b>, e non come «nessun aggiornamento»: vedi
+    /// <see cref="EffectiveServerUrl"/>. Per non cercare aggiornamenti c'è
+    /// <see cref="CheckOnStartup"/>.
     /// </para>
     /// </remarks>
-    public const string DefaultServerUrl = "";
+    public const string DefaultServerUrl = "https://blindphone.curti.cloud/download/";
 
     /// <summary>Cartella remota che contiene i pacchetti e le note.</summary>
+    /// <remarks>
+    /// Quello che è scritto in <c>settings.json</c>, anche vuoto. Chi si collega usa
+    /// <see cref="EffectiveServerUrl"/>.
+    /// </remarks>
     public string ServerUrl { get; init; } = DefaultServerUrl;
+
+    /// <summary>
+    /// Cartella a cui ci si collega davvero: quella scritta, oppure il portale se il
+    /// campo è vuoto.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Il difetto che chiude.</b> Fino alla 1.0.22 un indirizzo vuoto spegneva gli
+    /// aggiornamenti senza dirlo: il controllo all'avvio taceva, e «Cerca aggiornamenti»
+    /// rispondeva che non c'era nessun server. Il pannello però diceva soltanto che
+    /// «di partenza» la cartella è quella del portale, e la 1.0.21.1 annunciava che il
+    /// server dell'ente non serviva più: chi cancellava il vecchio indirizzo FTPS per
+    /// passare al portale restava senza aggiornamenti, convinto di averli.
+    /// </para>
+    /// <para>
+    /// Vuoto ora vuol dire «quello di partenza», come per ogni altro campo. Per non
+    /// cercare aggiornamenti c'è la casella apposta, <see cref="CheckOnStartup"/>, che
+    /// dice quello che fa.
+    /// </para>
+    /// </remarks>
+    [JsonIgnore]
+    public string EffectiveServerUrl
+        => string.IsNullOrWhiteSpace(ServerUrl) ? DefaultServerUrl : ServerUrl.Trim();
 
     /// <summary>Utente con cui accedere al server. Vuoto per l'accesso anonimo.</summary>
     public string? Username { get; init; }
@@ -941,8 +991,12 @@ public sealed record AppSettings
     ///   4 — durante la conversazione gli annunci non tacciono più.
     ///   </description></item>
     ///   <item><description>
-    ///   5 — le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove nessuno li
-    ///   aveva scelti.
+    ///   5 — l'indirizzo vuoto degli aggiornamenti diventa quello del portale.
+    ///   </description></item>
+    ///   <item><description>
+    ///   6 — le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove nessuno li
+    ///   aveva scelti. Dopo la 5 e non al suo posto: la 5 era gia' arrivata alle
+    ///   postazioni con la 1.0.21.1, e le due sono nate in parallelo.
     ///   </description></item>
     /// </list>
     /// Vedi <see cref="Migrate"/>.
@@ -950,7 +1004,7 @@ public sealed record AppSettings
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>Versione di schema prodotta da questa versione di BlindPhone.</summary>
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     /// <summary>
     /// Account SIP configurato, il primo dell'elenco.
@@ -1287,6 +1341,7 @@ public sealed record AppSettings
         var migrata = MigrateSipAccounts();
         migrata = migrata.MigrateBetaLogging();
         migrata = migrata.MigrateConversationSilence();
+        migrata = migrata.MigrateUpdateServer();
         migrata = migrata.MigrateTelemetryDefaults();
 
         return migrata.SchemaVersion == CurrentSchemaVersion
@@ -1385,7 +1440,42 @@ public sealed record AppSettings
     }
 
     /// <summary>
-    /// Schema 5: le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove
+    /// Schema 5: gli aggiornamenti automatici puntano al portale di BlindPhone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La ragione è quella delle due migrazioni precedenti: una postazione già in uso
+    /// ha <c>settings.json</c> scritto, e dentro c'è l'indirizzo vuoto che fino alla
+    /// 1.0.20 era il valore predefinito. Cambiare la costante non la toccherebbe, e
+    /// la postazione continuerebbe a non cercare aggiornamenti proprio da quando ci
+    /// sarebbe un posto dove trovarli.
+    /// </para>
+    /// <para>
+    /// <b>Si riempie soltanto l'indirizzo vuoto.</b> Un ente che ha scritto il proprio
+    /// server FTPS o la propria cartella lo tiene: quella è una scelta, il vuoto di
+    /// prima non poteva esserlo, perché l'alternativa non esisteva.
+    /// </para>
+    /// <para>
+    /// <b>Avviene una volta sola.</b> Dalla correzione successiva alla 1.0.22 conta
+    /// meno: un indirizzo vuoto vale comunque come il portale (vedi
+    /// <see cref="UpdateSettings.EffectiveServerUrl"/>), e chi aggiorna le postazioni
+    /// con la distribuzione software dell'ente spegne il controllo con
+    /// <see cref="UpdateSettings.CheckOnStartup"/>, non svuotando il campo.
+    /// </para>
+    /// </remarks>
+    private AppSettings MigrateUpdateServer()
+    {
+        if (SchemaVersion >= 5) return this;
+        if (!string.IsNullOrWhiteSpace(Updates.ServerUrl)) return this;
+
+        return this with
+        {
+            Updates = Updates with { ServerUrl = UpdateSettings.DefaultServerUrl },
+        };
+    }
+
+    /// <summary>
+    /// Schema 6: le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove
     /// nessuno li aveva scelti.
     /// </summary>
     /// <remarks>
@@ -1415,7 +1505,7 @@ public sealed record AppSettings
     /// </remarks>
     private AppSettings MigrateTelemetryDefaults()
     {
-        if (SchemaVersion >= 5) return this;
+        if (SchemaVersion >= 6) return this;
 
         if (!string.IsNullOrWhiteSpace(Telemetry.ServerUrl) || !string.IsNullOrWhiteSpace(Telemetry.ProjectKey))
         {

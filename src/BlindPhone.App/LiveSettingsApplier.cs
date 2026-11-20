@@ -176,6 +176,7 @@ public sealed class LiveSettingsApplier : IDisposable
         voce.InternalVoiceEnabled = accessibilita.InternalVoiceEnabled;
         voce.InternalVoiceName = accessibilita.InternalVoiceName;
         voce.InternalVoiceRate = accessibilita.InternalVoiceRate;
+        voce.InternalVoiceVolume = AudioRouteSettings.ToPercent(next.Announcements.Volume);
         voce.BrailleEnabled = accessibilita.BrailleEnabled;
 
         // Dispositivi e volumi delle quattro vie: chi cambia l'uscita della suoneria

@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
+using System.Speech.AudioFormat;
 using System.Speech.Synthesis;
+using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Accessibility;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -59,12 +61,38 @@ public enum SpeechChannelMode
 /// </remarks>
 public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
 {
+    /// <summary>Frequenza a cui si sintetizza la voce destinata al dispositivo degli annunci.</summary>
+    /// <remarks>
+    /// È quella che le voci SAPI producono di loro, quindi la sintesi non ricampiona:
+    /// la conversione verso la frequenza della scheda la fa il motore audio, una volta.
+    /// </remarks>
+    public const int SpeechSampleRate = 22050;
+
     private readonly IReadOnlyList<IScreenReaderBridge> _bridges;
+    private readonly IAnnouncementAudioOutput? _announcementOutput;
     private readonly ILogger<CompositeSpeechOutput> _log;
     private readonly Lock _gate = new();
 
+    /// <summary>Sintesi che parla sul dispositivo predefinito di sistema.</summary>
     private SpeechSynthesizer? _synthesizer;
+
+    /// <summary>
+    /// Sintesi che scrive in memoria, per il dispositivo scelto degli annunci.
+    /// </summary>
+    /// <remarks>
+    /// È un'istanza separata e non la stessa con l'uscita cambiata: la prima parla in
+    /// modo asincrono, e spostarle l'uscita mentre sta ancora pronunciando una frase la
+    /// interromperebbe a metà, o la manderebbe in memoria al posto degli altoparlanti.
+    /// </remarks>
+    private SpeechSynthesizer? _streamSynthesizer;
     private bool _synthesizerFailed;
+
+    // Coda delle frasi per il dispositivo degli annunci. Una frase alla volta, nell'ordine
+    // in cui sono arrivate, come faceva la sintesi di sistema.
+    private readonly Lock _queueGate = new();
+    private readonly Queue<(string Text, CancellationToken Cancellation)> _queue = new();
+    private CancellationTokenSource _queueCancellation = new();
+    private bool _queueRunning;
 
     /// <summary>Crea la destinazione della voce.</summary>
     /// <param name="bridges">
@@ -72,12 +100,18 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
     /// viene usato.
     /// </param>
     /// <param name="logger">Log diagnostico.</param>
+    /// <param name="announcementOutput">
+    /// Uscita verso il dispositivo scelto per gli annunci. Senza, o senza un dispositivo
+    /// scelto, la voce interna esce dal predefinito di sistema.
+    /// </param>
     public CompositeSpeechOutput(
         IEnumerable<IScreenReaderBridge> bridges,
-        ILogger<CompositeSpeechOutput>? logger = null)
+        ILogger<CompositeSpeechOutput>? logger = null,
+        IAnnouncementAudioOutput? announcementOutput = null)
     {
         _bridges = [.. bridges];
         _log = logger ?? NullLogger<CompositeSpeechOutput>.Instance;
+        _announcementOutput = announcementOutput;
     }
 
     /// <summary>Modalità di instradamento corrente.</summary>
@@ -167,8 +201,54 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
     /// <summary>Velocità della voce interna, da -10 a 10.</summary>
     public int InternalVoiceRate { get; set; } = 2;
 
+    private int _internalVoiceVolume = 100;
+
     /// <summary>Volume della voce interna, da 0 a 100.</summary>
-    public int InternalVoiceVolume { get; set; } = 100;
+    /// <remarks>
+    /// <para>
+    /// Vale anche sulla sintesi già creata, dalla frase successiva: la sintesi si
+    /// costruisce una volta sola, al primo annuncio, e un volume letto solo in quel
+    /// momento costringerebbe a riavviare per sentire il cambio.
+    /// </para>
+    /// <para>
+    /// Regola soltanto la voce di BlindPhone. Quella dello screen reader appartiene allo
+    /// screen reader, e da qui non si tocca.
+    /// </para>
+    /// <para>
+    /// Lo applica la sintesi in entrambe le uscite, anche quando la frase va al
+    /// dispositivo scelto e la suona il motore audio: la scala della sintesi non è
+    /// lineare, e lo stesso valore deve suonare uguale da qualunque parte esca.
+    /// </para>
+    /// </remarks>
+    public int InternalVoiceVolume
+    {
+        get => Volatile.Read(ref _internalVoiceVolume);
+        set
+        {
+            var volume = Math.Clamp(value, 0, 100);
+
+            lock (_gate)
+            {
+                Volatile.Write(ref _internalVoiceVolume, volume);
+
+                foreach (var sintesi in new[] { _synthesizer, _streamSynthesizer })
+                {
+                    if (sintesi is null) continue;
+
+                    try
+                    {
+                        sintesi.Volume = volume;
+                    }
+                    catch (Exception ex)
+                    {
+                        // La voce continua al volume di prima: un volume non applicato
+                        // non deve togliere gli annunci.
+                        _log.LogDebug(ex, "Volume della voce interna non applicato");
+                    }
+                }
+            }
+        }
+    }
 
     /// <summary>Nome della voce interna da usare, se disponibile sul sistema.</summary>
     public string? InternalVoiceName { get; set; }
@@ -296,7 +376,50 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Pronuncia un testo con la voce di BlindPhone, a prescindere dal canale scelto e
+    /// dallo screen reader in esecuzione.
+    /// </summary>
+    /// <param name="text">Testo da pronunciare.</param>
+    /// <remarks>
+    /// Serve alla prova dei dispositivi del pannello: chi preme «suono di prova» vuole
+    /// sentire da dove esce la voce degli annunci anche se in quel momento parla lo
+    /// screen reader. Interrompe quello che la voce stava dicendo, come un comando.
+    /// </remarks>
+    public void SpeakWithInternalVoice(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+
+        SpeakInternally(text, interrupt: true);
+    }
+
+    /// <summary>
+    /// Sceglie da dove esce la voce interna: il dispositivo scelto per gli annunci, se
+    /// c'è, altrimenti il predefinito di sistema.
+    /// </summary>
+    /// <remarks>
+    /// La scelta si rifà a ogni frase: cambiare il dispositivo dal pannello deve valere
+    /// dall'annuncio successivo, e il motore audio torna da solo al predefinito se il
+    /// dispositivo scelto viene staccato.
+    /// </remarks>
     private void SpeakInternally(string text, bool interrupt)
+    {
+        if (_announcementOutput is { HasDedicatedDevice: true })
+        {
+            // Una frase urgente non deve arrivare mentre l'altra uscita sta ancora
+            // finendo quella vecchia: capita nel passaggio da un'uscita all'altra.
+            if (interrupt) CancelDefaultDeviceSpeech();
+
+            EnqueueForAnnouncementDevice(text, interrupt);
+            return;
+        }
+
+        if (interrupt) CancelAnnouncementDeviceSpeech();
+
+        SpeakOnDefaultDevice(text, interrupt);
+    }
+
+    private void SpeakOnDefaultDevice(string text, bool interrupt)
     {
         var synthesizer = GetSynthesizer();
         if (synthesizer is null) return;
@@ -312,47 +435,202 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
         }
     }
 
+    private void CancelDefaultDeviceSpeech()
+    {
+        try
+        {
+            _synthesizer?.SpeakAsyncCancelAll();
+        }
+        catch (Exception ex)
+        {
+            _log.LogDebug(ex, "Interruzione della sintesi interna non riuscita");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Voce sul dispositivo scelto per gli annunci
+    // -----------------------------------------------------------------------
+
+    /// <summary>Mette una frase in coda per il dispositivo degli annunci.</summary>
+    /// <remarks>
+    /// Una frase urgente svuota la coda e interrompe quella che sta suonando, come
+    /// faceva la sintesi di sistema con l'annullamento di tutto: un annuncio critico
+    /// non aspetta che finisca l'elenco di quelli di prima.
+    /// </remarks>
+    private void EnqueueForAnnouncementDevice(string text, bool interrupt)
+    {
+        lock (_queueGate)
+        {
+            if (interrupt) CancelQueueLocked();
+
+            _queue.Enqueue((text, _queueCancellation.Token));
+
+            if (_queueRunning) return;
+            _queueRunning = true;
+        }
+
+        _ = Task.Run(DrainAnnouncementQueueAsync);
+    }
+
+    private void CancelAnnouncementDeviceSpeech()
+    {
+        lock (_queueGate) CancelQueueLocked();
+    }
+
+    private void CancelQueueLocked()
+    {
+        _queue.Clear();
+
+        // Non si chiude la sorgente annullata: la frase che sta suonando ne tiene
+        // ancora il token, e lo legge per sapere che deve fermarsi.
+        _queueCancellation.Cancel();
+        _queueCancellation = new CancellationTokenSource();
+    }
+
+    /// <summary>
+    /// Pronuncia le frasi in coda una alla volta: sintesi in memoria, poi riproduzione
+    /// sul dispositivo degli annunci.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La frase si sintetizza tutta prima di suonarla. Costa poco: dopo la prima frase,
+    /// che carica la voce, una frase di sei secondi si sintetizza in una ventina di
+    /// millisecondi.
+    /// </para>
+    /// <para>
+    /// <b>Se il dispositivo non suona, la frase si ripete dal predefinito di sistema.</b>
+    /// Un annuncio perso è un'informazione persa, e per un operatore che non vede può
+    /// essere la sola notizia di una chiamata in arrivo.
+    /// </para>
+    /// </remarks>
+    private async Task DrainAnnouncementQueueAsync()
+    {
+        while (true)
+        {
+            (string Text, CancellationToken Cancellation) frase;
+
+            lock (_queueGate)
+            {
+                if (!_queue.TryDequeue(out frase))
+                {
+                    _queueRunning = false;
+                    return;
+                }
+            }
+
+            if (frase.Cancellation.IsCancellationRequested) continue;
+
+            try
+            {
+                var pcm = SynthesizeToMemory(frase.Text);
+                if (pcm is null || frase.Cancellation.IsCancellationRequested) continue;
+
+                var suonata = await _announcementOutput!
+                    .PlaySpeechAsync(pcm, SpeechSampleRate, frase.Cancellation)
+                    .ConfigureAwait(false);
+
+                if (!suonata && !frase.Cancellation.IsCancellationRequested)
+                {
+                    _log.LogWarning(
+                        "Il dispositivo degli annunci non ha suonato: la frase si ripete dal predefinito di sistema");
+
+                    SpeakOnDefaultDevice(frase.Text, interrupt: false);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Una frase che non si riesce a pronunciare non deve fermare quelle dopo.
+                _log.LogWarning(ex, "Annuncio sul dispositivo degli annunci non riuscito");
+            }
+        }
+    }
+
+    /// <summary>Sintetizza una frase in memoria, a 16 bit mono.</summary>
+    /// <returns>I campioni, oppure <c>null</c> se la sintesi non è disponibile.</returns>
+    private byte[]? SynthesizeToMemory(string text)
+    {
+        var synthesizer = GetStreamSynthesizer();
+        if (synthesizer is null) return null;
+
+        using var flusso = new MemoryStream();
+
+        lock (_gate)
+        {
+            synthesizer.SetOutputToAudioStream(
+                flusso,
+                new SpeechAudioFormatInfo(SpeechSampleRate, AudioBitsPerSample.Sixteen, AudioChannel.Mono));
+
+            try
+            {
+                synthesizer.Speak(text);
+            }
+            finally
+            {
+                synthesizer.SetOutputToNull();
+            }
+        }
+
+        return flusso.ToArray();
+    }
+
     private SpeechSynthesizer? GetSynthesizer()
     {
         if (_synthesizerFailed) return null;
 
         lock (_gate)
         {
-            if (_synthesizer is not null) return _synthesizer;
+            return _synthesizer ??= CreateSynthesizer(toDefaultDevice: true);
+        }
+    }
 
-            try
+    private SpeechSynthesizer? GetStreamSynthesizer()
+    {
+        if (_synthesizerFailed) return null;
+
+        lock (_gate)
+        {
+            return _streamSynthesizer ??= CreateSynthesizer(toDefaultDevice: false);
+        }
+    }
+
+    /// <summary>Crea una sintesi con voce, velocità e volume configurati.</summary>
+    /// <remarks>Da chiamare dentro <c>_gate</c>.</remarks>
+    private SpeechSynthesizer? CreateSynthesizer(bool toDefaultDevice)
+    {
+        try
+        {
+            var synthesizer = new SpeechSynthesizer();
+
+            if (toDefaultDevice) synthesizer.SetOutputToDefaultAudioDevice();
+            else synthesizer.SetOutputToNull();
+
+            synthesizer.Rate = Math.Clamp(InternalVoiceRate, -10, 10);
+            synthesizer.Volume = Math.Clamp(InternalVoiceVolume, 0, 100);
+
+            if (!string.IsNullOrWhiteSpace(InternalVoiceName))
             {
-                var synthesizer = new SpeechSynthesizer();
-                synthesizer.SetOutputToDefaultAudioDevice();
-                synthesizer.Rate = Math.Clamp(InternalVoiceRate, -10, 10);
-                synthesizer.Volume = Math.Clamp(InternalVoiceVolume, 0, 100);
+                var available = synthesizer.GetInstalledVoices()
+                    .Where(v => v.Enabled)
+                    .Select(v => v.VoiceInfo.Name)
+                    .ToList();
 
-                if (!string.IsNullOrWhiteSpace(InternalVoiceName))
-                {
-                    var available = synthesizer.GetInstalledVoices()
-                        .Where(v => v.Enabled)
-                        .Select(v => v.VoiceInfo.Name)
-                        .ToList();
+                var match = available.FirstOrDefault(
+                    v => v.Contains(InternalVoiceName, StringComparison.OrdinalIgnoreCase));
 
-                    var match = available.FirstOrDefault(
-                        v => v.Contains(InternalVoiceName, StringComparison.OrdinalIgnoreCase));
-
-                    if (match is not null) synthesizer.SelectVoice(match);
-                    else _log.LogWarning("Voce {Voice} non disponibile sul sistema", InternalVoiceName);
-                }
-
-                _synthesizer = synthesizer;
-                return _synthesizer;
+                if (match is not null) synthesizer.SelectVoice(match);
+                else _log.LogWarning("Voce {Voice} non disponibile sul sistema", InternalVoiceName);
             }
-            catch (Exception ex)
-            {
-                // Un sistema senza voci SAPI installate e' possibile. Si registra
-                // una volta sola e si smette di riprovare, perche' un errore
-                // ripetuto a ogni annuncio riempirebbe il log rendendolo inutile.
-                _log.LogWarning(ex, "Sintesi vocale interna non disponibile su questo sistema");
-                _synthesizerFailed = true;
-                return null;
-            }
+
+            return synthesizer;
+        }
+        catch (Exception ex)
+        {
+            // Un sistema senza voci SAPI installate e' possibile. Si registra
+            // una volta sola e si smette di riprovare, perche' un errore
+            // ripetuto a ogni annuncio riempirebbe il log rendendolo inutile.
+            _log.LogWarning(ex, "Sintesi vocale interna non disponibile su questo sistema");
+            _synthesizerFailed = true;
+            return null;
         }
     }
 
@@ -364,14 +642,8 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
             if (bridge.IsAvailable) bridge.StopSpeech();
         }
 
-        try
-        {
-            _synthesizer?.SpeakAsyncCancelAll();
-        }
-        catch (Exception ex)
-        {
-            _log.LogDebug(ex, "Interruzione della sintesi interna non riuscita");
-        }
+        CancelDefaultDeviceSpeech();
+        CancelAnnouncementDeviceSpeech();
     }
 
     /// <inheritdoc />
@@ -395,7 +667,13 @@ public sealed class CompositeSpeechOutput : ISpeechOutput, IDisposable
     /// <inheritdoc />
     public void Dispose()
     {
-        _synthesizer?.Dispose();
+        CancelAnnouncementDeviceSpeech();
+
+        lock (_gate)
+        {
+            _synthesizer?.Dispose();
+            _streamSynthesizer?.Dispose();
+        }
 
         foreach (var bridge in _bridges)
         {

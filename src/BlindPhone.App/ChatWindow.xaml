@@ -7,9 +7,16 @@
     finestre di lavoro: senza, una finestra di proprieta' della principale sparisce da
     ALT+TAB. Vedi FinestreInAltTabTests.
 
+    L'ASPETTO E' QUELLO DEL SITO: una fascia con il nome, l'area dei messaggi a tutta
+    larghezza con i fumetti, e in fondo la casella per scrivere con i pulsanti accanto.
+    A finestra stretta i pulsanti scendono sotto la casella, invece di schiacciarla:
+    vedi OnComposeBarSizeChanged.
+
     L'ORDINE DI TABULAZIONE parte dalla casella in cui si scrive, che e' dove la
     finestra si apre: chi apre una conversazione lo fa per scrivere. Poi i pulsanti,
-    poi lo storico. Maiusc Tab dalla casella porta allo storico in un passo solo.
+    poi lo storico. Maiusc Tab dalla casella porta allo storico in un passo solo. E'
+    l'ordine degli elementi qui sotto, e non cambia quando i pulsanti scendono sotto
+    la casella: lo decide l'ordine nel documento, non la posizione sullo schermo.
 -->
 <Window x:Class="BlindPhone.App.ChatWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -19,23 +26,28 @@
         MinHeight="380" MinWidth="400"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="True"
-        Background="{DynamicResource SurfaceBrush}"
+        Background="{DynamicResource ChatFrameBrush}"
         PreviewKeyDown="OnWindowPreviewKeyDown">
 
     <Window.Resources>
         <!--
             UNA VOCE DELLO STORICO SI LEGGE COME UNA COSA SOLA: chi, che cosa, quando.
-            Il nome accessibile e' la frase intera, e lo stile della voce e' quello degli
-            elenchi della finestra principale, per la stessa ragione: il modello di
-            Windows, a elenco senza focus, disegna la selezione con un grigio suo e il
-            testo bianco della selezione spariva.
+            Il nome accessibile e' la frase intera, come prima: il fumetto cambia il
+            disegno, non quello che lo screen reader dice.
+
+            LA VOCE NON HA FONDO. Il messaggio scelto si riconosce dall'anello attorno al
+            fumetto, disegnato dal modello del fumetto: colorare tutta la riga di blu,
+            come prima, avrebbe nascosto il fumetto blu dei tuoi messaggi. Il contorno
+            tratteggiato di WPF e' spento per la stessa ragione: avvolgerebbe la riga
+            intera, anche la parte vuota accanto al fumetto.
         -->
         <Style x:Key="ChatItem" TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="8,6" />
-            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="0,0,0,10" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleText}" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -48,82 +60,118 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource HoverRowBrush}" />
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SelectionBrush}" />
-                    <Setter Property="Foreground" Value="{DynamicResource SelectionTextBrush}" />
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <!--
-            Il testo dentro la voce eredita il colore della voce, invece di prendere
-            quello del tema: chiaro sulla selezione, scuro fuori. Vedi ItemText nella
-            finestra principale.
-        -->
-        <Style x:Key="ChatText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="{StaticResource FontBody}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-        </Style>
+            IL FUMETTO. I tuoi messaggi stanno a destra, blu; quelli del collega a
+            sinistra, grigi. Ciascuno occupa al massimo tre quarti abbondanti della
+            larghezza - le tre colonne lo dicono senza calcoli - e l'angolo piccolo sta
+            dalla parte di chi l'ha scritto.
 
-        <!--
-            I MESSAGGI DELL'OPERATORE HANNO UN FILO A SINISTRA, quelli del collega no. La
-            differenza la porta anche la prima riga, che dice «Tu» o il nome: il colore
-            aiuta a scorrere a occhio, non porta l'informazione da solo.
+            La differenza non la porta solo il colore: la porta la posizione, e la firma
+            sotto il fumetto che dice «Tu» o il nome del collega.
+
+            L'ANELLO del messaggio scelto e' spesso tre pixel e sta staccato due pixel dal
+            fumetto, come quello delle schede delle impostazioni: nel tema chiaro il blu
+            dei tuoi fumetti e quello dell'accento coincidono, e attaccato l'anello
+            sarebbe sembrato soltanto un fumetto un po' piu' grande.
         -->
         <DataTemplate x:Key="ChatLineTemplate">
-            <Border x:Name="Filo" BorderThickness="4,0,0,0" BorderBrush="Transparent" Padding="10,0,0,0">
-                <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource ChatText}" />
-                    </StackPanel.Resources>
-                    <DockPanel>
-                        <TextBlock DockPanel.Dock="Right"
-                                   Margin="12,0,0,0"
-                                   FontSize="{StaticResource FontCaption}"
-                                   Text="{Binding Time}" />
-                        <TextBlock FontWeight="Bold" Text="{Binding Who}" />
-                    </DockPanel>
-                    <TextBlock Margin="0,2,0,0" Text="{Binding Text}" />
-                    <TextBlock Margin="0,2,0,0"
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="22*" />
+                    <ColumnDefinition Width="56*" />
+                    <ColumnDefinition Width="22*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel x:Name="Messaggio"
+                            Grid.Column="0"
+                            Grid.ColumnSpan="2"
+                            HorizontalAlignment="Left">
+                    <Grid Margin="5">
+                        <Border x:Name="Fumetto"
+                                CornerRadius="16,16,16,4"
+                                Padding="14,10"
+                                BorderThickness="1"
+                                Background="{DynamicResource IncomingBubbleBrush}"
+                                BorderBrush="{DynamicResource IncomingBubbleBorderBrush}"
+                                SnapsToDevicePixels="True">
+                            <!--
+                                Il colore e' dichiarato qui e non ereditato: lo stile
+                                comune delle caselle di testo assegna il colore del tema,
+                                che sul fumetto blu sarebbe illeggibile.
+                            -->
+                            <TextBlock x:Name="Testo"
+                                       Text="{Binding Text}"
+                                       TextWrapping="Wrap"
+                                       FontSize="{StaticResource FontBody}"
+                                       Foreground="{DynamicResource IncomingBubbleTextBrush}" />
+                        </Border>
+
+                        <Border x:Name="Anello"
+                                Margin="-5"
+                                BorderThickness="3"
+                                CornerRadius="21,21,21,9"
+                                BorderBrush="{DynamicResource AccentBrush}"
+                                Visibility="Hidden"
+                                IsHitTestVisible="False"
+                                SnapsToDevicePixels="True" />
+                    </Grid>
+
+                    <!-- Chi, quando e, se c'e' qualcosa da dire, com'e' andata la consegna. -->
+                    <TextBlock x:Name="Firma"
+                               Margin="9,0,9,0"
                                FontSize="{StaticResource FontCaption}"
-                               FontStyle="Italic"
-                               Text="{Binding Delivery}"
-                               Visibility="{Binding DeliveryVisibility}" />
+                               Foreground="{DynamicResource MutedTextBrush}"
+                               TextWrapping="Wrap"
+                               Text="{Binding Signature}" />
                 </StackPanel>
-            </Border>
+            </Grid>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding IsOutgoing}" Value="True">
-                    <Setter TargetName="Filo" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                    <Setter TargetName="Messaggio" Property="Grid.Column" Value="1" />
+                    <Setter TargetName="Messaggio" Property="HorizontalAlignment" Value="Right" />
+                    <Setter TargetName="Fumetto" Property="CornerRadius" Value="16,16,4,16" />
+                    <Setter TargetName="Fumetto" Property="Background" Value="{DynamicResource OutgoingBubbleBrush}" />
+                    <Setter TargetName="Fumetto" Property="BorderBrush" Value="{DynamicResource OutgoingBubbleBrush}" />
+                    <Setter TargetName="Testo" Property="Foreground" Value="{DynamicResource OutgoingBubbleTextBrush}" />
+                    <Setter TargetName="Anello" Property="CornerRadius" Value="21,21,9,21" />
+                    <Setter TargetName="Firma" Property="TextAlignment" Value="Right" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                             Value="True">
+                    <Setter TargetName="Anello" Property="Visibility" Value="Visible" />
                 </DataTrigger>
             </DataTemplate.Triggers>
         </DataTemplate>
+
+        <!-- I pulsanti accanto alla casella: larghi quanto la parola, non 120 pixel. -->
+        <Style x:Key="ComposeButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="MinHeight" Value="46" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+        </Style>
     </Window.Resources>
 
-    <Grid Margin="{StaticResource SpaceWindow}">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!--
-            CON CHI SI STA PARLANDO, in grande. Non e' una regione dinamica: il titolo
-            della finestra dice gia' la stessa cosa a chi ci arriva, e una regione che
-            cambia quando la rubrica trova il nome parlerebbe senza che nessuno l'abbia
-            chiesto.
+            CON CHI SI STA PARLANDO, nella fascia in cima, come la barra del titolo
+            dell'illustrazione. Non e' una regione dinamica: il titolo della finestra dice
+            gia' la stessa cosa a chi ci arriva, e una regione che cambia quando la
+            rubrica trova il nome parlerebbe senza che nessuno l'abbia chiesto.
         -->
         <TextBlock Grid.Row="0"
                    x:Name="HeaderText"
-                   FontSize="{StaticResource FontSection}"
-                   FontWeight="Bold"
+                   Margin="16,10,16,10"
+                   FontSize="{StaticResource FontBody}"
+                   FontWeight="SemiBold"
                    TextWrapping="Wrap"
-                   Margin="{StaticResource SpaceStackTight}"
                    Text="" />
 
         <!--
@@ -135,57 +183,86 @@
             NON E' UNA REGIONE DINAMICA. I messaggi in arrivo li annuncia la pipeline
             degli annunci, una volta, con la priorita' giusta; la regione li farebbe
             ripetere.
+
+            L'area ha un fondo suo e un filo sopra e sotto, a tutta larghezza: e' quello
+            che la separa dalla fascia del nome e da quella in cui si scrive.
         -->
-        <ListBox Grid.Row="1"
-                 x:Name="HistoryList"
-                 Margin="{StaticResource SpaceStack}"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 SelectionMode="Single"
-                 ItemContainerStyle="{StaticResource ChatItem}"
-                 ItemTemplate="{StaticResource ChatLineTemplate}"
-                 AutomationProperties.Name="Storico della conversazione"
-                 AutomationProperties.HelpText="Un messaggio per riga, dal piu' vecchio al piu' recente: prima chi l'ha scritto, poi il testo, poi l'ora. Control C copia il messaggio selezionato."
-                 PreviewKeyDown="OnHistoryPreviewKeyDown" />
+        <Border Grid.Row="1"
+                Background="{DynamicResource ChatAreaBrush}"
+                BorderBrush="{DynamicResource HairlineBrush}"
+                BorderThickness="0,1,0,1">
+            <ListBox x:Name="HistoryList"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     Padding="12,14,12,4"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     SelectionMode="Single"
+                     ItemContainerStyle="{StaticResource ChatItem}"
+                     ItemTemplate="{StaticResource ChatLineTemplate}"
+                     AutomationProperties.Name="Storico della conversazione"
+                     AutomationProperties.HelpText="Un messaggio per riga, dal piu' vecchio al piu' recente: prima chi l'ha scritto, poi il testo, poi l'ora. Control C copia il messaggio selezionato."
+                     PreviewKeyDown="OnHistoryPreviewKeyDown" />
+        </Border>
 
-        <Label Grid.Row="2"
-               Target="{Binding ElementName=ComposeBox}"
-               Content="_Scrivi un messaggio"
-               Padding="0,0,0,4" />
+        <!--
+            LA RIGA PER SCRIVERE: la casella e, accanto, i pulsanti. A finestra stretta
+            i pulsanti passano nella riga sotto, allineati a destra.
+        -->
+        <Grid Grid.Row="2"
+              x:Name="ComposeBar"
+              Margin="16,14,16,14"
+              SizeChanged="OnComposeBarSizeChanged">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <TextBox Grid.Row="3"
-                 x:Name="ComposeBox"
-                 MinHeight="64"
-                 MaxHeight="160"
-                 TextWrapping="Wrap"
-                 AcceptsReturn="False"
-                 VerticalScrollBarVisibility="Auto"
-                 MaxLength="2000"
-                 AutomationProperties.Name="Messaggio da inviare"
-                 AutomationProperties.HelpText="Invio manda il messaggio. Maiusc Invio va a capo senza mandarlo. Maiusc Tab porta allo storico della conversazione."
-                 PreviewKeyDown="OnComposePreviewKeyDown" />
+            <!--
+                Il suggerimento dentro la casella vuota prende il posto dell'etichetta
+                che stava sopra: vedi MessageField in Temi\Stili.xaml. Alt+S, che prima
+                arrivava con l'etichetta, lo gestisce la finestra.
+            -->
+            <TextBox Grid.Column="0"
+                     x:Name="ComposeBox"
+                     Style="{StaticResource MessageField}"
+                     Tag="Scrivi un messaggio"
+                     MinHeight="46"
+                     MaxHeight="160"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="False"
+                     VerticalScrollBarVisibility="Auto"
+                     MaxLength="2000"
+                     AutomationProperties.Name="Messaggio da inviare"
+                     AutomationProperties.AccessKey="Alt+S"
+                     AutomationProperties.HelpText="Invio manda il messaggio. Maiusc Invio va a capo senza mandarlo. Maiusc Tab porta allo storico della conversazione."
+                     PreviewKeyDown="OnComposePreviewKeyDown" />
 
-        <StackPanel Grid.Row="4"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,12,0,0">
-            <Button x:Name="SendButton"
-                    Content="_Invia"
-                    MinWidth="110"
-                    Margin="0,0,8,0"
-                    AutomationProperties.Name="Invia il messaggio"
-                    Click="OnSendClick" />
-            <Button x:Name="CallButton"
-                    Content="C_hiama"
-                    MinWidth="110"
-                    Margin="0,0,8,0"
-                    AutomationProperties.HelpText="Chiama il collega e riporta in primo piano la postazione, dove ci sono i tasti della chiamata."
-                    Click="OnCallClick" />
-            <Button Content="_Chiudi"
-                    IsCancel="True"
-                    MinWidth="110"
-                    AutomationProperties.Name="Chiudi la conversazione"
-                    AutomationProperties.HelpText="La conversazione resta: riaprendola ritrovi i messaggi."
-                    Click="OnCloseClick" />
-        </StackPanel>
+            <StackPanel Grid.Column="1"
+                        x:Name="ComposeButtons"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Bottom"
+                        Margin="2,0,0,0">
+                <Button x:Name="SendButton"
+                        Style="{StaticResource ComposeButton}"
+                        Content="_Invia"
+                        AutomationProperties.Name="Invia il messaggio"
+                        Click="OnSendClick" />
+                <Button x:Name="CallButton"
+                        Style="{StaticResource ComposeButton}"
+                        Content="C_hiama"
+                        AutomationProperties.HelpText="Chiama il collega e riporta in primo piano la postazione, dove ci sono i tasti della chiamata."
+                        Click="OnCallClick" />
+                <Button Style="{StaticResource ComposeButton}"
+                        Content="_Chiudi"
+                        IsCancel="True"
+                        AutomationProperties.Name="Chiudi la conversazione"
+                        AutomationProperties.HelpText="La conversazione resta: riaprendola ritrovi i messaggi."
+                        Click="OnCloseClick" />
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

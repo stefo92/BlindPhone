@@ -274,7 +274,7 @@ public sealed class AccessibilitaTastieraTests
     [Fact]
     public void NessunControlloInterattivoEEscluso()
     {
-        string[] interattivi = ["Button", "CheckBox", "RadioButton", "ComboBox", "TextBox", "PasswordBox", "ListBox", "ListView", "DataGrid", "TabControl"];
+        string[] interattivi = ["Button", "CheckBox", "RadioButton", "ComboBox", "TextBox", "PasswordBox", "ListBox", "ListView", "DataGrid", "TabControl", "Slider"];
 
         var esclusi = Finestre()
             .SelectMany(f => f.Documento.Descendants()

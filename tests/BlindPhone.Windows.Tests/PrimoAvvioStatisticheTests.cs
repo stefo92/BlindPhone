@@ -279,6 +279,28 @@ public sealed class PrimoAvvioStatisticheTests : IDisposable
     }
 
     [Fact]
+    public void UnaPostazioneConLa1_0_21_1RiceveIlServerDelleStatisticheMaNonRifaLaMigrazioneDegliAggiornamenti()
+    {
+        // La 1.0.21.1 ha gia' portato lo schema a 5 con la migrazione degli
+        // aggiornamenti, nata in parallelo a questa. Le statistiche sono la 6: se avessero
+        // preso anche loro il 5, queste postazioni non le avrebbero mai ricevute.
+        var dalla1_0_21_1 = Precedente(schema: 5, indirizzo: string.Empty, chiave: string.Empty) with
+        {
+            // Svuotato dopo la migrazione 5, per esempio perche' gli aggiornamenti li
+            // distribuisce l'ente: non deve tornare pieno.
+            Updates = new UpdateSettings { ServerUrl = string.Empty },
+        };
+
+        var migrata = dalla1_0_21_1.Migrate();
+
+        Assert.Equal(TelemetrySettings.DefaultServerUrl, migrata.Telemetry.ServerUrl);
+        Assert.Equal(TelemetrySettings.DefaultProjectKey, migrata.Telemetry.ProjectKey);
+        Assert.False(migrata.Telemetry.Enabled);
+        Assert.Equal(string.Empty, migrata.Updates.ServerUrl);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, migrata.SchemaVersion);
+    }
+
+    [Fact]
     public void IlFileDiUnaVersionePrecedenteRiceveIlServerAllaLettura()
     {
         // Il caso reale: un settings.json scritto dalla 1.0.20, con indirizzo e chiave

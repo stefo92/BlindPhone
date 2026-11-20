@@ -142,12 +142,12 @@
         <Style x:Key="CommandButton" TargetType="Button">
             <Setter Property="MinWidth" Value="0" />
             <Setter Property="MinHeight" Value="36" />
-            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Padding" Value="14,6" />
             <Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="FontSize" Value="{StaticResource FontBody}" />
             <Setter Property="Foreground" Value="{DynamicResource ControlTextBrush}" />
-            <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+            <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -174,17 +174,6 @@
                         </Border>
 
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Sfondo" Property="Background"
-                                        Value="{DynamicResource SelectionBrush}" />
-                                <Setter Property="Foreground"
-                                        Value="{DynamicResource SelectionTextBrush}" />
-                            </Trigger>
-
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Sfondo" Property="Opacity" Value="0.75" />
-                            </Trigger>
-
                             <!-- Contorno del focus: tre pixel, come tutto il resto della finestra. -->
                             <Trigger Property="IsKeyboardFocused" Value="True">
                                 <Setter TargetName="Sfondo" Property="BorderThickness" Value="3" />
@@ -205,6 +194,55 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+
+            <!--
+                SOTTO IL MOUSE: il fondo si schiarisce appena e il filo prende l'accento,
+                come nello stile comune dei pulsanti. Prima il pulsante diventava blu
+                pieno con il testo bianco; adesso il blu pieno vuol dire «pulsante
+                predefinito», e un pulsante qualunque che lo prendesse al passaggio del
+                mouse confonderebbe i due significati.
+
+                Sono trigger dello stile e non del modello perche' Riaggancia e il
+                pulsante della chiamata, che derivano da questo, devono poter dire il loro
+                colore sotto il mouse: un trigger del modello vincerebbe sui loro.
+            -->
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ButtonPressedBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!--
+            RIAGGANCIA: rosso pieno, testo bianco, come nell'illustrazione del sito.
+
+            E' il gesto che chiude la conversazione, e si deve trovare a colpo d'occhio
+            fra i pulsanti della barra senza leggerli tutti. Il rosso e' quello della
+            fascia FUORI SERVIZIO, 7,3 a 1 con il bianco; sotto il mouse si scurisce.
+            Come per il verde della chiamata, il colore non porta l'informazione da solo:
+            c'e' la parola, il pittogramma e il nome accessibile.
+
+            Lo assegna il codice, che costruisce i pulsanti della barra: vedi
+            CreateCommandButton.
+        -->
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource CommandButton}">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Background" Value="{DynamicResource DangerButtonBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource DangerButtonTextBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DangerButtonBrush}" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}" />
+                    <Setter Property="BorderBrush" Value="{DynamicResource DangerButtonHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource DangerButtonHoverBrush}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!--
@@ -225,17 +263,35 @@
             il nome accessibile per intero. Chi non distingue i colori, e chi lavora in
             contrasto elevato, non perde nulla.
 
-            E' l'unico pulsante colorato del prodotto: se diventassero due, smetterebbe
-            di significare «questo e' il gesto principale di questa schermata». La fascia
-            di stato della chiamata e' colorata ma non e' un pulsante: non si preme e non
+            I COLORI PIENI SONO TRE, E OGNUNO DICE UNA COSA SOLA: il verde fa partire
+            la chiamata, il rosso la chiude (Riaggancia), il blu e' il pulsante
+            predefinito di una finestra di dialogo, quello che risponde a Invio. Tutti
+            gli altri pulsanti hanno la faccia del tema. Se il colore pieno si
+            allargasse ad altri pulsanti smetterebbe di dire qualcosa. La fascia di
+            stato della chiamata e' colorata ma non e' un pulsante: non si preme e non
             si raggiunge con il tabulatore.
+
+            Sotto il mouse il verde si schiarisce invece di prendere la faccia chiara
+            dei pulsanti comuni: il nero sale a 10,6 a 1. Il colore sta in una risorsa
+            e non nel trigger, perche' il trigger non ha un nome e il controllo sui
+            colori scritti a mano si basa sul nome dello stile.
         -->
+        <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#8FC92A" />
+
         <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource CommandButton}">
             <Setter Property="MinWidth" Value="150" />
             <Setter Property="FontWeight" Value="Bold" />
             <Setter Property="Background" Value="#7CB518" />
             <Setter Property="Foreground" Value="#000000" />
             <Setter Property="BorderBrush" Value="#4E7A0F" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!--

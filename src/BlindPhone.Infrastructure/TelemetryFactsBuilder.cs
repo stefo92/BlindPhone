@@ -87,7 +87,10 @@ public static class TelemetryFactsBuilder
             },
             MicrophoneProcessing = settings.MicrophoneProcessing.IsActive,
             HotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons,
-            AutomaticUpdates = !string.IsNullOrWhiteSpace(settings.Updates.ServerUrl),
+            // Un indirizzo vuoto vale come il portale: quello che spegne gli
+            // aggiornamenti e' la casella del controllo all'avvio.
+            AutomaticUpdates = settings.Updates.CheckOnStartup
+                               && !string.IsNullOrWhiteSpace(settings.Updates.EffectiveServerUrl),
             DistributedConfiguration = settings.AppliedConfigurationRevision > 0,
             Policy = PolicyName(settings.Policy.IsRestrictive ? settings.Policy.Origin : PolicyOrigin.None),
             DebugMode = settings.DebugModeEnabled,

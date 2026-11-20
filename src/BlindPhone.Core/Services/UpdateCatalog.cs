@@ -110,6 +110,10 @@ public static class UpdateCatalog
     /// </summary>
     /// <param name="remoteFiles">Nomi dei file presenti nella cartella remota.</param>
     /// <param name="installed">Versione attualmente installata.</param>
+    /// <param name="architecture">
+    /// Processore del pacchetto installato, <c>x64</c> o <c>arm64</c>. Se indicato, i
+    /// pacchetti dichiarati per un altro processore si scartano.
+    /// </param>
     /// <returns>L'aggiornamento da proporre, oppure <c>null</c> se non ce n'è.</returns>
     /// <remarks>
     /// <para>
@@ -123,8 +127,18 @@ public static class UpdateCatalog
     /// alla versione del server significherebbe proporre di disinstallare la prova in
     /// corso, e l'installatore di Windows la rifiuterebbe comunque.
     /// </para>
+    /// <para>
+    /// <b>Il processore si guarda, e prima no.</b> Con <c>BlindPhone-1.0.21-arm64.msi</c>
+    /// e <c>BlindPhone-1.0.21-x64.msi</c> nella stessa cartella vinceva il primo
+    /// dell'elenco, che in ordine alfabetico è l'arm64: a una postazione x64 si
+    /// proponeva un pacchetto che Windows Installer rifiuta. Per questo i documenti
+    /// chiedevano due cartelle distinte; il portale dei download le tiene insieme, ed
+    /// è giusto che possa farlo. Un pacchetto senza processore nel nome — la forma
+    /// dei primi rilasci — vale per tutti, come valeva prima.
+    /// </para>
     /// </remarks>
-    public static AvailableUpdate? FindNewer(IEnumerable<string> remoteFiles, Version installed)
+    public static AvailableUpdate? FindNewer(
+        IEnumerable<string> remoteFiles, Version installed, string? architecture = null)
     {
         AvailableUpdate? migliore = null;
 
@@ -132,6 +146,7 @@ public static class UpdateCatalog
         {
             var nome = FileNameOnly(file);
             if (ParseVersion(nome) is not { } versione) continue;
+            if (!IsForArchitecture(nome, architecture)) continue;
             if (versione <= installed) continue;
             if (migliore is not null && versione <= migliore.Version) continue;
 
@@ -172,6 +187,48 @@ public static class UpdateCatalog
         if (parti.Length is < 2 or > 4) return null;
 
         return Version.TryParse(numeri, out var versione) ? versione : null;
+    }
+
+    /// <summary>
+    /// Ricava dal nome di un pacchetto il processore per cui è costruito.
+    /// </summary>
+    /// <param name="fileName">Per esempio <c>BlindPhone-1.2.0-arm64.msi</c>.</param>
+    /// <returns>
+    /// <c>x64</c>, <c>arm64</c> o quello che il nome dichiara, in minuscolo; <c>null</c>
+    /// se il nome non è di un pacchetto o non dichiara un processore.
+    /// </returns>
+    /// <remarks>
+    /// È la parola subito dopo il numero di versione, quella che
+    /// <c>tools\crea-installatore.ps1</c> aggiunge con <c>-Architettura</c>. Quello che
+    /// eventualmente segue un altro trattino è un'etichetta e non si interpreta.
+    /// </remarks>
+    public static string? ParseArchitecture(string fileName)
+    {
+        if (ParseVersion(fileName) is null) return null;
+
+        var corpo = fileName[InstallerPrefix.Length..^InstallerExtension.Length];
+
+        var fine = 0;
+        while (fine < corpo.Length && (char.IsAsciiDigit(corpo[fine]) || corpo[fine] == '.')) fine++;
+
+        var resto = corpo[fine..].TrimStart('-');
+        var taglio = resto.IndexOf('-');
+        var processore = taglio >= 0 ? resto[..taglio] : resto;
+
+        return processore.Length == 0 ? null : processore.ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Se un pacchetto va bene per il processore indicato.
+    /// </summary>
+    /// <param name="fileName">Nome del pacchetto.</param>
+    /// <param name="architecture">Processore richiesto; <c>null</c> accetta tutto.</param>
+    public static bool IsForArchitecture(string fileName, string? architecture)
+    {
+        if (string.IsNullOrWhiteSpace(architecture)) return true;
+
+        return ParseArchitecture(FileNameOnly(fileName)) is not { } dichiarato
+               || string.Equals(dichiarato, architecture.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

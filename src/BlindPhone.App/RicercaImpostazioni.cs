@@ -23,6 +23,12 @@ public sealed record VoceDiRicerca(
     string Testo)
 {
     /// <summary>
+    /// Dove sta il campo, a schermo, a destra della proposta: «Audio», oppure
+    /// «Audio · Suoneria» quando il campo è dentro un gruppo.
+    /// </summary>
+    public string Dove => Sezione is null ? Scheda : $"{Scheda} · {Sezione}";
+
+    /// <summary>
     /// La frase che lo screen reader legge sulla proposta.
     /// </summary>
     /// <remarks>

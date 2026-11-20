@@ -289,16 +289,29 @@ e come si firma: [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md) §10.
 
 **Dove si scrive l'indirizzo del server:** la costante `UpdateSettings.DefaultServerUrl`
 in [AppSettings.cs](src/BlindPhone.Infrastructure/AppSettings.cs), che vale per tutte le
-postazioni installate da quel momento. Su una postazione già installata si corregge in
-`settings.json` sotto `Updates.ServerUrl`, che ha la precedenza. Deve essere l'indirizzo
-di una **cartella** e finire con la barra.
+postazioni installate da quel momento. Dalla 1.0.21 è la cartella dei download del
+portale, **`https://blindphone.curti.cloud/download/`**: un rilascio pubblicato lì lo
+trovano sia le persone sia le postazioni. Su una postazione già installata si corregge in
+`settings.json` sotto `Updates.ServerUrl`, che ha la precedenza. **Un indirizzo vuoto vale
+come il portale**, e non spegne gli aggiornamenti: per non cercarli si mette
+`Updates.CheckOnStartup` a `false`, la casella «Controlla la presenza di aggiornamenti
+all'avvio» della scheda Diagnostica. Deve essere l'indirizzo di una **cartella** e finire
+con la barra.
 
-**Serve `ftps://`, e `ftp://` viene rifiutato.** Su FTP in chiaro la password e il
-pacchetto attraversano la rete leggibili: chi si trova sul percorso vede la prima e può
-sostituire il secondo con un altro programma, che l'operatore installerebbe con i
-privilegi di amministratore. Fino alla 1.0.16 BlindPhone accettava `ftp://` segnalandolo
-nel registro; ora non controlla nemmeno, e lo dice. Un avviso che lo legge chi non può
-farci niente non è una difesa.
+**Su `https://` la cartella risponde a una domanda.** Un elenco dei file su HTTP non
+esiste, e la cartella lo sostituisce con un rimando: `download/?per=x64` (o
+`?per=arm64`) risponde `302` verso `BlindPhone-<versione>-x64.msi`, il pacchetto più
+recente per quel processore. È lo stesso link che il portale offre a chi scarica. Firma e
+novità si cercano accanto, con lo stesso nome; del rimando si tiene solo il nome del
+file, quindi lo scaricamento resta comunque nella cartella configurata. Su `ftps://` si
+legge invece l'elenco della cartella, come prima. In entrambi i casi si sceglie il
+pacchetto **del processore installato**: x64 e arm64 possono stare nella stessa cartella.
+
+**Serve `https://` o `ftps://`; `http://` e `ftp://` vengono rifiutati.** Su un canale in
+chiaro la password e il pacchetto attraversano la rete leggibili: chi si trova sul
+percorso vede la prima e può sostituire il secondo con un altro programma. Fino alla
+1.0.16 BlindPhone accettava `ftp://` segnalandolo nel registro; ora non controlla
+nemmeno, e lo dice. Un avviso che lo legge chi non può farci niente non è una difesa.
 
 La password del server non sta in `settings.json`: vive nel deposito protetto insieme a
 quelle SIP, **legata all'indirizzo per cui è stata inserita**. Cambiare
@@ -1293,7 +1306,7 @@ chiusura accidentale resta dov'è utile, cioè sul gesto che si compie per sbagl
 | `Alt+F4` | Esce davvero. Con una chiamata in corso chiede conferma |
 | Chiudi la finestra con la X | BlindPhone resta in servizio nell'area di notifica, e lo annuncia |
 | `Ctrl+Maiusc+B` (globale) | Riapre la finestra da qualunque programma |
-| `Windows+B`, poi menu contestuale | Raggiunge l'icona da tastiera: *Apri BlindPhone*, *Esci* |
+| `Windows+B`, poi menu contestuale | Raggiunge l'icona da tastiera: *Apri BlindPhone*, *Ricerca aggiornamenti*, *Impostazioni*, *Esci* |
 | `Ctrl+Maiusc+Q` (con la finestra aperta) | Esce davvero. Con una chiamata in corso chiede conferma |
 | Chiamata entrante | La finestra torna in primo piano da sola |
 

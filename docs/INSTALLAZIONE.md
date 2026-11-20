@@ -68,12 +68,15 @@ funzionare: è la via di ripiego, e costa emulazione su un programma che deve st
 dietro all'audio in tempo reale. Il contrario non vale — un pacchetto arm64 su una
 postazione x64 viene rifiutato da Windows Installer.
 
-**Attenzione alla cartella degli aggiornamenti**, se la si usa per distribuire. Chi
-cerca un aggiornamento guarda il numero di versione e non l'architettura: due
-pacchetti della stessa versione nella stessa cartella remota si escludono a
-vicenda, e una postazione può ritrovarsi proposto il pacchetto dell'architettura
-sbagliata. Le due architetture vanno in **due cartelle distinte**, ognuna con il
-proprio file delle novità, e ogni postazione punta alla sua.
+**I due pacchetti possono stare nella stessa cartella degli aggiornamenti**, dalla
+1.0.21. Fino alla 1.0.20 chi cercava un aggiornamento guardava il numero di versione e
+non l'architettura, e due pacchetti della stessa versione nella stessa cartella si
+escludevano a vicenda: serviva una cartella per architettura. Ora ogni postazione
+sceglie il pacchetto del processore installato — su `https://` lo chiede alla cartella
+con `?per=x64` o `?per=arm64`, su `ftps://` lo riconosce dal nome — e un pacchetto x64
+su Windows on ARM continua a ricevere pacchetti x64. Le postazioni ancora alla 1.0.20 o
+prima non sanno farlo: se la loro cartella contiene entrambe le architetture, vanno
+portate alla 1.0.21 a mano una volta.
 
 Il collegamento diretto a NVDA c'è su entrambe le architetture, e non per caso: il
 client controller di NV Access è codice nativo, e un processo arm64 non carica la
@@ -194,7 +197,7 @@ smettere di fare qualcosa che prima faceva.
 | Cosa cambia | Effetto su una postazione in servizio | Che fare |
 |---|---|---|
 | **Gli aggiornamenti devono essere firmati** | Se nella cartella del server non c'è il file `.msi.sig`, l'aggiornamento automatico viene rifiutato e annunciato | Pubblicare i tre file prodotti da `tools\crea-installatore.ps1` (§10) |
-| **`ftp://` in chiaro viene rifiutato** | Prima era un avviso nel registro; ora il controllo degli aggiornamenti non parte | Passare il server a `ftps://` o `https://` |
+| **`ftp://` e `http://` in chiaro vengono rifiutati** | Prima era un avviso nel registro; ora il controllo degli aggiornamenti non parte | Passare il server a `ftps://` o `https://` |
 | **La cartella del provisioning deve essere protetta** | Un `.bpcfg` in `%ProgramData%\BlindPhone` con i permessi ereditati viene ignorato | L'installatore protegge la cartella da sé; per il file copiato a mano vedi §8 |
 
 Le credenziali già inserite **non vanno reinserite**: al primo avvio vengono legate
@@ -223,10 +226,14 @@ con un messaggio esplicito. Per farlo va disinstallata prima quella corrente.
 BlindPhone sa cercare da sé una versione nuova in una cartella remota, e tre cose
 vanno sapute prima di contare su quella via:
 
-- **Il server deve essere su `ftps://` o `https://`.** Su `ftp://` in chiaro il
-  controllo viene rifiutato, non segnalato: chi sta sul percorso di rete potrebbe
-  sostituire il pacchetto con un altro programma, che verrebbe installato con i
-  privilegi di amministratore.
+- **La cartella predefinita è quella dei download del portale**,
+  `https://blindphone.curti.cloud/download/`. Su `https://` la cartella deve
+  rispondere a `?per=x64` e `?per=arm64` con un rimando (`302`) al pacchetto più
+  recente per quel processore, come fa il portale; su `ftps://` basta la cartella,
+  di cui si legge l'elenco.
+- **Il server deve essere su `ftps://` o `https://`.** Su `ftp://` e `http://` in
+  chiaro il controllo viene rifiutato, non segnalato: chi sta sul percorso di rete
+  vedrebbe la password e potrebbe sostituire il pacchetto con un altro programma.
 - **Nella cartella vanno tre file per versione**, non due: il `.msi`, il `.txt` delle
   novità e il `.msi.sig` con la firma. Li produce
   `tools\crea-installatore.ps1`; senza il `.sig` l'aggiornamento viene rifiutato.
