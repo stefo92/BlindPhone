@@ -970,11 +970,14 @@ public partial class SettingsWindow : Window
         // Aggiornamenti. La password si legge dal deposito protetto e si riscrive nel
         // campo: lasciarlo vuoto quando una password c'e' farebbe credere che non sia
         // configurata, e salvando la si cancellerebbe senza volerlo.
-        UpdateServerUrl.Text = settings.Updates.ServerUrl;
+        //
+        // Il campo mostra la cartella che si usa davvero: con l'indirizzo vuoto nel file
+        // e' quella del portale, e un campo vuoto si leggeva come «nessun server».
+        UpdateServerUrl.Text = settings.Updates.EffectiveServerUrl;
         UpdateUsername.Text = settings.Updates.Username ?? string.Empty;
         UpdatePassword.Password = _settingsService.Secrets.GetForHost(
             settings.Updates.PasswordKey,
-            settings.Updates.ServerUrl,
+            settings.Updates.EffectiveServerUrl,
             "la password del server degli aggiornamenti");
         UpdateCheckOnStartup.IsChecked = settings.Updates.CheckOnStartup;
 
@@ -1485,15 +1488,12 @@ public partial class SettingsWindow : Window
     {
         if (_checkingUpdates) return;
 
+        // Un campo vuoto vale come la cartella del portale, come all'avvio: prima qui
+        // rispondeva «nessun server», e chi aveva cancellato il vecchio indirizzo per
+        // passare al portale restava senza aggiornamenti. Vedi
+        // UpdateSettings.EffectiveServerUrl.
         var indirizzo = UpdateServerUrl.Text.Trim();
-
-        if (indirizzo.Length == 0)
-        {
-            ReportUpdateCheck(
-                "Nessun server degli aggiornamenti: scrivi l'indirizzo della cartella piu' sotto in questa "
-                + "scheda, nella parte Aggiornamenti, e premi di nuovo Cerca aggiornamenti.");
-            return;
-        }
+        var cartella = indirizzo.Length == 0 ? UpdateSettings.DefaultServerUrl : indirizzo;
 
         var installata = InstalledVersion();
 
@@ -1509,7 +1509,9 @@ public partial class SettingsWindow : Window
 
         _checkingUpdates = true;
         CheckUpdatesButton.IsEnabled = false;
-        ReportUpdateCheck("Ricerca degli aggiornamenti in corso");
+        ReportUpdateCheck(indirizzo.Length == 0
+            ? $"Indirizzo vuoto: ricerca degli aggiornamenti nella cartella del portale, {cartella}"
+            : "Ricerca degli aggiornamenti in corso");
 
         try
         {
@@ -3464,7 +3466,7 @@ public partial class SettingsWindow : Window
         SaveSecretForHost(
             updated.Updates.PasswordKey,
             UpdatePassword.Password,
-            updated.Updates.ServerUrl,
+            updated.Updates.EffectiveServerUrl,
             "La password del server degli aggiornamenti",
             spostamenti);
 

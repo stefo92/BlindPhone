@@ -333,17 +333,42 @@ public sealed record UpdateSettings
     /// sostituire il pacchetto con un altro.
     /// </para>
     /// <para>
-    /// Vuoto significa «nessun aggiornamento automatico», e in quel caso il controllo
-    /// non viene nemmeno tentato. Fino alla 1.0.20 era il valore predefinito; le
-    /// postazioni che lo avevano scritto in <c>settings.json</c> per quella ragione
-    /// passano al portale una volta sola, con la migrazione allo schema 5 di
-    /// <see cref="AppSettings"/>.
+    /// <b>Vuoto vale come questa cartella</b>, e non come «nessun aggiornamento»: vedi
+    /// <see cref="EffectiveServerUrl"/>. Per non cercare aggiornamenti c'è
+    /// <see cref="CheckOnStartup"/>.
     /// </para>
     /// </remarks>
     public const string DefaultServerUrl = "https://blindphone.curti.cloud/download/";
 
     /// <summary>Cartella remota che contiene i pacchetti e le note.</summary>
+    /// <remarks>
+    /// Quello che è scritto in <c>settings.json</c>, anche vuoto. Chi si collega usa
+    /// <see cref="EffectiveServerUrl"/>.
+    /// </remarks>
     public string ServerUrl { get; init; } = DefaultServerUrl;
+
+    /// <summary>
+    /// Cartella a cui ci si collega davvero: quella scritta, oppure il portale se il
+    /// campo è vuoto.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Il difetto che chiude.</b> Fino alla 1.0.22 un indirizzo vuoto spegneva gli
+    /// aggiornamenti senza dirlo: il controllo all'avvio taceva, e «Cerca aggiornamenti»
+    /// rispondeva che non c'era nessun server. Il pannello però diceva soltanto che
+    /// «di partenza» la cartella è quella del portale, e la 1.0.21.1 annunciava che il
+    /// server dell'ente non serviva più: chi cancellava il vecchio indirizzo FTPS per
+    /// passare al portale restava senza aggiornamenti, convinto di averli.
+    /// </para>
+    /// <para>
+    /// Vuoto ora vuol dire «quello di partenza», come per ogni altro campo. Per non
+    /// cercare aggiornamenti c'è la casella apposta, <see cref="CheckOnStartup"/>, che
+    /// dice quello che fa.
+    /// </para>
+    /// </remarks>
+    [JsonIgnore]
+    public string EffectiveServerUrl
+        => string.IsNullOrWhiteSpace(ServerUrl) ? DefaultServerUrl : ServerUrl.Trim();
 
     /// <summary>Utente con cui accedere al server. Vuoto per l'accesso anonimo.</summary>
     public string? Username { get; init; }
@@ -1431,9 +1456,11 @@ public sealed record AppSettings
     /// prima non poteva esserlo, perché l'alternativa non esisteva.
     /// </para>
     /// <para>
-    /// <b>Avviene una volta sola.</b> Chi svuota il campo dopo la migrazione — per
-    /// esempio perché le postazioni le aggiorna la distribuzione software dell'ente —
-    /// se lo tiene vuoto.
+    /// <b>Avviene una volta sola.</b> Dalla correzione successiva alla 1.0.22 conta
+    /// meno: un indirizzo vuoto vale comunque come il portale (vedi
+    /// <see cref="UpdateSettings.EffectiveServerUrl"/>), e chi aggiorna le postazioni
+    /// con la distribuzione software dell'ente spegne il controllo con
+    /// <see cref="UpdateSettings.CheckOnStartup"/>, non svuotando il campo.
     /// </para>
     /// </remarks>
     private AppSettings MigrateUpdateServer()

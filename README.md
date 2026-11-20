@@ -292,9 +292,11 @@ in [AppSettings.cs](src/BlindPhone.Infrastructure/AppSettings.cs), che vale per 
 postazioni installate da quel momento. Dalla 1.0.21 è la cartella dei download del
 portale, **`https://blindphone.curti.cloud/download/`**: un rilascio pubblicato lì lo
 trovano sia le persone sia le postazioni. Su una postazione già installata si corregge in
-`settings.json` sotto `Updates.ServerUrl`, che ha la precedenza; chi aveva l'indirizzo
-vuoto, il predefinito fino alla 1.0.20, passa al portale una volta sola. Deve essere
-l'indirizzo di una **cartella** e finire con la barra.
+`settings.json` sotto `Updates.ServerUrl`, che ha la precedenza. **Un indirizzo vuoto vale
+come il portale**, e non spegne gli aggiornamenti: per non cercarli si mette
+`Updates.CheckOnStartup` a `false`, la casella «Controlla la presenza di aggiornamenti
+all'avvio» della scheda Diagnostica. Deve essere l'indirizzo di una **cartella** e finire
+con la barra.
 
 **Su `https://` la cartella risponde a una domanda.** Un elenco dei file su HTTP non
 esiste, e la cartella lo sostituisce con un rimando: `download/?per=x64` (o

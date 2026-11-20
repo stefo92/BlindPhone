@@ -235,7 +235,7 @@ public sealed record TelemetryFacts
     /// <summary>Se i tasti rapidi sono scritti sui pulsanti.</summary>
     public bool HotkeysOnButtons { get; init; }
 
-    /// <summary>Se c'è un server degli aggiornamenti.</summary>
+    /// <summary>Se la postazione cerca gli aggiornamenti all'avvio.</summary>
     public bool AutomaticUpdates { get; init; }
 
     /// <summary>Se la postazione ha ricevuto un pacchetto di configurazione.</summary>
@@ -352,7 +352,7 @@ public static partial class TelemetryCatalog
     /// <summary>Tasti rapidi scritti sui pulsanti.</summary>
     public static readonly TelemetryProperty TastiSuiPulsanti = Flag("tasti_sui_pulsanti");
 
-    /// <summary>Server degli aggiornamenti configurato.</summary>
+    /// <summary>Controllo degli aggiornamenti all'avvio acceso.</summary>
     public static readonly TelemetryProperty AggiornamentiAutomatici = Flag("aggiornamenti_automatici");
 
     /// <summary>Pacchetto di configurazione applicato.</summary>

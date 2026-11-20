@@ -803,7 +803,7 @@ public partial class MainWindow : Window
             // dell'ente a un indirizzo che l'ente non ha scelto.
             _settingsService.Secrets.GetForHost(
                 settings.Updates.PasswordKey,
-                settings.Updates.ServerUrl,
+                settings.Updates.EffectiveServerUrl,
                 "la password del server degli aggiornamenti"),
 
             InstalledVersion(),

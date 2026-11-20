@@ -115,10 +115,11 @@ public sealed class IndirizzoAggiornamentiTests
     }
 
     [Fact]
-    public void ChiSvuotaLIndirizzoDopoLaMigrazioneSeLoTiene()
+    public void LaMigrazioneNonRiscriveUnIndirizzoSvuotatoDopo()
     {
-        // Per esempio un ente che aggiorna le postazioni con la propria distribuzione
-        // software: la migrazione non deve riaccendere gli aggiornamenti a ogni avvio.
+        // La migrazione avviene una volta sola e il campo resta come l'ha lasciato chi
+        // l'ha svuotato. Che cosa vuol dire un campo vuoto lo decide un'altra cosa, e lo
+        // provano le prove qui sotto: vale come il portale.
         var scelta = ConfigurazioneEsistente(AppSettings.CurrentSchemaVersion, indirizzo: string.Empty);
 
         Assert.Equal(string.Empty, scelta.Migrate().Updates.ServerUrl);
@@ -130,9 +131,72 @@ public sealed class IndirizzoAggiornamentiTests
     [InlineData("   ")]
     public void NessunIndirizzoNonEUnProblema(string? indirizzo)
     {
-        // Nessun aggiornamento automatico e' una scelta legittima: chi non ha scritto
-        // niente non deve sentirsi dire che ha sbagliato qualcosa.
+        // Un campo vuoto vale come la cartella del portale: chi non ha scritto niente non
+        // deve sentirsi dire che ha sbagliato qualcosa.
         Assert.Null(UpdateService.DescribeAddressProblem(indirizzo));
+    }
+
+    // -----------------------------------------------------------------------
+    // Un indirizzo vuoto vale come il portale
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void UnIndirizzoVuotoValeComeLaCartellaDelPortale(string indirizzo)
+        => Assert.Equal(
+            UpdateSettings.DefaultServerUrl,
+            new UpdateSettings { ServerUrl = indirizzo }.EffectiveServerUrl);
+
+    [Fact]
+    public void UnIndirizzoScrittoSiUsaComeEScritto()
+        => Assert.Equal(
+            "ftps://aggiornamenti.ente.it/blindphone/",
+            new UpdateSettings { ServerUrl = "  ftps://aggiornamenti.ente.it/blindphone/  " }.EffectiveServerUrl);
+
+    [Fact]
+    public void IlServizioConLIndirizzoVuotoCercaNelPortale()
+    {
+        // Prima rispondeva «Nessun server degli aggiornamenti configurato», e all'avvio
+        // non cercava niente senza dirlo.
+        var servizio = new UpdateService(
+            new UpdateSettings { ServerUrl = string.Empty },
+            password: string.Empty,
+            installed: new Version(1, 0, 22));
+
+        Assert.True(servizio.IsConfigured);
+        Assert.Equal(UpdateSettings.DefaultServerUrl, servizio.ServerUrl);
+    }
+
+    [Fact]
+    public void LaPostazioneDellaSegnalazioneTornaACercareGliAggiornamenti()
+    {
+        // Il caso vero: con la 1.0.21.1 l'operatore ha cancellato l'indirizzo del vecchio
+        // server FTPS, per passare al portale come dicevano le novita', e ha salvato. Il
+        // file e' rimasto con lo schema 5 e l'indirizzo vuoto, la migrazione era gia'
+        // passata, e la 1.0.22 diceva che non c'era nessun indirizzo.
+        var impostazioni = SettingsService.CreateTemporary("indirizzo-svuotato");
+        Directory.CreateDirectory(impostazioni.DataDirectory);
+        File.WriteAllText(
+            impostazioni.SettingsPath,
+            """{ "schemaVersion": 5, "updates": { "serverUrl": "", "checkOnStartup": true } }""");
+
+        var lette = new SettingsService(impostazioni.DataDirectory).Load();
+        var servizio = new UpdateService(lette.Updates, password: string.Empty, installed: new Version(1, 0, 22));
+
+        Assert.True(servizio.IsConfigured);
+        Assert.Equal(UpdateSettings.DefaultServerUrl, servizio.ServerUrl);
+    }
+
+    [Fact]
+    public void GliAggiornamentiSiSpengonoConLaCasellaENonSvuotandoIlCampo()
+    {
+        var vuoto = new AppSettings { Updates = new UpdateSettings { ServerUrl = string.Empty } };
+        var spento = new AppSettings { Updates = new UpdateSettings { CheckOnStartup = false } };
+
+        // E' il dato che le statistiche mandano: deve dire se la postazione li cerca.
+        Assert.True(TelemetryFactsBuilder.FromSettings(vuoto, "1.0.22").AutomaticUpdates);
+        Assert.False(TelemetryFactsBuilder.FromSettings(spento, "1.0.22").AutomaticUpdates);
     }
 
     [Theory]

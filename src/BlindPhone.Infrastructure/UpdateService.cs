@@ -136,7 +136,10 @@ public sealed class UpdateService
         HttpMessageHandler? httpHandler = null,
         string? architecture = null)
     {
-        _settings = settings;
+        // Un indirizzo vuoto vale come la cartella del portale, e lo si traduce qui una
+        // volta per tutte: elenco, note, firma e pacchetto si leggono tutti dalla stessa
+        // cartella. Vedi UpdateSettings.EffectiveServerUrl.
+        _settings = settings with { ServerUrl = settings.EffectiveServerUrl };
         _password = password;
         _installed = installed;
         _architecture = string.IsNullOrWhiteSpace(architecture) ? CurrentArchitecture() : architecture.Trim();
@@ -153,8 +156,15 @@ public sealed class UpdateService
     /// <summary>Processore per cui si cercano i pacchetti: <c>x64</c> o <c>arm64</c>.</summary>
     public string Architecture => _architecture;
 
-    /// <summary>Se la postazione è configurata per cercare aggiornamenti.</summary>
+    /// <summary>Se c'è una cartella a cui chiedere gli aggiornamenti.</summary>
+    /// <remarks>
+    /// Con un indirizzo vuoto nelle impostazioni c'è sempre: vale la cartella del
+    /// portale. Resta falso solo in una copia compilata senza indirizzo predefinito.
+    /// </remarks>
     public bool IsConfigured => !string.IsNullOrWhiteSpace(_settings.ServerUrl);
+
+    /// <summary>La cartella a cui il servizio si collega.</summary>
+    public string ServerUrl => _settings.ServerUrl;
 
     /// <summary>Se il canale verso il server è cifrato.</summary>
     public bool IsSecureChannel
@@ -168,7 +178,7 @@ public sealed class UpdateService
     /// <returns>
     /// La frase da dire, che comincia in minuscolo per stare dopo un'introduzione,
     /// oppure <c>null</c> se l'indirizzo è utilizzabile. Anche un indirizzo vuoto
-    /// restituisce <c>null</c>: nessun aggiornamento automatico è una scelta legittima.
+    /// restituisce <c>null</c>: vale come la cartella del portale.
     /// </returns>
     /// <remarks>
     /// <para>
