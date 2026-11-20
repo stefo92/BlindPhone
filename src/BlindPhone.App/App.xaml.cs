@@ -711,7 +711,12 @@ public partial class App : Application
 
         services.AddSingleton(sp => new CompositeSpeechOutput(
             sp.GetRequiredService<IEnumerable<IScreenReaderBridge>>(),
-            sp.GetRequiredService<ILogger<CompositeSpeechOutput>>())
+            sp.GetRequiredService<ILogger<CompositeSpeechOutput>>(),
+
+            // Senza, la voce interna usciva sempre dal predefinito di Windows e la
+            // scelta «Voce degli annunci» del pannello non aveva effetto. Il motore
+            // e' quello che sa dove sta il dispositivo scelto.
+            sp.GetRequiredService<NAudioEngine>())
         {
             Mode = Enum.TryParse<SpeechChannelMode>(settings.Accessibility.SpeechChannel, out var mode)
                 ? mode
@@ -719,6 +724,10 @@ public partial class App : Application
             InternalVoiceEnabled = settings.Accessibility.InternalVoiceEnabled,
             InternalVoiceName = settings.Accessibility.InternalVoiceName,
             InternalVoiceRate = settings.Accessibility.InternalVoiceRate,
+
+            // Il volume degli annunci del pannello Audio regola la voce di BlindPhone:
+            // e' la sola voce degli annunci il cui volume dipende da noi.
+            InternalVoiceVolume = AudioRouteSettings.ToPercent(settings.Announcements.Volume),
             BrailleEnabled = settings.Accessibility.BrailleEnabled,
         });
 

@@ -1511,6 +1511,17 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
         var bytesPerSample = format.BitsPerSample / 8;
         var isFloat = _renderIsFloat;
 
+        // IL VOLUME DELLA CONVERSAZIONE SI APPLICA QUI, e solo qui.
+        //
+        // Prima non si applicava da nessuna parte: il pannello lo salvava, il motore lo
+        // conservava, e la voce dell'interlocutore usciva sempre piena. Si rilegge a ogni
+        // pacchetto, cosi' il valore salvato vale anche sulla chiamata in corso.
+        //
+        // All'ultimo passo e solo verso la scheda audio: la registrazione, la
+        // diagnostica e l'altra gamba della conferenza prelevano piu' a monte e devono
+        // avere la voce come e' arrivata, non come l'operatore ha scelto di sentirla.
+        var volume = _engine.GetVolume(AudioRoute.Conversation);
+
         while (true)
         {
             var needed = resampler.ResamplePrepare(_renderSamplesPerFrame, 1, out var input);
@@ -1538,7 +1549,7 @@ public sealed class SipAudioEndPoint : IAudioSource, IAudioSink, IDisposable
 
             for (var i = 0; i < _renderSamplesPerFrame; i++)
             {
-                var value = Math.Clamp(_renderFloat[i], -1f, 1f);
+                var value = Math.Clamp(_renderFloat[i] * volume, -1f, 1f);
 
                 for (var channel = 0; channel < format.Channels; channel++)
                 {

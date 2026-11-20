@@ -32,7 +32,7 @@ namespace BlindPhone.Audio;
 /// riservato in un ufficio aperto.
 /// </para>
 /// </remarks>
-public sealed class NAudioEngine : IAudioEngine, IAudioDucker
+public sealed class NAudioEngine : IAudioEngine, IAudioDucker, IAnnouncementAudioOutput
 {
     private readonly ILogger<NAudioEngine> _log;
     private readonly MMDeviceEnumerator _enumerator = new();
@@ -170,6 +170,19 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
         lock (_gate) _volumes[route] = Math.Clamp(volume, 0f, 1f);
     }
 
+    /// <summary>Volume corrente di una via, da 0 a 1.</summary>
+    /// <param name="route">Via da interrogare.</param>
+    /// <remarks>
+    /// Lo legge la conversazione a ogni pacchetto ricevuto: è così che il volume salvato
+    /// dal pannello vale anche sulla chiamata in corso, entro venti millisecondi, invece
+    /// che dalla successiva. Chi alza il volume lo fa perché non sente chi sta parlando
+    /// <b>adesso</b>.
+    /// </remarks>
+    public float GetVolume(AudioRoute route)
+    {
+        lock (_gate) return _volumes[route];
+    }
+
     private MicrophoneProcessing _microphoneProcessing = MicrophoneProcessing.None;
 
     /// <summary>
@@ -215,7 +228,11 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
         {
             await using var reader = new AudioFileReader(filePath);
             var sample = ApplyGain(new PanningSampleProvider(reader.ToMono()) { Pan = Math.Clamp(pan, -1f, 1f) }, route);
-            await PlaySampleAsync(route, sample, cancellationToken).ConfigureAwait(false);
+
+            // Il volume e' gia' dentro ApplyGain: si passa dal percorso che non lo
+            // riapplica, altrimenti un file alla suoneria all'ottanta per cento
+            // suonerebbe al sessantaquattro.
+            await PlayOnRouteAsync(route, sample, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -224,12 +241,64 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
     }
 
     /// <summary>
-    /// Riproduce un flusso di campioni su una via audio, attendendone la fine.
+    /// Riproduce un flusso di campioni su una via audio, al volume della via,
+    /// attendendone la fine.
     /// </summary>
     /// <param name="route">Via audio di destinazione.</param>
     /// <param name="sample">Sorgente dei campioni.</param>
     /// <param name="cancellationToken">Token di annullamento.</param>
-    public async Task PlaySampleAsync(
+    /// <remarks>
+    /// <para>
+    /// <b>Il volume della via vale anche qui, e prima non valeva.</b> Lo applicava solo
+    /// la riproduzione dei file: la suoneria sintetizzata, i segnali di coda e gli altri
+    /// toni generati passavano da questo metodo e suonavano sempre pieni, qualunque
+    /// cosa dicesse il pannello. Chi abbassava la suoneria sentiva cambiare soltanto
+    /// quella caricata da file.
+    /// </para>
+    /// <para>
+    /// Solo il volume, non l'attenuazione per gli annunci critici: quella resta com'era,
+    /// sui soli file, dove serve a non coprire la voce con una suoneria lunga.
+    /// </para>
+    /// </remarks>
+    public Task PlaySampleAsync(
+        AudioRoute route,
+        ISampleProvider sample,
+        CancellationToken cancellationToken)
+        => PlayOnRouteAsync(route, new VolumeSampleProvider(sample) { Volume = GetVolume(route) }, cancellationToken);
+
+    /// <inheritdoc />
+    public bool HasDedicatedDevice => GetEffectiveDeviceId(AudioRoute.Announcements) is not null;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <para>
+    /// Senza il volume della via: lo applica già la sintesi, con la sua scala, ed è la
+    /// stessa che vale quando la voce esce dal predefinito di sistema. Applicarlo anche
+    /// qui abbasserebbe la voce due volte, e solo sul dispositivo scelto.
+    /// </para>
+    /// <para>
+    /// Il canale si raddoppia su entrambe le uscite, come per la conversazione: una voce
+    /// su un solo lato di una cuffia stereo si scambia per un guasto.
+    /// </para>
+    /// </remarks>
+    public Task<bool> PlaySpeechAsync(byte[] pcm, int sampleRate, CancellationToken cancellationToken)
+    {
+        if (pcm.Length < 2 || sampleRate <= 0) return Task.FromResult(true);
+
+        var mono = new RawSourceWaveStream(new MemoryStream(pcm, writable: false), new WaveFormat(sampleRate, 16, 1));
+        var stereo = new MonoToStereoSampleProvider(mono.ToSampleProvider());
+
+        return PlayOnRouteAsync(AudioRoute.Announcements, stereo, cancellationToken);
+    }
+
+    /// <summary>
+    /// Riproduce i campioni così come arrivano sul dispositivo della via.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> se la riproduzione è arrivata in fondo o è stata interrotta di
+    /// proposito; <c>false</c> se il dispositivo non ha suonato.
+    /// </returns>
+    private async Task<bool> PlayOnRouteAsync(
         AudioRoute route,
         ISampleProvider sample,
         CancellationToken cancellationToken)
@@ -244,8 +313,20 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
 
             using var output = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: true, latency: 100);
 
-            var completion = new TaskCompletionSource();
-            output.PlaybackStopped += (_, _) => completion.TrySetResult();
+            // Un errore che ferma la riproduzione a meta' — il dispositivo staccato
+            // mentre suona — arriva qui e non come eccezione: si riporta come mancata
+            // riproduzione, e chi suonava una frase la puo' ripetere altrove. Lo
+            // spostamento sulla riserva lo fa gia' l'avviso di sistema sul dispositivo.
+            var completion = new TaskCompletionSource<bool>();
+            output.PlaybackStopped += (_, e) =>
+            {
+                if (e.Exception is not null)
+                {
+                    _log.LogWarning(e.Exception, "Riproduzione sulla via {Route} interrotta dal dispositivo", route);
+                }
+
+                completion.TrySetResult(e.Exception is null);
+            };
 
             output.Init(sample);
             output.Play();
@@ -263,7 +344,7 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
                 try { output.Stop(); } catch { /* gia' fermo */ }
             });
 
-            await completion.Task.ConfigureAwait(false);
+            return await completion.Task.ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -272,6 +353,7 @@ public sealed class NAudioEngine : IAudioEngine, IAudioDucker
             // earcon perso e' un'informazione persa.
             _log.LogWarning(ex, "Riproduzione sulla via {Route} non riuscita", route);
             HandleDeviceFailure(route);
+            return false;
         }
     }
 

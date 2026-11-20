@@ -13,12 +13,33 @@ namespace BlindPhone.Infrastructure;
 /// </param>
 /// <param name="Volume">Volume, da 0 a 1.</param>
 /// <remarks>
+/// <para>
 /// Il nome viene conservato accanto all'identificativo perché serve a due cose che
 /// l'identificativo da solo non consente: dire all'operatore quale dispositivo era
 /// configurato quando non lo si trova più, e riconoscerlo se cambia identificativo
 /// dopo un aggiornamento di driver.
+/// </para>
+/// <para>
+/// Il volume resta nel file come frazione da 0 a 1, che è quello che il motore audio
+/// moltiplica; il pannello lo mostra in percentuale intera, che è quello che lo screen
+/// reader legge sul cursore. Le due conversioni stanno qui, una volta sola, perché la
+/// stessa percentuale serve anche alla voce interna, che ragiona da 0 a 100.
+/// </para>
 /// </remarks>
-public sealed record AudioRouteSettings(string? DeviceId, string? DeviceName, float Volume = 1f);
+public sealed record AudioRouteSettings(string? DeviceId, string? DeviceName, float Volume = 1f)
+{
+    /// <summary>Il volume in percentuale intera, da 0 a 100.</summary>
+    /// <param name="volume">Volume da 0 a 1; i valori fuori intervallo vengono limitati.</param>
+    public static int ToPercent(float volume)
+        => float.IsNaN(volume)
+            ? 100
+            : (int)Math.Round(Math.Clamp(volume, 0f, 1f) * 100, MidpointRounding.AwayFromZero);
+
+    /// <summary>Il volume da 0 a 1, a partire da una percentuale.</summary>
+    /// <param name="percent">Percentuale da 0 a 100; i valori fuori intervallo vengono limitati.</param>
+    public static float FromPercent(double percent)
+        => double.IsNaN(percent) ? 1f : (float)(Math.Clamp(Math.Round(percent), 0, 100) / 100.0);
+}
 
 /// <summary>Impostazioni dell'account SIP, senza la password.</summary>
 /// <remarks>

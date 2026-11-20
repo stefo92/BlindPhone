@@ -1069,10 +1069,54 @@
                                   AutomationProperties.Name="Dispositivo per l'audio della conversazione"
                                   AutomationProperties.HelpText="Tipicamente la cuffia." />
 
+                        <!--
+                            I VOLUMI STANNO SOTTO IL DISPOSITIVO A CUI SI RIFERISCONO, e non
+                            in una sezione a parte: Alt piu' la lettera porta al dispositivo,
+                            e il Tab successivo al suo volume. Chi cerca «volume della
+                            suoneria» lo trova dove sta la suoneria.
+
+                            NIENTE TASTO DI ACCESSO. La scheda ha gia' quindici lettere
+                            occupate, e nessuna di quelle libere compare in «volume», in
+                            «conversazione», in «suoneria» o in «annunci»: una lettera
+                            che non si indovina e' una lettera che non si usa. Ci si
+                            arriva col Tab dal dispositivo, o cercandolo per nome con Alt Z.
+
+                            Il cursore si muove con le frecce, che e' quello che lo screen
+                            reader dichiara arrivandoci; il numero accanto e' per chi
+                            guarda, e non e' focalizzabile.
+                        -->
+                        <Label Target="{Binding ElementName=ConversationVolume}" Content="Volume della conversazione" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MaxWidth="480" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="ConversationVolume" Style="{StaticResource VolumeSlider}"
+                                    AutomationProperties.Name="Volume della conversazione"
+                                    AutomationProperties.HelpText="La voce dell'interlocutore, e i segnali che escono dallo stesso dispositivo. Da 10 a 100 per cento: freccia su o destra alza di 5, freccia giu' o sinistra abbassa di 5, Pagina su e Pagina giu' di 20, Inizio e Fine portano al minimo e al massimo. Vale dal salvataggio, anche sulla chiamata in corso." />
+                            <TextBlock Grid.Column="1" MinWidth="48" Margin="12,0,0,0"
+                                       VerticalAlignment="Center" TextAlignment="Right"
+                                       Text="{Binding Value, ElementName=ConversationVolume, StringFormat={}{0:0}%}" />
+                        </Grid>
+
                         <Label Target="{Binding ElementName=RingerDevice}" Content="Su_oneria e segnali di coda" />
                         <ComboBox x:Name="RingerDevice" FontSize="16" MinHeight="36"
                                   AutomationProperties.Name="Dispositivo per suoneria e segnali di coda"
                                   AutomationProperties.HelpText="Tipicamente gli altoparlanti, cosi' i segnali di coda non suonano nell'orecchio mentre si parla." />
+
+                        <Label Target="{Binding ElementName=RingerVolume}" Content="Volume di suoneria e segnali di coda" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MaxWidth="480" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="RingerVolume" Style="{StaticResource VolumeSlider}"
+                                    AutomationProperties.Name="Volume di suoneria e segnali di coda"
+                                    AutomationProperties.HelpText="Lo squillo delle chiamate in arrivo e i segnali della coda. Da 10 a 100 per cento: freccia su o destra alza di 5, freccia giu' o sinistra abbassa di 5, Pagina su e Pagina giu' di 20, Inizio e Fine portano al minimo e al massimo. Non scende sotto il 10 per cento, perche' una suoneria muta fa perdere le chiamate. I pulsanti di prova la fanno sentire gia' a questo livello, anche prima di salvare." />
+                            <TextBlock Grid.Column="1" MinWidth="48" Margin="12,0,0,0"
+                                       VerticalAlignment="Center" TextAlignment="Right"
+                                       Text="{Binding Value, ElementName=RingerVolume, StringFormat={}{0:0}%}" />
+                        </Grid>
 
                         <!-- ==================== SUONERIA ==================== -->
                         <TextBlock Text="Suono della suoneria" FontWeight="Bold" Margin="0,16,0,4" />
@@ -1120,7 +1164,27 @@
                         <Label Target="{Binding ElementName=AnnouncementDevice}" Content="Voce degli _annunci" />
                         <ComboBox x:Name="AnnouncementDevice" FontSize="16" MinHeight="36"
                                   AutomationProperties.Name="Dispositivo per la voce degli annunci"
-                                  AutomationProperties.HelpText="Se diverso dal dispositivo della conversazione, la voce del sistema non si sovrappone a quella dell'interlocutore." />
+                                  AutomationProperties.HelpText="Da qui esce la voce di BlindPhone. Se diverso dal dispositivo della conversazione, la voce degli annunci non si sovrappone a quella dell'interlocutore. La voce dello screen reader invece esce dove la manda lo screen reader." />
+
+                        <!--
+                            REGOLA SOLO LA VOCE DI BLINDPHONE, e il testo di aiuto lo dice.
+                            Quella dello screen reader non e' nostra: chi abbassa questo
+                            cursore aspettandosi di abbassare NVDA o JAWS deve sapere subito
+                            dove andare invece.
+                        -->
+                        <Label Target="{Binding ElementName=AnnouncementVolume}" Content="Volume della voce degli annunci" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" MaxWidth="480" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Slider x:Name="AnnouncementVolume" Style="{StaticResource VolumeSlider}"
+                                    AutomationProperties.Name="Volume della voce degli annunci"
+                                    AutomationProperties.HelpText="La voce di BlindPhone che pronuncia gli annunci. Non cambia il volume dello screen reader, che si regola dallo screen reader stesso. Da 10 a 100 per cento: freccia su o destra alza di 5, freccia giu' o sinistra abbassa di 5, Pagina su e Pagina giu' di 20, Inizio e Fine portano al minimo e al massimo. Vale dal salvataggio, a partire dall'annuncio successivo." />
+                            <TextBlock Grid.Column="1" MinWidth="48" Margin="12,0,0,0"
+                                       VerticalAlignment="Center" TextAlignment="Right"
+                                       Text="{Binding Value, ElementName=AnnouncementVolume, StringFormat={}{0:0}%}" />
+                        </Grid>
 
                         <Button x:Name="TestAudioButton"
                                 Content="Riproduci un suono di _prova sui dispositivi scelti"

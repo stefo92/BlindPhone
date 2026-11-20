@@ -563,6 +563,130 @@
         </Setter>
     </Style>
 
+    <!-- ==================== CURSORI ==================== -->
+
+    <!--
+        IL CURSORE SI RIMODELLA SOLO NELL'ASPETTO, NON NEL COMPORTAMENTO.
+
+        Frecce, Pagina su e giu', Inizio e Fine, e il valore esposto allo screen
+        reader come intervallo con minimo e massimo, vivono nella classe Slider e
+        nella sua automazione: qui si sostituiscono soltanto il binario e il
+        pomello, che con il modello predefinito di WPF erano un filo grigio e un
+        rettangolino quasi invisibili nel tema scuro e nel contrasto elevato.
+
+        La parte gia' percorsa del binario e' piena e quella che resta e' vuota
+        con il bordo: il livello si legge dalla lunghezza, non solo dal colore.
+
+        SOLO ORIZZONTALE: il binario e' disegnato in larghezza. Un cursore
+        verticale richiederebbe un modello suo.
+    -->
+    <Style x:Key="BinarioDelCursore" TargetType="RepeatButton">
+        <Setter Property="OverridesDefaultStyle" Value="True" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <!-- Il fondo trasparente tiene cliccabile tutta l'altezza, non solo il binario. -->
+                    <Grid Background="Transparent">
+                        <Border Height="8"
+                                VerticalAlignment="Center"
+                                CornerRadius="4"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="Slider">
+        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Margin" Value="0,4,0,4" />
+        <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+        <Setter Property="IsMoveToPointEnabled" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Border Background="Transparent" Padding="4,0,4,0">
+                        <Track x:Name="PART_Track" VerticalAlignment="Center" Height="28">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton x:Name="Percorso"
+                                              Style="{StaticResource BinarioDelCursore}"
+                                              Command="{x:Static Slider.DecreaseLarge}"
+                                              Background="{DynamicResource SelectionBrush}"
+                                              BorderBrush="{DynamicResource SelectionBrush}"
+                                              BorderThickness="1" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource BinarioDelCursore}"
+                                              Command="{x:Static Slider.IncreaseLarge}"
+                                              Background="{DynamicResource FieldBrush}"
+                                              BorderBrush="{DynamicResource ControlBorderBrush}"
+                                              BorderThickness="1" />
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb x:Name="Pomello" Width="22" Height="22"
+                                       Focusable="False" OverridesDefaultStyle="True">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="Disco"
+                                                    CornerRadius="11"
+                                                    Background="{DynamicResource SelectionBrush}"
+                                                    BorderBrush="{DynamicResource FieldBrush}"
+                                                    BorderThickness="3"
+                                                    SnapsToDevicePixels="True" />
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Disco" Property="BorderBrush"
+                                                            Value="{DynamicResource AccentBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter TargetName="Disco" Property="Background"
+                                                            Value="{DynamicResource DisabledTextBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                        </Track>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Percorso" Property="Background"
+                                    Value="{DynamicResource DisabledTextBrush}" />
+                            <Setter TargetName="Percorso" Property="BorderBrush"
+                                    Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        Il cursore di un volume: percentuale intera da 10 a 100, cinque punti per
+        freccia e venti per Pagina su o giu'. Il valore e' intero di proposito: lo
+        screen reader legge il numero cosi' com'e', e «ottanta» si capisce meglio
+        di «ottanta virgola tre».
+
+        NON SCENDE A ZERO. Una suoneria muta fa perdere le chiamate, e una
+        conversazione muta si scambia per un guasto della linea: per tacere ci
+        sono gli interruttori fatti apposta.
+    -->
+    <Style x:Key="VolumeSlider" TargetType="Slider" BasedOn="{StaticResource {x:Type Slider}}">
+        <Setter Property="Minimum" Value="10" />
+        <Setter Property="Maximum" Value="100" />
+        <Setter Property="SmallChange" Value="5" />
+        <Setter Property="LargeChange" Value="20" />
+        <Setter Property="TickFrequency" Value="5" />
+        <Setter Property="IsSnapToTickEnabled" Value="True" />
+    </Style>
+
     <!-- ==================== TABELLE ED ELENCHI ==================== -->
 
     <!--
