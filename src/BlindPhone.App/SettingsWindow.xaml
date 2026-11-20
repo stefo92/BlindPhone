@@ -2728,8 +2728,13 @@
                             Indirizzo e chiave del server li sceglie chi distribuisce
                             BlindPhone - nel codice, in settings.json o nel pacchetto di
                             configurazione (TelemetrySettings) - e non l'operatore: la riga
-                            sotto la casella dice se un server c'e' e qual e'. Senza server
-                            la casella si spunta lo stesso, e non parte niente.
+                            sotto la casella dice se un server c'e' e qual e'. Di partenza
+                            c'e' quello dell'autore; se qualcuno lo toglie la casella si
+                            spunta lo stesso, e non parte niente.
+
+                            E' la stessa scelta della domanda del primo avvio
+                            (TelemetryConsentWindow): cambiare la casella qui vale come
+                            una risposta, e la domanda non viene piu' fatta.
 
                             Che cosa parte, una voce per una, lo legge la guida, e lo legge
                             dallo stesso catalogo che decide che cosa puo' partire: i due
@@ -2741,7 +2746,7 @@
                         <CheckBox x:Name="TelemetryEnabled"
                                   Content="Invia s_tatistiche d'uso anonime"
                                   AutomationProperties.Name="Invia statistiche d'uso anonime"
-                                  AutomationProperties.HelpText="Spenta di partenza. Parte qualcosa solo se chi amministra la postazione ha indicato un server. Spegnendola, la postazione dimentica il proprio identificativo e quello che non era ancora partito."
+                                  AutomationProperties.HelpText="Spenta di partenza. È la stessa scelta che BlindPhone chiede una volta al primo avvio. La riga che segue dice dove andrebbero. Spegnendola, la postazione dimentica il proprio identificativo e quello che non era ancora partito."
                                   Checked="OnTelemetryEnabledChanged"
                                   Unchecked="OnTelemetryEnabledChanged" />
 

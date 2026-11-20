@@ -375,23 +375,27 @@ public sealed record UpdateSettings
 }
 
 /// <summary>
-/// Statistiche d'uso anonime, mandate a un server PostHog scelto da chi distribuisce
-/// BlindPhone.
+/// Statistiche d'uso anonime, mandate a un server PostHog: di partenza quello
+/// dell'autore, oppure uno scelto da chi distribuisce BlindPhone.
 /// </summary>
 /// <remarks>
 /// <para>
 /// <b>QUI SI SCRIVONO INDIRIZZO E CHIAVE DEL SERVER.</b> I valori predefiniti sono
 /// <see cref="DefaultServerUrl"/> e <see cref="DefaultProjectKey"/>, poche righe più
-/// sotto, ed entrambi sono vuoti. Su una postazione già installata si correggono in
-/// <c>settings.json</c> sotto <c>Telemetry</c>, oppure si distribuiscono con il pacchetto
-/// di configurazione, sezione Diagnostica. Come preparare il server lo spiega
-/// <c>docs/INSTALLAZIONE.md</c>, capitolo 11.
+/// sotto: il ponte dell'autore, <c>telemetry.curti.cloud</c>, che passa gli eventi a
+/// PostHog Cloud nella regione UE, e la chiave di quel progetto. Su una postazione già
+/// installata si cambiano in <c>settings.json</c> sotto <c>Telemetry</c>, oppure si
+/// distribuiscono con il pacchetto di configurazione, sezione Diagnostica. Come
+/// preparare un server proprio lo spiega <c>docs/INSTALLAZIONE.md</c>, capitolo 11.
 /// </para>
 /// <para>
 /// <b>Partono solo con tre cose insieme</b>: un indirizzo <c>https://</c>, una chiave di
 /// progetto PostHog e il consenso acceso. Manca una sola delle tre e non succede
 /// niente: nessun identificativo creato, nessun file scritto, nessuna connessione
-/// aperta. È anche lo stato di una copia appena compilata, con le due costanti vuote.
+/// aperta. Una copia appena compilata ha le prime due e non la terza: il consenso è
+/// spento finché l'operatore non risponde sì alla domanda del primo avvio, o non lo
+/// accende dalla scheda Diagnostica, o non lo accende l'ente con il pacchetto di
+/// configurazione. Vedi <see cref="AppSettings.ShouldAskTelemetryConsent"/>.
 /// </para>
 /// <para>
 /// Che cosa parte, proprietà per proprietà, sta in
@@ -404,12 +408,20 @@ public sealed record TelemetrySettings
     /// <summary>Indirizzo predefinito del server PostHog.</summary>
     /// <remarks>
     /// <para>
-    /// <b>È questa la riga da cambiare prima di compilare</b>, se si vuole che ogni
-    /// postazione installata da quel momento conosca già il server. Va scritto
-    /// l'indirizzo base, senza il percorso dell'API: <c>https://eu.i.posthog.com/</c> per
-    /// PostHog Cloud nella regione UE, oppure quello di un'istanza propria,
+    /// <b>È il ponte dell'autore, <c>telemetry.curti.cloud</c></b>: un piccolo server che
+    /// riceve i lotti e li passa a PostHog Cloud nella regione UE
+    /// (<c>eu.i.posthog.com</c>), senza i cookie e senza l'indirizzo IP della
+    /// postazione. Risponde direttamente su <c>/batch/</c>, senza rinvii.
+    /// </para>
+    /// <para>
+    /// <b>Chi compila una copia per un altro server cambia questa riga</b> e
+    /// <see cref="DefaultProjectKey"/>. Va scritto l'indirizzo base, senza il percorso
+    /// dell'API: <c>https://eu.i.posthog.com/</c> per un proprio progetto su PostHog
+    /// Cloud nella regione UE, oppure quello di un'istanza propria,
     /// <c>https://statistiche.example.it/</c>. Il percorso <c>batch/</c> lo aggiunge il
-    /// programma.
+    /// programma. La domanda del primo avvio dice il nome del server da sé, e nomina
+    /// l'autore solo se il server è il suo: vedi
+    /// <see cref="Core.Services.TelemetryConsentPrompt.AuthorServerHost"/>.
     /// </para>
     /// <para>
     /// <b>Sul cloud, l'indirizzo con «.i.».</b> È quello dell'invio degli eventi;
@@ -428,7 +440,7 @@ public sealed record TelemetrySettings
     /// indirizzo non accende niente su nessuna postazione.
     /// </para>
     /// </remarks>
-    public const string DefaultServerUrl = "";
+    public const string DefaultServerUrl = "https://telemetry.curti.cloud/";
 
     /// <summary>Chiave predefinita del progetto PostHog.</summary>
     /// <remarks>
@@ -439,13 +451,26 @@ public sealed record TelemetrySettings
     /// <c>settings.json</c> e viaggia nel pacchetto di configurazione.
     /// </para>
     /// <para>
+    /// <b>Sta nel repository pubblico, e va bene così.</b> Chi la legge può scrivere
+    /// eventi falsi nel progetto, ma potrebbe farlo comunque: da qualunque copia
+    /// installata la chiave si legge in <c>settings.json</c> o nell'eseguibile. Contro
+    /// gli eventi falsi non protegge il segreto, protegge il ponte, che si può fermare o
+    /// limitare dal lato del server.
+    /// </para>
+    /// <para>
+    /// <b>È scritta in due pezzi di proposito.</b> Tutta d'un pezzo ha la forma esatta di
+    /// una chiave PostHog, e la protezione dei segreti di GitHub può rifiutare il push:
+    /// con una chiave finta nelle prove è già successo. Il compilatore la ricompone, ed è
+    /// una costante come prima.
+    /// </para>
+    /// <para>
     /// <b>Mai una chiave personale</b>, quelle che cominciano con <c>phx_</c>: leggono e
     /// cancellano i dati di tutto il progetto, e su una postazione le leggerebbe
     /// chiunque apra un file di testo. Una chiave che non comincia con <c>phc_</c> viene
     /// rifiutata e le statistiche restano spente.
     /// </para>
     /// </remarks>
-    public const string DefaultProjectKey = "";
+    public const string DefaultProjectKey = "phc_" + "Dah3A3XYjZS2eH5cUSQAdpXPg73e9tEWhbyJZQzRtzQs";
 
     /// <summary>Indirizzo base dell'istanza PostHog.</summary>
     public string ServerUrl { get; init; } = DefaultServerUrl;
@@ -457,10 +482,11 @@ public sealed record TelemetrySettings
     /// <remarks>
     /// <para>
     /// <b>Spento di partenza, anche in un file scritto da una versione che non lo
-    /// conosceva.</b> Lo accende l'operatore dalla scheda Diagnostica, oppure chi
-    /// amministra con il pacchetto di configurazione; in quel caso la decisione è
-    /// dell'ente, e il pacchetto può anche bloccarla. Che cosa deve fare l'ente prima di
-    /// accenderlo lo dice <c>CONFORMITA-PA-ITALIANA.md</c>.
+    /// conosceva.</b> Lo accende l'operatore, rispondendo sì alla domanda del primo avvio
+    /// o dalla scheda Diagnostica, oppure chi amministra con il pacchetto di
+    /// configurazione; in quel caso la decisione è dell'ente, e il pacchetto può anche
+    /// bloccarla. Che cosa deve fare l'ente prima di accenderlo lo dice
+    /// <c>CONFORMITA-PA-ITALIANA.md</c>.
     /// </para>
     /// <para>
     /// Spegnendolo la postazione dimentica tutto: l'identificativo e gli eventi non
@@ -480,6 +506,17 @@ public sealed record TelemetrySettings
     /// <summary>Se le statistiche partono davvero.</summary>
     [JsonIgnore]
     public bool IsActive => Enabled && IsConfigured;
+
+    /// <summary>Se il server è quello dell'autore di BlindPhone.</summary>
+    /// <remarks>
+    /// Decide che cosa dice la domanda del primo avvio su chi riceve le statistiche. Si
+    /// confronta il nome del server con quello dell'autore e non con
+    /// <see cref="DefaultServerUrl"/>: una copia compilata con un altro server predefinito
+    /// non deve dire all'operatore che le statistiche vanno all'autore.
+    /// </remarks>
+    [JsonIgnore]
+    public bool IsAuthorServer => BatchEndpoint is { } indirizzo
+        && string.Equals(indirizzo.Host, Core.Services.TelemetryConsentPrompt.AuthorServerHost, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Traduce l'indirizzo dell'istanza in quello dell'API dei lotti.
@@ -903,13 +940,17 @@ public sealed record AppSettings
     ///   <item><description>
     ///   4 — durante la conversazione gli annunci non tacciono più.
     ///   </description></item>
+    ///   <item><description>
+    ///   5 — le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove nessuno li
+    ///   aveva scelti.
+    ///   </description></item>
     /// </list>
     /// Vedi <see cref="Migrate"/>.
     /// </remarks>
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>Versione di schema prodotta da questa versione di BlindPhone.</summary>
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     /// <summary>
     /// Account SIP configurato, il primo dell'elenco.
@@ -1001,10 +1042,52 @@ public sealed record AppSettings
     /// <summary>Statistiche d'uso anonime, spente finché qualcuno non le accende.</summary>
     /// <remarks>
     /// Un file scritto da una versione che non le conosceva non ha la proprietà, e le
-    /// statistiche partono spente e senza server: sono i valori di
-    /// <see cref="TelemetrySettings"/>.
+    /// statistiche partono spente, con il server e la chiave predefiniti: sono i valori di
+    /// <see cref="TelemetrySettings"/>. Un file che le conosceva ma le aveva vuote riceve
+    /// gli stessi valori una volta sola, dalla migrazione dello schema 5.
     /// </remarks>
     public TelemetrySettings Telemetry { get; init; } = new();
+
+    /// <summary>
+    /// Se a questo operatore, su questa postazione, è già stata fatta la domanda sulle
+    /// statistiche d'uso.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>La domanda si fa una volta sola.</b> Diventa <c>true</c> quando l'operatore
+    /// risponde sì o no, quando chiude la finestra con Esc — che vale come no — e quando
+    /// cambia la casella nella scheda Diagnostica: in tutti questi casi ha già deciso, e
+    /// chiederglielo di nuovo a ogni avvio sarebbe insistere.
+    /// </para>
+    /// <para>
+    /// <b>Sta qui e non dentro <see cref="Telemetry"/>, di proposito.</b> Il pacchetto di
+    /// configurazione porta la sezione delle statistiche intera, e con lei porterebbe
+    /// questo valore dalla postazione dell'amministratore a tutte le altre: chi prepara il
+    /// pacchetto ha già risposto, e nessun operatore sentirebbe mai la domanda. Fuori da
+    /// <see cref="Telemetry"/> il pacchetto non lo tocca, come
+    /// <see cref="AppliedConfigurationRevision"/>.
+    /// </para>
+    /// </remarks>
+    public bool TelemetryConsentAsked { get; init; }
+
+    /// <summary>
+    /// Se al prossimo avvio va fatta all'operatore la domanda sulle statistiche d'uso.
+    /// </summary>
+    /// <param name="diagnosticsEditable">
+    /// Se la scheda Diagnostica si può modificare: vedi
+    /// <see cref="ConfigurationPolicy.CanEdit"/>. È <c>false</c> quando l'ente l'ha
+    /// bloccata, con il pacchetto di configurazione o con il criterio di postazione.
+    /// </param>
+    /// <remarks>
+    /// Le regole stanno in <see cref="Core.Services.TelemetryConsentPrompt.ShouldAsk"/>;
+    /// qui si leggono dalla configurazione.
+    /// </remarks>
+    public bool ShouldAskTelemetryConsent(bool diagnosticsEditable)
+        => Core.Services.TelemetryConsentPrompt.ShouldAsk(
+            alreadyAsked: TelemetryConsentAsked,
+            enabled: Telemetry.Enabled,
+            configured: Telemetry.IsConfigured,
+            diagnosticsEditable: diagnosticsEditable);
 
     /// <summary>Da dove arriva la rubrica.</summary>
     public ContactsSettings Contacts { get; init; } = new();
@@ -1204,6 +1287,7 @@ public sealed record AppSettings
         var migrata = MigrateSipAccounts();
         migrata = migrata.MigrateBetaLogging();
         migrata = migrata.MigrateConversationSilence();
+        migrata = migrata.MigrateTelemetryDefaults();
 
         return migrata.SchemaVersion == CurrentSchemaVersion
             ? migrata
@@ -1297,6 +1381,55 @@ public sealed record AppSettings
         return this with
         {
             Accessibility = Accessibility with { SilenceDuringConversation = false },
+        };
+    }
+
+    /// <summary>
+    /// Schema 5: le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove
+    /// nessuno li aveva scelti.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Cambiare il solo valore predefinito non basterebbe, per la stessa ragione delle
+    /// due migrazioni precedenti: una postazione già in uso ha <c>settings.json</c>
+    /// scritto, con dentro indirizzo e chiave vuoti, e resterebbe senza server. Quei due
+    /// vuoti non sono una scelta: erano i valori predefiniti delle versioni precedenti.
+    /// </para>
+    /// <para>
+    /// <b>Solo se sono vuoti tutti e due.</b> Un indirizzo o una chiave scritti da
+    /// qualcuno, anche a metà, sono una scelta di chi amministra la postazione e non si
+    /// toccano.
+    /// </para>
+    /// <para>
+    /// <b>Il consenso riparte spento</b>, anche se era acceso. Una casella spuntata su
+    /// una postazione senza server non mandava niente, e chi l'ha spuntata non sapeva
+    /// verso chi: lasciarla accesa farebbe partire le statistiche verso l'autore senza
+    /// che nessuno l'abbia mai deciso. Spenta, al primo avvio l'operatore sente la
+    /// domanda, che dice verso chi vanno.
+    /// </para>
+    /// <para>
+    /// <b>Avviene una volta sola.</b> Dopo il primo salvataggio la versione di schema è
+    /// quella corrente: chi svuota indirizzo e chiave dopo l'aggiornamento — a mano o con
+    /// un pacchetto di configurazione — li ritrova vuoti, e la postazione resta muta.
+    /// </para>
+    /// </remarks>
+    private AppSettings MigrateTelemetryDefaults()
+    {
+        if (SchemaVersion >= 5) return this;
+
+        if (!string.IsNullOrWhiteSpace(Telemetry.ServerUrl) || !string.IsNullOrWhiteSpace(Telemetry.ProjectKey))
+        {
+            return this;
+        }
+
+        return this with
+        {
+            Telemetry = Telemetry with
+            {
+                ServerUrl = TelemetrySettings.DefaultServerUrl,
+                ProjectKey = TelemetrySettings.DefaultProjectKey,
+                Enabled = false,
+            },
         };
     }
 }

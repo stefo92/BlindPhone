@@ -163,7 +163,7 @@ Raccomandazione operativa: mantenere BlindPhone **interamente on-premise** (appl
 
 Motivo: qualsiasi servizio cloud erogato alla PA ricade nel regime di qualificazione dei servizi cloud per la PA, con oneri, tempi e costi di certificazione sproporzionati rispetto al valore del prodotto. Un applicativo desktop che parla solo con il PBX dell'ente **evita interamente questo percorso**. È una scelta architetturale con motivazione commerciale, e conviene esplicitarla nella documentazione tecnica come punto di forza.
 
-Se in futuro servisse una componente di aggiornamento o telemetria centralizzata, va progettata come **opzionale e disattivabile**, con l'installazione PA che gira di default senza. Le statistiche d'uso seguono questa regola: spente di partenza, e mute finché nessuno indica un server. Che cosa deve fare l'ente prima di accenderle sta nel §7.
+Se in futuro servisse una componente di aggiornamento o telemetria centralizzata, va progettata come **opzionale e disattivabile**, con l'installazione PA che gira di default senza. Le statistiche d'uso seguono questa regola: il programma conosce di partenza il server dell'autore, ma sono spente, e non parte niente finché l'operatore non risponde sì alla domanda del primo avvio o l'ente non le accende. L'ente può anche tenerle spente per tutti, bloccando la scheda Diagnostica. Che cosa deve fare l'ente, nell'uno e nell'altro caso, sta nel §7.
 
 ---
 
@@ -220,11 +220,13 @@ Indipendenti dallo sviluppo, con tempi lunghi, e per questo da far partire ora e
 
 ---
 
-## 7. Statistiche d'uso anonime: che cosa deve fare l'ente prima di accenderle
+## 7. Statistiche d'uso anonime: che cosa deve fare l'ente
 
-BlindPhone può mandare statistiche d'uso a un server PostHog: quante postazioni ci sono, con quale versione e quale screen reader, quali funzioni sono accese, quali comandi si usano e da dove. Come si prepara il server e dove si scrivono indirizzo e chiave sta in [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §11. **Sono spente di partenza**, e una postazione su cui nessuno ha indicato un server non manda niente nemmeno con la casella spuntata.
+BlindPhone può mandare statistiche d'uso a un server PostHog: quante postazioni ci sono, con quale versione e quale screen reader, quali funzioni sono accese, quali comandi si usano e da dove. Come si prepara il server e dove si scrivono indirizzo e chiave sta in [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §11.
 
-Questa nota serve all'ente che decide di accenderle. Vale l'avvertenza in testa al documento: è un'analisi tecnica, non un parere legale, e va letta con il responsabile della protezione dei dati (RPD) dell'ente.
+Di partenza il programma conosce il **server dell'autore**, `telemetry.curti.cloud`, che passa le statistiche a PostHog Cloud nella regione UE senza l'IP della postazione. **Sono spente di partenza**: al primo avvio BlindPhone chiede all'operatore, una volta sola, se mandarle, con il sì e il no ugualmente facili e nessuno dei due scelto in anticipo. La domanda non compare se l'ente ha bloccato la scheda Diagnostica: in quel caso decide l'ente.
+
+Questa nota serve all'ente in tre casi: quando lascia la scelta agli operatori, quando la toglie loro, e quando decide di accenderle per tutte le postazioni o di usare un altro server. Vale l'avvertenza in testa al documento: è un'analisi tecnica, non un parere legale, e va letta con il responsabile della protezione dei dati (RPD) dell'ente.
 
 ### 7.1 Sono dati personali?
 
@@ -238,19 +240,22 @@ Trattarli come pseudonimi non costa molto, ed evita di costruire l'adempimento s
 
 ### 7.2 Chi è il titolare, e su quale base
 
-**Il consenso nella scheda Diagnostica non è la base giuridica.** È un comando: dice al programma se mandare o no. Nel rapporto di lavoro il consenso del dipendente difficilmente è libero, perché chi lo chiede è il datore di lavoro (Comitato europeo per la protezione dei dati, Linee guida 05/2020 sul consenso), e un ente pubblico non può fondare su quello un trattamento che riguarda i propri dipendenti. La casella serve a un'altra cosa: a far sì che nulla parta per caso, e che l'operatore possa sempre vedere se parte.
+**Il consenso nella scheda Diagnostica, e la domanda del primo avvio, non sono la base giuridica dell'ente.** Sono un comando: dicono al programma se mandare o no. Nel rapporto di lavoro il consenso del dipendente difficilmente è libero, perché chi lo chiede è il datore di lavoro (Comitato europeo per la protezione dei dati, Linee guida 05/2020 sul consenso), e un ente pubblico non può fondare su quello un trattamento che riguarda i propri dipendenti. La casella e la domanda servono a un'altra cosa: a far sì che nulla parta per caso, e che l'operatore possa sempre vedere se parte.
 
 I ruoli dipendono da **chi ospita il server**:
 
 | Server | Ruoli | Che cosa serve |
 |---|---|---|
+| **Dell'autore**, il predefinito | L'autore di BlindPhone è titolare autonomo delle statistiche sul proprio prodotto, con la finalità di decidere che cosa migliorare. PostHog Inc. è suo responsabile (art. 28), con il DPA firmato dall'autore. L'ente non è titolare né responsabile, e nemmeno usa il servizio | Il consenso dell'operatore all'autore (art. 6, par. 1, lett. a, del Regolamento, con l'art. 122 del Codice privacy per l'identificativo), dato con la domanda del primo avvio o con la casella e revocabile in ogni momento; l'informativa dell'autore (art. 13), che sta nella guida in linea; la scelta dell'ente se lasciare decidere gli operatori |
 | **Dell'ente** | L'ente è titolare; la finalità è la gestione del parco postazioni e della loro accessibilità | Base giuridica nell'esecuzione dei compiti dell'ente (art. 6, par. 1, lett. e, del Regolamento UE 2016/679, con l'art. 2-ter del Codice privacy), da verificare con l'RPD |
 | **Del fornitore** | Va deciso e scritto: il fornitore come responsabile del trattamento per conto dell'ente (art. 28 del Regolamento), oppure come titolare autonomo delle statistiche sul proprio prodotto | Una clausola nel contratto di fornitura o di assistenza che dica quale delle due, con le istruzioni o l'informativa del fornitore |
 | **PostHog Cloud UE** | PostHog Inc. è responsabile del trattamento (art. 28) di chi apre l'account e firma il suo DPA. Titolare e base giuridica restano quelli delle due righe sopra: se l'account è dell'ente, PostHog è responsabile dell'ente; se è del fornitore, PostHog è sub-responsabile dell'ente quando il fornitore è suo responsabile, e allora l'ente lo deve autorizzare (art. 28, par. 2), oppure responsabile del fornitore titolare autonomo | Il DPA di PostHog firmato, e quello che il §7.6 chiede in più per il cloud |
 
-Con un server dell'ente o del fornitore il server non è un servizio che l'ente acquista o usa per lavorare: non dovrebbe ricadere nella qualificazione dei servizi cloud del §3.4, ma con un server del fornitore la conclusione va confermata dall'ufficio legale. **Con PostHog Cloud la domanda va posta esplicitamente**: è un servizio cloud vero, e se l'account è dell'ente va verificato con l'ufficio legale se ricada nel regime del §3.4.
+**Con il server dell'autore il consenso si dà all'autore, non al datore di lavoro.** È la differenza rispetto al caso delle Linee guida 05/2020: chi chiede non è l'ente, l'ente non riceve i dati, e dire no non ha nessuna conseguenza sul lavoro, come dice la guida in linea. Restano però due fatti che riguardano l'ente: la postazione e la rete sono sue, e la connessione porta al server dell'autore l'IP della postazione. Per questo **la scelta di lasciar decidere gli operatori è dell'ente**: se non la vuole, distribuisce la sezione Diagnostica con il consenso spento e la blocca, e la domanda non compare. Se la lascia, conviene dirlo agli operatori (§7.4), perché nessuno pensi che il sì gli sia chiesto dall'ente. La conclusione va confermata con l'RPD.
 
-L'identificativo è un'informazione archiviata sull'apparecchio dell'utente, il caso dell'art. 122 del Codice privacy: la casella spenta di partenza e la decisione esplicita vanno nella direzione di quella regola. Quando a decidere per tutte le postazioni è l'ente, con il pacchetto di configurazione, va chiarito con l'RPD se basta la decisione dell'ente proprietario delle postazioni o se serve anche la scelta del singolo operatore: nel secondo caso il pacchetto distribuisce indirizzo e chiave con il consenso spento, e la sezione Diagnostica non si blocca.
+Con il server dell'autore, dell'ente o del fornitore il server non è un servizio che l'ente acquista o usa per lavorare: non dovrebbe ricadere nella qualificazione dei servizi cloud del §3.4, ma con un server dell'autore o del fornitore la conclusione va confermata dall'ufficio legale. **Con PostHog Cloud la domanda va posta esplicitamente**: è un servizio cloud vero, e se l'account è dell'ente va verificato con l'ufficio legale se ricada nel regime del §3.4.
+
+L'identificativo è un'informazione archiviata sull'apparecchio dell'utente, il caso dell'art. 122 del Codice privacy: la casella spenta di partenza e la decisione esplicita vanno nella direzione di quella regola. Quando a decidere per tutte le postazioni è l'ente, con il pacchetto di configurazione, va chiarito con l'RPD se basta la decisione dell'ente proprietario delle postazioni o se serve anche la scelta del singolo operatore: nel secondo caso il pacchetto distribuisce indirizzo e chiave con il consenso spento, e la sezione Diagnostica non si blocca: al primo avvio ogni operatore sente la domanda.
 
 ### 7.3 Lo Statuto dei lavoratori: perché non ci sono conteggi né orari
 
@@ -268,6 +273,8 @@ Un ente che volesse di più — quante chiamate per postazione, a che ora — av
 
 Prima di accendere, l'ente informa gli operatori (art. 13 del Regolamento, e art. 4, comma 3, dello Statuto per l'informazione sugli strumenti): chi è il titolare, perché, che cosa parte, verso chi, per quanto tempo, come si esercitano i diritti, e come si spegne.
 
+**Con il server dell'autore l'informativa è dell'autore**, che è il titolare, e sta nella guida in linea, argomento «Le statistiche d'uso anonime»: titolare e contatto, finalità, base, chi tratta i dati per lui, trasferimenti, conservazione, diritti, reclamo al Garante. La domanda del primo avvio ci rimanda. All'ente che lascia la scelta agli operatori basta una comunicazione breve: che la domanda arriverà, che la scelta è loro, che il no non ha conseguenze, e che l'ente non riceve niente.
+
 **Che cosa parte** lo dice l'elenco della §11 di INSTALLAZIONE.md, e lo dice all'operatore la guida in linea, argomento «Le statistiche d'uso anonime»: è scritta per essere ascoltata con lo screen reader, e legge le descrizioni dallo stesso catalogo che decide che cosa può partire. Non sostituisce l'informativa, ma ne è la parte accessibile, e dice la verità per costruzione.
 
 ### 7.5 Minimizzazione: che cosa fa già il prodotto
@@ -281,11 +288,14 @@ Prima di accendere, l'ente informa gli operatori (art. 13 del Regolamento, e art
 | Identificativo casuale, senza nome macchina, utente o indirizzo di rete; dimenticato quando si spegne | `TelemetryDiary` |
 | Nessun profilo di persona, nessuna geolocalizzazione | `$process_person_profile: false` e `$geoip_disable: true` su ogni evento |
 | Solo HTTPS, nessun rinvio seguito, chiavi personali rifiutate | `TelemetrySettings`, `PostHogClient` |
-| Spento di partenza; annunciato a voce quando un pacchetto di configurazione lo accende | Scheda Diagnostica, pacchetto di configurazione |
+| Spento di partenza; chiesto una volta all'operatore, con il sì e il no ugualmente facili e nessuno dei due scelto in anticipo, salvo che l'ente abbia bloccato la scheda Diagnostica; annunciato a voce quando un pacchetto di configurazione lo accende | `TelemetryConsentPrompt`, scheda Diagnostica, pacchetto di configurazione |
+| Con il server dell'autore, l'IP della postazione e i cookie non arrivano a PostHog | Il ponte `telemetry.curti.cloud` |
 
 ### 7.6 Che cosa resta da fare a chi gestisce il server
 
-Su tutte e due le strade:
+Con il server dell'autore lo fa l'autore, come titolare: DPA di PostHog firmato, regione UE, IP scartato dal ponte e nel progetto, registri del ponte brevi, funzioni di intelligenza artificiale spente, registro dei trattamenti, informativa nella guida in linea, risposta alle richieste di accesso e cancellazione. L'ente non ha niente da preparare. Le liste che seguono valgono per un server dell'ente o del fornitore.
+
+Su PostHog Cloud UE e su un'istanza propria:
 
 - **Scartare l'IP** nelle impostazioni del progetto, e spegnere la trasformazione GeoIP.
 - **Accessi** al progetto con utenze personali e verifica in due passaggi.
@@ -308,6 +318,13 @@ Solo con PostHog Cloud UE, sulla base del DPA e delle pagine di PostHog citate n
 - **Conservazione fissata dal piano**, un anno con quello gratuito e sette con quelli a pagamento, e **non si accorcia**: va scritta così nell'informativa e nel registro. Un periodo più breve si ottiene solo cancellando il progetto.
 
 ### 7.7 In ordine, prima di accendere
+
+**Con il server dell'autore** l'ente sceglie una delle due:
+
+- **lasciare la scelta agli operatori**: non serve fare niente, oppure si distribuisce la sezione Diagnostica senza bloccarla. Ogni operatore sente la domanda una volta. Conviene la comunicazione breve del §7.4;
+- **tenerle spente per tutti**: un pacchetto di configurazione con la sezione Diagnostica, il consenso spento e la sezione bloccata (INSTALLAZIONE.md, §9). La domanda non compare.
+
+**Per accenderle per tutte le postazioni, o per usare un altro server**, serve un server per cui l'ente abbia una base sua. Con il server dell'autore la base è il consenso del singolo operatore: un ente che le accendesse per tutti con il pacchetto toglierebbe proprio quella base, e non va fatto senza un accordo scritto con l'autore che dica altrimenti. I passi:
 
 1. Decidere chi ospita il server — l'ente, il fornitore o PostHog Cloud UE — e scriverlo nel contratto con i ruoli del §7.2. Con il cloud, firmare il DPA di PostHog.
 2. Preparare il server o il progetto con le impostazioni della §11 di INSTALLAZIONE.md.

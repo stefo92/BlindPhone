@@ -224,11 +224,11 @@ public partial class App : Application
         // un secondo e mezzo di distanza, senza una sola riga della finestra
         // principale.
         //
-        // Con l'avviso spento non si apre piu' nessuna finestra prima della principale,
-        // quindi in questo momento la riga non protegge da niente. Resta per due
-        // ragioni: torna necessaria appena si riaccende l'avviso, e vale per qualunque
-        // altra finestra che un domani venga aperta durante l'avvio — dove il difetto
-        // si ripresenterebbe identico e ugualmente difficile da leggere.
+        // Con l'avviso spento la riga protegge la domanda sulle statistiche d'uso, che
+        // al primo avvio si apre prima della principale: chiusa la domanda, senza
+        // questa riga il programma si spegnerebbe. E vale per qualunque altra finestra
+        // che un domani venga aperta durante l'avvio — dove il difetto si
+        // ripresenterebbe identico e ugualmente difficile da leggere.
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
         // L'avviso di versione beta viene prima della finestra principale, e dopo
@@ -252,12 +252,23 @@ public partial class App : Application
             return;
         }
 
+        // LA DOMANDA SULLE STATISTICHE D'USO, UNA VOLTA SOLA.
+        //
+        // Dopo il pacchetto di configurazione e il criterio, perche' sono loro a dire
+        // se l'ente ha gia' deciso. Prima della finestra principale, perche' il telefono
+        // parte con lei: finche' la domanda aspetta una risposta la postazione non e'
+        // registrata, e nessuna chiamata puo' arrivare mentre il resto del programma e'
+        // fermo dietro una finestra modale. Anche qui vale ShutdownMode, impostato
+        // sopra: chiudere la domanda non deve spegnere il programma.
+        var rispostaStatistiche = AskTelemetryConsent();
+
         var window = _services.GetRequiredService<MainWindow>();
         MainWindow = window;
         window.Show();
 
         AnnouncePendingCrashReports();
         AnnounceRejectedSecrets();
+        AnnounceTelemetryConsent(rispostaStatistiche);
 
         // LE STATISTICHE PARTONO DOPO LA FINESTRA, E NON PESANO SULL'AVVIO.
         //
@@ -506,6 +517,123 @@ public partial class App : Application
         {
             _logger?.LogError(ex, "Avviso di versione beta non mostrato");
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Fa all'operatore la domanda sulle statistiche d'uso, se va fatta, e salva la
+    /// risposta.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> o <c>false</c> secondo la risposta, oppure <c>null</c> se la domanda
+    /// non è stata fatta.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// Quando va fatta lo decide <see cref="AppSettings.ShouldAskTelemetryConsent"/>:
+    /// una volta sola, con un server valido, a statistiche spente e con la scheda
+    /// Diagnostica non bloccata dall'ente.
+    /// </para>
+    /// <para>
+    /// <b>Una finestra chiusa senza rispondere vale come no</b>, ed è comunque una
+    /// domanda fatta: chi ha premuto Esc o Alt F4 non ha acconsentito, e non va
+    /// inseguito a ogni avvio.
+    /// </para>
+    /// <para>
+    /// Se la finestra non riesce ad aprirsi si prosegue senza: le statistiche restano
+    /// spente, la domanda resta da fare, e il fatto finisce nel registro. Un posto
+    /// operatore non deve restare fermo per una domanda facoltativa.
+    /// </para>
+    /// </remarks>
+    private bool? AskTelemetryConsent()
+    {
+        try
+        {
+            var servizi = _services!;
+            var settingsService = servizi.GetRequiredService<SettingsService>();
+            var criterio = servizi.GetService<ConfigurationPolicyService>();
+            var attuali = settingsService.Current;
+
+            var diagnosticaModificabile = criterio?.CanEdit(Core.Domain.SettingsSection.Diagnostics) ?? true;
+
+            if (!attuali.ShouldAskTelemetryConsent(diagnosticaModificabile))
+            {
+                if (!attuali.TelemetryConsentAsked && !attuali.Telemetry.Enabled && attuali.Telemetry.IsConfigured)
+                {
+                    // E' l'unico caso in cui la domanda non si fa per una scelta di
+                    // qualcun altro, e va lasciato scritto: «perche' a me non l'ha
+                    // chiesto?» si risolve da qui.
+                    _logger?.LogInformation(
+                        "Domanda sulle statistiche d'uso non fatta: la scheda Diagnostica e' bloccata dall'ente");
+                }
+
+                return null;
+            }
+
+            // Con un server valido l'indirizzo dei lotti c'e' sempre: ShouldAsk lo ha
+            // appena verificato.
+            var server = attuali.Telemetry.BatchEndpoint!.Host;
+
+            var finestra = new TelemetryConsentWindow(
+                servizi.GetRequiredService<AnnouncementService>(),
+                server,
+                attuali.Telemetry.IsAuthorServer);
+
+            finestra.ShowDialog();
+
+            var accettate = finestra.Accepted == true;
+
+            // Si rilegge la configurazione corrente invece di riusare quella di prima:
+            // e' la stessa, ma cosi' un cambiamento arrivato nel frattempo non si perde.
+            var corrente = settingsService.Current;
+            var salvata = settingsService.Save(corrente with
+            {
+                TelemetryConsentAsked = true,
+                Telemetry = corrente.Telemetry with { Enabled = accettate },
+            });
+
+            _logger?.LogInformation(
+                "Domanda sulle statistiche d'uso: risposta {Risposta}{Chiusura}, verso {Server}{Salvataggio}",
+                accettate ? "si'" : "no",
+                finestra.Accepted is null ? " (finestra chiusa senza rispondere)" : string.Empty,
+                server,
+                salvata ? string.Empty : ". Salvataggio non riuscito: la domanda tornera' al prossimo avvio");
+
+            // Senza salvataggio la risposta non vale: le statistiche restano come
+            // erano, e annunciare «accese» direbbe il falso.
+            return salvata ? accettate : null;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Domanda sulle statistiche d'uso non mostrata: restano spente");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Dice all'operatore che cosa ha scelto alla domanda sulle statistiche, e dove si
+    /// cambia.
+    /// </summary>
+    /// <param name="risposta">La risposta, oppure <c>null</c> se la domanda non è stata fatta.</param>
+    /// <remarks>
+    /// Si dice a finestra principale aperta e non alla chiusura della domanda: prima di
+    /// lei nessuno porta l'annuncio a UI Automation, e con lo screen reader acceso la
+    /// conferma andrebbe persa. Vedi <see cref="BetaNoticeWindow"/>.
+    /// </remarks>
+    private void AnnounceTelemetryConsent(bool? risposta)
+    {
+        if (risposta is not { } accettate) return;
+
+        try
+        {
+            _announcer?.Announce(Announcement.High(
+                TelemetryConsentPrompt.Confirmation(accettate),
+                DateTimeOffset.Now,
+                coalesceKey: "statistiche:domanda"));
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning(ex, "Conferma della risposta sulle statistiche d'uso non annunciata");
         }
     }
 
