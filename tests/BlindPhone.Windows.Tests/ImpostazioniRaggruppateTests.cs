@@ -160,6 +160,43 @@ public sealed class ImpostazioniRaggruppateTests
         Assert.NotNull(testo);
     }
 
+    [Fact]
+    public void IlTitoloDelGruppoArrivaDallaSchedaConUnTemplateBinding()
+    {
+        // Con «{Binding (app:GruppoDiSchede.Titolo), RelativeSource=TemplatedParent}»
+        // il prefisso del percorso non si risolveva dentro il modello caricato da
+        // Temi\Stili: «property not found», e sopra ogni gruppo restava uno spazio
+        // vuoto al posto del titolo. Il TemplateBinding si risolve leggendo il
+        // dizionario, come il trigger che nasconde il titolo.
+        var stili = XDocument.Load(Percorso(Path.Combine("Temi", "Stili.xaml")));
+        var stile = stili.Descendants(P + "Style").Single(s => (string?)s.Attribute(X + "Key") == "VoceDiSchedaLaterale");
+
+        var titolo = Assert.Single(stile.Descendants(App + "TitoloDecorativo"));
+        Assert.Equal("{TemplateBinding app:GruppoDiSchede.Titolo}", (string?)titolo.Attribute("Testo"));
+    }
+
+    [Fact]
+    public void IlTitoloDelGruppoSiDisegnaInMaiuscoloSenzaCambiareIlTesto()
+    {
+        // Come nel sito: «COLLEGAMENTO» a schermo, «Collegamento» nella proprieta'.
+        // L'ordine delle due assegnazioni non conta: nel modello il titolo legato
+        // arriva dopo il maiuscolo.
+        string? prima = null;
+        string? dopo = null;
+        string? spento = null;
+
+        InSta(() =>
+        {
+            prima = new TitoloDecorativo { Maiuscolo = true, Testo = "Voce e tastiera" }.Text;
+            dopo = new TitoloDecorativo { Testo = "Voce e tastiera", Maiuscolo = true }.Text;
+            spento = new TitoloDecorativo { Testo = "Voce e tastiera" }.Text;
+        });
+
+        Assert.Equal("VOCE E TASTIERA", prima);
+        Assert.Equal("VOCE E TASTIERA", dopo);
+        Assert.Equal("Voce e tastiera", spento);
+    }
+
     // -----------------------------------------------------------------------
     // Account SIP
     // -----------------------------------------------------------------------

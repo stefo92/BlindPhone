@@ -234,6 +234,121 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <!--
+            LE PROPOSTE DELLA RICERCA, come nell'illustrazione del sito: un riquadro
+            bianco con gli angoli arrotondati, il nome dell'impostazione a sinistra e la
+            scheda a destra, in piccolo e attenuata. La proposta scelta ha un fondo
+            azzurro chiaro, una barretta blu a sinistra e il nome in seminero: tre segni,
+            come per le schede, e non il solo colore.
+
+            Cambia il disegno e non quello che si sente: il nome accessibile della voce
+            resta la frase di VoceDiRicerca.ToString, che WPF usa quando la voce non ne
+            dichiara uno. Vedi NomiDelleVociTests.
+
+            IL FOCUS E' UN FILO DI DUE PIXEL DENTRO LA VOCE, e non l'anello esterno del
+            resto del prodotto: il riquadro scorre, e un anello che sbordasse verrebbe
+            tagliato proprio sulla prima e sull'ultima proposta. Il filo c'e' sempre,
+            trasparente, cosi' il testo non si sposta quando compare.
+        -->
+        <Style x:Key="ProposteDiRicerca" TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border CornerRadius="{StaticResource RadiusCard}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer Focusable="False" Padding="{TemplateBinding Padding}">
+                                <ItemsPresenter />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PropostaDiRicerca" TargetType="ListBoxItem">
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+            <Setter Property="Padding" Value="8,5,10,5" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Sfondo"
+                                CornerRadius="{StaticResource RadiusControl}"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="2"
+                                SnapsToDevicePixels="True">
+                            <DockPanel Margin="{TemplateBinding Padding}">
+                                <Border x:Name="Segno"
+                                        DockPanel.Dock="Left"
+                                        Width="4"
+                                        Margin="0,1,8,1"
+                                        CornerRadius="2"
+                                        Background="Transparent" />
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                            </DockPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Sfondo" Property="Background"
+                                        Value="{DynamicResource HoverRowBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Sfondo" Property="Background"
+                                        Value="{DynamicResource SoftSelectionBrush}" />
+                                <Setter TargetName="Segno" Property="Background"
+                                        Value="{DynamicResource SoftSelectionMarkBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource SoftSelectionTextBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Sfondo" Property="BorderBrush"
+                                        Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            I colori dei due testi seguono la voce, e non lo stile comune dei TextBlock,
+            che vincerebbe sull'ereditarieta': sulla proposta scelta del tema di sistema
+            il testo deve diventare quello evidenziato. La scheda, attenuata a riposo,
+            prende il colore pieno sulla proposta scelta: sull'azzurro il grigio
+            scenderebbe a 6,4 a 1.
+        -->
+        <DataTemplate x:Key="ModelloProposta">
+            <DockPanel>
+                <TextBlock x:Name="Dove"
+                           DockPanel.Dock="Right"
+                           Margin="12,0,0,0"
+                           VerticalAlignment="Center"
+                           FontSize="{StaticResource FontCaption}"
+                           TextWrapping="NoWrap"
+                           Foreground="{DynamicResource MutedTextBrush}"
+                           Text="{Binding Dove}" />
+                <TextBlock x:Name="Cosa"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                           Text="{Binding Etichetta}" />
+            </DockPanel>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                             Value="True">
+                    <Setter TargetName="Cosa" Property="FontWeight" Value="SemiBold" />
+                    <Setter TargetName="Dove" Property="Foreground"
+                            Value="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
     </Window.Resources>
 
     <Grid Margin="12">
@@ -293,6 +408,7 @@
 
             <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1">
                 <TextBox x:Name="SearchBox"
+                         Style="{StaticResource MessageField}"
                          FontSize="16"
                          AutomationProperties.Name="Cerca un'impostazione"
                          AutomationProperties.HelpText="Scrivi una parola dell'impostazione, per esempio STUN o suoneria. Freccia giu' per scorrere le proposte, Invio per andare alla prima, Esc per cancellare."
@@ -300,9 +416,12 @@
                          PreviewKeyDown="OnSearchBoxPreviewKeyDown" />
 
                 <ListBox x:Name="SearchResults"
+                         Style="{StaticResource ProposteDiRicerca}"
+                         ItemContainerStyle="{StaticResource PropostaDiRicerca}"
+                         ItemTemplate="{StaticResource ModelloProposta}"
                          Visibility="Collapsed"
                          MaxHeight="200"
-                         Margin="0,4,0,0"
+                         Margin="0,6,0,0"
                          FontSize="16"
                          SelectionMode="Single"
                          AutomationProperties.Name="Impostazioni trovate"
@@ -2840,7 +2959,7 @@
                         <Label Target="{Binding ElementName=UpdateServerUrl}" Content="I_ndirizzo della cartella degli aggiornamenti" />
                         <TextBox x:Name="UpdateServerUrl"
                                  AutomationProperties.Name="Indirizzo della cartella degli aggiornamenti"
-                                 AutomationProperties.HelpText="Per esempio ftps://aggiornamenti.esempio.it/blindphone/. Deve essere una cartella e finire con la barra. Serve ftps: su ftp semplice il controllo viene rifiutato, perche' la password e il pacchetto viaggerebbero in chiaro. SFTP non e' supportato: e' un protocollo diverso, quello di SSH." />
+                                 AutomationProperties.HelpText="Di partenza e' la cartella dei download del portale, https://blindphone.curti.cloud/download/. Deve essere una cartella e finire con la barra. Servono https oppure ftps: su http e ftp semplici il controllo viene rifiutato, perche' la password e il pacchetto viaggerebbero in chiaro. SFTP non e' supportato: e' un protocollo diverso, quello di SSH." />
 
                         <Label Target="{Binding ElementName=UpdateUsername}" Content="_Utente del server (vuoto per accesso anonimo)" />
                         <TextBox x:Name="UpdateUsername"
@@ -2944,10 +3063,11 @@
             </Border>
 
             <!--
-                Pulsanti. Salva ha il bordo spesso del colore di evidenziazione e il
-                grassetto, e nient'altro: dice che e' il pulsante che risponde a Invio, ma
-                resta neutro, perche' nel prodotto il solo pulsante colorato e' Chiama, e
-                un secondo pulsante colorato toglierebbe a quello il suo significato.
+                Pulsanti. Salva e' blu pieno, come nell'illustrazione del sito: e' il
+                pulsante che risponde a Invio, e lo stile comune dei pulsanti colora cosi'
+                ogni pulsante predefinito (vedi Temi\Stili.xaml). Non dichiara colori ne'
+                bordi suoi: un valore scritto qui vincerebbe sugli stati dello stile, e
+                Salva spento resterebbe con il bordo acceso.
             -->
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
                 <Button x:Name="UnlockButton" Content="_Sblocca o riblocca"
@@ -2955,7 +3075,6 @@
                         AutomationProperties.Name="Sblocca le impostazioni con la password dell'amministratore"
                         Click="OnUnlockClick" />
                 <Button x:Name="SaveButton" Content="Sal_va" IsDefault="True" Margin="0,0,8,0"
-                        BorderBrush="{DynamicResource AccentBrush}" BorderThickness="2" FontWeight="Bold"
                         AutomationProperties.Name="Salva le impostazioni"
                         Click="OnSaveClick" />
                 <Button x:Name="CancelButton" Content="Annu_lla" IsCancel="True"

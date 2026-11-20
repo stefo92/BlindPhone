@@ -51,6 +51,71 @@
     <SolidColorBrush x:Key="HeaderBrush" Color="#E9E9E9" />
 
     <!--
+        Pulsanti, nello stile del sito: faccia bianca, filo grigio, e due soli pulsanti
+        pieni — il predefinito della finestra in blu, Riaggancia in rosso.
+
+        Il filo non e' il #D1D1D1 del sito, che sul bianco sta a 1,5 a 1: il bordo e'
+        l'unica cosa che dice dove finisce un pulsante bianco su una scheda bianca, e la
+        EN 301 549 (9.1.4.11) ne chiede almeno 3. Questo sta a 3,5 sul bianco e 3,1 sulla
+        tela.
+
+        testo sulla faccia                 17,4 a 1
+        tasto scritto sotto, attenuato     7,5 sulla faccia, 7,1 sotto il mouse
+        predefinito, bianco su blu         8,8 a 1; 11,2 sotto il mouse
+        Riaggancia, bianco su rosso        7,3 a 1;  9,9 sotto il mouse
+
+        Il blu del sito (#0066CC) e il suo rosso (#C4122F) stanno a 5,6 e 6,0: si usano
+        l'accento e il rosso della fascia, che hanno gia' il loro 7 a 1. Premuto, il
+        tasto attenuato scende a 6,4 per il tempo del clic.
+    -->
+    <SolidColorBrush x:Key="ButtonBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#8A8A8A" />
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="#F6F9FC" />
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="#E8EEF6" />
+    <SolidColorBrush x:Key="DefaultButtonBrush" Color="#0A4A8F" />
+    <SolidColorBrush x:Key="DefaultButtonTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DefaultButtonHoverBrush" Color="#083B73" />
+    <SolidColorBrush x:Key="DangerButtonBrush" Color="#B00020" />
+    <SolidColorBrush x:Key="DangerButtonTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DangerButtonHoverBrush" Color="#8C0019" />
+
+    <!--
+        Conversazioni con i colleghi, a fumetti come nel sito. L'area dei messaggi e'
+        bianca dentro una cornice grigia; i tuoi fumetti sono blu, quelli del collega
+        grigi.
+
+        tuo fumetto, bianco su blu         8,8 a 1
+        fumetto del collega                14,6 a 1
+        firma sotto il fumetto, attenuata  7,5 a 1 sull'area
+    -->
+    <SolidColorBrush x:Key="ChatFrameBrush" Color="#F3F3F3" />
+    <SolidColorBrush x:Key="ChatAreaBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="OutgoingBubbleBrush" Color="#0A4A8F" />
+    <SolidColorBrush x:Key="OutgoingBubbleTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="IncomingBubbleBrush" Color="#EBEBEB" />
+    <SolidColorBrush x:Key="IncomingBubbleTextBrush" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="IncomingBubbleBorderBrush" Color="#EBEBEB" />
+
+    <!--
+        Schede laterali e proposte della ricerca, nelle impostazioni, come nel sito: la
+        colonna delle schede e' grigia e la scheda scelta e' bianca, con una barretta
+        blu a sinistra; la proposta scelta della ricerca ha un fondo azzurro chiaro e la
+        stessa barretta.
+
+        La colonna non e' il #F3F3F3 del sito: i titoli dei gruppi, attenuati, ci
+        starebbero a 6,7 a 1. Qui stanno a 7,0.
+
+        scheda scelta, testo               17,4 a 1
+        proposta scelta, testo             15,1 a 1
+        barretta                           8,8 sulla scheda, 7,6 sulla proposta
+    -->
+    <SolidColorBrush x:Key="SideTabStripBrush" Color="#F8F8F8" />
+    <SolidColorBrush x:Key="SideTabSelectedBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SoftSelectionBrush" Color="#E6F0FA" />
+    <SolidColorBrush x:Key="SoftSelectionTextBrush" Color="#1A1A1A" />
+    <SolidColorBrush x:Key="SoftSelectionMarkBrush" Color="#0A4A8F" />
+
+    <!--
         Fascia di stato della chiamata, nella finestra principale. Lo stato «libero»
         usa le intestazioni (testo a 14,3 a 1); gli altri quattro hanno un fondo pieno
         con il testo bianco:

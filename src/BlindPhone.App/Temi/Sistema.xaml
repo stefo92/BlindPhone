@@ -59,6 +59,54 @@
     <SolidColorBrush x:Key="HeaderBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
 
     <!--
+        Pulsanti. La faccia e il testo sono quelli dei pulsanti di Windows, il filo e' il
+        colore del testo, come nei pulsanti nativi in contrasto elevato.
+
+        SOTTO IL MOUSE IL FONDO NON CAMBIA: lo dice il filo, che prende il colore
+        evidenziato. Un fondo di passaggio scelto fra le chiavi di sistema metterebbe il
+        testo dei pulsanti su un colore che l'utente non ha mai accoppiato con quello.
+
+        Il predefinito usa la coppia della selezione; Riaggancia rovescia testo e fondo
+        della finestra, come la fascia della chiamata.
+    -->
+    <SolidColorBrush x:Key="ButtonBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="{DynamicResource {x:Static SystemColors.ControlTextColorKey}}" />
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+    <SolidColorBrush x:Key="DefaultButtonBrush" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="DefaultButtonTextBrush" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+    <SolidColorBrush x:Key="DefaultButtonHoverBrush" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="DangerButtonBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="DangerButtonTextBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="DangerButtonHoverBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+
+    <!--
+        Conversazioni. I tuoi fumetti hanno la coppia della selezione; quelli del collega
+        hanno il fondo della finestra e un filo del colore del testo, perche' sull'area
+        dello stesso colore si veda dove cominciano e finiscono.
+    -->
+    <SolidColorBrush x:Key="ChatFrameBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="ChatAreaBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="OutgoingBubbleBrush" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="OutgoingBubbleTextBrush" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+    <SolidColorBrush x:Key="IncomingBubbleBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="IncomingBubbleTextBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="IncomingBubbleBorderBrush" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+
+    <!--
+        Schede laterali e proposte della ricerca. Qui la scelta resta quella di Windows,
+        la coppia evidenziata, come prima: chi usa il contrasto elevato riconosce la voce
+        scelta da quella, e un fondo bianco con una barretta sarebbe il segno di un altro
+        programma. La barretta prende il testo evidenziato, per vedersi sul fondo
+        evidenziato.
+    -->
+    <SolidColorBrush x:Key="SideTabStripBrush" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
+    <SolidColorBrush x:Key="SideTabSelectedBrush" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="SoftSelectionBrush" Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="SoftSelectionTextBrush" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+    <SolidColorBrush x:Key="SoftSelectionMarkBrush" Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+
+    <!--
         Fascia di stato della chiamata. I QUATTRO STATI DI AVVISO INVERTONO TESTO E
         FONDO DELLA FINESTRA, e hanno tutti lo stesso aspetto.
 

@@ -155,6 +155,68 @@ public sealed class UpdateCatalogTests
     }
 
     // -----------------------------------------------------------------------
+    // Processore
+    // -----------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("BlindPhone-1.0.21-x64.msi", "x64")]
+    [InlineData("BlindPhone-1.0.21-arm64.msi", "arm64")]
+    [InlineData("BlindPhone-1.0.20.2-ARM64.MSI", "arm64")]
+    [InlineData("BlindPhone-1.2.0-x64-prova.msi", "x64")]
+    [InlineData("BlindPhone-1.2.0.msi", null)]
+    [InlineData("BlindPhone-1.2.0-x64.txt", null)]
+    [InlineData("AltroProgramma-1.2.0-x64.msi", null)]
+    public void IlProcessoreSiLeggeDalNomeDelPacchetto(string nome, string? atteso)
+    {
+        Assert.Equal(atteso, UpdateCatalog.ParseArchitecture(nome));
+    }
+
+    [Theory]
+    [InlineData("x64", "BlindPhone-1.0.21-x64.msi")]
+    [InlineData("arm64", "BlindPhone-1.0.21-arm64.msi")]
+    public void ConDuePacchettiDellaStessaVersioneSiPrendeQuelloDelProcessore(string processore, string atteso)
+    {
+        // E' la cartella del portale: le due architetture stanno insieme. Senza il
+        // processore vinceva la prima dell'elenco, e in ordine alfabetico arm64 viene
+        // prima di x64 — cioe' a una postazione x64 si proponeva un pacchetto che
+        // Windows Installer rifiuta.
+        string[] cartella =
+        [
+            "BlindPhone-1.0.21-arm64.msi",
+            "BlindPhone-1.0.21-arm64.msi.sig",
+            "BlindPhone-1.0.21-arm64.txt",
+            "BlindPhone-1.0.21-x64.msi",
+            "BlindPhone-1.0.21-x64.msi.sig",
+            "BlindPhone-1.0.21-x64.txt",
+        ];
+
+        var trovato = UpdateCatalog.FindNewer(cartella, new Version(1, 0, 20, 2), processore);
+
+        Assert.NotNull(trovato);
+        Assert.Equal(atteso, trovato.InstallerFileName);
+    }
+
+    [Fact]
+    public void UnaVersionePiuRecenteDiUnAltroProcessoreNonSiPropone()
+    {
+        // La 1.0.22 c'e' solo per arm64: la postazione x64 resta alla 1.0.21, e non le
+        // si propone un pacchetto che non puo' installare.
+        string[] cartella = ["BlindPhone-1.0.21-x64.msi", "BlindPhone-1.0.22-arm64.msi"];
+
+        var trovato = UpdateCatalog.FindNewer(cartella, new Version(1, 0, 20), "x64");
+
+        Assert.Equal("BlindPhone-1.0.21-x64.msi", trovato!.InstallerFileName);
+    }
+
+    [Fact]
+    public void UnPacchettoSenzaProcessoreNelNomeVaBenePerTutti()
+    {
+        // La forma dei primi rilasci: si comportava cosi' prima, e cosi' resta.
+        Assert.NotNull(UpdateCatalog.FindNewer(["BlindPhone-1.2.0.msi"], Installata, "arm64"));
+        Assert.NotNull(UpdateCatalog.FindNewer(["BlindPhone-1.2.0.msi"], Installata, "x64"));
+    }
+
+    // -----------------------------------------------------------------------
     // File delle novità
     // -----------------------------------------------------------------------
 

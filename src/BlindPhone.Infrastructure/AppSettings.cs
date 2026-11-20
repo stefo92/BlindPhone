@@ -317,26 +317,30 @@ public sealed record UpdateSettings
     /// <remarks>
     /// <para>
     /// <b>È questa la riga da cambiare prima di compilare.</b> Deve essere l'indirizzo
-    /// di una <b>cartella</b> e non di un file, e finire con la barra:
-    /// <c>ftps://aggiornamenti.example.it/blindphone/</c>.
+    /// di una <b>cartella</b> e non di un file, e finire con la barra. Dalla 1.0.21 è
+    /// la cartella dei download del portale di BlindPhone, la stessa da cui le persone
+    /// scaricano il programma: pubblicare un rilascio lì basta perché le postazioni
+    /// lo trovino.
     /// </para>
     /// <para>
-    /// Lo schema da usare è <c>ftps://</c>: FTP con la connessione cifrata (AUTH TLS),
-    /// in cui le credenziali e il pacchetto viaggiano protetti. Non va confuso con
-    /// SFTP, che è un altro protocollo — quello di SSH — e che questa applicazione non
-    /// parla. <c>ftp://</c> in chiaro viene rifiutato, perché chi sta sul percorso di
-    /// rete vedrebbe la password e potrebbe sostituire il pacchetto con un altro.
-    /// <c>https://</c> è accettato come canale, ma su HTTP la lettura della cartella
-    /// non è implementata (vedi <see cref="UpdateService"/>): oggi il controllo su
-    /// quello schema non riesce.
+    /// Due schemi vanno bene. <c>https://</c> è una cartella web che a
+    /// <c>?per=x64</c> o <c>?per=arm64</c> risponde con un rimando al pacchetto più
+    /// recente per quel processore (vedi <see cref="UpdateService"/>). <c>ftps://</c> è
+    /// FTP con la connessione cifrata (AUTH TLS), di cui si legge l'elenco dei file: non
+    /// va confuso con SFTP, che è un altro protocollo — quello di SSH — e che questa
+    /// applicazione non parla. <c>ftp://</c> e <c>http://</c> in chiaro vengono
+    /// rifiutati, perché chi sta sul percorso di rete vedrebbe la password e potrebbe
+    /// sostituire il pacchetto con un altro.
     /// </para>
     /// <para>
-    /// Vuoto significa «nessun aggiornamento automatico»: è il valore con cui parte
-    /// una copia compilata senza aver scelto un server, e in quel caso il controllo
-    /// non viene nemmeno tentato.
+    /// Vuoto significa «nessun aggiornamento automatico», e in quel caso il controllo
+    /// non viene nemmeno tentato. Fino alla 1.0.20 era il valore predefinito; le
+    /// postazioni che lo avevano scritto in <c>settings.json</c> per quella ragione
+    /// passano al portale una volta sola, con la migrazione allo schema 5 di
+    /// <see cref="AppSettings"/>.
     /// </para>
     /// </remarks>
-    public const string DefaultServerUrl = "";
+    public const string DefaultServerUrl = "https://blindphone.curti.cloud/download/";
 
     /// <summary>Cartella remota che contiene i pacchetti e le note.</summary>
     public string ServerUrl { get; init; } = DefaultServerUrl;
@@ -962,8 +966,12 @@ public sealed record AppSettings
     ///   4 — durante la conversazione gli annunci non tacciono più.
     ///   </description></item>
     ///   <item><description>
-    ///   5 — le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove nessuno li
-    ///   aveva scelti.
+    ///   5 — l'indirizzo vuoto degli aggiornamenti diventa quello del portale.
+    ///   </description></item>
+    ///   <item><description>
+    ///   6 — le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove nessuno li
+    ///   aveva scelti. Dopo la 5 e non al suo posto: la 5 era gia' arrivata alle
+    ///   postazioni con la 1.0.21.1, e le due sono nate in parallelo.
     ///   </description></item>
     /// </list>
     /// Vedi <see cref="Migrate"/>.
@@ -971,7 +979,7 @@ public sealed record AppSettings
     public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>Versione di schema prodotta da questa versione di BlindPhone.</summary>
-    public const int CurrentSchemaVersion = 5;
+    public const int CurrentSchemaVersion = 6;
 
     /// <summary>
     /// Account SIP configurato, il primo dell'elenco.
@@ -1308,6 +1316,7 @@ public sealed record AppSettings
         var migrata = MigrateSipAccounts();
         migrata = migrata.MigrateBetaLogging();
         migrata = migrata.MigrateConversationSilence();
+        migrata = migrata.MigrateUpdateServer();
         migrata = migrata.MigrateTelemetryDefaults();
 
         return migrata.SchemaVersion == CurrentSchemaVersion
@@ -1406,7 +1415,40 @@ public sealed record AppSettings
     }
 
     /// <summary>
-    /// Schema 5: le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove
+    /// Schema 5: gli aggiornamenti automatici puntano al portale di BlindPhone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La ragione è quella delle due migrazioni precedenti: una postazione già in uso
+    /// ha <c>settings.json</c> scritto, e dentro c'è l'indirizzo vuoto che fino alla
+    /// 1.0.20 era il valore predefinito. Cambiare la costante non la toccherebbe, e
+    /// la postazione continuerebbe a non cercare aggiornamenti proprio da quando ci
+    /// sarebbe un posto dove trovarli.
+    /// </para>
+    /// <para>
+    /// <b>Si riempie soltanto l'indirizzo vuoto.</b> Un ente che ha scritto il proprio
+    /// server FTPS o la propria cartella lo tiene: quella è una scelta, il vuoto di
+    /// prima non poteva esserlo, perché l'alternativa non esisteva.
+    /// </para>
+    /// <para>
+    /// <b>Avviene una volta sola.</b> Chi svuota il campo dopo la migrazione — per
+    /// esempio perché le postazioni le aggiorna la distribuzione software dell'ente —
+    /// se lo tiene vuoto.
+    /// </para>
+    /// </remarks>
+    private AppSettings MigrateUpdateServer()
+    {
+        if (SchemaVersion >= 5) return this;
+        if (!string.IsNullOrWhiteSpace(Updates.ServerUrl)) return this;
+
+        return this with
+        {
+            Updates = Updates with { ServerUrl = UpdateSettings.DefaultServerUrl },
+        };
+    }
+
+    /// <summary>
+    /// Schema 6: le statistiche d'uso ricevono indirizzo e chiave predefiniti, dove
     /// nessuno li aveva scelti.
     /// </summary>
     /// <remarks>
@@ -1436,7 +1478,7 @@ public sealed record AppSettings
     /// </remarks>
     private AppSettings MigrateTelemetryDefaults()
     {
-        if (SchemaVersion >= 5) return this;
+        if (SchemaVersion >= 6) return this;
 
         if (!string.IsNullOrWhiteSpace(Telemetry.ServerUrl) || !string.IsNullOrWhiteSpace(Telemetry.ProjectKey))
         {

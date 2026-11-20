@@ -56,6 +56,62 @@
     <SolidColorBrush x:Key="HeaderBrush" Color="#2E2E2E" />
 
     <!--
+        Pulsanti, nello stile del sito. La faccia sta appena sopra la scheda, e non al
+        #3A3A3C del sito: piu' chiara, il tasto scritto sotto il nome scenderebbe a 5,8
+        a 1. Il filo e' piu' chiaro di quello degli altri controlli per stare sopra il 3
+        a 1 anche sulla scheda.
+
+        testo sulla faccia                 12,5 a 1
+        tasto scritto sotto, attenuato     7,1 sulla faccia, 7,4 sotto il mouse
+        filo                               3,3 sulla scheda, 3,7 sulla tela
+        predefinito, bianco su blu         7,7 a 1; 9,7 sotto il mouse
+        Riaggancia, bianco su rosso        7,3 a 1; 9,9 sotto il mouse
+    -->
+    <SolidColorBrush x:Key="ButtonBrush" Color="#2C2C2C" />
+    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#757575" />
+    <SolidColorBrush x:Key="ButtonHoverBrush" Color="#262A30" />
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="#1F2329" />
+    <SolidColorBrush x:Key="DefaultButtonBrush" Color="#1A5493" />
+    <SolidColorBrush x:Key="DefaultButtonTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DefaultButtonHoverBrush" Color="#15457A" />
+    <SolidColorBrush x:Key="DangerButtonBrush" Color="#B00020" />
+    <SolidColorBrush x:Key="DangerButtonTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="DangerButtonHoverBrush" Color="#8C0019" />
+
+    <!--
+        Conversazioni con i colleghi: i colori dell'illustrazione del sito, che e' in
+        tema scuro, tranne il blu del tuo fumetto, scurito come quello della selezione.
+
+        tuo fumetto, bianco su blu         7,7 a 1
+        fumetto del collega                10,1 a 1
+        firma sotto il fumetto, attenuata  8,8 a 1 sull'area
+    -->
+    <SolidColorBrush x:Key="ChatFrameBrush" Color="#262626" />
+    <SolidColorBrush x:Key="ChatAreaBrush" Color="#1B1B1B" />
+    <SolidColorBrush x:Key="OutgoingBubbleBrush" Color="#1A5493" />
+    <SolidColorBrush x:Key="OutgoingBubbleTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="IncomingBubbleBrush" Color="#3A3A3C" />
+    <SolidColorBrush x:Key="IncomingBubbleTextBrush" Color="#F2F2F2" />
+    <SolidColorBrush x:Key="IncomingBubbleBorderBrush" Color="#3A3A3C" />
+
+    <!--
+        Schede laterali e proposte della ricerca, nelle impostazioni: la colonna sta sul
+        fondo della tela, la scheda scelta sale al grigio delle intestazioni, la proposta
+        scelta prende un blu scuro.
+
+        titoli dei gruppi, attenuati       8,8 a 1
+        scheda scelta, testo               12,1 a 1
+        proposta scelta, testo             11,0 a 1
+        barretta                           5,7 sulla scheda, 5,2 sulla proposta
+                                           (e' un segno, non un testo: basta il 3 a 1)
+    -->
+    <SolidColorBrush x:Key="SideTabStripBrush" Color="#1B1B1B" />
+    <SolidColorBrush x:Key="SideTabSelectedBrush" Color="#2E2E2E" />
+    <SolidColorBrush x:Key="SoftSelectionBrush" Color="#24364A" />
+    <SolidColorBrush x:Key="SoftSelectionTextBrush" Color="#F2F2F2" />
+    <SolidColorBrush x:Key="SoftSelectionMarkBrush" Color="#5CADFF" />
+
+    <!--
         Fascia di stato della chiamata: gli stessi colori del tema chiaro, con gli
         stessi rapporti (8,4 / 8,4 / 7,5 / 7,3 a 1 con il testo bianco). La fascia ha un
         fondo suo, quindi il contrasto non dipende dalla scheda scura intorno. Lo stato

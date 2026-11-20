@@ -177,7 +177,7 @@ internal sealed class ServerPostHogFinto : IAsyncDisposable
     /// chiave che vive solo in memoria: con il certificato appena creato la stretta di
     /// mano fallisce con «le credenziali fornite non sono state riconosciute».
     /// </remarks>
-    private static X509Certificate2 CreaCertificato()
+    internal static X509Certificate2 CreaCertificato()
     {
         using var chiave = RSA.Create(2048);
 

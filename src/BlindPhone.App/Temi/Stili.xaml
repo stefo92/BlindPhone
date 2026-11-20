@@ -187,16 +187,34 @@
           bloccato;
         - il contorno del focus, che con il modello predefinito arrivava
           gratis.
+
+        L'ASPETTO E' QUELLO DEL SITO: faccia bianca, filo grigio, angoli
+        arrotondati, nessuna ombra. Il pulsante predefinito della finestra -
+        Salva, Conferma, Procedi, quello che risponde a Invio - e' pieno, blu con
+        il testo bianco, come «Salva» nell'illustrazione delle impostazioni. Non
+        serve dichiararlo pulsante per pulsante: lo dice gia' IsDefault, che e' lo
+        stesso dato che fa rispondere il pulsante a Invio.
+
+        GLI STATI SONO TRIGGER DELLO STILE, NON DEL MODELLO. Un trigger dello stile
+        vince su quelli del modello: se il predefinito dichiarasse il testo bianco
+        qui e lo spento dichiarasse il grigio nel modello, un predefinito spento
+        avrebbe il testo bianco sul fondo chiaro dei controlli spenti, cioe'
+        invisibile. Tutti nello stesso posto, l'ordine decide: lo spento e' l'ultimo
+        e vince su tutto.
+
+        Sotto il mouse cambia il fondo, appena, e il filo prende il colore
+        dell'accento: e' il filo a dire dove si trova il puntatore, anche nel tema
+        di sistema, dove il fondo resta quello di Windows.
     -->
     <Style TargetType="Button">
         <Setter Property="FontSize" Value="{StaticResource FontBody}" />
-        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="Padding" Value="16,8" />
         <Setter Property="MinHeight" Value="40" />
         <Setter Property="MinWidth" Value="120" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Foreground" Value="{DynamicResource ControlTextBrush}" />
-        <Setter Property="Background" Value="{DynamicResource ControlBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource ControlBorderBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ButtonBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -215,24 +233,45 @@
                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                           RecognizesAccessKey="True" />
                     </Border>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Sfondo" Property="Background"
-                                    Value="{DynamicResource ControlHoverBrush}" />
-                        </Trigger>
-                        <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Sfondo" Property="Background"
-                                    Value="{DynamicResource ControlPressedBrush}" />
-                        </Trigger>
-                        <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Sfondo" Property="Background"
-                                    Value="{DynamicResource ControlDisabledBrush}" />
-                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
-                        </Trigger>
-                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            </Trigger>
+            <Trigger Property="IsPressed" Value="True">
+                <Setter Property="Background" Value="{DynamicResource ButtonPressedBrush}" />
+            </Trigger>
+
+            <Trigger Property="IsDefault" Value="True">
+                <Setter Property="Background" Value="{DynamicResource DefaultButtonBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource DefaultButtonBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DefaultButtonTextBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Trigger>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsDefault" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Background" Value="{DynamicResource DefaultButtonHoverBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+            </MultiTrigger>
+
+            <!--
+                Spento: il fondo dei controlli spenti, il testo grigio e il filo tenue
+                delle schede. Nel tema scuro il fondo spento e la faccia dei pulsanti
+                distano un soffio: a distinguerli, oltre al testo, c'e' il filo, che si
+                attenua.
+            -->
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Background" Value="{DynamicResource ControlDisabledBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <!-- ==================== CAMPI DI IMMISSIONE ==================== -->
@@ -283,6 +322,85 @@
                         <Trigger Property="IsReadOnly" Value="True">
                             <Setter TargetName="Sfondo" Property="Background"
                                     Value="{DynamicResource ControlDisabledBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!--
+        LA CASELLA DEI MESSAGGI, come nell'illustrazione del sito: angoli piu'
+        arrotondati e un filo dell'accento sul lato di sotto, che dice «si scrive qui»
+        anche prima di entrarci. Con il cursore dentro il bordo diventa dell'accento
+        tutto intorno, come in ogni altra casella del prodotto. La usano la
+        conversazione e l'elenco dei messaggi.
+
+        IL SUGGERIMENTO DENTRO LA CASELLA VUOTA si scrive in Tag, e compare solo a
+        casella vuota. Non e' il nome della casella: quello va dichiarato a parte con
+        AutomationProperties.Name, ed e' l'unica cosa che lo screen reader legge. Il
+        testo del suggerimento sta nel modello, e un TextBlock dentro un modello non e'
+        un elemento per l'automazione.
+
+        Il testo attenuato del suggerimento sta a 7,5 a 1 sul fondo dei campi nel tema
+        chiaro e a 8,5 nello scuro. Il corpo resta quello delle altre caselle: i corpi
+        non si rimpiccioliscono.
+    -->
+    <Style x:Key="MessageField" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Grid>
+                        <Border x:Name="Sfondo"
+                                CornerRadius="{StaticResource RadiusCard}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <!--
+                                    Due pixel piu' a destra del margine del testo: e'
+                                    lo spazio che la casella lascia prima del primo
+                                    carattere, e il suggerimento deve cominciare dove
+                                    comincera' quello che si scrive.
+                                -->
+                                <TextBlock x:Name="Suggerimento"
+                                           Margin="14,8,12,8"
+                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                           Text="{TemplateBinding Tag}"
+                                           FontSize="{TemplateBinding FontSize}"
+                                           Foreground="{DynamicResource MutedTextBrush}"
+                                           TextWrapping="Wrap"
+                                           IsHitTestVisible="False"
+                                           Visibility="Collapsed" />
+                                <ScrollViewer x:Name="PART_ContentHost"
+                                              Margin="{TemplateBinding Padding}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              Focusable="False"
+                                              HorizontalScrollBarVisibility="Hidden"
+                                              VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Il filo dell'accento sul lato di sotto, sopra il bordo. -->
+                        <Border CornerRadius="{StaticResource RadiusCard}"
+                                BorderThickness="0,0,0,2"
+                                BorderBrush="{DynamicResource AccentBrush}"
+                                IsHitTestVisible="False"
+                                SnapsToDevicePixels="True" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Text" Value="">
+                            <Setter TargetName="Suggerimento" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="Sfondo" Property="BorderBrush"
+                                    Value="{DynamicResource AccentBrush}" />
+                            <Setter TargetName="Sfondo" Property="BorderThickness" Value="2" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Foreground" Value="{DynamicResource DisabledTextBrush}" />
@@ -910,10 +1028,15 @@
             fossero una cosa sola. L'anello del modello circonda solo la scheda.
 
             E' spesso 3 pixel come in tutto il prodotto, e STA STACCATO DI 2 PIXEL
-            DAL FONDO: la scheda che ha il focus e' sempre quella selezionata, e nel
-            tema chiaro il colore della selezione e quello del focus coincidono.
-            Attaccato al fondo, l'anello sarebbe sembrato soltanto una scheda un
-            po' piu' grande.
+            DAL FONDO: la scheda che ha il focus e' sempre quella selezionata, e la
+            barretta della selezione ha il colore dell'accento, che e' quello del
+            focus; nel tema di sistema anche il fondo. Attaccato, l'anello sarebbe
+            sembrato soltanto una scheda un po' piu' grande.
+
+            L'ASPETTO E' QUELLO DEL SITO: la colonna e' grigia, la scheda scelta e'
+            bianca con una barretta blu a sinistra e il nome in seminero, e i titoli
+            dei gruppi sono in maiuscolo, piccoli e attenuati. Nel tema di sistema la
+            scheda scelta resta con la coppia evidenziata di Windows: vedi i temi.
         -->
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
@@ -927,14 +1050,25 @@
 
                         <!--
                             Il titolo del gruppo: si vede e non si legge, e non si
-                            clicca. Vedi GruppoDiSchede e TitoloDecorativo.
+                            clicca. Vedi GruppoDiSchede e TitoloDecorativo. Il
+                            maiuscolo e' solo nel disegno: il titolo resta scritto
+                            «Collegamento», e non arriva comunque allo screen reader.
+
+                            TemplateBinding e non Binding con il percorso fra
+                            parentesi: il percorso «(app:GruppoDiSchede.Titolo)» si
+                            risolve quando il legame parte, e dentro un modello caricato
+                            da questo dizionario il prefisso app non si trovava piu' -
+                            «property not found», e il titolo restava vuoto. Il
+                            TemplateBinding lo risolve mentre legge il dizionario, come
+                            il trigger qui sotto che nasconde il titolo.
                         -->
                         <app:TitoloDecorativo x:Name="Gruppo"
                                               Grid.Row="0"
                                               Margin="8,10,8,4"
-                                              Text="{Binding (app:GruppoDiSchede.Titolo), RelativeSource={RelativeSource TemplatedParent}}"
+                                              Testo="{TemplateBinding app:GruppoDiSchede.Titolo}"
+                                              Maiuscolo="True"
                                               FontSize="{StaticResource FontCaption}"
-                                              FontWeight="SemiBold"
+                                              FontWeight="Bold"
                                               Foreground="{DynamicResource MutedTextBrush}"
                                               TextWrapping="Wrap"
                                               IsHitTestVisible="False" />
@@ -999,12 +1133,12 @@
                         -->
                         <Trigger Property="IsSelected" Value="True">
                             <Setter TargetName="Sfondo" Property="Background"
-                                    Value="{DynamicResource SelectionBrush}" />
+                                    Value="{DynamicResource SideTabSelectedBrush}" />
                             <Setter TargetName="Segno" Property="Background"
-                                    Value="{DynamicResource SelectionTextBrush}" />
+                                    Value="{DynamicResource SoftSelectionMarkBrush}" />
                             <Setter TargetName="Titolo" Property="Foreground"
-                                    Value="{DynamicResource SelectionTextBrush}" />
-                            <Setter TargetName="Titolo" Property="FontWeight" Value="Bold" />
+                                    Value="{DynamicResource SoftSelectionTextBrush}" />
+                            <Setter TargetName="Titolo" Property="FontWeight" Value="SemiBold" />
                         </Trigger>
                         <MultiTrigger>
                             <MultiTrigger.Conditions>
@@ -1012,7 +1146,7 @@
                                 <Condition Property="IsMouseOver" Value="True" />
                             </MultiTrigger.Conditions>
                             <Setter TargetName="Sfondo" Property="Background"
-                                    Value="{DynamicResource ControlHoverBrush}" />
+                                    Value="{DynamicResource HoverRowBrush}" />
                         </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Anello" Property="Visibility" Value="Visible" />
@@ -1045,8 +1179,9 @@
                             <ColumnDefinition Width="3*" />
                         </Grid.ColumnDefinitions>
 
+                        <!-- La colonna delle schede e' grigia, come nel sito: la scheda scelta, bianca, ci si stacca sopra. -->
                         <Border Grid.Column="0"
-                                Background="{TemplateBinding Background}"
+                                Background="{DynamicResource SideTabStripBrush}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="{StaticResource RadiusCard}">

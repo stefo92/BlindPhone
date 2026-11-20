@@ -2356,6 +2356,12 @@ public partial class MainWindow : Window
 
         bar.Items.Clear();
 
+        // Nella barra della chiamata il tasto scritto va sotto il nome, in quella della
+        // postazione accanto: e' la disposizione dell'illustrazione del sito, dove i
+        // pulsanti della chiamata sono blocchi grandi e quelli della postazione una
+        // riga bassa che non deve crescere in altezza.
+        var tastoSotto = ReferenceEquals(bar, CallCommandBar);
+
         CallActionGroup? gruppoPrecedente = null;
 
         foreach (var azione in azioni)
@@ -2370,7 +2376,7 @@ public partial class MainWindow : Window
             }
 
             gruppoPrecedente = azione.Group;
-            bar.Items.Add(CreateCommandButton(azione));
+            bar.Items.Add(CreateCommandButton(azione, tastoSotto));
         }
 
         if (!focusEraNellaBarra) return;
@@ -2406,9 +2412,9 @@ public partial class MainWindow : Window
     /// </para>
     /// <para>
     /// <b>A meno che l'operatore non lo chieda</b>, in Impostazioni, scheda
-    /// Accessibilità. Allora il tasto compare dopo il nome, in forma corta — «F3»,
-    /// «Ctrl+M» — dentro un riquadro suo: costa meno della parentesi di una volta, e le
-    /// barre adesso sono due e più corte.
+    /// Accessibilità. Allora il tasto compare in forma corta — «F3», «Ctrl+M» — in
+    /// piccolo e attenuato, come nell'illustrazione del sito: sotto il nome nella barra
+    /// della chiamata, accanto nella barra della postazione.
     /// </para>
     /// <para>
     /// Il nome accessibile resta la sola etichetta, senza pittogramma: gli screen
@@ -2416,18 +2422,25 @@ public partial class MainWindow : Window
     /// davanti a ogni comando sarebbe rumore. Quello che serve sapere sta nel testo di
     /// aiuto, che è dove la tecnologia assistiva lo cerca.
     /// </para>
+    /// <para>
+    /// <b>Riaggancia è rosso</b>, con lo stile DangerButton: vedi la spiegazione in
+    /// MainWindow.xaml.
+    /// </para>
     /// </remarks>
-    private System.Windows.Controls.Button CreateCommandButton(CallActionButton descriptor)
+    /// <param name="hotkeyBelow">Se il tasto, quando si scrive, va sotto il nome.</param>
+    private System.Windows.Controls.Button CreateCommandButton(CallActionButton descriptor, bool hotkeyBelow = false)
     {
         var tasto = HotkeyTextFor(descriptor.Action);
         var spiegazione = tasto is null
             ? descriptor.Description
             : $"{descriptor.Description}.\nScorciatoia: {tasto}";
 
+        var pieno = descriptor.Action == CallAction.HangUp;
+
         var button = new System.Windows.Controls.Button
         {
-            Content = BuildCommandContent(descriptor, VisibleHotkeyFor(descriptor.Action)),
-            Style = (Style)FindResource("CommandButton"),
+            Content = BuildCommandContent(descriptor, VisibleHotkeyFor(descriptor.Action), hotkeyBelow, pieno),
+            Style = (Style)FindResource(pieno ? "DangerButton" : "CommandButton"),
             Tag = descriptor.Action,
             IsEnabled = descriptor.IsEnabled,
             ToolTip = spiegazione,
@@ -2449,8 +2462,15 @@ public partial class MainWindow : Window
     /// </summary>
     /// <param name="descriptor">Azione, pittogramma ed etichetta.</param>
     /// <param name="hotkey">
-    /// Scorciatoia da scrivere dopo l'etichetta, in forma corta; <c>null</c> per non
+    /// Scorciatoia da scrivere sul pulsante, in forma corta; <c>null</c> per non
     /// scriverla.
+    /// </param>
+    /// <param name="hotkeyBelow">
+    /// Se la scorciatoia va sotto il nome invece che accanto.
+    /// </param>
+    /// <param name="hotkeyFollowsButton">
+    /// Se la scorciatoia prende il colore del testo del pulsante invece di quello
+    /// attenuato: serve sui pulsanti pieni, dove il grigio sul rosso non si leggerebbe.
     /// </param>
     /// <remarks>
     /// <para>
@@ -2472,13 +2492,20 @@ public partial class MainWindow : Window
     /// codice usati qui esistono in entrambi.
     /// </para>
     /// </remarks>
-    private static object BuildCommandContent(CallActionButton descriptor, string? hotkey = null)
+    private static object BuildCommandContent(
+        CallActionButton descriptor,
+        string? hotkey = null,
+        bool hotkeyBelow = false,
+        bool hotkeyFollowsButton = false)
     {
-        if (string.IsNullOrEmpty(descriptor.Icon) && hotkey is null) return descriptor.Label;
+        var (parola, conteggio) = SplitCounter(descriptor);
+
+        if (string.IsNullOrEmpty(descriptor.Icon) && hotkey is null && conteggio is null) return descriptor.Label;
 
         var riga = new System.Windows.Controls.StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Center,
         };
 
         if (!string.IsNullOrEmpty(descriptor.Icon))
@@ -2499,7 +2526,7 @@ public partial class MainWindow : Window
 
         var etichetta = new System.Windows.Controls.TextBlock
         {
-            Text = descriptor.Label,
+            Text = parola,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
@@ -2511,55 +2538,133 @@ public partial class MainWindow : Window
         FollowButtonForeground(etichetta);
         riga.Children.Add(etichetta);
 
-        if (hotkey is not null) riga.Children.Add(BuildHotkeyCap(hotkey));
+        if (conteggio is not null) riga.Children.Add(BuildCounterBadge(conteggio));
 
-        return riga;
+        if (hotkey is null) return riga;
+
+        var tasto = BuildHotkeyText(hotkey, hotkeyFollowsButton);
+
+        if (!hotkeyBelow)
+        {
+            tasto.Margin = new Thickness(8, 0, 0, 0);
+            riga.Children.Add(tasto);
+            return riga;
+        }
+
+        tasto.HorizontalAlignment = HorizontalAlignment.Center;
+        tasto.Margin = new Thickness(0, 1, 0, 0);
+
+        var colonna = new System.Windows.Controls.StackPanel();
+        colonna.Children.Add(riga);
+        colonna.Children.Add(tasto);
+        return colonna;
     }
 
     /// <summary>
-    /// Il riquadro con la scorciatoia, scritto dopo l'etichetta del pulsante.
+    /// La scorciatoia scritta sul pulsante, in piccolo, accanto o sotto il nome.
     /// </summary>
     /// <param name="hotkey">La scorciatoia in forma corta, per esempio «Ctrl+M».</param>
+    /// <param name="followsButton">Se prende il colore del testo del pulsante.</param>
     /// <remarks>
     /// <para>
-    /// <b>Ha fondo e colore suoi, e non quelli del pulsante.</b> Il pulsante sotto il
-    /// mouse diventa blu con il testo bianco: un riquadro che lo seguisse cambierebbe
-    /// contrasto a ogni passaggio, mentre così resta quello dichiarato dai temi —
-    /// testo attenuato sul fondo dei campi, 7,4 a 1 nel chiaro e 8,4 a 1 nello scuro;
-    /// nel tema di sistema sono il testo e il fondo delle finestre di Windows.
+    /// <b>Attenuata, senza riquadro</b>, come nell'illustrazione del sito. Il contrasto
+    /// resta sopra il 7 a 1 perche' le facce dei pulsanti sono state scelte per questo:
+    /// 7,5 e 7,1 a 1 nel chiaro e nello scuro, da fermo e sotto il mouse. Nel tema di
+    /// sistema il testo attenuato e' il testo delle finestre di Windows.
     /// </para>
     /// <para>
-    /// <b>È muto per lo screen reader</b>, come il pittogramma. La scorciatoia la dice
+    /// <b>Sui pulsanti pieni segue il testo del pulsante</b>: il grigio sul rosso di
+    /// Riaggancia starebbe sotto il 3 a 1. Il peso resta normale anche li', perche' la
+    /// differenza fra il nome e il tasto la dica la forma e non solo la grandezza.
+    /// </para>
+    /// <para>
+    /// <b>È muta per lo screen reader</b>, come il pittogramma. La scorciatoia la dice
     /// già il testo di aiuto del pulsante: letta anche qui, ogni comando la ripeterebbe
     /// due volte.
     /// </para>
     /// </remarks>
-    private static System.Windows.Controls.Border BuildHotkeyCap(string hotkey)
+    private static System.Windows.Controls.TextBlock BuildHotkeyText(string hotkey, bool followsButton)
     {
         var testo = new System.Windows.Controls.TextBlock
         {
             Text = hotkey,
+            FontWeight = FontWeights.Normal,
+            TextWrapping = TextWrapping.NoWrap,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
         testo.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "FontCaption");
-        testo.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
-        AutomationProperties.SetName(testo, string.Empty);
 
-        var riquadro = new System.Windows.Controls.Border
+        if (followsButton) FollowButtonForeground(testo);
+        else testo.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "MutedTextBrush");
+
+        AutomationProperties.SetName(testo, string.Empty);
+        return testo;
+    }
+
+    /// <summary>
+    /// Separa il conteggio dall'etichetta dei messaggi: «Messaggi (2)» diventa «Messaggi» e «2».
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Sul sito il numero dei messaggi da leggere sta in un pallino blu accanto alla
+    /// parola. Il catalogo dei comandi scrive invece «Messaggi (2)», ed e' giusto che
+    /// resti cosi': e' il nome accessibile del pulsante, e «Messaggi, 2» detto dallo
+    /// screen reader non vuol dire niente. Qui si cambia soltanto il disegno.
+    /// </para>
+    /// <para>
+    /// Vale per il solo pulsante dei messaggi: un'altra etichetta che finisse per caso
+    /// con un numero fra parentesi deve restare com'e'.
+    /// </para>
+    /// </remarks>
+    private static (string Label, string? Count) SplitCounter(CallActionButton descriptor)
+    {
+        if (descriptor.Action != CallAction.OpenMessages) return (descriptor.Label, null);
+
+        var trovato = EtichettaConConteggio.Match(descriptor.Label);
+        return trovato.Success
+            ? (trovato.Groups["parola"].Value, trovato.Groups["numero"].Value)
+            : (descriptor.Label, null);
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex EtichettaConConteggio =
+        new(@"^(?<parola>.+) \((?<numero>\d+)\)$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Il pallino con il numero dei messaggi da leggere.
+    /// </summary>
+    /// <remarks>
+    /// I colori sono quelli della selezione, bianco su blu, 8,8 a 1 nel chiaro e 7,7
+    /// nello scuro; nel tema di sistema la coppia evidenziata di Windows. Muto per lo
+    /// screen reader: il numero e' gia' nel nome accessibile del pulsante.
+    /// </remarks>
+    private static System.Windows.Controls.Border BuildCounterBadge(string count)
+    {
+        var testo = new System.Windows.Controls.TextBlock
         {
-            Child = testo,
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(5, 0, 5, 1),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(3),
+            Text = count,
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.NoWrap,
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
 
-        riquadro.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "FieldBrush");
-        riquadro.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "ControlBorderBrush");
+        testo.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "FontCaption");
+        testo.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "SelectionTextBrush");
+        AutomationProperties.SetName(testo, string.Empty);
 
-        return riquadro;
+        var pallino = new System.Windows.Controls.Border
+        {
+            Child = testo,
+            MinWidth = 22,
+            Padding = new Thickness(6, 0, 6, 1),
+            Margin = new Thickness(8, 0, 0, 0),
+            CornerRadius = new CornerRadius(11),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        pallino.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "SelectionBrush");
+        return pallino;
     }
 
     /// <summary>Lega il colore di una casella di testo a quello del pulsante che la contiene.</summary>
