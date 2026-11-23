@@ -22,6 +22,11 @@ namespace BlindPhone.Core.Tests;
 /// Vale per l'annuncio che segue la conferma del centralino e per quello del
 /// trasferimento cieco, che dal lato dell'operatore è la chiusura.
 /// </para>
+/// <para>
+/// Seconda segnalazione, a regola già in vigore: fuori rubrica l'annuncio non diceva
+/// niente. L'interno in rubrica c'era, ma con «- -» al posto del nome, e quel
+/// segnaposto passava per un nome che lo screen reader tace. Vale come fuori rubrica.
+/// </para>
 /// </remarks>
 public sealed class TrasferimentoConclusoTests
 {
@@ -89,6 +94,31 @@ public sealed class TrasferimentoConclusoTests
             await Task.Delay(50);
         }
 
+        /// <summary>
+        /// Trasferimento completato mentre l'interno squilla ancora, fino alla conferma
+        /// del centralino.
+        /// </summary>
+        /// <remarks>
+        /// È il caso del registro del 20 novembre 2026: l'operatore preme il tasto la
+        /// seconda volta senza aspettare che il collega risponda.
+        /// </remarks>
+        public async Task ConcludiMentreSquillaAsync(string interno)
+        {
+            var callId = await ConChiamataAttivaAsync();
+
+            await Transfer.HandleTransferKeyAsync(interno);
+            Clock.AdvanceMilliseconds(500);
+            Transfer.Pump(Clock.Now);
+            await Task.Delay(50);
+
+            await Transfer.HandleTransferKeyAsync();
+            await Task.Delay(50);
+
+            Announcer.Clear();
+            Engine.SimulateTransferOutcome(callId, TransferOutcome.Succeeded);
+            await Task.Delay(50);
+        }
+
         /// <summary>Trasferimento cieco verso l'interno: doppia pressione rapida.</summary>
         public async Task TrasferisciAllaCiecaAsync(string interno)
         {
@@ -134,6 +164,63 @@ public sealed class TrasferimentoConclusoTests
         await h.ConcludiConAnnuncioAsync("4021");
 
         Assert.True(h.Announcer.Said("Mario Rossi trasferito a quattro, zero, due, uno"));
+    }
+
+    [Theory]
+    [InlineData("- -")]
+    [InlineData("-")]
+    [InlineData(" . ")]
+    public async Task VoceDiRubricaConTrattiniAlPostoDelNome_LAnnuncioPronunciaLInterno(string segnaposto)
+    {
+        // Il centralino scrive «- -» per gli interni non assegnati. Preso per nome,
+        // l'annuncio era «trasferito a - -» e lo screen reader non leggeva niente.
+        var h = new Harness(new FakeContactRepository().AddExtension(segnaposto, "4021"));
+
+        await h.ConcludiConAnnuncioAsync("4021");
+
+        Assert.True(h.Announcer.Said("Mario Rossi trasferito a quattro, zero, due, uno"));
+        Assert.False(h.Announcer.Said("trasferito a -"));
+    }
+
+    [Fact]
+    public async Task MentreLInternoSquillaAncora_FuoriRubrica_PronunciaLInterno()
+    {
+        var h = new Harness();
+
+        await h.ConcludiMentreSquillaAsync("3638");
+
+        Assert.True(h.Engine.Did("attended:"));
+        Assert.True(h.Announcer.Said("Mario Rossi trasferito a tre, sei, tre, otto"));
+    }
+
+    [Fact]
+    public async Task MentreLInternoSquillaAncora_VoceConTrattini_PronunciaLInterno()
+    {
+        var h = new Harness(new FakeContactRepository().AddExtension("- -", "3638"));
+
+        await h.ConcludiMentreSquillaAsync("3638");
+
+        Assert.True(h.Announcer.Said("Mario Rossi trasferito a tre, sei, tre, otto"));
+    }
+
+    [Fact]
+    public async Task NumeroEsternoFuoriRubrica_PronunciaLeCifre()
+    {
+        var h = new Harness();
+
+        await h.ConcludiConAnnuncioAsync("0521123456");
+
+        Assert.True(h.Announcer.Said("Mario Rossi trasferito a zero, cinque, due, uno, uno, due, tre, quattro, cinque, sei"));
+    }
+
+    [Fact]
+    public async Task TrasferimentoCiecoVoceConTrattini_PronunciaLInterno()
+    {
+        var h = new Harness(new FakeContactRepository().AddExtension("- -", "4021"));
+
+        await h.TrasferisciAllaCiecaAsync("4021");
+
+        Assert.True(h.Announcer.Said("Trasferimento cieco a quattro, zero, due, uno inviato"));
     }
 
     [Fact]
