@@ -99,7 +99,7 @@ public sealed class HeadsetController : IDisposable
         _monitor.ButtonPressed += OnButtonPressed;
         _settingsService.SettingsChanged += OnSettingsChanged;
 
-        Apply(_settingsService.Current.Headset);
+        Apply(_settingsService.Current.Headset, atStartup: true);
     }
 
     /// <summary>
@@ -112,7 +112,7 @@ public sealed class HeadsetController : IDisposable
         UpdateMediaKey(state);
     }
 
-    private void Apply(HeadsetSettings settings)
+    private void Apply(HeadsetSettings settings, bool atStartup = false)
     {
         _current = settings;
 
@@ -125,9 +125,71 @@ public sealed class HeadsetController : IDisposable
         // Fuori dal thread dell'interfaccia: aprire un dispositivo USB di solito costa
         // pochi millisecondi, ma uno che non risponde puo' farne aspettare molti di piu',
         // e la finestra non deve restare ferma per questo.
-        _ = Task.Run(() => _monitor.Configure(settings.Enabled, settings.DeviceKey));
+        _ = Task.Run(() =>
+        {
+            _monitor.Configure(settings.Enabled, settings.DeviceKey);
+            if (atStartup) AnnounceStartupState(settings);
+        });
 
         if (_context is { } context) UpdateMediaKey(context());
+    }
+
+    /// <summary>
+    /// Dice all'avvio quale cuffia è stata trovata e che cosa fa il suo pulsante.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La ricerca della cuffia all'avvio c'era già: si cercano le cuffie con i pulsanti
+    /// telefonici e si ascoltano. Mancava il riscontro. L'operatore che accende la
+    /// postazione deve sapere prima della prima chiamata se il pulsante della cuffia
+    /// risponde, e non scoprirlo premendolo mentre il telefono squilla.
+    /// </para>
+    /// <para>
+    /// Con i pulsanti disattivati nelle impostazioni si tace a voce, perché è una scelta
+    /// dell'operatore e non va ricordata a ogni avvio; il registro però dice se una
+    /// cuffia con i pulsanti telefonici è collegata, per chi si chiede perché non
+    /// risponda.
+    /// </para>
+    /// </remarks>
+    private void AnnounceStartupState(HeadsetSettings settings)
+    {
+        try
+        {
+            if (!settings.Enabled)
+            {
+                var collegate = _monitor.Detect();
+
+                if (collegate.Count > 0)
+                {
+                    _log.LogInformation(
+                        "All'avvio collegata la cuffia {Cuffia} con i tasti telefonici, ma i pulsanti della cuffia sono disattivati nelle impostazioni",
+                        string.Join(", ", collegate.Select(c => c.Name)));
+                }
+
+                return;
+            }
+
+            var ascoltate = _monitor.Active;
+            var scelta = settings.DeviceKey is null ? null : settings.DeviceName ?? settings.DeviceKey;
+
+            var testo = AnnouncementTexts.HeadsetAtStartup(
+                ascoltate.Count == 0 ? null : string.Join(" e ", ascoltate.Select(c => c.Name).Distinct()),
+                ascoltate.Any(c => c.Capabilities.CanAnswer),
+                scelta);
+
+            _log.LogInformation(
+                "Cuffia all'avvio: {Esito}",
+                testo ?? "nessuna cuffia con i tasti telefonici collegata");
+
+            if (testo is null) return;
+
+            _announcer.Announce(Announcement.Normal(testo, DateTimeOffset.Now, coalesceKey: "cuffia:avvio"));
+        }
+        catch (Exception ex)
+        {
+            // Il riscontro della cuffia non deve fermare l'avvio della postazione.
+            _log.LogWarning(ex, "Riscontro della cuffia all'avvio non riuscito");
+        }
     }
 
     private void OnSettingsChanged(object? sender, AppSettings settings)

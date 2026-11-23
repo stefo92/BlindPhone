@@ -84,7 +84,7 @@ public sealed record CallParty(
     /// </para>
     /// </remarks>
     public bool HasName
-        => !string.IsNullOrWhiteSpace(PhoneticName) || MeaningfulName is not null;
+        => Contact.Pronounceable(PhoneticName) is not null || MeaningfulName is not null;
 
     /// <summary>
     /// Testo da usare per la sintesi vocale, con la resa fonetica se disponibile.
@@ -96,7 +96,7 @@ public sealed record CallParty(
     /// (ANALISI §12.1). Del nome visualizzato conta <see cref="MeaningfulName"/>: un
     /// numero scritto al posto del nome lascia il posto al numero vero.
     /// </remarks>
-    public string SpeechName => PhoneticName ?? MeaningfulName ?? Number;
+    public string SpeechName => Contact.Pronounceable(PhoneticName) ?? MeaningfulName ?? Number;
 
     /// <summary>
     /// Il nome della controparte, quando dice qualcosa che il numero non dice già.

@@ -253,22 +253,42 @@ public sealed record Contact
     /// quello che sta chiamando: per una voce con il cellulare contrassegnato come
     /// primario, una chiamata dall'interno avrebbe mostrato il cellulare come nome.
     /// </para>
+    /// <para>
+    /// <b>Un campo fatto solo di trattini, punti o spazi vale come vuoto.</b> La rubrica
+    /// del centralino scrive «-» in nome e cognome degli interni non assegnati, e la
+    /// voce si chiamava «- -»: nell'elenco una riga che lo screen reader legge come
+    /// silenzio, e negli annunci «trasferito a - -». Si guarda il campo e non il
+    /// risultato, così «-» come nome e «Rossi» come cognome danno «Rossi» e non
+    /// «- Rossi». Vale anche per le voci già nell'archivio, senza reimportarle.
+    /// </para>
     /// </remarks>
     public string? NameOrDescription
     {
         get
         {
-            if (!string.IsNullOrWhiteSpace(DisplayName)) return DisplayName;
+            if (Pronounceable(DisplayName) is { } nome) return nome;
 
             var composed = string.Join(
                 ' ',
-                new[] { FirstName, LastName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                new[] { FirstName, LastName }.Select(Pronounceable).OfType<string>());
 
-            if (!string.IsNullOrWhiteSpace(composed)) return composed;
+            if (composed.Length > 0) return composed;
 
-            return string.IsNullOrWhiteSpace(Category) ? null : Category;
+            return Pronounceable(Category);
         }
     }
+
+    /// <summary>
+    /// Il testo, se contiene almeno una lettera o una cifra; altrimenti <c>null</c>.
+    /// </summary>
+    /// <param name="value">Campo della voce di rubrica.</param>
+    /// <remarks>
+    /// «-», «- -», «.», «--»: sono i segnaposto con cui le sorgenti riempiono un campo
+    /// vuoto, e la sintesi li tace. Trattarli come un nome produce righe ed annunci che
+    /// chi non vede sente come vuoti.
+    /// </remarks>
+    public static string? Pronounceable(string? value)
+        => value is not null && value.Any(char.IsLetterOrDigit) ? value : null;
 
     /// <summary>
     /// Come si pronuncia il tipo di voce, oppure <c>null</c> se non aggiunge nulla.
@@ -323,7 +343,7 @@ public sealed record Contact
     }
 
     /// <summary>Nome da pronunciare, con la resa fonetica se presente.</summary>
-    public string SpeechName => PhoneticName ?? EffectiveDisplayName;
+    public string SpeechName => Pronounceable(PhoneticName) ?? EffectiveDisplayName;
 
     /// <summary>
     /// Collocazione fisica in forma pronunciabile, oppure <c>null</c> se ignota.

@@ -284,7 +284,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             // parlare dentro la conversazione di due persone e deve sapere che loro lo
             // sanno.
             _announcer.Announce(Announcement.High(
-                $"Inclusione nella conversazione di {session.DestinationSpeech}. "
+                $"Inclusione nella conversazione di {SpokenDestination(session)}. "
                 + "Tutti sentono un segnale periodico che dichiara il tuo ascolto",
                 _clock.Now,
                 EarconKind.CallAnswered,
@@ -647,7 +647,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             _announcer.Announce(Announcement.CommandResponse(
                 session.ConsultationCall is null
                     ? AnnouncementTexts.SwapBeforeConsultation
-                    : AnnouncementTexts.SwapWhileDestinationRinging(session.DestinationSpeech),
+                    : AnnouncementTexts.SwapWhileDestinationRinging(SpokenDestination(session)),
                 _clock.Now));
 
             _announcer.PlayEarcon(EarconKind.CommandRejected);
@@ -965,7 +965,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             session.BeginConsultation(consultation, _clock.Now);
 
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.ConsultationStarted(session.DestinationSpeech),
+                AnnouncementTexts.ConsultationStarted(SpokenDestination(session)),
                 _clock.Now,
                 coalesceKey: "transfer:consultation",
                 braille: $"CONS {session.DestinationSpeech}"));
@@ -1273,7 +1273,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             session.BeginConsultation(consultation, _clock.Now);
 
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.ConsultationStarted(session.DestinationSpeech),
+                AnnouncementTexts.ConsultationStarted(SpokenDestination(session)),
                 _clock.Now,
                 coalesceKey: "transfer:consultation"));
 
@@ -1384,7 +1384,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         // da un comando che non ha funzionato.
         _announcer.Announce(new Announcement
         {
-            Text = AnnouncementTexts.TransferFailed(outcome, session.DestinationSpeech, recovered),
+            Text = AnnouncementTexts.TransferFailed(outcome, SpokenDestination(session), recovered),
             Priority = AnnouncementPriority.High,
             Earcon = EarconKind.TransferFailed,
             CoalesceKey = "transfer:result",
@@ -1443,7 +1443,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             && session.Phase == TransferPhase.Consulting)
         {
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.ConsultationAnswered(session.DestinationSpeech, Options.TransferKeyName),
+                AnnouncementTexts.ConsultationAnswered(SpokenDestination(session), Options.TransferKeyName),
                 e.At,
                 EarconKind.CallAnswered,
                 coalesceKey: "transfer:consultation"));
@@ -1646,11 +1646,19 @@ public sealed class TransferOrchestrator : IAsyncDisposable
     }
 
     /// <summary>
-    /// La destinazione come si pronuncia negli annunci che chiudono il trasferimento:
-    /// il nome che le dà la rubrica, oppure il numero cifra per cifra.
+    /// La destinazione come si pronuncia in ogni annuncio del trasferimento: il nome
+    /// che le dà la rubrica, oppure il numero cifra per cifra.
     /// </summary>
     /// <param name="session">Trasferimento in corso.</param>
     /// <remarks>
+    /// <para>
+    /// <b>Vale per tutta la procedura, non solo per la chiusura.</b> Nata per l'annuncio
+    /// di fine trasferimento, è passata anche a «Chiamata a …, in corso», «… ha
+    /// risposto», all'esito negativo, all'alternanza e all'inclusione. «Chiamata a
+    /// 3638, in corso» è la rilettura di verifica delle cifre digitate sotto dettatura,
+    /// e detta «tremilaseicentotrentotto» non si confronta con quello che si è scritto.
+    /// Il braille resta il numero com'è: lì le cifre si leggono già una per una.
+    /// </para>
     /// <para>
     /// <see cref="TransferSession.DestinationSpeech"/> ricade sul numero così come è
     /// stato digitato, e «4021» passato intero alla sintesi si sente

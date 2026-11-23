@@ -930,6 +930,50 @@ public static class AnnouncementTexts
             ? $"Cuffia collegata: {name}. Il pulsante della cuffia risponde e chiude le chiamate"
             : $"Cuffia collegata: {name}. Dalla cuffia funziona il tasto del microfono, per rispondere usa la tastiera";
 
+    /// <summary>
+    /// Come stanno i pulsanti della cuffia all'avvio di BlindPhone, oppure <c>null</c>
+    /// se non c'è niente da dire.
+    /// </summary>
+    /// <param name="activeName">
+    /// Cuffia ascoltata, o i nomi di quelle ascoltate; <c>null</c> se nessuna.
+    /// </param>
+    /// <param name="canAnswer">La cuffia ascoltata ha il pulsante per rispondere e chiudere.</param>
+    /// <param name="chosenName">Cuffia scelta nelle impostazioni, o <c>null</c> per qualunque.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>All'avvio prima non si diceva niente</b>, e l'operatore scopriva se il pulsante
+    /// della cuffia rispondeva solo alla prima chiamata, premendolo. La frase dice quale
+    /// cuffia è stata trovata e che cosa fa il suo pulsante, cioè le due cose che servono
+    /// prima che il telefono squilli.
+    /// </para>
+    /// <para>
+    /// <b>La cuffia scelta e non collegata si dice</b>, e il caso è più frequente di
+    /// quanto sembri: la cuffia passa a un collega e torna diversa. Le altre cuffie
+    /// collegate non la sostituiscono — chi ne ha scelta una ha detto che le altre non
+    /// comandano le chiamate — quindi l'unico rimedio è la tastiera, e la frase lo dice.
+    /// </para>
+    /// <para>
+    /// Senza cuffie con i pulsanti telefonici e senza una cuffia scelta si tace: una
+    /// postazione che usa il vivavoce o una cuffia semplice sentirebbe a ogni avvio una
+    /// frase che non la riguarda.
+    /// </para>
+    /// </remarks>
+    public static string? HeadsetAtStartup(string? activeName, bool canAnswer, string? chosenName)
+    {
+        if (activeName is null)
+        {
+            return chosenName is null
+                ? null
+                : $"Cuffia {chosenName} non collegata: per rispondere usa la tastiera";
+        }
+
+        var pulsante = canAnswer
+            ? "il pulsante della cuffia risponde e chiude le chiamate"
+            : "dalla cuffia funziona il tasto del microfono, per rispondere usa la tastiera";
+
+        return $"Cuffia {activeName} pronta: {pulsante}";
+    }
+
     /// <summary>La cuffia con i pulsanti telefonici è stata scollegata.</summary>
     /// <param name="name">Nome della cuffia.</param>
     /// <remarks>

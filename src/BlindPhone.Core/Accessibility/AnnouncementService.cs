@@ -157,6 +157,12 @@ public sealed class AnnouncementService : IAnnouncer
                     // una raffica continua di eventi, rinviare ogni volta la
                     // scadenza produrrebbe un annuncio che non arriva mai.
                     _pending[key] = existing with { Announcement = announcement };
+
+                    // Anche questo e' un annuncio che non si sentira': va scritto
+                    // come gli scartati, altrimenti sparisce senza lasciare traccia.
+                    _log.LogDebug(
+                        "Annuncio accorpato in uno piu' recente ({Key}): {Text}",
+                        key, existing.Announcement.Text);
                 }
                 else
                 {
@@ -229,6 +235,12 @@ public sealed class AnnouncementService : IAnnouncer
             var suppression = EvaluateSuppression(announcement);
             if (suppression is not null)
             {
+                // SCRITTO COME QUELLI SCARTATI IN INGRESSO, e prima non lo era.
+                //
+                // Uno scarto qui, alla scadenza della finestra di accorpamento, non
+                // lasciava nessuna riga: davanti a «non me l'ha detto» il registro
+                // non sapeva distinguere un annuncio scartato da uno mai prodotto.
+                _log.LogDebug("Annuncio scartato ({Reason}): {Text}", suppression, announcement.Text);
                 Dropped?.Invoke(this, new AnnouncementDroppedEventArgs(announcement, suppression.Value));
                 continue;
             }
@@ -277,6 +289,19 @@ public sealed class AnnouncementService : IAnnouncer
         {
             _ducker?.Duck(Options.DuckAttenuationDb, TimeSpan.FromSeconds(3));
         }
+
+        // CHE COSA E' STATO DETTO, PAROLA PER PAROLA.
+        //
+        // Il registro sapeva dire perche' un annuncio era stato scartato, non che cosa
+        // dicesse quello pronunciato. Il 20 novembre 2026 l'annuncio di fine
+        // trasferimento era «… trasferito a - -», che lo screen reader legge come
+        // «trasferito a», e dal registro non si poteva vedere: lo si e' dedotto da un
+        // altro annuncio, scartato, che per caso conteneva lo stesso nome.
+        _log.LogDebug(
+            "Annuncio pronunciato ({Priority}{Interrupt}): {Text}",
+            announcement.Priority,
+            interrupt ? ", interrompe" : string.Empty,
+            announcement.Text);
 
         _speech.Speak(announcement.Text, interrupt);
         if (announcement.BrailleText is { Length: > 0 } braille) _speech.Braille(braille);

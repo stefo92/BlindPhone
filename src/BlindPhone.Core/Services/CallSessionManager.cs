@@ -41,6 +41,28 @@ public sealed class CallSessionManager : IAsyncDisposable
     private readonly Dictionary<string, Call> _calls = [];
 
     /// <summary>
+    /// Chiamate concluse e già tolte dalla memoria, le più recenti.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Servono a riconoscere l'evento tardivo, che non è un'anomalia. Dopo un
+    /// trasferimento riuscito il centralino chiude la linea con il chiamante quando
+    /// la destinazione ha finito di squillare: nel registro del 20 novembre 2026 il
+    /// <c>BYE</c> è arrivato 32 secondi dopo la conferma, cioè due secondi dopo che
+    /// la chiamata era stata tolta dalla memoria. Ne usciva un avviso «chiamata
+    /// sconosciuta» in coda a ogni trasferimento andato bene.
+    /// </para>
+    /// <para>
+    /// Un evento per una chiamata che non è mai esistita resta un avviso: lì qualcosa
+    /// non torna davvero.
+    /// </para>
+    /// </remarks>
+    private readonly Queue<string> _purgedCallIds = new();
+
+    /// <summary>Quante chiamate concluse ricordare.</summary>
+    private const int PurgedCallMemory = 64;
+
+    /// <summary>
     /// Gambe della conferenza in corso, nell'ordine in cui vi sono entrate.
     /// </summary>
     /// <remarks>
@@ -1224,7 +1246,17 @@ public sealed class CallSessionManager : IAsyncDisposable
         {
             if (!_calls.TryGetValue(callId, out call))
             {
-                _log.LogWarning("Evento {Trigger} per chiamata sconosciuta {CallId}", trigger, callId);
+                if (_purgedCallIds.Contains(callId))
+                {
+                    _log.LogDebug(
+                        "Evento {Trigger} tardivo per la chiamata {CallId}, gia' conclusa: ignorato",
+                        trigger, callId);
+                }
+                else
+                {
+                    _log.LogWarning("Evento {Trigger} per chiamata sconosciuta {CallId}", trigger, callId);
+                }
+
                 return false;
             }
 
@@ -1735,6 +1767,9 @@ public sealed class CallSessionManager : IAsyncDisposable
                 if (_calls.TryGetValue(callId, out var call) && CallStateMachine.IsTerminal(call.State))
                 {
                     _calls.Remove(callId);
+
+                    _purgedCallIds.Enqueue(callId);
+                    while (_purgedCallIds.Count > PurgedCallMemory) _purgedCallIds.Dequeue();
                 }
             }
         }, TaskScheduler.Default);

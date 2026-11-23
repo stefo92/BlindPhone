@@ -223,6 +223,87 @@ public sealed class TrasferimentoConclusoTests
         Assert.True(h.Announcer.Said("Trasferimento cieco a quattro, zero, due, uno inviato"));
     }
 
+    // -----------------------------------------------------------------------
+    // Gli annunci prima della chiusura seguono la stessa regola
+    // -----------------------------------------------------------------------
+
+    /// <summary>Avvia la consultazione verso l'interno, con gli annunci azzerati prima.</summary>
+    private static async Task<string> ConsultaAsync(Harness h, string interno)
+    {
+        await h.ConChiamataAttivaAsync();
+
+        await h.Transfer.HandleTransferKeyAsync(interno);
+        h.Clock.AdvanceMilliseconds(500);
+        h.Transfer.Pump(h.Clock.Now);
+        await Task.Delay(50);
+
+        return h.Transfer.CurrentSession!.ConsultationCall!.Id;
+    }
+
+    [Fact]
+    public async Task ConsultazioneFuoriRubrica_RileggeLeCifre()
+    {
+        // È la rilettura di verifica di quello che l'operatore ha scritto sotto
+        // dettatura: «tremilaseicentotrentotto» non si confronta con le cifre.
+        var h = new Harness();
+
+        await ConsultaAsync(h, "3638");
+
+        Assert.True(h.Announcer.Said("Chiamata a tre, sei, tre, otto, in corso"));
+        Assert.False(h.Announcer.Said("Chiamata a 3638"));
+    }
+
+    [Fact]
+    public async Task ConsultazioneInRubrica_DiceIlNome()
+    {
+        var h = new Harness(new FakeContactRepository().AddExtension("Mario Bianchi", "3638"));
+
+        await ConsultaAsync(h, "3638");
+
+        Assert.True(h.Announcer.Said("Chiamata a Mario Bianchi, in corso"));
+    }
+
+    [Fact]
+    public async Task RispostaDellInternoFuoriRubrica_DiceLeCifre()
+    {
+        var h = new Harness();
+        var consultazione = await ConsultaAsync(h, "3638");
+        h.Announcer.Clear();
+
+        h.Engine.SimulateProgress(consultazione, CallTrigger.RemoteAnswered);
+        await Task.Delay(20);
+
+        Assert.True(h.Announcer.Said("tre, sei, tre, otto ha risposto"));
+    }
+
+    [Fact]
+    public async Task RispostaDellInternoConTrattini_DiceLeCifre()
+    {
+        // Nel registro del 20 novembre 2026: «- - ha risposto. F9 per completare».
+        var h = new Harness(new FakeContactRepository().AddExtension("- -", "3638"));
+        var consultazione = await ConsultaAsync(h, "3638");
+        h.Announcer.Clear();
+
+        h.Engine.SimulateProgress(consultazione, CallTrigger.RemoteAnswered);
+        await Task.Delay(20);
+
+        Assert.True(h.Announcer.Said("tre, sei, tre, otto ha risposto"));
+        Assert.False(h.Announcer.Said("- - ha risposto"));
+    }
+
+    [Fact]
+    public async Task InternoOccupatoFuoriRubrica_DiceLeCifre()
+    {
+        var h = new Harness();
+        var consultazione = await ConsultaAsync(h, "3638");
+        h.Announcer.Clear();
+
+        h.Engine.SimulateProgress(consultazione, CallTrigger.RemoteRejected, CallEndReason.Busy);
+        await Task.Delay(50);
+
+        Assert.True(h.Announcer.Said("tre, sei, tre, otto occupato"));
+    }
+
     [Fact]
     public async Task TrasferimentoCiecoFuoriRubrica_PronunciaLInterno()
     {
