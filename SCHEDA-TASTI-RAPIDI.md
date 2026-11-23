@@ -21,6 +21,14 @@ Tutte le combinazioni sono modificabili da *Impostazioni → Tasti rapidi*.
 - Modalità toni per i menu automatici — Locale: Control Maiusc D
 - Invia come toni quanto scritto nel campo di composizione — Locale: Control Maiusc Invio
 
+### Quando squilla e tu stai già chiamando
+
+- **F3 chiude prima la chiamata che hai fatto partire tu.** Un secondo F3 rifiuta
+  quella che squilla
+- F2 risponde a chi squilla. Se poi risponde anche la tua chiamata, ha la
+  precedenza: passi a lei e chi era in linea con te va in attesa. La voce te lo
+  dice, e F5 ti riporta dal chiamante
+
 ### Dai pulsanti della cuffia
 
 Con una cuffia USB da ufficio, anche con BlindPhone in secondo piano.

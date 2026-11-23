@@ -429,7 +429,10 @@ public sealed class CallSessionManager : IAsyncDisposable
         return true;
     }
 
-    /// <summary>Riaggancia la chiamata attiva, o rifiuta quella in squillo.</summary>
+    /// <summary>
+    /// Riaggancia la chiamata attiva, annulla quella in uscita o rifiuta quella in
+    /// squillo, in quest'ordine.
+    /// </summary>
     /// <param name="cancellationToken">Token di annullamento.</param>
     /// <returns><c>true</c> se c'era una chiamata da chiudere.</returns>
     public async Task<bool> HangUpAsync(CancellationToken cancellationToken = default)
@@ -449,9 +452,16 @@ public sealed class CallSessionManager : IAsyncDisposable
         }
 
         // L'ordine e' quello dell'urgenza percepita: prima la conversazione in
-        // corso, poi la chiamata che squilla qui, poi quella che l'operatore ha
-        // fatto partire e sta squillando altrove, poi quella impegnata in un
+        // corso, poi la chiamata che l'operatore ha fatto partire e sta squillando
+        // altrove, poi quella che squilla qui, poi quella impegnata in un
         // trasferimento, infine le attese.
+        //
+        // LA CHIAMATA IN USCITA VIENE PRIMA DI QUELLA CHE SQUILLA. Se il telefono
+        // squilla e l'operatore compone lo stesso, ha scelto di telefonare: la linea
+        // che ha aperto lui e' quella su cui sta lavorando, e il primo riaggancio e'
+        // per lei. Con l'ordine opposto il primo F3 rifiutava il chiamante che lui
+        // aveva deciso di lasciar squillare, e la chiamata che voleva annullare
+        // restava in piedi. Un secondo F3 rifiuta poi quella che squilla.
         //
         // Le ultime due sono state aggiunte dopo altrettante segnalazioni dal campo,
         // e il sintomo era lo stesso: il comando rispondeva "nessuna chiamata
@@ -459,8 +469,8 @@ public sealed class CallSessionManager : IAsyncDisposable
         // programma possa dire, perche' l'operatore non ha modo di verificarla e
         // smette di provare a chiudere una chiamata che invece e' ancora in piedi.
         var target = ActiveCall
-                     ?? RingingCall
                      ?? OutgoingCall
+                     ?? RingingCall
                      ?? TransferringCall
                      ?? HeldCalls.FirstOrDefault();
 
@@ -1312,7 +1322,17 @@ public sealed class CallSessionManager : IAsyncDisposable
         }
         else if (_activeCallId == call.Id)
         {
-            _activeCallId = null;
+            // SE C'E' UN'ALTRA CONVERSAZIONE APERTA, E' LEI LA CHIAMATA ATTIVA.
+            //
+            // Per un istante due linee possono essere in conversazione insieme: chi ha
+            // risposto alla chiamata fatta da qui mentre l'operatore parlava gia' con
+            // un altro, prima che OnCallProgress metta in attesa quest'ultimo. Il
+            // riferimento segue l'ultima arrivata, e se una delle due lascia la
+            // conversazione deve restare su quella rimasta: azzerarlo lasciava una
+            // linea aperta che nessun comando trovava piu', e F3 rispondeva "nessuna
+            // chiamata attiva".
+            _activeCallId = _calls.Values
+                .FirstOrDefault(c => c.Id != call.Id && c.State == CallState.Active)?.Id;
         }
 
         // IL CONTO DEL PROMEMORIA PARTE QUANDO PARTE L'ATTESA.
@@ -1411,7 +1431,36 @@ public sealed class CallSessionManager : IAsyncDisposable
         var wasConferenced = call?.State == CallState.Conferenced
                              && e.Trigger is CallTrigger.RemoteHangUp or CallTrigger.Failed;
 
-        ApplyTrigger(e.CallId, e.Trigger, e.EndReason, suppressAnnouncement: wasConferenced);
+        // Quando risponde la chiamata fatta da qui mentre l'operatore parla gia' con un
+        // altro, chi stava parlando va in attesa e l'operatore passa a chi ha appena
+        // risposto. Il caso tipico: l'operatore compone, intanto squilla una chiamata e
+        // lui risponde con F2. F2 mette in attesa la conversazione in corso, ma una
+        // chiamata che sta ancora squillando dall'altra parte non si puo' mettere in
+        // attesa: quando poi la destinazione risponde, senza questo ramo le linee in
+        // conversazione diventavano due, entrambe sentivano l'operatore e il tasto di
+        // chiusura ne trovava una sola.
+        //
+        // LA PRIORITA' E' DELLA CHIAMATA IN USCITA. E' la stessa regola del tasto di
+        // chiusura, che fra la chiamata composta e quella che squilla chiude prima la
+        // composta: la linea che l'operatore ha aperto lui e' quella su cui sta
+        // lavorando. Chi ha appena sollevato la cornetta sta dicendo "pronto" e deve
+        // trovare qualcuno; il chiamante messo in attesa si riprende con l'alternanza,
+        // e l'annuncio dice con quale tasto.
+        var answeredWhileTalking = e.Trigger == CallTrigger.RemoteAnswered
+                                   && call?.State == CallState.Calling
+                                   && IsSomeoneElseTalking(e.CallId);
+
+        ApplyTrigger(
+            e.CallId,
+            e.Trigger,
+            e.EndReason,
+            suppressAnnouncement: wasConferenced || answeredWhileTalking);
+
+        if (answeredWhileTalking && call is not null)
+        {
+            _ = HoldOthersForAnsweredCallAsync(call, CancellationToken.None);
+            return;
+        }
 
         if (wasConferenced)
         {
@@ -1422,6 +1471,89 @@ public sealed class CallSessionManager : IAsyncDisposable
         if (e.Trigger is CallTrigger.RemoteHangUp or CallTrigger.Failed)
         {
             _ = ResumeSingleRemainingHeldCallAsync(CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// <c>true</c> se l'operatore sta già parlando con qualcuno su una linea diversa
+    /// da quella indicata: in conversazione o in conferenza.
+    /// </summary>
+    /// <param name="callId">Chiamata da escludere dal conto.</param>
+    private bool IsSomeoneElseTalking(string callId)
+    {
+        lock (_gate)
+        {
+            return _calls.Values.Any(c => c.Id != callId
+                                          && c.State is CallState.Active or CallState.Conferenced);
+        }
+    }
+
+    /// <summary>
+    /// Mette in attesa chi stava parlando con l'operatore, perché ha appena risposto
+    /// la chiamata fatta da qui, e annuncia il passaggio.
+    /// </summary>
+    /// <param name="answered">Chiamata uscente appena risposta, già in conversazione.</param>
+    /// <param name="cancellationToken">Token di annullamento.</param>
+    /// <remarks>
+    /// <para>
+    /// Una conferenza si parcheggia intera, per la stessa ragione della risposta con
+    /// F2: metterne in attesa una gamba sola lascerebbe l'altra a sentire l'operatore
+    /// parlare con un terzo.
+    /// </para>
+    /// <para>
+    /// L'annuncio passa anche durante la conversazione: l'operatore stava parlando con
+    /// una persona e si ritrova in linea con un'altra, e deve saperlo prima di aprire
+    /// bocca. Se l'attesa non riesce lo si dice, perché da quel momento l'operatore
+    /// sta parlando a due persone insieme.
+    /// </para>
+    /// </remarks>
+    private async Task HoldOthersForAnsweredCallAsync(Call answered, CancellationToken cancellationToken)
+    {
+        if (IsConferenceActive)
+        {
+            await ParkConferenceAsync(announce: false, cancellationToken).ConfigureAwait(false);
+
+            _log.LogInformation(
+                "Chiamata {CallId} risposta durante una conferenza: conferenza in attesa", answered.Id);
+
+            _announcer.Announce(_mapper.AnsweredWhileTalking(answered, heldParty: null, _clock.Now));
+            return;
+        }
+
+        List<Call> others;
+        lock (_gate)
+        {
+            others = [.. _calls.Values.Where(c => c.Id != answered.Id && c.State == CallState.Active)];
+        }
+
+        if (others.Count == 0) return;
+
+        var current = others[0];
+
+        try
+        {
+            foreach (var other in others)
+            {
+                current = other;
+                await _telephony.HoldAsync(other.Id, cancellationToken).ConfigureAwait(false);
+                ApplyTrigger(other.Id, CallTrigger.Hold, suppressAnnouncement: true);
+            }
+
+            _log.LogInformation(
+                "Chiamata {CallId} risposta mentre l'operatore era in conversazione: {Held} in attesa",
+                answered.Id, string.Join(", ", others.Select(c => c.Id)));
+
+            _announcer.Announce(_mapper.AnsweredWhileTalking(answered, others[0].RemoteParty, _clock.Now));
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Attesa della chiamata {CallId} non riuscita", current.Id);
+
+            _announcer.Announce(Announcement.Critical(
+                AnnouncementTexts.AnsweredWhileTalkingNotHeld(answered.RemoteParty, current.RemoteParty),
+                _clock.Now,
+                EarconKind.CallAnswered,
+                coalesceKey: $"call:{answered.Id}:progress"));
         }
     }
 

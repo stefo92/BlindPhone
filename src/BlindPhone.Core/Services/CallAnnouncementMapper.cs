@@ -91,6 +91,43 @@ public sealed class CallAnnouncementMapper
         => ApplyVerbosity(transition, MapStandard(transition, call, now));
 
     /// <summary>
+    /// L'annuncio della chiamata fatta da qui che ha risposto mentre l'operatore
+    /// parlava già con un altro: l'operatore è passato a lei, l'altro è in attesa.
+    /// </summary>
+    /// <param name="answered">Chiamata appena risposta, ora in conversazione.</param>
+    /// <param name="heldParty">
+    /// Chi è andato in attesa, oppure <c>null</c> se in attesa è andata un'intera
+    /// conferenza.
+    /// </param>
+    /// <param name="now">Istante corrente.</param>
+    /// <remarks>
+    /// <para>
+    /// Non è una transizione sola ma due — risposta e attesa — dette in una frase.
+    /// Per questo non passa da <see cref="Map"/>.
+    /// </para>
+    /// <para>
+    /// <b>Il tasto dell'alternanza si dice a ogni livello di dettaglio</b>, non solo
+    /// al Principiante: è una situazione rara, che l'operatore non ha provocato con un
+    /// tasto, e la domanda «come torno dal chiamante?» se la pone chiunque. Per la
+    /// stessa ragione l'annuncio passa il silenzio della conversazione: l'operatore
+    /// stava parlando con una persona e si ritrova in linea con un'altra.
+    /// </para>
+    /// </remarks>
+    public Announcement AnsweredWhileTalking(Call answered, CallParty? heldParty, DateTimeOffset now)
+        => Announcement.High(
+            AnnouncementTexts.AnsweredWhileTalking(
+                answered.RemoteParty,
+                heldParty,
+                heldParty is null ? null : _keyName(HotkeyCommand.Swap)),
+            now,
+            EarconKind.CallAnswered,
+            coalesceKey: $"call:{answered.Id}:progress",
+            braille: BrailleActive(answered.RemoteParty)) with
+        {
+            BypassConversationSilence = true,
+        };
+
+    /// <summary>
     /// Adatta l'annuncio Standard al livello di dettaglio scelto.
     /// </summary>
     private Announcement ApplyVerbosity(CallTransition transition, Announcement standard)

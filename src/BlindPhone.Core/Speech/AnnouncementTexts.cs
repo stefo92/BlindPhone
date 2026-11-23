@@ -150,6 +150,32 @@ public static class AnnouncementTexts
     /// <param name="party">Controparte.</param>
     public static string CallAnswered(CallParty party) => $"In linea con {party.SpeechName}";
 
+    /// <summary>
+    /// La chiamata fatta da qui ha risposto mentre l'operatore parlava già con un
+    /// altro: l'operatore è passato a lei, l'altro è in attesa.
+    /// </summary>
+    /// <param name="answered">Chi ha risposto, ora in linea.</param>
+    /// <param name="held">Chi è andato in attesa; <c>null</c> se era una conferenza.</param>
+    /// <param name="swapKey">Tasto che alterna le due linee, se ce n'è uno da dire.</param>
+    public static string AnsweredWhileTalking(CallParty answered, CallParty? held, string? swapKey)
+    {
+        var inAttesa = held is null ? "Conferenza in attesa" : $"{held.SpeechName} in attesa";
+
+        return WithKeys(
+            $"{answered.SpeechName} ha risposto, sei in linea. {inAttesa}",
+            KeyList((swapKey, "alterna")));
+    }
+
+    /// <summary>
+    /// Come <see cref="AnsweredWhileTalking"/>, quando mettere in attesa non è riuscito:
+    /// l'operatore sta parlando a due persone insieme.
+    /// </summary>
+    /// <param name="answered">Chi ha risposto.</param>
+    /// <param name="notHeld">Chi doveva andare in attesa e non c'è andato.</param>
+    public static string AnsweredWhileTalkingNotHeld(CallParty answered, CallParty notHeld)
+        => $"{answered.SpeechName} ha risposto, ma la chiamata con {notHeld.SpeechName} "
+           + "non è andata in attesa: ti sentono entrambe le linee";
+
     /// <summary>Chiamata terminata, con il motivo quando è informativo.</summary>
     /// <param name="party">Controparte.</param>
     /// <param name="reason">Motivo di chiusura.</param>

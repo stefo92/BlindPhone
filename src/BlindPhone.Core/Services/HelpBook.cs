@@ -286,6 +286,8 @@ public static class HelpBook
 
         Con il microfono muto l'interlocutore resta in linea e non ti sente: serve per parlare con un collega senza chiudere e senza mettere in attesa.
 
+        Se il telefono squilla mentre stai chiamando qualcuno, {K(profile, HotkeyCommand.HangUp)} chiude prima la chiamata che hai fatto partire tu; premuto una seconda volta rifiuta quella che squilla. Se invece rispondi a chi squilla, la tua chiamata continua a squillare dall'altra parte, e ha la precedenza: quando risponde passi a lei, chi era in linea con te va in attesa e la voce te lo dice. Per tornare dal chiamante usa {K(profile, HotkeyCommand.Swap)}.
+
         Con due chiamate aperte hai tre possibilità, e conviene tenerle distinte: alternare significa parlare a uno per volta mentre l'altro aspetta; la conferenza li mette insieme e sentono tutti; il trasferimento ti fa uscire e la linea non è più tua. La conferenza ha un argomento suo in questa guida.
 
         Rispondere a un menu automatico. Quando chiami un ente che risponde con un centralino automatico — «digita 1 per l'ufficio tecnico» — le cifre della tastiera servono in linea, non nel campo di composizione. Due modi:

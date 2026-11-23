@@ -39,6 +39,7 @@ public static class HotkeyCommandCatalog
 
         new(HotkeyCommand.HangUp, HotkeyCategory.CallControl, "Riaggancia o rifiuta",
             "Chiude la conversazione in corso. Se il telefono sta squillando, rifiuta la chiamata. "
+            + "Se hai composto un numero mentre squillava, annulla prima la tua chiamata. "
             + "Durante una consultazione di trasferimento chiude la linea con l'interno e riprende il chiamante."),
 
         new(HotkeyCommand.ToggleHold, HotkeyCategory.CallControl, "Attesa o riprendi",
