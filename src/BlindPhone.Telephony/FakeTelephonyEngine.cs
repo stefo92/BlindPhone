@@ -51,7 +51,7 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
     }
 
     /// <inheritdoc />
-    public SipRegistrationState RegistrationState { get; private set; }
+    public SipRegistrationState RegistrationState { get; }
 
     /// <inheritdoc />
     /// <remarks>
@@ -89,22 +89,20 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
     public bool IsSimulated => true;
 
     /// <summary>
-    /// Esito che le chiamate uscenti devono produrre. Consente di programmare lo
-    /// scenario di collaudo prima di eseguirlo.
-    /// </summary>
-    public CallEndReason? OutboundOutcome { get; set; }
-
-    /// <summary>
     /// Se <c>true</c>, il centralino simulato respinge le richieste di
     /// trasferimento cieco, per collaudare il ripiego sulla consultazione.
     /// </summary>
     public bool RejectBlindTransfer { get; set; }
 
     /// <inheritdoc />
+#pragma warning disable CS0067 // in modalita' simulata la registrazione non cambia: resta quella del costruttore
     public event EventHandler<SipRegistrationState>? RegistrationStateChanged;
+#pragma warning restore CS0067
 
     /// <inheritdoc />
+#pragma warning disable CS0067 // in modalita' simulata nessuno puo' chiamare la postazione
     public event EventHandler<IncomingCallEventArgs>? IncomingCall;
+#pragma warning restore CS0067
 
     /// <inheritdoc />
 #pragma warning disable CS0067 // in modalita' simulata non c'e' cifratura da declassare
@@ -112,7 +110,9 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
 #pragma warning restore CS0067
 
     /// <inheritdoc />
+#pragma warning disable CS0067 // in modalita' simulata non c'e' una rete da cui arrivino avanzamenti
     public event EventHandler<CallProgressEventArgs>? CallProgress;
+#pragma warning restore CS0067
 
     /// <inheritdoc />
     public event EventHandler<TransferProgressEventArgs>? TransferProgress;
@@ -191,27 +191,10 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public Task StartConferenceAsync(IReadOnlyList<string> callIds, CancellationToken cancellationToken)
-    {
-        ConferencedCallIds = [.. callIds];
-        return Task.CompletedTask;
-    }
+        => Task.CompletedTask;
 
     /// <inheritdoc />
-    public Task StopConferenceAsync(CancellationToken cancellationToken)
-    {
-        ConferencedCallIds = [];
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Chiamate attualmente unite in conferenza secondo il motore.
-    /// </summary>
-    /// <remarks>
-    /// Esposta per i test: permette di verificare che il gestore delle chiamate
-    /// costruisca il ponte sulle linee giuste e lo smonti quando deve, senza dover
-    /// ascoltare dell'audio.
-    /// </remarks>
-    public IReadOnlyList<string> ConferencedCallIds { get; private set; } = [];
+    public Task StopConferenceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     /// <inheritdoc />
     public Task SendDtmfAsync(string callId, char digit, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -247,62 +230,6 @@ public sealed class FakeTelephonyEngine : ITelephonyEngine
 
     /// <inheritdoc />
     public void PlayToRemote(string callId, short[] pcm, int sampleRate) { }
-
-    // -----------------------------------------------------------------------
-    // Comandi di simulazione
-    // -----------------------------------------------------------------------
-
-    /// <summary>Simula l'arrivo di una chiamata entrante.</summary>
-    /// <param name="number">Numero del chiamante.</param>
-    /// <param name="displayName">Nome del chiamante, se noto.</param>
-    /// <param name="queueName">Coda di provenienza.</param>
-    /// <returns>Identificativo della chiamata creata.</returns>
-    public string SimulateIncomingCall(string number, string? displayName = null, string? queueName = null)
-    {
-        var callId = $"fake-{Interlocked.Increment(ref _counter)}";
-        var party = new CallParty(number, displayName);
-        _calls[callId] = party;
-
-        IncomingCall?.Invoke(this, new IncomingCallEventArgs(
-            callId, party, $"sip-{callId}", queueName, _clock.Now));
-
-        return callId;
-    }
-
-    /// <summary>Simula un avanzamento di chiamata proveniente dalla rete.</summary>
-    /// <param name="callId">Chiamata interessata.</param>
-    /// <param name="trigger">Evento da propagare.</param>
-    /// <param name="reason">Motivo di chiusura, se pertinente.</param>
-    /// <param name="codec">Codec negoziato da dichiarare.</param>
-    /// <param name="wideband">Se il codec dichiarato è a banda larga.</param>
-    public void SimulateProgress(
-        string callId,
-        CallTrigger trigger,
-        CallEndReason? reason = null,
-        string? codec = "G722",
-        bool wideband = true)
-    {
-        CallProgress?.Invoke(this, new CallProgressEventArgs(
-            callId, trigger, reason, codec, wideband, IsEncrypted: false, _clock.Now));
-    }
-
-    /// <summary>Simula l'esito di un trasferimento comunicato dal centralino.</summary>
-    /// <param name="callId">Chiamata trasferita.</param>
-    /// <param name="outcome">Esito.</param>
-    /// <param name="detail">Dettaglio in linguaggio naturale.</param>
-    public void SimulateTransferOutcome(string callId, TransferOutcome outcome, string? detail = null)
-    {
-        TransferProgress?.Invoke(this, new TransferProgressEventArgs(callId, outcome, detail, _clock.Now));
-    }
-
-    /// <summary>Simula un cambio di stato della registrazione.</summary>
-    /// <param name="status">Nuovo stato.</param>
-    /// <param name="failureReason">Motivo del fallimento, in linguaggio naturale.</param>
-    public void SimulateRegistration(RegistrationStatus status, string? failureReason = null)
-    {
-        RegistrationState = new SipRegistrationState(status, "Simulato", failureReason, _clock.Now);
-        RegistrationStateChanged?.Invoke(this, RegistrationState);
-    }
 
     // -----------------------------------------------------------------------
     // Messaggi istantanei

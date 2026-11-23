@@ -130,6 +130,26 @@ public sealed class AnnouncementService : IAnnouncer
         // il suono passa comunque.
         if (announcement.Earcon != EarconKind.None) _earcons.Play(announcement.Earcon);
 
+        // Il suono e' gia' partito, ed e' tutto quello che l'operatore deve sentire.
+        // Braille e registro si aggiornano lo stesso: chi legge la riga o rilegge gli
+        // ultimi annunci deve trovarci anche questo. Non si solleva Spoken, perche'
+        // la finestra principale lo riscrive in una regione dinamica e lo screen
+        // reader lo leggerebbe ad alta voce, cioe' proprio quello che si vuole evitare.
+        if (announcement.EarconOnly)
+        {
+            _log.LogDebug("Annuncio affidato al solo segnale {Earcon}: {Text}", announcement.Earcon, announcement.Text);
+
+            if (announcement.BrailleText is { Length: > 0 } braille) _speech.Braille(braille);
+
+            lock (_gate)
+            {
+                _history.AddFirst(announcement);
+                while (_history.Count > Options.HistorySize) _history.RemoveLast();
+            }
+
+            return;
+        }
+
         var suppression = EvaluateSuppression(announcement);
         if (suppression is not null)
         {

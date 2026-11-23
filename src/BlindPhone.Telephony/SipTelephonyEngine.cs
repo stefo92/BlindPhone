@@ -3281,7 +3281,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private string NextCallId() => $"call-{Interlocked.Increment(ref _callCounter)}";
 
     private bool IsLikelyInternal(string? number)
-        => !string.IsNullOrWhiteSpace(number) && number.Length <= 5 && number.All(char.IsDigit);
+        => !string.IsNullOrWhiteSpace(number) && number.Length <= 5 && number.All(char.IsAsciiDigit);
 
     /// <summary>
     /// Aggiorna lo stato della registrazione e lo notifica, se è cambiato davvero.

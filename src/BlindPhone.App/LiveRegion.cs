@@ -1,4 +1,3 @@
-using System.Windows.Automation;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 
@@ -44,19 +43,6 @@ public static class LiveRegion
     /// una regione che si aggiorna a ogni secondo diventerebbe rumore continuo.
     /// </remarks>
     public static void Update(TextBlock target, string text)
-    {
-        if (target.Text == text) return;
-
-        target.Text = text;
-        Notify(target);
-    }
-
-    /// <summary>
-    /// Imposta il testo di una casella di sola lettura usata come regione dinamica.
-    /// </summary>
-    /// <param name="target">Casella da aggiornare.</param>
-    /// <param name="text">Nuovo testo.</param>
-    public static void Update(TextBox target, string text)
     {
         if (target.Text == text) return;
 

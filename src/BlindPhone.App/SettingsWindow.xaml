@@ -1436,10 +1436,9 @@
                         <Label Target="{Binding ElementName=TransferMode}" Content="Come funziona il tasto di _trasferimento" />
                         <ComboBox x:Name="TransferMode" FontSize="16" MinHeight="36"
                                   AutomationProperties.Name="Modalita' del tasto unico di trasferimento"
-                                  AutomationProperties.HelpText="Progressiva con doppia pressione: una pressione chiama l'interno, due pressioni rapide trasferiscono subito. Progressiva pura: elimina l'attesa ma toglie il trasferimento cieco. Con scelta esplicita: il tasto apre un elenco di due voci da scorrere con le frecce, piu' lento ma adatto a chi inizia.">
+                                  AutomationProperties.HelpText="Progressiva con doppia pressione: una pressione chiama l'interno, due pressioni rapide trasferiscono subito. Progressiva pura: elimina l'attesa ma toglie il trasferimento cieco.">
                             <ComboBoxItem Tag="ProgressiveDoubleTap" Content="Progressiva con doppia pressione: una pressione chiama l'interno, due trasferiscono subito" />
                             <ComboBoxItem Tag="ProgressiveOnly" Content="Progressiva pura: una pressione chiama sempre l'interno, senza trasferimento cieco" />
-                            <ComboBoxItem Tag="ExplicitChoice" Content="Con scelta esplicita: il tasto apre un elenco da scorrere con le frecce" />
                         </ComboBox>
 
                         <Label Target="{Binding ElementName=ConsultationTimeout}" Content="_Dopo quanti secondi rinunciare se l'interno non risponde" />
@@ -2371,10 +2370,10 @@
                         <Label Target="{Binding ElementName=Verbosity}" Content="Quanto _dettaglio negli annunci" />
                         <ComboBox x:Name="Verbosity" FontSize="16" MinHeight="36"
                                   AutomationProperties.Name="Livello di dettaglio degli annunci"
-                                  AutomationProperties.HelpText="Quanto e' lungo ogni annuncio. Principiante aggiunge i tasti che si possono premere, Esperto lascia solo l'essenziale e affida molti eventi al segnale acustico.">
-                            <ComboBoxItem Tag="Beginner" Content="Principiante: annunci estesi, con i tasti disponibili" />
+                                  AutomationProperties.HelpText="Vale per gli annunci della chiamata. Principiante dice i tasti da premere quando squilla, appena in linea e in pausa. Esperto affida al solo segnale acustico pausa, ripresa, risposta e rifiuto; con i segnali acustici spenti resta a voce. Ripeti l'ultimo annuncio lo dice comunque a voce.">
+                            <ComboBoxItem Tag="Beginner" Content="Principiante: in chiamata dice anche i tasti da premere" />
                             <ComboBoxItem Tag="Standard" Content="Standard: annunci completi, senza suggerimenti sui tasti" />
-                            <ComboBoxItem Tag="Expert" Content="Esperto: annunci ridotti all'essenziale, molti eventi solo con il segnale acustico" />
+                            <ComboBoxItem Tag="Expert" Content="Esperto: pausa, ripresa, risposta e rifiuto solo con il segnale acustico" />
                         </ComboBox>
 
                         <Label Target="{Binding ElementName=QueueMode}" Content="_Annunci automatici della coda" />

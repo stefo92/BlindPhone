@@ -45,8 +45,8 @@ public sealed class Call
     /// <summary>Stato corrente.</summary>
     public CallState State { get; private set; }
 
-    /// <summary>Controparte. Può essere aggiornata quando la rubrica risolve il nome.</summary>
-    public CallParty RemoteParty { get; private set; }
+    /// <summary>Controparte, già risolta in rubrica quando la chiamata nasce.</summary>
+    public CallParty RemoteParty { get; }
 
     /// <summary>
     /// Identificativo di dialogo dello stack SIP, se la chiamata è già instaurata.
@@ -167,13 +167,6 @@ public sealed class Call
             };
         }
     }
-
-    /// <summary>
-    /// Aggiorna la controparte, tipicamente quando la rubrica risolve il nome di un
-    /// numero fino a quel momento sconosciuto.
-    /// </summary>
-    /// <param name="party">Nuovi dati della controparte.</param>
-    public void UpdateRemoteParty(CallParty party) => RemoteParty = party;
 
     /// <summary>Associa gli identificativi tecnici della chiamata.</summary>
     /// <param name="sipCallId">Call-ID SIP.</param>

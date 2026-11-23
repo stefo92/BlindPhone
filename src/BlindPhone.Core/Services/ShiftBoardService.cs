@@ -430,7 +430,7 @@ public sealed class ShiftBoardService
     /// </remarks>
     private void OnPresenceChanged(object? sender, PresenceChangedEventArgs e)
     {
-        var chiave = ColleagueRoster.Normalize(e.Extension);
+        var chiave = PhoneDigits.Only(e.Extension);
         if (chiave.Length == 0) return;
 
         bool sorvegliato;

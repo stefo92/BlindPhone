@@ -265,7 +265,7 @@ public sealed class InstantMessagingService : IDisposable
 
         var senzaSeparatori = new string(pulito.Where(c => c is not (' ' or '-' or '.' or '(' or ')' or '/')).ToArray());
 
-        return senzaSeparatori.Length > 0 && senzaSeparatori.All(c => char.IsDigit(c) || c is '+' or '*' or '#')
+        return senzaSeparatori.Length > 0 && senzaSeparatori.All(c => char.IsAsciiDigit(c) || c is '+' or '*' or '#')
             ? senzaSeparatori
             : pulito;
     }

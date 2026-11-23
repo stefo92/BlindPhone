@@ -16,30 +16,6 @@ namespace BlindPhone.Infrastructure;
 /// <param name="Path">Percorso del pacchetto, quando è stato prodotto.</param>
 public sealed record SupportResult(bool Success, string Message, string? Path = null);
 
-/// <summary>Come recapitare il pacchetto all'assistenza.</summary>
-public enum SupportDeliveryMode
-{
-    /// <summary>Salva soltanto, e apre la cartella che lo contiene.</summary>
-    /// <remarks>
-    /// È il ripiego che funziona sempre, anche su una postazione senza posta
-    /// configurata e senza accesso a Internet: il file esiste, e l'operatore può
-    /// dirlo a chi glielo chiede.
-    /// </remarks>
-    SaveOnly = 0,
-
-    /// <summary>Allega a un messaggio di posta nel programma predefinito.</summary>
-    /// <remarks>
-    /// Il messaggio viene <b>preparato e non inviato</b>: parte solo quando
-    /// l'operatore lo manda. Un allegato con dati di traffico che parte da solo
-    /// sarebbe una comunicazione di dati personali senza che nessuno l'abbia
-    /// autorizzata.
-    /// </remarks>
-    Email = 1,
-
-    /// <summary>Carica su un indirizzo HTTPS configurato dall'ente.</summary>
-    Upload = 2,
-}
-
 /// <summary>
 /// Costruisce e recapita il pacchetto diagnostico per l'assistenza.
 /// </summary>

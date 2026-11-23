@@ -169,7 +169,7 @@ public sealed class SipPresenceSource : IPresenceSource
         if (_disposed || !_started || _policy.GaveUp) return Task.CompletedTask;
 
         var voluti = extensions
-            .Select(Normalize)
+            .Select(PhoneDigits.Only)
             .Where(e => e.Length > 0)
             .Distinct(StringComparer.Ordinal)
             .Take(MaxWatched)
@@ -341,7 +341,7 @@ public sealed class SipPresenceSource : IPresenceSource
 
     /// <inheritdoc />
     public DialogReference? ActiveDialog(string extension)
-        => _dialogs.TryGetValue(Normalize(extension), out var dialogo) ? dialogo : null;
+        => _dialogs.TryGetValue(PhoneDigits.Only(extension), out var dialogo) ? dialogo : null;
 
     /// <summary>
     /// Chiude la sorveglianza di un interno che il centralino non concede.
@@ -487,9 +487,6 @@ public sealed class SipPresenceSource : IPresenceSource
             _log.LogDebug(ex, "Chiusura di una sottoscrizione non riuscita");
         }
     }
-
-    private static string Normalize(string? extension)
-        => extension is null ? string.Empty : new string([.. extension.Where(char.IsAsciiDigit)]);
 
     /// <inheritdoc />
     public ValueTask DisposeAsync()

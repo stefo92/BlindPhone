@@ -110,6 +110,16 @@ public static class SimplifiedKeypad
     /// </remarks>
     public const string ReleaseKeyName = "meno";
 
+    /// <summary>Come si chiama, a voce, il tasto che risponde, mette in pausa e riprende.</summary>
+    /// <remarks>Per esteso, per la stessa ragione di <see cref="ReleaseKeyName"/>.</remarks>
+    public const string AnswerKeyName = "più";
+
+    /// <summary>Come si chiama, a voce, il tasto che chiude e rifiuta.</summary>
+    /// <remarks>
+    /// «Diviso», come lo chiama la guida: è il nome con cui l'operatore l'ha imparato.
+    /// </remarks>
+    public const string HangUpKeyName = "diviso";
+
     /// <summary>
     /// Nome del tasto da pronunciare negli annunci del trasferimento.
     /// </summary>

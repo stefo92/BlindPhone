@@ -890,8 +890,9 @@ public sealed record TraySettings
 public sealed record CallSettings
 {
     /// <summary>
-    /// Modalità del tasto unico di trasferimento: ProgressiveDoubleTap,
-    /// ProgressiveOnly, ExplicitChoice.
+    /// Modalità del tasto unico di trasferimento: ProgressiveDoubleTap oppure
+    /// ProgressiveOnly. Un valore sconosciuto, compreso il vecchio ExplicitChoice,
+    /// vale come ProgressiveDoubleTap.
     /// </summary>
     public string TransferMode { get; init; } = "ProgressiveDoubleTap";
 

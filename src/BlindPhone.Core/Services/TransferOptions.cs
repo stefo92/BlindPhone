@@ -7,11 +7,20 @@ namespace BlindPhone.Core.Services;
 /// annuncio.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Il capitolato richiede una sola combinazione per entrambe le modalità:
 /// <see cref="ProgressiveDoubleTap"/> è la risposta a quel requisito ed è il valore
-/// predefinito. Le altre modalità esistono perché operatori diversi arrivano da
-/// abitudini diverse, e imporre un modello a chi ne ha già uno consolidato costa
-/// più errori di quanti ne eviti.
+/// predefinito. L'alternativa esiste perché operatori diversi arrivano da abitudini
+/// diverse, e imporre un modello a chi ne ha già uno consolidato costa più errori di
+/// quanti ne eviti.
+/// </para>
+/// <para>
+/// Fino a novembre 2026 c'era un terzo valore, <c>ExplicitChoice</c>, offerto nelle
+/// impostazioni ma mai realizzato: chi lo sceglieva riceveva la doppia pressione, e un
+/// secondo tasto premuto per scorrere un elenco che non c'era eseguiva un trasferimento
+/// cieco. Un file di configurazione che lo contiene ancora ricade sul valore
+/// predefinito.
+/// </para>
 /// </remarks>
 public enum TransferInteractionMode
 {
@@ -28,12 +37,6 @@ public enum TransferInteractionMode
     /// Nessuna doppia pressione, nessuna attesa.
     /// </summary>
     ProgressiveOnly,
-
-    /// <summary>
-    /// Con scelta esplicita: il tasto apre un elenco di due voci navigabile con le
-    /// frecce. Più lenta, ma preferita da chi inizia.
-    /// </summary>
-    ExplicitChoice,
 }
 
 /// <summary>Parametri della procedura di trasferimento.</summary>

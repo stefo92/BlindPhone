@@ -232,7 +232,7 @@ public sealed class PresenceMonitorService : IDisposable
         foreach (var (extension, state) in states)
         {
             if (state == PresenceState.Unknown) continue;
-            if (Normalize(extension) is not { Length: > 0 } key) continue;
+            if (PhoneDigits.Only(extension) is not { Length: > 0 } key) continue;
 
             _states[key] = state;
             count++;
@@ -250,7 +250,7 @@ public sealed class PresenceMonitorService : IDisposable
     /// </returns>
     public PresenceState Get(string? extension)
     {
-        if (Normalize(extension) is not { Length: > 0 } key) return PresenceState.Unknown;
+        if (PhoneDigits.Only(extension) is not { Length: > 0 } key) return PresenceState.Unknown;
 
         return _states.TryGetValue(key, out var state) ? state : PresenceState.Unknown;
     }
@@ -270,7 +270,7 @@ public sealed class PresenceMonitorService : IDisposable
     /// </remarks>
     public DialogReference? ActiveDialog(string? extension)
     {
-        if (Normalize(extension) is not { Length: > 0 } key) return null;
+        if (PhoneDigits.Only(extension) is not { Length: > 0 } key) return null;
 
         return _source?.ActiveDialog(key);
     }
@@ -304,7 +304,7 @@ public sealed class PresenceMonitorService : IDisposable
         TimeSpan timeout,
         CancellationToken cancellationToken = default)
     {
-        if (Normalize(extension) is not { Length: > 0 } key) return PresenceState.Unknown;
+        if (PhoneDigits.Only(extension) is not { Length: > 0 } key) return PresenceState.Unknown;
 
         var noto = Get(key);
         if (noto != PresenceState.Unknown) return noto;
@@ -314,7 +314,7 @@ public sealed class PresenceMonitorService : IDisposable
 
         void Ascolta(object? sender, PresenceChangedEventArgs e)
         {
-            if (Normalize(e.Extension) == key) atteso.TrySetResult(e.Presence);
+            if (PhoneDigits.Only(e.Extension) == key) atteso.TrySetResult(e.Presence);
         }
 
         PresenceChanged += Ascolta;
@@ -389,7 +389,7 @@ public sealed class PresenceMonitorService : IDisposable
 
     private void OnProviderPresenceChanged(object? sender, PresenceChangedEventArgs e)
     {
-        if (Normalize(e.Extension) is not { Length: > 0 } key) return;
+        if (PhoneDigits.Only(e.Extension) is not { Length: > 0 } key) return;
 
         var previous = _states.TryGetValue(key, out var known) ? known : PresenceState.Unknown;
 
@@ -413,18 +413,6 @@ public sealed class PresenceMonitorService : IDisposable
 
         PresenceChanged?.Invoke(this, e);
     }
-
-    /// <summary>
-    /// Riduce un numero alla forma con cui viene confrontato.
-    /// </summary>
-    /// <remarks>
-    /// Il centralino può riportare l'interno con spazi o punteggiatura, e la rubrica
-    /// può averlo memorizzato in un'altra forma ancora. Confrontando le sole cifre,
-    /// "4021" e "40 21" restano lo stesso interno: senza, lo stato arriverebbe e non
-    /// verrebbe attribuito a nessuno.
-    /// </remarks>
-    private static string Normalize(string? extension)
-        => extension is null ? string.Empty : new string([.. extension.Where(char.IsAsciiDigit)]);
 
     /// <inheritdoc />
     public void Dispose()

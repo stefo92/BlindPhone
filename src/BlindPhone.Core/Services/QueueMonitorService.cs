@@ -229,7 +229,7 @@ public sealed class QueueMonitorService : IAsyncDisposable
             };
 
             var text = _options.QueueMode == QueueAnnouncementMode.All && snapshot.WaitingCount > 0
-                ? BuildDetailedChangeText(snapshot, previous, now)
+                ? BuildDetailedChangeText(snapshot, previous)
                 : AnnouncementTexts.QueueChanged(snapshot.WaitingCount);
 
             _announcer.Announce(Announcement.Normal(
@@ -245,7 +245,7 @@ public sealed class QueueMonitorService : IAsyncDisposable
         }
     }
 
-    private string BuildDetailedChangeText(QueueSnapshot snapshot, QueueSnapshot previous, DateTimeOffset now)
+    private string BuildDetailedChangeText(QueueSnapshot snapshot, QueueSnapshot previous)
     {
         // In modalita' dettagliata, all'arrivo di una nuova chiamata si dice anche
         // chi e': e' l'informazione che permette di decidere se rispondere subito.

@@ -66,7 +66,7 @@ public static class ExtensionSearch
         => contact.Numbers
             .Where(n => n.Kind == PhoneNumberKind.Extension)
             .Select(n => n.Number)
-            .FirstOrDefault(number => DigitsOf(number) == digits);
+            .FirstOrDefault(number => PhoneDigits.Only(number) == digits);
 
     /// <summary>
     /// Cerca le voci che hanno esattamente l'interno digitato.
@@ -109,7 +109,4 @@ public static class ExtensionSearch
 
         return found;
     }
-
-    private static string DigitsOf(string number)
-        => new([.. number.Where(char.IsAsciiDigit)]);
 }

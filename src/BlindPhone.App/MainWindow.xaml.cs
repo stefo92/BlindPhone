@@ -8,7 +8,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
-using BlindPhone.Accessibility;
 using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Domain;
@@ -247,7 +246,6 @@ public partial class MainWindow : Window
     /// <summary>Statistiche d'uso: annotano quale comando, e da dove, senza contarli.</summary>
     private readonly TelemetryService? _telemetry;
 
-    private readonly CompositeSpeechOutput _speech;
     private readonly IContactRepository _contacts;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MainWindow> _log;
@@ -356,7 +354,6 @@ public partial class MainWindow : Window
     /// Opzioni della conferenza, di cui vanno tenuti aggiornati i nomi dei tasti.
     /// </param>
     /// <param name="globalHotkeys">Registratore delle scorciatoie globali.</param>
-    /// <param name="speech">Destinazione della voce.</param>
     /// <param name="contacts">Rubrica.</param>
     /// <param name="settings">Configurazione.</param>
     /// <param name="settingsService">
@@ -385,7 +382,6 @@ public partial class MainWindow : Window
         TransferOptions transferOptions,
         ConferenceOptions conferenceOptions,
         GlobalHotkeyRegistrar globalHotkeys,
-        CompositeSpeechOutput speech,
         IContactRepository contacts,
         AppSettings settings,
         SettingsService settingsService,
@@ -411,7 +407,6 @@ public partial class MainWindow : Window
         _transferOptions = transferOptions;
         _conferenceOptions = conferenceOptions;
         _globalHotkeys = globalHotkeys;
-        _speech = speech;
         _contacts = contacts;
         _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
         _settingsService = settingsService;
@@ -1946,7 +1941,7 @@ public partial class MainWindow : Window
         // fare sempre la stessa cosa.
         if (TryHandleSimplifiedKeypad(e)) return;
 
-        var modifiers = ToHotkeyModifiers(Keyboard.Modifiers);
+        var modifiers = TastiModificatori.DaWpf(Keyboard.Modifiers);
 
         // I TASTI DI SISTEMA ARRIVANO SOTTO FALSO NOME.
         //
@@ -2126,7 +2121,7 @@ public partial class MainWindow : Window
         if (e.Key != Key.System) return;
 
         var keyName = HotkeyKeyNames.ResolveSystemKey(e.Key.ToString(), e.SystemKey.ToString());
-        var modifiers = ToHotkeyModifiers(Keyboard.Modifiers);
+        var modifiers = TastiModificatori.DaWpf(Keyboard.Modifiers);
 
         if (_hotkeys.Resolve(keyName, modifiers, HotkeyScope.Local) is null) return;
 
@@ -6146,16 +6141,6 @@ public partial class MainWindow : Window
         AgentStatus.WrapUp => "post chiamata",
         _ => "sconosciuto",
     };
-
-    private static HotkeyModifiers ToHotkeyModifiers(ModifierKeys keys)
-    {
-        var result = HotkeyModifiers.None;
-        if (keys.HasFlag(ModifierKeys.Control)) result |= HotkeyModifiers.Control;
-        if (keys.HasFlag(ModifierKeys.Alt)) result |= HotkeyModifiers.Alt;
-        if (keys.HasFlag(ModifierKeys.Shift)) result |= HotkeyModifiers.Shift;
-        if (keys.HasFlag(ModifierKeys.Windows)) result |= HotkeyModifiers.Windows;
-        return result;
-    }
 
     /// <summary>Converte il nome di un tasto nel codice virtuale di Windows.</summary>
     private static uint ToVirtualKey(string keyName)

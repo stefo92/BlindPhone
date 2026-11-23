@@ -235,10 +235,6 @@ public static class HotkeyCommandCatalog
         => Entries.FirstOrDefault(e => e.Command == command)
            ?? new HotkeyCommandInfo(command, HotkeyCategory.Information, command.ToString(), string.Empty);
 
-    /// <summary>Etichetta di un comando.</summary>
-    /// <param name="command">Comando cercato.</param>
-    public static string Label(HotkeyCommand command) => Describe(command).Label;
-
     /// <summary>Comandi di una categoria, nell'ordine di presentazione.</summary>
     /// <param name="category">Categoria richiesta.</param>
     public static IEnumerable<HotkeyCommandInfo> InCategory(HotkeyCategory category)

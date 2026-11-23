@@ -69,9 +69,6 @@ public partial class SettingsWindow : Window
     private readonly IContactRepository _contacts;
     private readonly ICallHistoryRepository _history;
     private readonly CompositeSpeechOutput _speech;
-    private readonly ITelephonyEngine _telephony;
-    private readonly IQueueProvider _queueProvider;
-    private readonly PresenceMonitorService _presence;
     private readonly ShiftBoardService _shift;
     private readonly FileLoggerProvider _logProvider;
     private readonly LogLevelSwitch _logSwitch;
@@ -95,9 +92,6 @@ public partial class SettingsWindow : Window
     /// Destinazione della voce, per rilevare lo screen reader e applicare subito le
     /// modifiche all'instradamento.
     /// </param>
-    /// <param name="telephony">Motore telefonico, per lo stato e i contatori diagnostici.</param>
-    /// <param name="queueProvider">Connettore di coda, per lo stato dell'agente.</param>
-    /// <param name="presence">Stato degli interni, per il riepilogo diagnostico.</param>
     /// <param name="shift">Quadro dei colleghi in turno, per dire da dove arriva lo stato.</param>
     /// <param name="logProvider">Registro su file, per posizione e rotazione.</param>
     /// <param name="logSwitch">Livello del registro, modificabile a caldo.</param>
@@ -119,9 +113,6 @@ public partial class SettingsWindow : Window
         IContactRepository contacts,
         ICallHistoryRepository history,
         CompositeSpeechOutput speech,
-        ITelephonyEngine telephony,
-        IQueueProvider queueProvider,
-        PresenceMonitorService presence,
         ShiftBoardService shift,
         FileLoggerProvider logProvider,
         LogLevelSwitch logSwitch,
@@ -140,9 +131,6 @@ public partial class SettingsWindow : Window
         _contacts = contacts;
         _history = history;
         _speech = speech;
-        _telephony = telephony;
-        _queueProvider = queueProvider;
-        _presence = presence;
         _shift = shift;
         _logProvider = logProvider;
         _logSwitch = logSwitch;
@@ -4607,9 +4595,6 @@ public partial class SettingsWindow : Window
     // Rubrica: importazione da CSV
     // -----------------------------------------------------------------------
 
-    /// <summary>Colonne trovate nell'ultimo file analizzato.</summary>
-    private IReadOnlyList<string> _csvHeaders = [];
-
     /// <summary>L'operatore ha deciso lui se il file abbia la riga dei titoli.</summary>
     private bool _csvHeaderModeChosen;
 
@@ -4841,8 +4826,6 @@ public partial class SettingsWindow : Window
                 try { CsvNoHeader.IsChecked = layout.LooksHeaderless; }
                 finally { _settingHeaderMode = false; }
             }
-
-            _csvHeaders = layout.Columns;
 
             FillMappingCombos(layout.Columns, layout.Labels);
 

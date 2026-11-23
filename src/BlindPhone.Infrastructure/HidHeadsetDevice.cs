@@ -40,7 +40,6 @@ internal sealed class HidHeadsetDevice : IDisposable
     private readonly HeadsetDeviceInfo _info;
     private readonly SafeFileHandle _handle;
     private readonly nint _preparsed;
-    private readonly bool _canWrite;
     private readonly ushort _inputLength;
     private readonly ushort _outputLength;
     private readonly uint _maxUsages;
@@ -77,7 +76,6 @@ internal sealed class HidHeadsetDevice : IDisposable
         _info = info;
         _handle = handle;
         _preparsed = preparsed;
-        _canWrite = canWrite;
         _inputLength = caps.InputLength;
         _outputLength = caps.OutputLength;
         _maxUsages = HidNative.HidP_MaxUsageListLength(HidNative.ReportInput, HidTelephonyUsages.TelephonyPage, preparsed);

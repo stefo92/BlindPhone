@@ -140,8 +140,8 @@ public static class AnnouncementTexts
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
 
-        var a = new string([.. left.Where(char.IsDigit)]);
-        var b = new string([.. right.Where(char.IsDigit)]);
+        var a = PhoneDigits.Only(left);
+        var b = PhoneDigits.Only(right);
 
         return a.Length > 0 && string.Equals(a, b, StringComparison.Ordinal);
     }
@@ -208,6 +208,51 @@ public static class AnnouncementTexts
     /// <summary>Chiamata ripresa dall'attesa.</summary>
     /// <param name="party">Controparte. Non compare nella frase, come in <see cref="CallHeld"/>.</param>
     public static string CallResumed(CallParty party) => "Chiamata ripresa";
+
+    // ---------------------------------------------------------------------
+    // Tasti suggeriti (livello di dettaglio «Principiante»)
+    // ---------------------------------------------------------------------
+
+    /// <summary>Tasti utili mentre una chiamata squilla.</summary>
+    /// <param name="answerKey">Tasto che risponde, se ce n'è uno da suggerire.</param>
+    /// <param name="rejectKey">Tasto che rifiuta, se ce n'è uno da suggerire.</param>
+    /// <returns>La frase, oppure <c>null</c> se non c'è nessun tasto da dire.</returns>
+    /// <remarks>
+    /// Il tasto prima del verbo, «F2 risponde», perché è il tasto la cosa da ricordare:
+    /// chi ascolta tiene a mente l'ultima parola utile prima di premere.
+    /// </remarks>
+    public static string? RingingKeys(string? answerKey, string? rejectKey)
+        => KeyList((answerKey, "risponde"), (rejectKey, "rifiuta"));
+
+    /// <summary>Tasti utili quando si è in linea.</summary>
+    /// <param name="holdKey">Tasto che mette in pausa.</param>
+    /// <param name="transferKey">Tasto che trasferisce.</param>
+    /// <param name="hangUpKey">Tasto che chiude.</param>
+    /// <returns>La frase, oppure <c>null</c> se non c'è nessun tasto da dire.</returns>
+    public static string? ConnectedKeys(string? holdKey, string? transferKey, string? hangUpKey)
+        => KeyList((holdKey, "attesa"), (transferKey, "trasferisce"), (hangUpKey, "chiude"));
+
+    /// <summary>Tasto utile quando la chiamata è in pausa.</summary>
+    /// <param name="holdKey">Tasto che la riprende.</param>
+    /// <returns>La frase, oppure <c>null</c> se non c'è un tasto da dire.</returns>
+    public static string? HeldKeys(string? holdKey)
+        => KeyList((holdKey, "la riprende"));
+
+    /// <summary>Aggiunge i tasti suggeriti in coda a un annuncio.</summary>
+    /// <param name="text">Annuncio.</param>
+    /// <param name="keys">Tasti, come li compongono i metodi qui sopra.</param>
+    public static string WithKeys(string text, string? keys)
+        => keys is { Length: > 0 } ? $"{text}. {keys}" : text;
+
+    private static string? KeyList(params (string? Key, string Action)[] voci)
+    {
+        var parti = voci
+            .Where(v => !string.IsNullOrWhiteSpace(v.Key))
+            .Select(v => $"{v.Key} {v.Action}")
+            .ToList();
+
+        return parti.Count == 0 ? null : string.Join(", ", parti);
+    }
 
     /// <summary>Da quanto tempo una chiamata entrante sta squillando.</summary>
     /// <param name="ringingFor">Tempo trascorso dall'inizio dello squillo.</param>

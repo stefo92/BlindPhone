@@ -38,16 +38,13 @@ public sealed class ToneEarconPlayer : IEarconPlayer, IAsyncDisposable
     private readonly NAudioEngine _audio;
     private readonly ILogger<ToneEarconPlayer> _log;
     private readonly ConcurrentDictionary<EarconKind, CancellationTokenSource> _repeating = new();
-    private readonly IClock _clock;
 
     /// <summary>Crea il riproduttore.</summary>
     /// <param name="audio">Motore audio su cui instradare i suoni.</param>
-    /// <param name="clock">Sorgente del tempo.</param>
     /// <param name="logger">Log diagnostico.</param>
-    public ToneEarconPlayer(NAudioEngine audio, IClock? clock = null, ILogger<ToneEarconPlayer>? logger = null)
+    public ToneEarconPlayer(NAudioEngine audio, ILogger<ToneEarconPlayer>? logger = null)
     {
         _audio = audio;
-        _clock = clock ?? SystemClock.Instance;
         _log = logger ?? NullLogger<ToneEarconPlayer>.Instance;
     }
 

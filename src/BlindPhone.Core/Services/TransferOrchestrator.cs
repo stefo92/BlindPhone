@@ -1639,7 +1639,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(number)) return false;
 
-        var digits = number.Count(char.IsDigit);
+        var digits = number.Count(char.IsAsciiDigit);
         return digits > 0
                && digits <= Options.MaxInternalNumberLength
                && !number.StartsWith('+');

@@ -53,7 +53,6 @@ public sealed class IntrusionMonitor : IDisposable
     private readonly short[] _tono = IntrusionTone.Render(SampleRate);
 
     private string? _callId;
-    private string? _extension;
     private DateTimeOffset _lastTone = DateTimeOffset.MinValue;
     private bool _disposed;
 
@@ -98,7 +97,6 @@ public sealed class IntrusionMonitor : IDisposable
         lock (_gate)
         {
             _callId = callId;
-            _extension = extension;
 
             // Il primo segnale deve partire alla prima passata, non fra cinque
             // secondi: e' l'istante in cui la conversazione viene raggiunta.
@@ -123,21 +121,6 @@ public sealed class IntrusionMonitor : IDisposable
                 _clock.Now,
                 EarconKind.CommandRejected));
         }
-    }
-
-    /// <summary>Dichiara finita l'inclusione.</summary>
-    public void End()
-    {
-        string? chiusa;
-
-        lock (_gate)
-        {
-            chiusa = _callId;
-            _callId = null;
-            _extension = null;
-        }
-
-        if (chiusa is not null) _log.LogInformation("Inclusione conclusa (chiamata {CallId})", chiusa);
     }
 
     /// <summary>
@@ -196,7 +179,6 @@ public sealed class IntrusionMonitor : IDisposable
             if (!CallStateMachine.IsTerminal(e.Transition.To)) return;
 
             _callId = null;
-            _extension = null;
         }
 
         _log.LogInformation("Inclusione chiusa insieme alla chiamata {CallId}", e.Call.Id);
