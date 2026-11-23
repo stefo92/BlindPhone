@@ -1,0 +1,4 @@
+﻿# Novita' della versione 1.0.17 beta. Una riga per novita'.
+# Le righe che cominciano con # non compaiono a schermo.
+# La riga SHA256: la scrive tools\crea-installatore.ps1: non modificarla a mano.
+SHA256: 9A7AEB7A5FB72E5AC1CDC779651DBE8C3A6D50E1AEA076534579EC0D51987466
