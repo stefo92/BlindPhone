@@ -61,8 +61,8 @@ public sealed class NovitaEAreaDiNotificaTests
     [Fact]
     public void LaCasellaDelleNovitaNonPrendeInvio()
     {
-        // Cosi' Invio arriva al pulsante predefinito, «Piu' tardi», anche con il cursore
-        // fra le novita'.
+        // Cosi' Invio arriva al pulsante predefinito, «Scarica e installa
+        // successivamente», anche con il cursore fra le novita'.
         var casella = PerNome("NotesText");
 
         Assert.Equal("True", (string?)casella.Attribute("IsReadOnly"));
@@ -75,7 +75,34 @@ public sealed class NovitaEAreaDiNotificaTests
         var codice = File.ReadAllText(Percorso("UpdateWindow.xaml.cs"));
 
         Assert.Contains("NotesText.Focus();", codice, StringComparison.Ordinal);
-        Assert.DoesNotContain("LaterButton.Focus();", codice, StringComparison.Ordinal);
+        Assert.DoesNotContain("Button.Focus();", codice, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InvioScaricaPerDopoEdEscAnnulla()
+    {
+        // Invio non deve far partire un'installazione che chiude BlindPhone: la finestra
+        // puo' comparire mentre squilla il telefono. Scaricare in sottofondo non chiude
+        // niente, Esc non fa niente.
+        var ora = PerNome("InstallNowButton");
+        var dopo = PerNome("InstallLaterButton");
+        var annulla = PerNome("CancelButton");
+
+        Assert.Null(ora.Attribute("IsDefault"));
+        Assert.Null(ora.Attribute("IsCancel"));
+        Assert.Equal("True", (string?)dopo.Attribute("IsDefault"));
+        Assert.Equal("True", (string?)annulla.Attribute("IsCancel"));
+    }
+
+    [Fact]
+    public void ITrePulsantiHannoLettereDiverse()
+    {
+        var lettere = new[] { "InstallNowButton", "InstallLaterButton", "CancelButton" }
+            .Select(n => (string)PerNome(n).Attribute("Content")!)
+            .Select(c => char.ToUpperInvariant(c[c.IndexOf('_') + 1]))
+            .ToList();
+
+        Assert.Equal(['O', 'S', 'A'], lettere);
     }
 
     // -----------------------------------------------------------------------

@@ -34,6 +34,13 @@ public sealed class AggiornamentiHttpsTests : IAsyncLifetime
     private readonly ServerAggiornamentiFinto _server = new();
     private readonly HttpMessageHandler _gestore;
 
+    /// <summary>
+    /// Cartella degli scaricamenti di questa prova: quella vera della postazione non si
+    /// tocca.
+    /// </summary>
+    private readonly string _scaricamenti = Path.Combine(
+        Path.GetTempPath(), "BlindPhone.Test", $"scaricamenti-{Guid.NewGuid():N}");
+
     public AggiornamentiHttpsTests()
     {
         _gestore = _server.GestoreCheSiFida();
@@ -45,6 +52,8 @@ public sealed class AggiornamentiHttpsTests : IAsyncLifetime
     {
         _gestore.Dispose();
         await _server.DisposeAsync();
+
+        if (Directory.Exists(_scaricamenti)) Directory.Delete(_scaricamenti, recursive: true);
     }
 
     private UpdateService Servizio(
@@ -56,7 +65,8 @@ public sealed class AggiornamentiHttpsTests : IAsyncLifetime
         password,
         installata ?? Installata,
         httpHandler: _gestore,
-        architecture: processore);
+        architecture: processore,
+        downloadDirectory: _scaricamenti);
 
     /// <summary>Un avanzamento che registra subito, senza passare da un contesto.</summary>
     private sealed class Avanzamento : IProgress<int>
@@ -268,9 +278,11 @@ public sealed class AggiornamentiHttpsTests : IAsyncLifetime
         Assert.Contains("/download/BlindPhone-1.0.21-x64.msi", _server.Percorsi);
         Assert.Contains(100, avanzamento.Valori);
 
-        var cartella = Path.Combine(Path.GetTempPath(), "BlindPhone-aggiornamenti");
-        Assert.False(File.Exists(Path.Combine(cartella, PacchettoX64 + ".part")));
-        Assert.False(File.Exists(Path.Combine(cartella, PacchettoX64)));
+        Assert.False(File.Exists(Path.Combine(_scaricamenti, PacchettoX64 + ".part")));
+        Assert.False(File.Exists(Path.Combine(_scaricamenti, PacchettoX64)));
+
+        // E non resta nemmeno un pacchetto «in attesa» da proporre al riavvio.
+        Assert.Null(servizio.FindDownloaded());
     }
 
     [Fact]

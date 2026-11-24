@@ -1139,6 +1139,11 @@ public partial class App : Application
         services.AddSingleton(sp => new LiveSettingsApplier(
             sp, settingsService, sp.GetRequiredService<ILogger<LiveSettingsApplier>>()));
 
+        // Uno solo per processo: lo scaricamento in sottofondo di un aggiornamento
+        // sopravvive alla finestra che l'ha chiesto, e due scaricamenti dello stesso
+        // pacchetto scriverebbero lo stesso file. Vedi BackgroundUpdateDownloader.
+        services.AddSingleton<BackgroundUpdateDownloader>();
+
         services.AddSingleton<MainWindow>();
 
         // Transitorie: il pannello impostazioni rilegge la configurazione a ogni

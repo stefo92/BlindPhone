@@ -75,16 +75,17 @@ public sealed class DiskCleanupService
     private readonly string _logDirectory;
     private readonly Func<string?> _currentLogFile;
     private readonly string _updateDirectory;
+    private readonly Version? _installedVersion;
     private readonly ILogger<DiskCleanupService> _log;
 
     /// <summary>Cartella in cui l'aggiornamento scarica i pacchetti.</summary>
     /// <remarks>
-    /// Sta fra i file temporanei di Windows e non nella cartella dati: è materiale di
-    /// passaggio, e un pacchetto di installazione pesa quanto tutto il resto messo
-    /// insieme.
+    /// È quella del servizio degli aggiornamenti, <see cref="UpdateService.DefaultDownloadDirectory"/>:
+    /// fuori dalla cartella dati, perché un pacchetto di installazione pesa quanto
+    /// tutto il resto messo insieme, e fuori dai file temporanei di Windows, perché un
+    /// aggiornamento scaricato oggi da installare al prossimo avvio deve arrivarci.
     /// </remarks>
-    public static string DefaultUpdateDirectory =>
-        Path.Combine(Path.GetTempPath(), "BlindPhone-aggiornamenti");
+    public static string DefaultUpdateDirectory => UpdateService.DefaultDownloadDirectory;
 
     /// <summary>Crea il servizio a partire dai servizi vivi.</summary>
     /// <param name="settings">Servizio di configurazione, per la cartella dati.</param>
@@ -102,7 +103,8 @@ public sealed class DiskCleanupService
             // risparmiare non e' piu' quello di quando il pannello e' stato aperto.
             () => logProvider.CurrentFilePath,
             DefaultUpdateDirectory,
-            logger)
+            logger,
+            System.Reflection.Assembly.GetEntryAssembly()?.GetName().Version)
     {
     }
 
@@ -112,17 +114,23 @@ public sealed class DiskCleanupService
     /// <param name="currentLogFile">Registro attualmente in scrittura, da risparmiare.</param>
     /// <param name="updateDirectory">Cartella degli scaricamenti di aggiornamento.</param>
     /// <param name="logger">Log diagnostico.</param>
+    /// <param name="installedVersion">
+    /// Versione installata. I pacchetti più recenti sono aggiornamenti scaricati e non
+    /// ancora installati, e restano; senza versione si eliminano tutti.
+    /// </param>
     public DiskCleanupService(
         string dataDirectory,
         string logDirectory,
         Func<string?> currentLogFile,
         string updateDirectory,
-        ILogger<DiskCleanupService>? logger = null)
+        ILogger<DiskCleanupService>? logger = null,
+        Version? installedVersion = null)
     {
         _dataDirectory = dataDirectory;
         _logDirectory = logDirectory;
         _currentLogFile = currentLogFile;
         _updateDirectory = updateDirectory;
+        _installedVersion = installedVersion;
         _log = logger ?? NullLogger<DiskCleanupService>.Instance;
     }
 
@@ -244,11 +252,28 @@ public sealed class DiskCleanupService
             ),
             (
                 "Pacchetti di aggiornamento scaricati",
-                "Installatori di versioni gia' installate o scartate, lasciati fra i file temporanei di Windows",
-                [.. Files(_updateDirectory, "*.msi"), .. Files(_updateDirectory, "*.part")]
+                "Installatori di versioni gia' installate o scartate. Un aggiornamento scaricato e "
+                + "non ancora installato resta, perche' al prossimo avvio ti viene proposto",
+                [
+                    .. Files(_updateDirectory, "*.msi").Where(f => !IsWaitingToBeInstalled(f)),
+                    .. Files(_updateDirectory, "*.part"),
+                ]
             ),
         ];
     }
+
+    /// <summary>
+    /// Se un pacchetto è un aggiornamento scaricato e non ancora installato.
+    /// </summary>
+    /// <remarks>
+    /// <b>È l'unico pacchetto che non è un resto.</b> Chi ha scelto «Scarica e installa
+    /// successivamente» se lo vedrebbe sparire con la pulizia, e al riavvio la domanda
+    /// che aspetta non arriverebbe.
+    /// </remarks>
+    private bool IsWaitingToBeInstalled(string packagePath)
+        => _installedVersion is not null
+           && Core.Services.UpdateCatalog.ParseVersion(Path.GetFileName(packagePath)) is { } versione
+           && versione > _installedVersion;
 
     private IReadOnlyList<string> Files(string directory, string pattern)
     {

@@ -141,6 +141,25 @@ public sealed class PuliziaDiscoTests : IDisposable
     }
 
     [Fact]
+    public void LAggiornamentoScaricatoENonInstallatoResta()
+    {
+        // Chi ha scelto «Scarica e installa successivamente» lo aspetta al riavvio: per
+        // lui non e' un resto. Quello di una versione gia' installata, invece, si'.
+        PreparaPostazione();
+        var inAttesa = Path.Combine(Aggiornamenti, "BlindPhone-1.0.25-x64.msi");
+        Scrivi(inAttesa, 5000);
+
+        var servizio = new DiskCleanupService(
+            Dati, Registri, () => RegistroDiOggi, Aggiornamenti, installedVersion: new Version(1, 0, 24));
+
+        servizio.Clean();
+
+        Assert.True(File.Exists(inAttesa));
+        Assert.False(File.Exists(Path.Combine(Aggiornamenti, "BlindPhone-1.0.8-x64.msi")));
+        Assert.False(File.Exists(Path.Combine(Aggiornamenti, "BlindPhone-1.0.9-x64.msi.part")));
+    }
+
+    [Fact]
     public void LAnteprimaElencaLeFamiglieConNomiLeggibili()
     {
         // L'elenco viene letto ad alta voce nella conferma: chi non vede lo schermo

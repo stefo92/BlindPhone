@@ -1467,9 +1467,10 @@ public partial class SettingsWindow : Window
     /// </para>
     /// <para>
     /// Se trova una versione nuova apre la stessa finestra del pulsante della barra dei
-    /// comandi, con le novità, la verifica della firma e «Più tardi» come pulsante
-    /// predefinito: da qui non si scarica e non si installa niente senza un'altra
-    /// conferma.
+    /// comandi, con le novità, la verifica della firma e i tre pulsanti: da qui non si
+    /// scarica e non si installa niente senza un'altra conferma. Se il server è quello
+    /// scritto nella scheda e non ancora salvato, anche lo scaricamento in sottofondo
+    /// usa quello: è il server che l'operatore ha appena provato.
     /// </para>
     /// </remarks>
     private async void OnCheckUpdatesClick(object sender, RoutedEventArgs e)
@@ -1525,6 +1526,7 @@ public partial class SettingsWindow : Window
                 servizio,
                 esito,
                 UpdateCatalog.Describe(installata),
+                _serviceProvider.GetRequiredService<BackgroundUpdateDownloader>(),
                 _announcer,
                 _serviceProvider.GetRequiredService<ILogger<UpdateWindow>>())
             {
