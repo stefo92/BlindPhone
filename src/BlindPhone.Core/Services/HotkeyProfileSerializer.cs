@@ -211,6 +211,10 @@ public static class HotkeyProfileSerializer
         if (!Enum.TryParse<HotkeyModifiers>(entry.Modifiers, ignoreCase: true, out var modifiers)) return null;
         if (string.IsNullOrWhiteSpace(entry.Key)) return null;
 
-        return new HotkeyBinding(command, entry.Key.Trim(), modifiers, scope);
+        // La normalizzazione ripara i profili salvati prima che la cattura la facesse:
+        // Control Alt Pausa veniva registrata come "Cancel", il nome che la tastiera
+        // usa con Control premuto, e in primo piano non si trovava piu', perche' li' il
+        // tasto premuto si cerca sempre come "Pause". Vedi HotkeyKeyNames.Normalize.
+        return new HotkeyBinding(command, HotkeyKeyNames.Normalize(entry.Key.Trim()), modifiers, scope);
     }
 }

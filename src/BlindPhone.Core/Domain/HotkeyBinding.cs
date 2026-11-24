@@ -90,7 +90,23 @@ public sealed record HotkeyBinding(
     }
 
     /// <summary>Chiave di confronto per il rilevamento dei conflitti.</summary>
-    public string ConflictKey => $"{Scope}:{Modifiers}:{Key.ToUpperInvariant()}";
+    /// <remarks>
+    /// Il tasto passa da <see cref="HotkeyKeyNames.Normalize"/>: Pausa e la sua variante
+    /// con Control sono lo stesso tasto fisico, e due assegnazioni che differiscono solo
+    /// per il nome con cui sono state registrate devono risultare in conflitto.
+    /// </remarks>
+    public string ConflictKey => $"{Scope}:{ChordKey}";
+
+    /// <summary>
+    /// Chiave della sola combinazione fisica, senza l'ambito.
+    /// </summary>
+    /// <remarks>
+    /// Serve al conflitto fra ambiti diversi. Windows consegna una combinazione
+    /// globale a chi l'ha registrata <b>anche quando BlindPhone è in primo piano</b>:
+    /// una globale di un comando e una locale di un altro con gli stessi tasti non
+    /// convivono, perché la locale non riceve mai la pressione.
+    /// </remarks>
+    public string ChordKey => $"{Modifiers}:{HotkeyKeyNames.Normalize(Key).ToUpperInvariant()}";
 }
 
 /// <summary>Esito della verifica di conflitto su una combinazione.</summary>

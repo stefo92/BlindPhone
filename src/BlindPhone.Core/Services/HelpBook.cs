@@ -671,10 +671,15 @@ public static class HelpBook
         - Frecce destra e sinistra passano fra combinazione locale e globale
         - Invio riassegna quella della colonna su cui ti trovi
         - Canc la toglie
+        - Backspace la riporta al valore predefinito, senza toccare le altre
+
+        Gli stessi comandi sono pulsanti sotto l'elenco: Riassegna, Alt A; Rimuovi, Alt M; Torna al predefinito, Alt N. Ripristina tutti i predefiniti, Alt D, riporta invece ai valori di BlindPhone l'intero profilo.
 
         La combinazione non si scrive, si preme: si apre un'area che cattura tutti i tasti e li rilegge a ogni pressione, così senti subito cosa hai registrato. Per uscire dall'area e confermare si preme Tab, che per questo è l'unico tasto non assegnabile.
 
-        Prima di accettare, BlindPhone controlla tre cose: che la combinazione non sia riservata da Windows, che non sia già assegnata a un altro suo comando, e che non sia una di quelle che NVDA o JAWS usano di continuo. Nei casi superabili decidi tu.
+        Finché l'area è aperta le scorciatoie globali di BlindPhone sono sospese: puoi premere anche quelle, per spostarle da un comando all'altro, ma in quel momento non rispondono. Le combinazioni tenute da altri programmi invece non arrivano: se ne premi una, l'area ti dice che non le è arrivata.
+
+        Prima di accettare, BlindPhone controlla quattro cose: che la combinazione non sia riservata da Windows; che, se è globale, nessun altro programma l'abbia già registrata, provandola subito presso Windows; che non sia già di un altro suo comando, anche nell'altro ambito, perché una globale vale anche con BlindPhone in primo piano e spegnerebbe la locale di un altro comando sugli stessi tasti; e che non sia una di quelle che NVDA o JAWS usano di continuo. Le prime due rifiutano la combinazione; nelle altre decidi tu, e se confermi la combinazione viene tolta al comando che l'aveva.
 
         Le modifiche valgono solo dopo «Salva la configurazione dei tasti», che offre quattro strade: aggiornare il profilo in uso, crearne uno nuovo, esportarlo su file per un'altra postazione, oppure produrre la scheda dei tasti in testo, da leggere o stampare in braille.
 

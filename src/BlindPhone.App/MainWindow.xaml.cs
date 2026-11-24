@@ -496,7 +496,17 @@ public partial class MainWindow : Window
         _headset = _serviceProvider.GetRequiredService<HeadsetController>();
         _headset.Start(source, CurrentActionContext, command => ExecuteCommandAsync(command, CommandOrigin.Headset));
 
-        RegisterGlobalHotkeys();
+        // ALL'AVVIO LE GLOBALI RIFIUTATE SI DICONO, come al salvataggio dei tasti.
+        //
+        // Prima finivano solo nel registro: una combinazione presa da un altro
+        // programma partito prima di BlindPhone restava muta fino a quando l'operatore
+        // non la premeva, e a quel punto il silenzio sembrava un guasto del telefono.
+        var refusedAtStartup = RegisterGlobalHotkeys();
+        if (refusedAtStartup.Count > 0)
+        {
+            _announcer.Announce(Announcement.Normal(RefusedGlobalsWarning(refusedAtStartup), DateTimeOffset.Now));
+        }
+
         ApplyTraySettings(_settingsService.Current);
         ApplyQueueVisibility(_settingsService.Current);
         _ = RefreshSuggestionColumnsAsync();
@@ -1903,7 +1913,7 @@ public partial class MainWindow : Window
 
         foreach (var binding in _hotkeys.Bindings.Where(b => b.Scope == HotkeyScope.Global))
         {
-            var virtualKey = ToVirtualKey(binding.Key);
+            var virtualKey = TastiVirtuali.Codice(binding);
             if (virtualKey == 0) continue;
 
             var conflict = _globalHotkeys.Register(binding, virtualKey);
@@ -1965,12 +1975,18 @@ public partial class MainWindow : Window
 
             var message = refused.Count == 0
                 ? $"Tasti rapidi aggiornati: profilo {profile.Name} attivo"
-                : $"Tasti rapidi aggiornati: profilo {profile.Name} attivo. "
-                  + $"Attenzione, {refused.Count} combinazioni globali sono gia' usate da altri programmi "
-                  + $"e non funzioneranno fuori da BlindPhone: {string.Join(", ", refused)}";
+                : $"Tasti rapidi aggiornati: profilo {profile.Name} attivo. {RefusedGlobalsWarning(refused)}";
 
             _announcer.Announce(Announcement.CommandResponse(message, DateTimeOffset.Now));
         });
+
+    /// <summary>Avviso pronunciabile per le combinazioni globali che Windows non ha concesso.</summary>
+    /// <param name="refused">Combinazioni rifiutate, già in forma pronunciabile.</param>
+    private static string RefusedGlobalsWarning(IReadOnlyList<string> refused) => refused.Count == 1
+        ? $"Attenzione, la combinazione globale {refused[0]} e' gia' usata da un altro programma "
+          + "e non funzionera' fuori da BlindPhone"
+        : $"Attenzione, {refused.Count} combinazioni globali sono gia' usate da altri programmi "
+          + $"e non funzioneranno fuori da BlindPhone: {string.Join(", ", refused)}";
 
     /// <summary>Combinazione locale assegnata a un comando, in forma pronunciabile.</summary>
     private static string LocalKeyName(HotkeyProfile profile, HotkeyCommand command, string fallback)
@@ -6270,12 +6286,6 @@ public partial class MainWindow : Window
         AgentStatus.WrapUp => "post chiamata",
         _ => "sconosciuto",
     };
-
-    /// <summary>Converte il nome di un tasto nel codice virtuale di Windows.</summary>
-    private static uint ToVirtualKey(string keyName)
-        => Enum.TryParse<Key>(keyName, ignoreCase: true, out var key)
-            ? (uint)KeyInterop.VirtualKeyFromKey(key)
-            : 0;
 
     private async void OnClosed(object? sender, EventArgs e)
     {

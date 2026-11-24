@@ -129,7 +129,7 @@ sola delle due linee senza che si possa dire quale.
   scritto nel campo di composizione, apre la conversazione con lui; altrimenti
   l'elenco delle conversazioni. Negli elenchi di interni il tasto Applicazioni apre
   il menu «Chiama, Invia messaggio»
-- Torna alla chiamata attiva — Locale: Control Home — Globale: Control Maiusc Home
+- Torna alla chiamata attiva — Locale: Control Home
 - Passa al pannello successivo o precedente — Locale: Control Tab, Control Maiusc Tab
 - Impostazioni — Locale: Control virgola
 - Diagnostica — Locale: Control Alt D
@@ -154,8 +154,8 @@ sola delle due linee senza che si possa dire quale.
 
 ## 6. Coda e stato agente
 
-- Login o logout dalla coda — Locale: Control Alt L — Globale: Control Alt Maiusc L
-- Pausa o ripresa — Locale: Control Alt P — Globale: Control Alt Maiusc P
+- Login o logout dalla coda — Locale: Control Alt L
+- Pausa o ripresa — Locale: Control Alt P
 - Stato agente corrente — Locale: Control Alt S
 - Preleva la chiamata selezionata in coda — Invio sull'elenco coda
 - Stato dell'interno digitato o evidenziato (libero, occupato, fuori servizio) — Locale: Control I
@@ -336,7 +336,9 @@ area di notifica*, dove si può anche spegnere l'icona e tornare alla chiusura n
 
 Le combinazioni globali usano Control più Maiusc più un tasto funzione, per non entrare in conflitto con i tasti riservati di NVDA (Insert e Blocco maiuscole) e di JAWS (Insert).
 
-Se una combinazione globale non si attiva, un'altra applicazione l'ha già registrata nel sistema: BlindPhone lo segnala al salvataggio, indicando dove possibile il programma responsabile.
+Una combinazione globale funziona anche con BlindPhone in primo piano, e lì vince sulle locali: per questo una globale sugli stessi tasti della locale di un altro comando viene segnalata come conflitto, e se confermi la locale viene tolta.
+
+Quando assegni una combinazione globale, BlindPhone prova subito a registrarla presso Windows: se un altro programma la tiene già, la rifiuta e te lo dice, prima ancora che tu salvi. Se un programma la prende più tardi, quando BlindPhone si avvia o quando salvi i tasti, lo senti annunciare insieme all'elenco delle combinazioni che non funzioneranno fuori da BlindPhone.
 
 Se le combinazioni globali danno fastidio, o se su questa postazione sono quasi tutte occupate, esiste il profilo predefinito **Solo primo piano**: stesse combinazioni locali, nessuna registrata nel sistema. Si sceglie da *Impostazioni → Tasti rapidi → Profilo*.
 
@@ -344,9 +346,11 @@ Se le combinazioni globali danno fastidio, o se su questa postazione sono quasi 
 
 ## Come cambiare una combinazione
 
-*Impostazioni → Tasti rapidi.* Nell'elenco dei comandi le frecce su e giù cambiano comando, destra e sinistra passano dalla combinazione locale a quella globale. **Invio** riassegna quella della colonna su cui ti trovi, **Canc** la toglie.
+*Impostazioni → Tasti rapidi.* Nell'elenco dei comandi le frecce su e giù cambiano comando, destra e sinistra passano dalla combinazione locale a quella globale. **Invio** riassegna quella della colonna su cui ti trovi, **Canc** la toglie, **Backspace** la riporta al valore predefinito. Gli stessi comandi sono pulsanti sotto l'elenco: Riassegna (Alt A), Rimuovi (Alt M), Torna al predefinito (Alt N). Ripristina tutti i predefiniti (Alt D) riporta invece ai valori di BlindPhone l'intero profilo.
 
 La combinazione non si scrive: si preme. Si apre un'area che cattura tutti i tasti e li rilegge a ogni pressione, così senti subito cosa hai registrato. Per uscire dall'area e confermare si preme **Tab**, che per questo motivo è l'unico tasto non assegnabile.
+
+Finché l'area è aperta le scorciatoie globali di BlindPhone sono sospese, così puoi premere anche quelle e spostarle da un comando all'altro. In quei momenti le globali non rispondono: se squilla, esci dall'area con Tab e chiudi la finestra con Esc, che fuori dall'area annulla. Le combinazioni tenute da altri programmi invece non arrivano a BlindPhone: se ne premi una, l'area ti dice che non le è arrivata e che devi sceglierne un'altra.
 
 Le modifiche non sono attive finché non premi **Salva la configurazione dei tasti**. Da lì si sceglie anche se creare un profilo nuovo, esportare la configurazione per un'altra postazione o generare questa scheda aggiornata. Una volta salvate, le combinazioni funzionano da subito: non serve riavviare.
 

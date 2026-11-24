@@ -2559,7 +2559,8 @@
                     <TextBlock Grid.Row="2"
                                Margin="0,8,0,8"
                                Opacity="0.85"
-                               Text="Frecce su e giu' per cambiare comando, destra e sinistra per passare fra combinazione locale e globale. Invio riassegna la combinazione della colonna su cui ti trovi, Canc la toglie. Le modifiche diventano attive solo quando premi Salva la configurazione dei tasti." />
+                               TextWrapping="Wrap"
+                               Text="Frecce su e giu' per cambiare comando, destra e sinistra per passare fra combinazione locale e globale. Invio riassegna la combinazione della colonna su cui ti trovi, Canc la toglie, Backspace la riporta al predefinito. Una combinazione globale viene provata subito presso Windows: se la tiene un altro programma e' rifiutata. Le modifiche diventano attive solo quando premi Salva la configurazione dei tasti." />
 
                     <!--
                         AutoGenerateColumns="False" NON E' UNA RIFINITURA.
@@ -2587,7 +2588,7 @@
                               IsReadOnly="True"
                               CanUserAddRows="False"
                               AutomationProperties.Name="Tabella dei comandi e delle combinazioni assegnate"
-                              AutomationProperties.HelpText="Invio riassegna la combinazione della colonna corrente. Canc la rimuove. Le colonne sono comando, combinazione locale, combinazione globale e gruppo."
+                              AutomationProperties.HelpText="Invio riassegna la combinazione della colonna corrente. Canc la rimuove. Backspace la riporta al predefinito. Le colonne sono comando, combinazione locale, combinazione globale e gruppo."
                               CanUserSortColumns="False"
                               CanUserReorderColumns="False"
                               CanUserResizeRows="False"
@@ -2622,28 +2623,51 @@
                                Text=""
                                AutomationProperties.Name="Descrizione del comando selezionato" />
 
-                    <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,12,0,0">
+                    <!--
+                        Un WrapPanel e non una riga fissa: con cinque pulsanti la riga
+                        rischia di non stare nella larghezza della finestra quando il testo
+                        e' ingrandito, e quelli in fondo, compreso il salvataggio, finirebbero
+                        fuori vista. Andando a capo restano tutti a schermo.
+                    -->
+                    <WrapPanel Grid.Row="5" Margin="0,12,0,0">
                         <Button x:Name="HotkeyEditButton" Content="Ri_assegna"
-                                Margin="0,0,8,0"
+                                Margin="0,0,8,8"
                                 AutomationProperties.Name="Riassegna la combinazione della colonna su cui si trova il cursore"
                                 Click="OnHotkeyEditClick" />
 
                         <Button x:Name="HotkeyClearButton" Content="Ri_muovi"
-                                Margin="0,0,8,0"
+                                Margin="0,0,8,8"
                                 AutomationProperties.Name="Rimuove la combinazione della colonna su cui si trova il cursore"
                                 Click="OnHotkeyClearClick" />
 
-                        <Button x:Name="HotkeyResetButton" Content="Ripristina i pre_definiti"
-                                Margin="0,0,8,0"
-                                AutomationProperties.Name="Riporta tutte le combinazioni ai valori predefiniti di BlindPhone"
+                        <!--
+                            DUE RIPRISTINI, UNO PER CELLA E UNO PER TUTTO.
+
+                            Chi ha spostato un tasto e vuole rimetterlo dov'era non deve
+                            perdere tutte le altre personalizzazioni: "Torna al
+                            predefinito" agisce come Invio e Canc, sulla colonna su cui si
+                            trova il cursore, e dalla tabella si raggiunge con Backspace.
+                            I due nomi cominciano con verbi diversi apposta: "Ripristina i
+                            predefiniti" e "Ripristina il predefinito", detti in fretta
+                            dalla sintesi, non si distinguono.
+                        -->
+                        <Button x:Name="HotkeyResetOneButton" Content="Torna al predefi_nito"
+                                Margin="0,0,8,8"
+                                AutomationProperties.Name="Torna al predefinito: riporta al valore di BlindPhone solo la combinazione della colonna su cui si trova il cursore"
+                                Click="OnHotkeyResetOneClick" />
+
+                        <Button x:Name="HotkeyResetButton" Content="Ripristina tutti i pre_definiti"
+                                Margin="0,0,8,8"
+                                AutomationProperties.Name="Ripristina tutti i predefiniti: riporta tutte le combinazioni ai valori di BlindPhone"
                                 Click="OnHotkeyResetClick" />
 
                         <Button x:Name="HotkeySaveButton" Content="Salva la _configurazione dei tasti..."
                                 MinWidth="280"
+                                Margin="0,0,0,8"
                                 AutomationProperties.Name="Salva la configurazione dei tasti scegliendo fra aggiornare il profilo, crearne uno nuovo, esportarlo su file o produrre la scheda dei tasti"
                                 AutomationProperties.HelpText="Apre l'elenco delle quattro destinazioni possibili del salvataggio."
                                 Click="OnHotkeySaveClick" />
-                    </StackPanel>
+                    </WrapPanel>
                 </Grid>
             </TabItem>
 

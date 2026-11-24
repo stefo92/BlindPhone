@@ -74,6 +74,7 @@ public partial class SettingsWindow : Window
     private readonly LogLevelSwitch _logSwitch;
     private readonly HotkeyProfileStore _hotkeyStore;
     private readonly HotkeyConflictDetector _hotkeyConflicts;
+    private readonly GlobalHotkeyRegistrar _globalHotkeys;
     private readonly ILogger<SettingsWindow> _log;
     private readonly ILogger<CsvContactSource> _csvLogger;
 
@@ -97,6 +98,10 @@ public partial class SettingsWindow : Window
     /// <param name="logSwitch">Livello del registro, modificabile a caldo.</param>
     /// <param name="hotkeyStore">Deposito dei profili di scorciatoie.</param>
     /// <param name="hotkeyConflicts">Rilevatore dei conflitti fra combinazioni.</param>
+    /// <param name="globalHotkeys">
+    /// Registratore delle scorciatoie globali: si sospende mentre si cattura una
+    /// combinazione, e prova presso Windows quelle globali prima di accettarle.
+    /// </param>
     /// <param name="logger">Log diagnostico.</param>
     /// <param name="policy">
     /// Criterio che limita ciò che l'operatore può modificare.
@@ -118,11 +123,13 @@ public partial class SettingsWindow : Window
         LogLevelSwitch logSwitch,
         HotkeyProfileStore hotkeyStore,
         HotkeyConflictDetector hotkeyConflicts,
+        GlobalHotkeyRegistrar globalHotkeys,
         ConfigurationPolicyService policy,
         IServiceProvider serviceProvider,
         ILogger<SettingsWindow> logger,
         ILogger<CsvContactSource> csvLogger)
     {
+        _globalHotkeys = globalHotkeys;
         _serviceProvider = serviceProvider;
         _policy = policy;
         _settingsService = settingsService;
@@ -4193,6 +4200,16 @@ public partial class SettingsWindow : Window
         {
             e.Handled = true;
             ClearHotkey(row, CurrentHotkeyScope());
+            return;
+        }
+
+        // Backspace come "torna indietro": riporta la cella al valore di partenza di
+        // BlindPhone. E' un tasto che la tabella non usa, e non cambia nulla finche'
+        // non si salva.
+        if (e.Key == Key.Back)
+        {
+            e.Handled = true;
+            ResetHotkeyToDefault(row, CurrentHotkeyScope());
         }
     }
 
@@ -4213,6 +4230,12 @@ public partial class SettingsWindow : Window
         else Report("Scegli prima un comando nell'elenco");
     }
 
+    private void OnHotkeyResetOneClick(object sender, RoutedEventArgs e)
+    {
+        if (CurrentHotkeyRow() is { } row) ResetHotkeyToDefault(row, CurrentHotkeyScope());
+        else Report("Scegli prima un comando nell'elenco");
+    }
+
     /// <summary>
     /// Assegna una nuova combinazione a un comando, verificando i conflitti.
     /// </summary>
@@ -4225,15 +4248,25 @@ public partial class SettingsWindow : Window
     /// </para>
     /// <para>
     /// Quando l'operatore conferma la sostituzione, la combinazione viene <b>tolta</b>
-    /// al comando che la occupava. Lasciarla a entrambi renderebbe non deterministico
-    /// quale dei due parte, che su "Riaggancia" contro "Rispondi" è un guaio serio.
+    /// al comando che la occupava, in qualunque ambito. Lasciarla a entrambi renderebbe
+    /// non deterministico quale dei due parte, che su "Riaggancia" contro "Rispondi" è
+    /// un guaio serio.
+    /// </para>
+    /// <para>
+    /// La finestra di cattura riceve il registratore delle scorciatoie globali e le
+    /// sospende finché resta aperta: altrimenti una combinazione che BlindPhone tiene
+    /// già come globale non arriverebbe all'area di cattura, e premerla eseguirebbe il
+    /// comando invece di farla rileggere.
     /// </para>
     /// </remarks>
     private void EditHotkey(HotkeyRow row, HotkeyScope scope)
     {
         var current = _hotkeyWorking.Get(row.Command, scope);
 
-        var dialog = new HotkeyCaptureWindow(row.CommandLabel, scope, current, _announcer) { Owner = this };
+        var dialog = new HotkeyCaptureWindow(row.CommandLabel, scope, current, _announcer, _globalHotkeys)
+        {
+            Owner = this,
+        };
 
         if (dialog.ShowDialog() != true || string.IsNullOrEmpty(dialog.CapturedKey))
         {
@@ -4249,14 +4282,33 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var conflict = _hotkeyConflicts.Check(candidate, _hotkeyWorking, HotkeyCommandCatalog.Labels);
+        if (!AssignHotkey(row, candidate)) return;
+
+        Report($"{row.CommandLabel}: combinazione {ScopeLabel(scope)} {candidate.SpeechText}.{DialerAdvisory(candidate)} "
+               + "Premi Salva la configurazione dei tasti per applicarla");
+    }
+
+    /// <summary>
+    /// Verifica i conflitti di una combinazione e, se l'operatore la conferma, la mette
+    /// nella bozza al posto delle assegnazioni che occupava.
+    /// </summary>
+    /// <returns><c>true</c> se la combinazione è entrata nella bozza.</returns>
+    /// <remarks>
+    /// La usano sia la riassegnazione sia il ritorno al predefinito di un comando: il
+    /// predefinito può essere stato dato a un altro comando, o preso da un altro
+    /// programma, e va controllato esattamente come una combinazione premuta.
+    /// </remarks>
+    private bool AssignHotkey(HotkeyRow row, HotkeyBinding candidate)
+    {
+        var conflict = _hotkeyConflicts.Check(
+            candidate, _hotkeyWorking, HotkeyCommandCatalog.Labels, IsTakenElsewhere);
 
         if (!conflict.IsClear)
         {
             if (!conflict.CanOverride)
             {
                 Report(conflict.Message);
-                return;
+                return false;
             }
 
             var answer = MessageBox.Show(
@@ -4270,12 +4322,10 @@ public partial class SettingsWindow : Window
             if (answer != MessageBoxResult.Yes)
             {
                 Report($"{row.CommandLabel}: assegnazione annullata, la combinazione resta com'era");
-                return;
+                return false;
             }
 
-            foreach (var other in _hotkeyWorking.Bindings
-                         .Where(b => b.Command != row.Command && b.ConflictKey == candidate.ConflictKey)
-                         .ToList())
+            foreach (var other in _hotkeyWorking.FindCollisions(candidate))
             {
                 _hotkeyWorking.Remove(other.Command, other.Scope);
             }
@@ -4283,23 +4333,93 @@ public partial class SettingsWindow : Window
 
         _hotkeyWorking.Set(candidate);
         SyncHotkeyRows();
+        return true;
+    }
 
-        // L'avviso sul campo di composizione non blocca ed e' deliberato: un tasto
-        // singolo puo' essere la scelta giusta per chi non usa mai il dialer. Ma
-        // scoprirlo da soli richiederebbe di collegare "il comando a volte non parte"
-        // alla posizione del cursore, cosa che nessuno fa.
-        var swallowed = scope == HotkeyScope.Local
-                        && candidate.Modifiers == HotkeyModifiers.None
-                        && HotkeyKeyNames.IsSwallowedByDialer(candidate.Key);
+    /// <summary>
+    /// Prova presso Windows se una combinazione globale è tenuta da un altro programma.
+    /// </summary>
+    /// <remarks>
+    /// Il codice del tasto si calcola come lo calcola la finestra principale quando
+    /// registra: se le due strade divergessero, la prova direbbe «libera» per una
+    /// combinazione che poi non si registra.
+    /// </remarks>
+    private bool IsTakenElsewhere(HotkeyBinding binding)
+        => _globalHotkeys.IsTakenElsewhere(binding, TastiVirtuali.Codice(binding));
 
-        var advisory = swallowed
+    private static string ScopeLabel(HotkeyScope scope) => scope == HotkeyScope.Global ? "globale" : "locale";
+
+    /// <summary>
+    /// Avviso per un tasto singolo che il campo di composizione userebbe per comporre.
+    /// </summary>
+    /// <remarks>
+    /// L'avviso non blocca ed è deliberato: un tasto singolo può essere la scelta
+    /// giusta per chi non usa mai il dialer. Ma scoprirlo da soli richiederebbe di
+    /// collegare "il comando a volte non parte" alla posizione del cursore, cosa che
+    /// nessuno fa.
+    /// </remarks>
+    private static string DialerAdvisory(HotkeyBinding candidate)
+        => candidate.Scope == HotkeyScope.Local
+           && candidate.Modifiers == HotkeyModifiers.None
+           && HotkeyKeyNames.IsSwallowedByDialer(candidate.Key)
             ? " Attenzione: senza modificatori questo tasto compone il numero, quindi il comando "
               + "non parte mentre il cursore e' nel campo di composizione."
             : string.Empty;
 
-        var scopeLabel = scope == HotkeyScope.Global ? "globale" : "locale";
+    /// <summary>
+    /// Riporta al valore predefinito di BlindPhone la sola combinazione della colonna
+    /// su cui si trova il cursore.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Il ripristino di tutto il profilo c'era già, ma è il gesto sbagliato per chi ha
+    /// spostato un tasto e vuole rimetterlo dov'era: per tornare indietro su una cella
+    /// perdeva tutte le altre personalizzazioni.
+    /// </para>
+    /// <para>
+    /// Il predefinito passa dagli stessi controlli di una combinazione premuta. Nel
+    /// frattempo può essere diventato di un altro comando, o di un altro programma: in
+    /// quel caso si dice, e si decide come per ogni conflitto.
+    /// </para>
+    /// <para>
+    /// Se il predefinito non prevede una combinazione in quell'ambito, tornare al
+    /// predefinito significa togliere quella che c'è: è quello che chiede chi lo usa,
+    /// e lo si dice con le parole giuste invece di rispondere che non c'è nulla da fare.
+    /// </para>
+    /// </remarks>
+    private void ResetHotkeyToDefault(HotkeyRow row, HotkeyScope scope)
+    {
+        var current = _hotkeyWorking.Get(row.Command, scope);
+        var standard = HotkeyProfile.DefaultFor(row.Command, scope);
 
-        Report($"{row.CommandLabel}: combinazione {scopeLabel} {candidate.SpeechText}.{advisory} "
+        if (standard is null)
+        {
+            if (current is null)
+            {
+                Report($"{row.CommandLabel}: non ha una combinazione {ScopeLabel(scope)} predefinita, "
+                       + "e non ne ha nemmeno adesso");
+                return;
+            }
+
+            _hotkeyWorking.Remove(row.Command, scope);
+            SyncHotkeyRows();
+
+            Report($"{row.CommandLabel}: il predefinito non prevede una combinazione {ScopeLabel(scope)}, "
+                   + "quindi e' stata tolta. Premi Salva la configurazione dei tasti per applicare");
+            return;
+        }
+
+        if (current is not null && current.ConflictKey == standard.ConflictKey)
+        {
+            Report($"{row.CommandLabel}: {standard.SpeechText} e' gia' la combinazione "
+                   + $"{ScopeLabel(scope)} predefinita");
+            return;
+        }
+
+        if (!AssignHotkey(row, standard)) return;
+
+        Report($"{row.CommandLabel}: combinazione {ScopeLabel(scope)} riportata al predefinito, "
+               + $"{standard.SpeechText}.{DialerAdvisory(standard)} "
                + "Premi Salva la configurazione dei tasti per applicarla");
     }
 
@@ -4341,8 +4461,30 @@ public partial class SettingsWindow : Window
         _hotkeyWorking.ReplaceAll(HotkeyProfile.CreateDefault().Bindings);
         SyncHotkeyRows();
 
-        Report("Combinazioni riportate ai valori predefiniti. "
-               + "Premi Salva la configurazione dei tasti per applicarle");
+        // Le globali predefinite si provano subito presso Windows, come quelle
+        // assegnate una per una: su una postazione dove un altro programma ne tiene
+        // qualcuna, e' meglio saperlo adesso che sentirselo dire al salvataggio. Restano
+        // comunque nella bozza, perche' e' il predefinito che l'operatore ha chiesto; la
+        // sospensione unica evita di disdire e registrare tutto a ogni prova.
+        List<string> taken;
+        using (_globalHotkeys.Suspend())
+        {
+            taken = [.. _hotkeyWorking.Bindings
+                .Where(b => b.Scope == HotkeyScope.Global && IsTakenElsewhere(b))
+                .Select(b => b.SpeechText)];
+        }
+
+        var warning = taken.Count switch
+        {
+            0 => string.Empty,
+            1 => $" Attenzione: la combinazione globale predefinita {taken[0]} e' tenuta da un altro "
+                 + "programma e non funzionera'.",
+            _ => $" Attenzione: {taken.Count} combinazioni globali predefinite sono tenute da altri programmi "
+                 + $"e non funzioneranno: {string.Join(", ", taken)}.",
+        };
+
+        Report("Combinazioni riportate ai valori predefiniti." + warning
+               + " Premi Salva la configurazione dei tasti per applicarle");
     }
 
     // ---------------------------- salvataggio ----------------------------

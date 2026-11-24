@@ -157,6 +157,11 @@ public sealed class HotkeyProfile
                 if (defaults.Get(command, scope) is not { } candidate) continue;
                 if (FindConflict(candidate) is not null) continue;
 
+                // Anche fra ambiti diversi: una globale nuova che coincide con la locale
+                // di un altro comando la spegnerebbe, e il comando che smette di
+                // rispondere sarebbe uno che l'operatore usa da mesi.
+                if (FindOtherScopeConflict(candidate) is not null) continue;
+
                 Set(candidate);
 
                 if (!added.Contains(command)) added.Add(command);
@@ -208,6 +213,63 @@ public sealed class HotkeyProfile
 
         return null;
     }
+
+    /// <summary>
+    /// Cerca un comando diverso che usa la stessa combinazione nell'altro ambito.
+    /// </summary>
+    /// <param name="candidate">Combinazione da verificare.</param>
+    /// <returns>L'assegnazione che entrerebbe in conflitto, oppure <c>null</c>.</returns>
+    /// <remarks>
+    /// <para>
+    /// <see cref="FindConflict"/> confronta solo assegnazioni dello stesso ambito, e
+    /// per due locali o due globali basta. Fra una globale e una locale no: Windows
+    /// consegna la globale a chi l'ha registrata anche con BlindPhone in primo piano,
+    /// quindi la locale di un altro comando con gli stessi tasti non riceve più nulla.
+    /// </para>
+    /// <para>
+    /// Il caso concreto è Control Maiusc D, locale, che accende i toni per i menu
+    /// automatici. Assegnata come globale a un altro comando, la spegnerebbe senza un
+    /// avviso: il pannello la mostrerebbe ancora al suo posto, e premendola partirebbe
+    /// l'altro comando.
+    /// </para>
+    /// <para>
+    /// Lo stesso comando con gli stessi tasti in entrambi gli ambiti non è un
+    /// conflitto: qualunque dei due scatti, fa la stessa cosa.
+    /// </para>
+    /// </remarks>
+    public HotkeyBinding? FindOtherScopeConflict(HotkeyBinding candidate)
+    {
+        foreach (var binding in _bindings.Values)
+        {
+            if (binding.Command == candidate.Command) continue;
+            if (binding.Scope == candidate.Scope) continue;
+            if (binding.ChordKey == candidate.ChordKey) return binding;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Tutte le assegnazioni di altri comandi che una combinazione andrebbe a
+    /// sostituire, nello stesso ambito o nell'altro.
+    /// </summary>
+    /// <param name="candidate">Combinazione che si sta assegnando.</param>
+    /// <remarks>
+    /// Sono quelle da togliere quando l'operatore conferma la sostituzione. Lasciarne
+    /// anche una sola renderebbe imprevedibile quale comando parte, che su Riaggancia
+    /// contro Rispondi è un guaio serio.
+    /// </remarks>
+    public IReadOnlyList<HotkeyBinding> FindCollisions(HotkeyBinding candidate)
+        => [.. _bindings.Values.Where(b => b.Command != candidate.Command && b.ChordKey == candidate.ChordKey)];
+
+    /// <summary>
+    /// Combinazione predefinita di un comando in un ambito, come la fornisce BlindPhone.
+    /// </summary>
+    /// <param name="command">Comando.</param>
+    /// <param name="scope">Ambito.</param>
+    /// <returns>La combinazione predefinita, oppure <c>null</c> se il comando non ne ha una.</returns>
+    public static HotkeyBinding? DefaultFor(HotkeyCommand command, HotkeyScope scope)
+        => CreateDefault().Get(command, scope);
 
     /// <summary>
     /// Costruisce il profilo predefinito descritto in ANALISI-BLINDPHONE.md §10.2.

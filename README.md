@@ -610,7 +610,9 @@ quel requisito è contrattuale.
   posizionamento stereo
 - Bridge NVDA e JAWS, voce interna SAPI su dispositivo dedicato, disattivabile da
   *Impostazioni → Accessibilità* quando duplicherebbe lo screen reader
-- Scorciatoie locali e globali, rilevamento conflitti a tre livelli
+- Scorciatoie locali e globali, riassegnabili dalle impostazioni, con rilevamento dei
+  conflitti (Windows, altri comandi anche fra ambiti, screen reader) e prova immediata
+  delle globali presso Windows
 - Controllo delle chiamate dai pulsanti della cuffia USB (pagina Telefonia HID:
   gancio, microfono, attesa, richiamata), con le spie di squillo, linea e muto
   tenute allineate, collegamento a caldo e ripiego facoltativo sul tasto Play e
@@ -1382,18 +1384,36 @@ decide su quale si agisce.
 |---|---|
 | `Invio` | Riassegna la combinazione della colonna corrente |
 | `Canc` | Toglie la combinazione della colonna corrente |
+| `Backspace` | Riporta al predefinito la sola combinazione della colonna corrente |
+
+Gli stessi tre comandi sono anche pulsanti sotto la tabella (**Riassegna**,
+**Rimuovi**, **Torna al predefinito**), accanto a **Ripristina tutti i predefiniti**, che
+riporta ai valori di BlindPhone l'intero profilo.
 
 La combinazione non si scrive, **si preme**: si apre un'area di cattura che
 intercetta tutti i tasti — compresi `Invio` ed `ESC`, che sono assegnazioni
 legittime — e li rilegge a voce a ogni pressione. L'unica via d'uscita è `Tab`, che
-per questo è l'unico tasto non assegnabile.
+per questo è l'unico tasto non assegnabile. Finché l'area è aperta **le scorciatoie
+globali di BlindPhone sono sospese**: una combinazione registrata presso Windows non
+arriverebbe mai alla finestra, e premere `Control Maiusc F2` per spostarla su un altro
+comando risponderebbe alla chiamata invece di farla rileggere. Le combinazioni tenute
+da altri programmi restano fuori portata: se una pressione non viene riletta, la
+combinazione è presa altrove, e l'area lo dice.
 
-Prima di accettare, la combinazione passa dal rilevamento conflitti a tre livelli:
-riservata da Windows (rifiutata), già assegnata a un altro comando di BlindPhone
-(sostituzione su conferma, con la combinazione tolta al comando precedente), usata da
-NVDA o JAWS (avviso, scelta all'operatore). Le globali già occupate da un altro
-programma le rifiuta il sistema, e lo si può sapere solo provando: l'esito viene
-annunciato al momento dell'attivazione.
+Prima di accettare, la combinazione passa dal rilevamento conflitti:
+
+| Conflitto | Esito |
+|---|---|
+| Riservata da Windows (`Alt Tab`, `Alt F4`, `Windows L`…) | Rifiutata |
+| Globale già registrata da un altro programma | Rifiutata subito: BlindPhone prova la registrazione presso Windows al momento dell'assegnazione |
+| Già assegnata a un altro comando di BlindPhone, nello stesso ambito | Sostituzione su conferma, con la combinazione tolta al comando precedente |
+| Stessi tasti della combinazione di un altro comando nell'altro ambito | Sostituzione su conferma: Windows consegna una globale anche con BlindPhone in primo piano, quindi la locale di un altro comando sugli stessi tasti non scatterebbe più |
+| Usata da NVDA o JAWS | Avviso, scelta all'operatore |
+
+Il ritorno al predefinito di una sola cella passa dagli stessi controlli: se nel
+frattempo quel tasto è diventato di un altro comando o di un altro programma, lo si
+sente dire. «Ripristina tutti i predefiniti» prova a sua volta le globali e annuncia
+quelle tenute da altri programmi.
 
 ### Profili e salvataggio
 

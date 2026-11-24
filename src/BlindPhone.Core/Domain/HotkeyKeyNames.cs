@@ -185,6 +185,35 @@ public static class HotkeyKeyNames
         => string.Equals(key, "Cancel", StringComparison.OrdinalIgnoreCase) ? "Pause" : key ?? string.Empty;
 
     /// <summary>
+    /// Nome del tasto da dichiarare a Windows per registrare una combinazione globale.
+    /// </summary>
+    /// <param name="key">Nome del tasto come lo conserva il profilo.</param>
+    /// <param name="modifiers">Modificatori della combinazione.</param>
+    /// <remarks>
+    /// <para>
+    /// È il rovescio di <see cref="Normalize"/>, e serve allo stesso tasto. Il profilo
+    /// scrive sempre <c>Pause</c>, ma con Control premuto la tastiera non manda Pausa:
+    /// manda Interr, che Windows chiama <c>Cancel</c>. Una scorciatoia globale
+    /// dichiarata su Control Alt Maiusc Pausa con il codice di Pausa non scatta mai,
+    /// perché quel codice, con Control giù, la tastiera non lo produce.
+    /// </para>
+    /// <para>
+    /// In primo piano il problema non si vede: lì il tasto premuto viene normalizzato
+    /// prima di cercarlo nel profilo. È la registrazione presso Windows che va fatta
+    /// con il nome che la tastiera usa davvero.
+    /// </para>
+    /// </remarks>
+    public static string RegistrationKey(string? key, HotkeyModifiers modifiers)
+    {
+        var normalized = Normalize(key);
+
+        return modifiers.HasFlag(HotkeyModifiers.Control)
+               && string.Equals(normalized, "Pause", StringComparison.OrdinalIgnoreCase)
+            ? "Cancel"
+            : normalized;
+    }
+
+    /// <summary>
     /// Restituisce il nome vero di un tasto che il sistema ha marcato come «di
     /// sistema».
     /// </summary>
