@@ -131,6 +131,29 @@ public sealed record SipAccountOptions
     public string? StunServer { get; init; }
 
     /// <summary>
+    /// Se trovare la strada dell'audio con ICE, RFC 8445.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Serve con il centralino raggiunto in VPN, o dietro un apparato che traduce gli
+    /// indirizzi,</b> quando l'indirizzo scritto nella descrizione di sessione — da una
+    /// parte o dall'altra — non è quello da cui la voce passa davvero. Acceso, la
+    /// postazione annuncia gli indirizzi di tutte le sue schede di rete, tunnel compresi,
+    /// verifica con il centralino quali coppie si raggiungono, e manda la voce sulla
+    /// coppia scelta. Vedi <see cref="AudioOnlyMediaSession"/>.
+    /// </para>
+    /// <para>
+    /// <b>Spento di partenza</b>, come la cifratura e per la stessa ragione: alle
+    /// chiamate uscenti cambia la descrizione di sessione che arriva al centralino, e
+    /// diversi centralini reagiscono male a righe che non si aspettano. Su una
+    /// installazione che funziona non deve cambiare niente a un aggiornamento. Alle
+    /// chiamate entranti si risponde con ICE solo se il centralino lo offre; con un
+    /// centralino che non lo conosce la chiamata procede come senza.
+    /// </para>
+    /// </remarks>
+    public bool Ice { get; init; }
+
+    /// <summary>
     /// Ogni quanti secondi mandare il segnale che tiene aperto il passaggio nel router;
     /// zero lo spegne.
     /// </summary>

@@ -245,10 +245,15 @@ public sealed class LavoroAgileTests
         Assert.Equal(25, account.KeepAliveSeconds);
         Assert.Null(account.StunServer);
         Assert.Equal(SipAccountOptions.DefaultKeepAliveSeconds, account.KeepAliveSeconds);
+
+        // ICE resta spento: cambierebbe la descrizione di sessione che arriva a un
+        // centralino che oggi funziona.
+        Assert.False(account.Ice);
+        Assert.False(new SipAccountOptions().Ice);
     }
 
     [Fact]
-    public void ServerStunEMantenimentoSopravvivonoAlRiavvio()
+    public void ServerStunMantenimentoEIceSopravvivonoAlRiavvio()
     {
         var cartella = Path.Combine(Path.GetTempPath(), "BlindPhone.Test", $"lavoro-agile-{Guid.NewGuid():N}");
         Directory.CreateDirectory(cartella);
@@ -266,6 +271,7 @@ public sealed class LavoroAgileTests
                 Domain = "pbx.ente.it",
                 StunServer = "stun.ente.it:3479",
                 KeepAliveSeconds = 40,
+                Ice = true,
             };
 
             Assert.True(servizio.Save(iniziali with { SipAccounts = [account], DefaultSipAccountId = "casa" }));
@@ -274,6 +280,7 @@ public sealed class LavoroAgileTests
 
             Assert.Equal("stun.ente.it:3479", riletto.StunServer);
             Assert.Equal(40, riletto.KeepAliveSeconds);
+            Assert.True(riletto.Ice);
         }
         finally
         {

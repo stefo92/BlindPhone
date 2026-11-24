@@ -405,6 +405,13 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
 
         ConfigureStun();
 
+        if (_account.Ice)
+        {
+            _log.LogInformation(
+                "ICE (RFC 8445) acceso: le chiamate uscenti offrono i candidati di tutte le schede di rete, "
+                + "e alle entranti si risponde con ICE quando il centralino lo offre");
+        }
+
         _transport = new SIPTransport();
 
         var localPort = _account.LocalPort > 0 ? _account.LocalPort : 0;
@@ -899,6 +906,15 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             "Segnale di mantenimento",
             _keepAlive?.Describe() ?? "non avviato: il motore non è collegato");
 
+        yield return new DiagnosticCounter("ICE", DescribeIce(active));
+
+        if (active?.Media is AudioOnlyMediaSession { Ice: not null, IceLocalCandidates.Count: > 0 } annunciati)
+        {
+            yield return new DiagnosticCounter(
+                "Candidati ICE annunciati",
+                string.Join(", ", annunciati.IceLocalCandidates.Select(c => MediaAddressPolicy.Describe(c.EndPoint))));
+        }
+
         if (active?.MediaAddress is { } scelta)
             yield return new DiagnosticCounter("Indirizzo annunciato per l'audio", scelta.Reason);
 
@@ -908,6 +924,20 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 "Verso dell'audio",
                 OneWayAudio.Describe(new MediaFlowSnapshot(endPoint.RtpFramesSent, endPoint.RtpFramesReceived)));
         }
+    }
+
+    /// <summary>La riga ICE della scheda Diagnostica.</summary>
+    /// <param name="active">Chiamata con audio attivo, se ce n'è una.</param>
+    private string DescribeIce(CallContext? active)
+    {
+        if (!_account.Ice) return "spento: l'audio va all'indirizzo scritto nella descrizione di sessione";
+
+        return active?.Media switch
+        {
+            AudioOnlyMediaSession { Ice: { } stato } => stato.Describe(),
+            null => "acceso, nessuna chiamata in corso",
+            _ => "acceso, ma non usato in questa chiamata: il centralino non l'ha offerto",
+        };
     }
 
     /// <summary>L'indirizzo pubblico, da qualunque fonte si sappia, con la fonte.</summary>
@@ -1752,7 +1782,12 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
             var callId = NextCallId();
             var agent = CreateUserAgent();
             var builder = new CallContextBuilder();
-            var media = CreateMediaSession(builder, esito == SrtpOutcome.Secure);
+            // ICE solo se il centralino l'ha offerto: a un'offerta senza si risponde senza,
+            // e il socket con l'agente sarebbe soltanto un socket che non verifica nulla.
+            var media = CreateMediaSession(
+                builder,
+                esito == SrtpOutcome.Secure,
+                ice: _account.Ice && IceSdp.DeclaresIce(request.Body));
 
             var uas = agent.AcceptCall(request);
             var context = new CallContext(callId, agent, media, request.Header.From?.FromURI?.User ?? string.Empty)
@@ -2580,6 +2615,21 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         var agent = context.Agent;
         var callId = context.CallId;
 
+        if (context.Media is AudioOnlyMediaSession { Ice: not null } conIce)
+        {
+            // Ogni passaggio delle verifiche finisce nel registro con la chiamata a cui
+            // appartiene: e' la riga che dice, su una chiamata muta in VPN, se l'audio ha
+            // trovato una strada e quale.
+            conIce.IceStatusChanged += stato =>
+            {
+                var livello = stato.Progress is IceProgress.Failed or IceProgress.Lost
+                    ? LogLevel.Warning
+                    : LogLevel.Information;
+
+                _log.Log(livello, "Chiamata {CallId}: ICE, {Stato}", callId, stato.Describe());
+            };
+        }
+
         agent.ClientCallRinging += (_, response) =>
         {
             // Un 180 o 183 che porta con se' una descrizione di sessione significa
@@ -3091,9 +3141,16 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     /// preferenza predefinita. Vale <c>null</c> sulle chiamate entranti e
     /// sull'inclusione, dove la preferenza configurata resta quella buona.
     /// </param>
+    /// <param name="ice">
+    /// Se aprire il socket audio con l'agente ICE. Per le chiamate che parte la postazione
+    /// basta l'opzione dell'account; per quelle entranti serve anche che il centralino
+    /// l'abbia offerto, vedi <see cref="IceSdp.DeclaresIce"/>.
+    /// </param>
     private VoIPMediaSession CreateMediaSession(
-        CallContextBuilder context, bool secure, string? destination = null)
+        CallContextBuilder context, bool secure, string? destination = null, bool? ice = null)
     {
+        var conIce = ice ?? _account.Ice;
+
         // La destinazione puo' cambiare i codec da offrire, e oggi lo fa in un caso
         // solo: il gateway di riunione Zoom non accetta G.729, che e' il primo della
         // preferenza predefinita. Vedi ZoomRoomConnector.CodecPreferenceFor.
@@ -3138,7 +3195,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 RtpSecureMediaOption = secure
                     ? RtpSecureMediaOptionEnum.SdpCryptoNegotiation
                     : RtpSecureMediaOptionEnum.None,
-            }, _log);
+            }, _log, conIce);
         }
         else
         {
@@ -3163,7 +3220,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 RtpSecureMediaOption = secure
                     ? RtpSecureMediaOptionEnum.SdpCryptoNegotiation
                     : RtpSecureMediaOptionEnum.None,
-            }, _log);
+            }, _log, conIce);
         }
 
         if (secure)

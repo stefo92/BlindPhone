@@ -204,7 +204,7 @@ public sealed class ImpostazioniRaggruppateTests
     [Theory]
     [InlineData("Identità", new[] { "SipAccountName", "SipUsername", "SipAuthId", "SipPassword", "ShowSipPassword" })]
     [InlineData("Centralino", new[] { "SipDomain", "SipTransport", "SipSrtp" })]
-    [InlineData("Lavoro agile", new[] { "SipStunServer", "SipKeepAlive" })]
+    [InlineData("Lavoro agile", new[] { "SipStunServer", "SipKeepAlive", "SipIce" })]
     [InlineData("Segreteria", new[] { "SipVoicemailNumber" })]
     public void ICampiDellAccountStannoNelLoroGruppo(string gruppo, string[] campi)
     {

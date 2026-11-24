@@ -166,6 +166,16 @@ public sealed record SipSettings
     public string? StunServer { get; init; }
 
     /// <summary>
+    /// Se trovare la strada dell'audio con ICE (RFC 8445). Spento di partenza.
+    /// </summary>
+    /// <remarks>
+    /// Serve con il centralino raggiunto in VPN. Spento perché cambia la descrizione di
+    /// sessione delle chiamate uscenti, e un centralino che funziona oggi non deve
+    /// ricevere niente di diverso a un aggiornamento.
+    /// </remarks>
+    public bool Ice { get; init; }
+
+    /// <summary>
     /// Ogni quanti secondi tenere aperto il passaggio nel router; zero lo spegne.
     /// </summary>
     /// <remarks>

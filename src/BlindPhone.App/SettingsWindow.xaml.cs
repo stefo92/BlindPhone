@@ -442,6 +442,7 @@ public partial class SettingsWindow : Window
             SelectByTag(SipSrtp, account.Srtp);
             UpdateSrtpHint();
             SipStunServer.Text = account.StunServer ?? string.Empty;
+            SipIce.IsChecked = account.Ice;
             SipKeepAlive.Text = account.KeepAliveSeconds.ToString(CultureInfo.InvariantCulture);
 
             var password = _sipPasswords.GetValueOrDefault(account.Id, string.Empty);
@@ -487,6 +488,7 @@ public partial class SettingsWindow : Window
             Srtp = SelectedTag(SipSrtp) ?? "Disabled",
             CodecPreference = [.. _codecs.Where(c => c.IsEnabled).Select(c => c.Info.ShortName)],
             StunServer = NullIfEmpty(SipStunServer.Text),
+            Ice = SipIce.IsChecked == true,
 
             // Un valore che non si legge lascia quello di prima: e' Validate a dirlo
             // all'operatore, al salvataggio, invece di cambiarlo senza avvisare.

@@ -251,6 +251,7 @@ async Task TestNatAsync()
     Console.WriteLine($"Centralino : {account.Domain}");
     Console.WriteLine($"Trasporto  : {account.Transport}");
     Console.WriteLine($"Server STUN: {(string.IsNullOrWhiteSpace(account.StunServer) ? "non configurato" : account.StunServer)}");
+    Console.WriteLine($"ICE        : {(account.Ice ? "acceso (RFC 8445)" : "spento")}");
     Console.WriteLine();
     Console.WriteLine("Registrazione in corso, attendere fino a 15 secondi...");
 
@@ -1022,6 +1023,7 @@ SipAccountOptions? BuildAccount()
         RegistrationExpiry = sip.RegistrationExpiry,
         CodecPreference = sip.CodecPreference,
         StunServer = sip.StunServer,
+        Ice = sip.Ice,
         KeepAliveSeconds = sip.KeepAliveSeconds,
     };
 }

@@ -586,6 +586,11 @@ quel requisito è contrattuale.
   è davvero dietro NAT, indirizzo del collegamento verso il centralino nella prima
   offerta per la VPN parziale, NAT letto da `received` e `rport` (RFC 3581), avviso
   vocale dopo sei secondi di audio a senso unico
+- ICE (RFC 8445) facoltativo per account, pensato per il centralino in VPN: la
+  postazione annuncia gli indirizzi di tutte le schede di rete, tunnel compresi,
+  verifica con il centralino quale coppia si raggiunge e ci sposta la voce; agente
+  completo, controllante sulle chiamate uscenti e con i centralini ICE lite, RTCP sul
+  socket dell'RTP (RFC 5761)
 - Connettore Yeastar: token con rinnovo proattivo, WebSocket con heartbeat e
   riconnessione, interrogazione adattiva, correlazione SIP/API con degrado sicuro
 - Segnalazione SIP: registrazione, chiamate, attesa, REFER cieco e con Replaces,
@@ -661,10 +666,11 @@ quel requisito è contrattuale.
   non ancora contro PostHog Cloud UE né contro un'istanza propria
 - Decisione su RTT (EN 301 549 §6.2): implementarlo o dichiarare lo scostamento
   nell'Accessibility Conformance Report
-- ICE e TURN non ci sono, per scelta motivata: in SIPSorcery 10 l'ICE esiste solo per
-  WebRTC, e il client TURN parla con il relè solo su UDP, che è proprio il caso in cui
-  il relè serve meno. Che cosa servirebbe e quando conviene un SBC è in
-  [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7-bis
+- Prova di ICE su un centralino reale in VPN: le verifiche, la nomina e lo spostamento
+  della voce sono provati fra due sessioni vere sulla postazione, con un candidato che
+  non risponde scritto anche nelle righe `c=` e `m=`, non ancora contro un centralino.
+  Mancano, per scelta, il riavvio di ICE chiesto dal centralino, il secondo componente
+  per l'RTCP separato e TURN: vedi [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7-bis
 
 ## Rubrica
 
@@ -1087,6 +1093,7 @@ dovrebbe mandare l'INVITE.
 | Indirizzo pubblico nell'SDP | Righe `c=` e `m=`, solo se il NAT c'è davvero e il server STUN vede la stessa uscita del centralino | Segue il server STUN |
 | VPN parziale | La prima offerta usa l'indirizzo della scheda che porta al centralino, non quello verso Internet | Sì |
 | Avviso di audio a senso unico | Dopo sei secondi di conversazione con cento pacchetti partiti e nessuno arrivato, una volta per chiamata | Sì |
+| ICE (RFC 8445) | Candidati di tutte le schede, tunnel compresi, verificati con il centralino; la voce va sulla coppia che risponde | **No**: si accende per account |
 
 **Nessun server STUN predefinito**, ed è una scelta: interrogarlo a ogni chiamata dice
 al gestore del server l'indirizzo della postazione e l'ora della telefonata. Su un
@@ -1100,8 +1107,17 @@ risponde o che sta in rete privata, quando il centralino e il server STUN si
 raggiungono da collegamenti diversi, e quando il server vede la postazione con il suo
 stesso indirizzo. La ragione della scelta si legge nella scheda Diagnostica.
 
-Porte da aprire, quando serve TURN e che cosa fare sul centralino: vedi
-[docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7-bis.
+**ICE è spento di partenza**, e si accende per account con *Usa ICE per verificare la
+strada dell'audio con il centralino*. Serve quando il centralino si raggiunge in VPN e
+l'indirizzo scritto nella descrizione di sessione — dalla postazione o dal centralino —
+non è quello da cui la voce passa davvero: invece di indovinarlo, le due parti provano
+tutte le coppie di indirizzi e usano quella che risponde. Alle chiamate uscenti la
+postazione offre ICE; alle entranti risponde con ICE solo se il centralino lo propone,
+e con un centralino che non lo conosce la chiamata procede come senza. La scheda
+Diagnostica dice, durante la chiamata, a che punto sono le verifiche e dove va la voce.
+
+Porte da aprire, che cosa fa e non fa ICE, quando serve TURN e che cosa fare sul
+centralino: vedi [docs/INSTALLAZIONE.md](docs/INSTALLAZIONE.md), §7-bis.
 
 ## Segnalazione cifrata e certificati
 

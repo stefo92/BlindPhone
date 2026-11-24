@@ -560,12 +560,13 @@ ufficio solo il traffico per la rete dell'ente. I due guasti tipici:
 | VPN parziale | La prima offerta SDP porta l'indirizzo della scheda che raggiunge il centralino, non quello della strada verso Internet | No |
 | Server STUN | Interrogato dal socket audio di ogni chiamata, solo se il centralino non è in rete interna | **Sì**, per account. Nessun valore predefinito |
 | Indirizzo pubblico nell'SDP | Righe `c=` e `m=` riscritte con quello che vede il server STUN, solo se il NAT c'è davvero | Segue il server STUN |
+| ICE (RFC 8445) | Candidati di tutte le schede di rete, tunnel compresi, verificati con il centralino; la voce va sulla coppia che risponde | **Sì**, per account. Spento di partenza |
 
 Il server STUN si indica in *Impostazioni → Account SIP → Server STUN per l'indirizzo
 pubblico*, come `stun.ente.it`, `stun.ente.it:3478` o `stun:stun.ente.it`. Le forme
 `stuns:` e `turn:` vengono rifiutate: la postazione interroga solo su UDP e non è un
-client TURN. Nel pacchetto di configurazione (§8) i campi sono `stunServer` e
-`keepAliveSeconds` di ciascun account.
+client TURN. Nel pacchetto di configurazione (§8) i campi sono `stunServer`,
+`keepAliveSeconds` e `ice` di ciascun account.
 
 **Perché nessun server predefinito.** A ogni chiamata il server STUN riceve
 l'indirizzo pubblico della postazione e l'ora: è un dato di traffico. Un server
@@ -610,6 +611,65 @@ arriva quella della postazione. I nomi cambiano da prodotto a prodotto («NAT»,
 rport», «comedia», «symmetric RTP»). Con quella attiva il server STUN non è nemmeno
 necessario; senza, il server STUN risolve i casi dei router domestici comuni.
 
+### ICE (RFC 8445): il centralino raggiunto in VPN
+
+Le regole qui sopra scelgono **un** indirizzo da scrivere nella descrizione di
+sessione, e lo deducono da fuori: la scheda che porta al centralino, l'indirizzo
+pubblico visto dal server STUN. Ci sono reti in cui la deduzione non basta, e sono
+quasi tutte reti con una VPN:
+
+- il concentratore VPN traduce gli indirizzi, e il centralino vede la postazione con
+  un indirizzo che la postazione non conosce;
+- il centralino scrive nella sua descrizione l'indirizzo pubblico, mentre dal tunnel si
+  raggiunge solo quello interno, o il contrario;
+- sono accese due VPN, o una VPN e una scheda virtuale, e la scheda «giusta» non è
+  quella che il sistema sceglie per arrivare al centralino.
+
+Con ICE la postazione non indovina: annuncia gli indirizzi di **tutte** le schede di
+rete accese, tunnel compresi (e l'indirizzo pubblico, se c'è un server STUN), il
+centralino fa lo stesso, e le due parti si mandano verifiche STUN autenticate su ogni
+coppia. La voce va sulla coppia che risponde.
+
+**Si accende per account**: *Impostazioni → Account SIP → Lavoro agile → Usa ICE per
+verificare la strada dell'audio con il centralino*, oppure `"ice": true` nel pacchetto
+di configurazione. Va acceso anche sul centralino — i nomi cambiano: «ICE support»,
+`ice_support=yes` sugli Asterisk con PJSIP, «ICE» sui profili SIP degli SBC.
+
+| Situazione | Che cosa fa la postazione |
+|---|---|
+| Chiamata uscente | Offre credenziali e candidati ICE, con `a=ice-options:ice2` e `a=rtcp-mux`. **Controlla** la scelta della coppia (RFC 8445 §6.1.1) |
+| Chiamata entrante con ICE nell'offerta | Risponde con ICE. Controlla il centralino, se è un agente completo |
+| Centralino `a=ice-lite` | La postazione controlla sempre: un agente lite risponde alle verifiche ma non sceglie |
+| Centralino che risponde senza ICE | Ferma le verifiche e usa l'indirizzo della risposta, come senza ICE. Nelle offerte successive della stessa chiamata ICE non si ripropone |
+| Chiamata entrante senza ICE nell'offerta | Risponde senza, esattamente come con ICE spento |
+| Attesa e ripresa | La voce resta sulla coppia verificata anche se la nuova descrizione del centralino riporta un altro indirizzo |
+| Nessuna coppia risponde | Dopo 16 secondi le verifiche si danno per fallite; la voce resta sull'indirizzo della descrizione del centralino e il registro lo dice |
+
+**Perché è spento di partenza.** Accendendolo, le offerte delle chiamate uscenti
+portano righe che prima non c'erano, e un centralino che oggi funziona non deve
+ricevere nulla di diverso a un aggiornamento: diversi apparati reagiscono male a
+`a=candidate` che non si aspettano. Si accende sulle postazioni che ne hanno bisogno,
+dopo averlo provato con il centralino.
+
+**Che cosa non fa, per scelta.**
+
+- **Un solo componente.** L'RTCP viaggia sul socket dell'RTP (`a=rtcp-mux`,
+  RFC 5761). Con un centralino che non accetta `rtcp-mux` la voce funziona
+  ugualmente; i rapporti RTCP partono dal socket dell'RTP verso la porta successiva a
+  quella della voce, e qualche centralino li ignora.
+- **Niente riavvio di ICE chiesto dal centralino** (credenziali nuove a chiamata in
+  corso, RFC 8445 §9): la voce resta sulla coppia già verificata, e il registro lo
+  segnala. Serve solo se la rete cambia durante la chiamata.
+- **Niente TURN**, vedi sotto. Senza relè, ICE trova la strada se una strada diretta
+  esiste: è il caso della VPN, non quello del NAT simmetrico.
+- **Niente candidati annunciati a pezzi** (trickle ICE, RFC 8838): tutti i candidati
+  sono già nell'offerta o nella risposta.
+
+L'agente ICE è quello di SIPSorcery 10.0.17, lo stesso delle sue sessioni WebRTC,
+collegato alla sessione SIP del posto operatore. Il ruolo nelle verifiche si imposta
+con un accesso a una proprietà che la libreria riserva a sé: la versione della
+libreria è fissata, e una prova automatica fallisce se un aggiornamento la toglie.
+
 ### Quando serve TURN, e perché non c'è
 
 Il server STUN funziona con i router che assegnano a un socket la **stessa porta
@@ -623,18 +683,17 @@ domestici. Non basta con:
 
 In questi casi serve un relè: TURN (RFC 8656), oppure — meglio, per un ente — un SBC
 in DMZ o la gestione del NAT sul centralino, che fanno da relè senza chiedere nulla
-alle postazioni. BlindPhone **non include un client TURN né ICE**, per tre ragioni:
+alle postazioni. BlindPhone **non include un client TURN**, per due ragioni:
 
-1. in SIPSorcery 10.0.17 ICE (RFC 8445) è costruito per WebRTC: richiede RTP e RTCP
-   sullo stesso socket e una sessione `RTCPeerConnection`, e non si applica alle
-   sessioni SIP del posto operatore. Molti centralini, inoltre, rifiutano un'offerta
-   con i candidati ICE;
-2. il client TURN della libreria parla con il relè solo su UDP: copre il NAT simmetrico
+1. il client TURN della libreria parla con il relè solo su UDP: copre il NAT simmetrico
    ma non le reti che bloccano UDP, cioè il caso in cui TURN serve di più. Gestisce un
-   solo permesso per volta, e RTCP resterebbe fuori dal relè;
-3. richiederebbe un server TURN dell'ente con credenziali da distribuire, per un caso
+   solo permesso per volta;
+2. richiederebbe un server TURN dell'ente con credenziali da distribuire, per un caso
    che un SBC o la gestione del NAT sul centralino risolvono per tutte le postazioni
    insieme.
+
+ICE invece c'è (vedi sopra): con un relè diventerebbe il modo di usarlo, perché il
+candidato del relè è uno dei candidati da verificare.
 
 Servirebbe, per farlo bene: un client TURN su TCP e TLS (porta 443), i permessi
 rinnovati per l'indirizzo della voce che il centralino comunica nella risposta, e una
@@ -643,8 +702,13 @@ prova su un centralino reale. Se una rete dell'ente lo richiede, è un lavoro a 
 ### Come si verifica
 
 - *Impostazioni → Diagnostica*: righe «NAT fra postazione e centralino», «Indirizzo
-  pubblico scoperto», «Server STUN», «Segnale di mantenimento» e, durante una chiamata,
-  «Indirizzo annunciato per l'audio» e «Verso dell'audio».
+  pubblico scoperto», «Server STUN», «Segnale di mantenimento», «ICE» e, durante una
+  chiamata, «Candidati ICE annunciati», «Indirizzo annunciato per l'audio» e «Verso
+  dell'audio». Con ICE acceso la riga «ICE» dice a che punto sono le verifiche, chi
+  sceglie la coppia e, a coppia scelta, a quale indirizzo del centralino va la voce.
+- Nel registro, a ogni passaggio delle verifiche, una riga «Chiamata …: ICE, …» con lo
+  stesso testo. Con il dettaglio del registro su «tutto» compaiono anche le singole
+  verifiche STUN della libreria.
 - `blindphone-diag nat` dalla postazione: si registra, dice se il NAT c'è, interroga il
   server STUN e dice che cosa la postazione annuncerebbe in una chiamata.
 - Durante una chiamata con l'audio a senso unico, dopo sei secondi BlindPhone lo dice a
@@ -657,7 +721,8 @@ Il segnale di mantenimento si accende da solo, anche sulle postazioni in sede: q
 byte ogni 25 secondi verso il centralino a cui la postazione è già registrata, che i
 centralini ignorano. La prima offerta SDP delle chiamate uscenti usa l'indirizzo della
 scheda che raggiunge il centralino: con una sola scheda di rete è lo stesso di prima.
-Il server STUN resta vuoto finché qualcuno non lo indica.
+Il server STUN resta vuoto finché qualcuno non lo indica, e ICE resta spento finché
+qualcuno non lo accende: nessuna descrizione di sessione cambia per chi aggiorna.
 
 ---
 

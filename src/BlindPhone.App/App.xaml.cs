@@ -1270,6 +1270,7 @@ public partial class App : Application
         RegistrationExpiry = sip.RegistrationExpiry,
         CodecPreference = sip.CodecPreference,
         StunServer = sip.StunServer,
+        Ice = sip.Ice,
         KeepAliveSeconds = sip.KeepAliveSeconds,
     };
 

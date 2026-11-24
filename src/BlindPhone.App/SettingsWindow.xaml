@@ -668,6 +668,21 @@
                                              Width="120" HorizontalAlignment="Left"
                                              AutomationProperties.Name="Segnale di mantenimento, ogni quanti secondi"
                                              AutomationProperties.HelpText="Tiene aperto il passaggio nel router di casa fra una chiamata e l'altra, cosi' le chiamate entranti continuano ad arrivare. Il valore consigliato e' 25. Accetta da 10 a 300 secondi; zero lo spegne." />
+
+                                    <!--
+                                        ICE: nessun tasto di accesso. In questa scheda restano
+                                        libere solo J, K, W e Y, che nessuna parola della frase
+                                        contiene, e una lettera sottolineata nella sigla non si
+                                        sente. Si raggiunge con Tab dal segnale di mantenimento,
+                                        o con Alt+Z cercando "ICE".
+                                        Spento di partenza: cambia la descrizione di sessione
+                                        delle chiamate uscenti, e va provato sul centralino.
+                                    -->
+                                    <CheckBox x:Name="SipIce"
+                                              Content="Usa ICE per verificare la strada dell'audio con il centralino"
+                                              Margin="0,10,0,0"
+                                              AutomationProperties.Name="Usa ICE per verificare la strada dell'audio con il centralino"
+                                              AutomationProperties.HelpText="Serve quando il centralino si raggiunge in VPN e una delle due parti non sente l'altra. La postazione annuncia gli indirizzi di tutte le sue schede di rete, VPN compresa, prova con il centralino quali si raggiungono davvero e manda la voce sulla strada che risponde. Lo standard e' ICE, RFC 8445. Alle chiamate entranti si usa solo se il centralino lo propone. Lascialo spento se le chiamate funzionano: alcuni centralini non accettano le righe in piu' che ICE aggiunge." />
                                 </StackPanel>
                             </GroupBox>
 
