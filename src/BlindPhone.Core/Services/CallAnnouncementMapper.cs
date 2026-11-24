@@ -206,12 +206,17 @@ public sealed class CallAnnouncementMapper
         {
             // Chiamata entrante: critico, perche' e' l'evento su cui si fonda il
             // lavoro dell'operatore e non deve mai essere perso.
+            // Il trasferimento restituito dal centralino squilla come una chiamata
+            // qualunque, ma la voce lo dice per quello che e': un chiamante che
+            // l'operatore aveva gia' passato e che il collega non ha preso.
             (CallState.Idle, CallTrigger.IncomingCall) => Announcement.Critical(
-                AnnouncementTexts.IncomingCall(party, call.QueueName, _grouping),
+                call.IsTransferRebound
+                    ? AnnouncementTexts.IncomingTransferRebound(party, call.QueueName, _grouping)
+                    : AnnouncementTexts.IncomingCall(party, call.QueueName, _grouping),
                 now,
                 EarconKind.IncomingCall,
                 coalesceKey: null,
-                braille: BrailleIncoming(party)),
+                braille: call.IsTransferRebound ? BrailleRebound(party) : BrailleIncoming(party)),
 
             (CallState.Idle, CallTrigger.OutgoingCall) => Announcement.High(
                 AnnouncementTexts.Dialing(SpeechFormatter.Party(party.DisplayName, party.Number, _grouping)),
@@ -467,6 +472,8 @@ public sealed class CallAnnouncementMapper
     };
 
     private static string BrailleIncoming(CallParty party) => $">{Short(party)}";
+
+    private static string BrailleRebound(CallParty party) => $">RIT {Short(party)}";
 
     private static string BrailleActive(CallParty party) => $"={Short(party)}";
 

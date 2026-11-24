@@ -317,6 +317,8 @@ public static class HelpBook
 
         Strada rapida, per smaltire la coda: premi Invio. La chiamata parte subito, alla cieca, senza altre conferme. Digita, Invio, avanti il prossimo.
 
+        Se l'interno non la prende, il centralino può restituirti la chiamata: squilla di nuovo, e la voce dice «Torna dal trasferimento non risposto» seguito da chi sta chiamando. Rispondi con {K(profile, HotkeyCommand.Answer)} come a una chiamata qualunque. Succede anche quando il collega sembra occupato ma il suo telefono accetta una seconda chiamata: per lui squilla di sottofondo e, se non la prende, torna a te. Con un collega che sembra occupato conviene la strada con annuncio, che ti dice subito se prende la chiamata.
+
         Con il mouse le due strade sono due pulsanti distinti, «trasferisci subito» e «annuncia e trasferisci», che compaiono appena hai scritto una destinazione: lì non serve ricordare quale gesto scelga quale strada, perché il pulsante lo dice.
 
         Strada con annuncio, per presentare il chiamante: premi {key}. Chiami l'interno e gli parli. Poi:

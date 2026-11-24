@@ -4462,7 +4462,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        IncomingCallText.Text = CallBoardTexts.IncomingCall(ringing.RemoteParty, ringing.QueueName);
+        IncomingCallText.Text = CallBoardTexts.IncomingCall(
+            ringing.RemoteParty, ringing.QueueName, ringing.IsTransferRebound);
         IncomingCallText.Visibility = Visibility.Visible;
     }
 

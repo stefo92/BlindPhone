@@ -69,6 +69,12 @@ public sealed class Call
     /// <summary>Nome della coda da cui proviene la chiamata, se pertinente.</summary>
     public string? QueueName { get; private set; }
 
+    /// <summary>
+    /// La chiamata è un trasferimento che il centralino ha restituito perché
+    /// l'interno non l'ha presa. Vedi <see cref="TransferRebound"/>.
+    /// </summary>
+    public bool IsTransferRebound { get; private set; }
+
     /// <summary>Istante di creazione dell'oggetto chiamata.</summary>
     public DateTimeOffset CreatedAt { get; }
 
@@ -180,6 +186,11 @@ public sealed class Call
     /// <summary>Indica da quale coda proviene la chiamata.</summary>
     /// <param name="queueName">Nome della coda.</param>
     public void AttachQueue(string? queueName) => QueueName = queueName;
+
+    /// <summary>
+    /// Segna la chiamata come trasferimento restituito dal centralino.
+    /// </summary>
+    public void MarkAsTransferRebound() => IsTransferRebound = true;
 
     /// <summary>Registra le caratteristiche del media negoziato.</summary>
     /// <param name="codec">Nome del codec (es. "G722", "PCMA", "OPUS").</param>

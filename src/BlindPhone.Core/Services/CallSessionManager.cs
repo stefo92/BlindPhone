@@ -1387,12 +1387,27 @@ public sealed class CallSessionManager : IAsyncDisposable
     {
         try
         {
-            var party = await ResolveIncomingPartyAsync(e.RemoteParty, CancellationToken.None)
+            // Il trasferimento restituito dal centralino porta la notizia nel nome:
+            // «Rebound Transfer Call: Mario Rossi». Si toglie il prefisso PRIMA della
+            // rubrica, cosi' il nome che resta e' quello del chiamante e, se dopo il
+            // prefisso non c'e' niente, lo trova la rubrica dal numero.
+            var remote = e.RemoteParty;
+            var rebound = TransferRebound.TryStrip(remote.DisplayName, out var nomeDelChiamante);
+            if (rebound)
+            {
+                remote = remote with { DisplayName = nomeDelChiamante };
+                _log.LogInformation(
+                    "Chiamata {CallId}: trasferimento restituito dal centralino, l'interno non l'ha presa",
+                    e.CallId);
+            }
+
+            var party = await ResolveIncomingPartyAsync(remote, CancellationToken.None)
                 .ConfigureAwait(false);
 
             var call = new Call(e.CallId, CallDirection.Inbound, party, e.At);
             call.AttachIdentifiers(e.SipCallId);
             call.AttachQueue(e.QueueHint);
+            if (rebound) call.MarkAsTransferRebound();
 
             lock (_gate) _calls[e.CallId] = call;
 

@@ -43,6 +43,26 @@ public static class AnnouncementTexts
     }
 
     /// <summary>
+    /// Chiamata che il centralino restituisce perché l'interno a cui era stata
+    /// trasferita non l'ha presa.
+    /// </summary>
+    /// <param name="party">Il chiamante, già senza il prefisso del centralino.</param>
+    /// <param name="queueName">Coda di provenienza, se nota.</param>
+    /// <param name="grouping">Raggruppamento per la lettura del numero.</param>
+    /// <remarks>
+    /// La notizia viene prima del nome: l'operatore deve sapere subito che non è un
+    /// chiamante nuovo ma uno che aveva già passato, e che il collega non ha risposto.
+    /// Vedi <see cref="Domain.TransferRebound"/>.
+    /// </remarks>
+    public static string IncomingTransferRebound(CallParty party, string? queueName, DigitGrouping grouping)
+    {
+        var who = CallerIdentity(party, grouping);
+        return string.IsNullOrWhiteSpace(queueName)
+            ? $"Torna dal trasferimento non risposto: {who}"
+            : $"Torna dal trasferimento non risposto: {who}, coda {queueName}";
+    }
+
+    /// <summary>
     /// Identificazione del chiamante: nome e interno se il numero è in rubrica, il
     /// solo numero se non lo è.
     /// </summary>
