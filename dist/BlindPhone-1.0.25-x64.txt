@@ -18,6 +18,18 @@ Durante la conversazione il pulsante Trasferisci resta spento finche' il campo d
 Con la destinazione scritta, accanto a Trasferisci compare Trasferisci subito, che passa la chiamata senza annunciarla come Invio da tastiera: e' il trasferimento cieco per chi usa il mouse
 Se il collega non prende una chiamata che gli hai trasferito e il centralino te la restituisce, la voce dice Torna dal trasferimento non risposto seguito da chi sta chiamando: prima si sentiva in inglese, Rebound Transfer Call, con il nome per ultimo
 La stessa chiamata restituita a schermo si legge Torna dal trasferimento non risposto al posto di Chiamata da, e in braille RIT seguito dal nome; dopo la risposta il nome compare senza prefisso
+In Impostazioni, scheda Account SIP, sezione Lavoro agile, la nuova casella Usa ICE per verificare la strada dell'audio con il centralino: con il centralino raggiunto in VPN la postazione e il centralino provano le strade possibili e la voce passa da quella che risponde, invece di affidarsi a un indirizzo indovinato
+La casella e' spenta di partenza e vale per il singolo account; non ha un tasto di accesso: si raggiunge con Tab, oppure con Alt Z scrivendo ICE. Se il centralino non usa ICE la chiamata procede come prima
+Nella scheda Diagnostica le righe ICE e Candidati ICE annunciati dicono se ICE e' acceso e quali indirizzi la postazione propone al centralino
+In Impostazioni, scheda Tasti rapidi, le combinazioni globali si cambiano davvero: finche' la finestra di cattura e' aperta le scorciatoie globali di BlindPhone sono sospese, cosi' puoi premere anche Control Maiusc F2 e spostarla su un altro comando invece di rispondere alla chiamata
+Quando assegni una combinazione globale BlindPhone la prova subito presso Windows: se la tiene un altro programma la rifiuta e lo dice, prima del salvataggio. Se premi una combinazione che non arriva alla finestra di cattura, la finestra dice che la tiene Windows, lo screen reader o un altro programma
+Una combinazione globale sugli stessi tasti della combinazione locale di un altro comando viene segnalata come conflitto, perche' Windows la consegnerebbe anche con BlindPhone in primo piano: se confermi, la combinazione viene tolta all'altro comando
+Nella tabella dei tasti Backspace, oppure il nuovo pulsante Torna al predefinito, Alt N, riporta al valore di BlindPhone solo la combinazione su cui ti trovi; Ripristina tutti i predefiniti, Alt D, riporta l'intero profilo e dice quali combinazioni globali predefinite sono tenute da altri programmi
+All'avvio la voce dice quali combinazioni globali sono gia' usate da altri programmi e non funzioneranno fuori da BlindPhone: prima finivano soltanto nel registro
+La combinazione globale della postazione fuori servizio, Control Alt Maiusc Pausa, viene registrata presso Windows con il tasto che la tastiera manda davvero quando Control e' premuto, e Control Alt Pausa assegnata dal pannello dei tasti non viene piu' salvata con un nome che BlindPhone non riconosceva
+Alt C copia negli appunti il numero di chi e' in linea, senza spazi, e te lo rilegge cifra per cifra: poi lo incolli dove serve con Control V
+Senza nessuno in linea Alt C copia il numero di chi sta chiamando, poi di chi stai chiamando, poi della chiamata in attesa piu' recente, e dopo che hai riagganciato quello dell'ultima chiamata ricevuta, anche persa; la voce dice sempre di chi e' il numero
+Un numero nascosto non si copia, e gli appunti restano com'erano. Per copiare il numero stando in un altro programma assegna al comando Copia il numero del chiamante una combinazione globale, dalla scheda Tasti rapidi
 
 Gia' presenti dalla 1.0.24:
 Se il telefono squilla mentre stai chiamando qualcuno, F3 chiude prima la chiamata che hai fatto partire tu e un secondo F3 rifiuta quella che squilla: prima il primo F3 rifiutava chi squillava e lasciava in piedi la chiamata che volevi annullare
@@ -315,4 +327,4 @@ I backup con estensioni non previste - punto bkp, punto dmp, punto backup o ness
 # BlindPhone la confronta con quella del file scaricato e rifiuta l'aggiornamento
 # se non corrisponde: se il pacchetto viene ricostruito, questa riga va rifatta.
 # La scrive tools\crea-installatore.ps1: non modificarla a mano.
-SHA256: 7DC08A32C5FE5E5478346ED5E023AC493F5C465403B8D506D37292AF6436D2E4
+SHA256: FA5DA97D92FDB3962D5FECA238BD33F496C9E11DD168C429AAFBE30FAC154EB2

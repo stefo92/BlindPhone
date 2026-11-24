@@ -241,6 +241,17 @@ public enum HotkeyCommand
 
     /// <summary>Annulla l'operazione in corso.</summary>
     Cancel,
+
+    /// <summary>
+    /// Copia negli appunti il numero di chi è in linea, o della chiamata più vicina.
+    /// </summary>
+    /// <remarks>
+    /// Sta in fondo all'elenco e non accanto agli altri comandi di informazione perché
+    /// è stato aggiunto dopo: i profili e le statistiche conservano i comandi per nome,
+    /// ma nulla garantisce che nessuno, da qualche parte, ne abbia conservato il valore
+    /// numerico. Quale chiamata scegliere lo decide <c>CallerNumberCopy</c>.
+    /// </remarks>
+    CopyCallerNumber,
 }
 
 /// <summary>Categoria di appartenenza di un comando, usata per raggruppare l'elenco.</summary>

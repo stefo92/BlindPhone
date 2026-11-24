@@ -378,6 +378,22 @@ public sealed class HotkeyProfile
         profile.Set(new HotkeyBinding(
             HotkeyCommand.AnnounceLineQuality, "Q", HotkeyModifiers.Control, HotkeyScope.Local));
 
+        // COPIA DEL NUMERO SU ALT C, e solo locale.
+        //
+        // "C" come copia, e con Alt e non con Control perche' Control C deve restare la
+        // copia di sempre: con il cursore nel campo di composizione copia il testo
+        // selezionato, e rubarla vorrebbe dire non poter piu' copiare una parte del
+        // numero scritto. Alt C era libera nel profilo, e la finestra principale non ha
+        // un tasto di accesso sulla C. Non e' Control Alt C, che porta ai colleghi.
+        //
+        // Nessuna globale predefinita. Alt C registrata presso Windows la toglierebbe a
+        // ogni altro programma, dove e' spesso il tasto di accesso di Chiudi, Cerca o
+        // Copia: chi vuole copiare il numero da dentro il gestionale gliene assegna una
+        // dal pannello dei tasti rapidi, scegliendola fra quelle libere sulla sua
+        // postazione.
+        profile.Set(new HotkeyBinding(
+            HotkeyCommand.CopyCallerNumber, "C", HotkeyModifiers.Alt, HotkeyScope.Local));
+
         // Stato dell'interno che si sta per chiamare o a cui si sta per passare la
         // chiamata: "I" come informazione sull'interno.
         profile.Set(new HotkeyBinding(

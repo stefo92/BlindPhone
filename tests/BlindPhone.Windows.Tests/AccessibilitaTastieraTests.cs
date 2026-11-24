@@ -155,6 +155,28 @@ public sealed class AccessibilitaTastieraTests
     }
 
     [Fact]
+    public void LeCombinazioniAltDelProfiloPredefinitoNonCopronoITastiDiAccessoDellaFinestraPrincipale()
+    {
+        // La finestra principale cerca le scorciatoie prima che WPF guardi i tasti di
+        // accesso: una combinazione Alt piu' lettera del profilo renderebbe
+        // irraggiungibile il campo con la stessa lettera sottolineata, e chi lo cerca
+        // con Alt N si ritroverebbe un comando al posto del campo di composizione. E'
+        // il controllo che ha deciso Alt C per la copia del numero.
+        var documento = Finestre().Single(f => f.File == "MainWindow.xaml").Documento;
+        var lettere = ConTasto(documento).Select(v => v.Tasto).ToHashSet();
+
+        var coperte = BlindPhone.Core.Services.HotkeyProfile.CreateDefault().Bindings
+            .Where(b => b.Scope == BlindPhone.Core.Domain.HotkeyScope.Local
+                        && b.Modifiers == BlindPhone.Core.Domain.HotkeyModifiers.Alt
+                        && b.Key.Length == 1
+                        && lettere.Contains(char.ToUpperInvariant(b.Key[0])))
+            .Select(b => $"{b.Command}: {b.SpeechText}")
+            .ToList();
+
+        Assert.True(coperte.Count == 0, "Scorciatoie che coprono un tasto di accesso: " + string.Join(", ", coperte));
+    }
+
+    [Fact]
     public void LeIntestazioniDelleSchedeDelleImpostazioniNonHannoTastiDiAccesso()
     {
         // Le schede si cambiano con Control Tab, annunciato a ogni apertura. Le lettere

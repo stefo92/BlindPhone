@@ -145,6 +145,11 @@ sola delle due linee senza che si possa dire quale.
 - Riepilogo completo dello stato — Locale: Control F5 — Globale: Control Alt F5
 - Durata della chiamata corrente — Locale: Control T
 - Qualità della linea — Locale: Control Q
+- Copia il numero del chiamante negli appunti — Locale: Alt C. Copia il numero di chi è
+  in linea e lo rilegge cifra per cifra; se non c'è nessuno in linea, quello di chi sta
+  chiamando, di chi stai chiamando, della chiamata in attesa più recente o, dopo aver
+  riagganciato, dell'ultima chiamata ricevuta, anche persa. Un numero nascosto non si
+  copia. Per usarlo da un altro programma assegnagli una combinazione globale
 - Ripeti ultimo annuncio — Locale: Control F12
 - Storico degli annunci — Locale: Control Maiusc A (assegnato, ma la finestra non
   c'è ancora: il tasto risponde «funzione non ancora disponibile»)

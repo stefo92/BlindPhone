@@ -927,6 +927,31 @@ stato — perché altrimenti l'operatore resterebbe chiuso dentro un menu senza 
 
 Il tastierino numerico è compreso, ed è quello che si usa davvero: le dita sono già lì.
 
+## Copiare il numero del chiamante
+
+**`Alt+C`** mette negli appunti il numero di chi è in linea, da incollare con `Ctrl+V`
+nel gestionale, in un messaggio o nel campo di composizione, e lo rilegge cifra per
+cifra: chi non vede deve sapere che cosa incollerà. Si copia la forma che si compone,
+sole cifre con il più iniziale se c'era, senza spazi né trattini.
+
+Chi non vede lo schermo non può controllare quale chiamata è «selezionata», quindi la
+regola è fissa e la conferma dice sempre di chi è il numero:
+
+| Situazione | Numero copiato |
+|---|---|
+| Conversazione in corso | Di chi è in linea; in conferenza, di chi ha chiamato |
+| Il telefono squilla | Di chi sta chiamando, per cercarlo prima di rispondere |
+| Chiamata uscente senza risposta | Di chi stai chiamando |
+| Solo chiamate in attesa | Della chiamata messa in attesa per ultima, preferendo chi ha chiamato |
+| Nessuna chiamata | Dell'ultima chiamata ricevuta, risposta o persa |
+
+Un numero nascosto non si copia, e non si scende alla chiamata successiva: si sente
+che il numero è nascosto e gli appunti restano come erano. `Alt+C` vale con BlindPhone
+in primo piano; per copiare stando nel gestionale si assegna una combinazione globale
+dal pannello dei tasti rapidi. Una globale predefinita non c'è: `Alt+C` registrata
+presso Windows la toglierebbe a ogni altro programma, dove è spesso il tasto di
+accesso di *Chiudi* o *Cerca*.
+
 ## Stato degli interni
 
 L'operatore vede se un interno è **libero, occupato, squilla, in non disturbare,

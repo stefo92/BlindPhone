@@ -169,6 +169,12 @@ public static class HotkeyCommandCatalog
         new(HotkeyCommand.AnnounceLineQuality, HotkeyCategory.Information, "Qualita' della linea",
             "Annuncia la qualita' audio e il codec in uso. Serve quando l'interlocutore lamenta di sentire male."),
 
+        new(HotkeyCommand.CopyCallerNumber, HotkeyCategory.Information, "Copia il numero del chiamante",
+            "Mette negli appunti il numero di chi e' in linea, da incollare in un altro programma con Control V, "
+            + "e lo rilegge cifra per cifra. Senza nessuno in linea copia, nell'ordine, quello di chi sta "
+            + "chiamando, di chi stai chiamando, della chiamata in attesa piu' recente e infine dell'ultima "
+            + "chiamata ricevuta, anche persa. Un numero nascosto non si copia, e lo dice."),
+
         new(HotkeyCommand.RepeatLastAnnouncement, HotkeyCategory.Information, "Ripeti l'ultimo annuncio",
             "Ripete l'ultima cosa detta dalla voce. Utile quando un rumore la copre."),
 

@@ -300,6 +300,8 @@ public static class HelpBook
         Durante la conversazione gli annunci non urgenti vengono taciuti, così la voce del sistema non si sovrappone a quella dell'interlocutore. Restano i segnali acustici, che sono brevi e non coprono il parlato. Il comportamento si cambia da Impostazioni, scheda Accessibilità.
 
         Se ti serve un'informazione mentre parli, chiedila: la durata della chiamata con {K(profile, HotkeyCommand.AnnounceCallDuration)}, la qualità della linea con {K(profile, HotkeyCommand.AnnounceLineQuality)}.
+
+        Per annotare il numero di chi hai in linea in un altro programma, {K(profile, HotkeyCommand.CopyCallerNumber)} lo copia negli appunti, senza spazi, e te lo rilegge cifra per cifra: poi lo incolli dove serve con Control V. Se non c'è nessuno in linea copia quello di chi sta chiamando, poi di chi stai chiamando, poi della chiamata in attesa più recente, e dopo che hai riagganciato quello dell'ultima chiamata ricevuta, anche se persa. Un numero nascosto non si copia, e te lo dice. Funziona con BlindPhone in primo piano; per usarlo dal programma in cui stai scrivendo assegnagli una combinazione globale, da Impostazioni, scheda Tasti rapidi.
         """;
 
     private static string Trasferimento(HotkeyProfile profile)

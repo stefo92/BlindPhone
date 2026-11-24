@@ -282,6 +282,13 @@ public partial class MainWindow : Window
     private string? _lastDialedNumber;
 
     /// <summary>
+    /// L'ultima chiamata ricevuta che è terminata, risposta o persa: è quella di cui
+    /// si copia il numero quando non c'è più nessuno in linea. Vedi
+    /// <see cref="CallerNumberCopy"/>.
+    /// </summary>
+    private Call? _lastReceivedCall;
+
+    /// <summary>
     /// Testo di aiuto originale del campo di composizione.
     /// </summary>
     /// <remarks>
@@ -2408,6 +2415,10 @@ public partial class MainWindow : Window
                     AnnounceLineQuality();
                     break;
 
+                case HotkeyCommand.CopyCallerNumber:
+                    CopyCallerNumber();
+                    break;
+
                 case HotkeyCommand.AnnounceAgentState:
                     _queue.AnnounceAgentState();
                     break;
@@ -3483,6 +3494,74 @@ public partial class MainWindow : Window
                 $"{c.RemoteParty.SpeechName}: {AnnouncementTexts.LineQuality(c, cifrata)}"));
 
         _announcer.Announce(Announcement.CommandResponse(text, DateTimeOffset.Now));
+    }
+
+    /// <summary>
+    /// Copia negli appunti il numero di chi è in linea, o della chiamata più vicina.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Quale chiamata scegliere lo decide <see cref="CallerNumberCopy"/>, con una regola
+    /// fissa che l'operatore può prevedere senza guardare lo schermo. Qui si leggono le
+    /// chiamate dal gestore, si scrive negli appunti e si conferma a voce rileggendo il
+    /// numero: senza, chi non vede incollerebbe alla cieca.
+    /// </para>
+    /// <para>
+    /// Gli appunti possono essere occupati per un istante da un altro programma, che li
+    /// tiene aperti mentre li legge. Non è un guasto di BlindPhone e va detto come tale,
+    /// con l'invito a riprovare: tacere farebbe incollare il contenuto precedente.
+    /// </para>
+    /// <para>
+    /// Funziona anche da una combinazione globale, se l'operatore gliene assegna una:
+    /// con BlindPhone in secondo piano il numero finisce negli appunti senza lasciare il
+    /// programma in cui lo si sta per incollare.
+    /// </para>
+    /// </remarks>
+    private void CopyCallerNumber()
+    {
+        var now = DateTimeOffset.Now;
+
+        var candidate = CallerNumberCopy.Choose(
+            CallsInEar(),
+            _calls.RingingCall,
+            _calls.OutgoingCall,
+            _calls.WaitingCalls,
+            _lastReceivedCall);
+
+        if (candidate is null)
+        {
+            _announcer.Announce(Announcement.CommandResponse(CallerNumberCopy.NothingToCopy, now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        if (CallerNumberCopy.CopyText(candidate.Call.RemoteParty) is not { } number)
+        {
+            _announcer.Announce(Announcement.CommandResponse(CallerNumberCopy.HiddenNumber(candidate), now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        try
+        {
+            Clipboard.SetText(number);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Copia del numero negli appunti non riuscita");
+            _announcer.Announce(Announcement.CommandResponse(
+                "Copia non riuscita: gli appunti sono occupati da un altro programma. Riprova fra un istante",
+                now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
+
+        _log.LogInformation("Numero della chiamata {CallId} copiato negli appunti", candidate.Call.Id);
+
+        _announcer.Announce(Announcement.CommandResponse(
+            CallerNumberCopy.Confirmation(candidate, number, _settingsService.Current.Accessibility.DigitGrouping),
+            now,
+            braille: $"Copiato {number}"));
     }
 
     /// <summary>
@@ -5565,6 +5644,14 @@ public partial class MainWindow : Window
         => Dispatcher.Invoke(() =>
         {
             UpdateStatus();
+
+            // Il numero di chi ha appena riagganciato si copia anche dopo: e' il momento
+            // in cui lo si annota. Vale anche per le chiamate perse, che sono proprio
+            // quelle da richiamare.
+            if (e.Transition.To == CallState.Terminated && e.Call.Direction == CallDirection.Inbound)
+            {
+                _lastReceivedCall = e.Call;
+            }
 
             // La registrazione non sopravvive alla chiamata che stava registrando: se
             // e' finita, la combinazione deve tornare a significare "avvia".
