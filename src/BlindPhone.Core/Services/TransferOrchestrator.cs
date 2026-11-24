@@ -284,7 +284,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             // parlare dentro la conversazione di due persone e deve sapere che loro lo
             // sanno.
             _announcer.Announce(Announcement.High(
-                $"Inclusione nella conversazione di {session.DestinationSpeech}. "
+                $"Inclusione nella conversazione di {SpokenDestination(session)}. "
                 + "Tutti sentono un segnale periodico che dichiara il tuo ascolto",
                 _clock.Now,
                 EarconKind.CallAnswered,
@@ -456,6 +456,57 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         session.SetDestination(trimmed, resolved);
 
         return await ExecuteBlindTransferConfirmedAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Trasferisce alla cieca dalla conversazione, con la destinazione già scritta,
+    /// aprendo la procedura e inviandola in un gesto solo.
+    /// </summary>
+    /// <param name="destination">Numero o nome digitato dall'operatore.</param>
+    /// <param name="cancellationToken">Token di annullamento.</param>
+    /// <returns><c>true</c> se il trasferimento è partito.</returns>
+    /// <remarks>
+    /// <para>
+    /// È il pulsante «Trasferisci subito» che compare accanto a «Trasferisci» appena
+    /// c'è una destinazione nel campo: chi usa il mouse scrive il numero mentre il
+    /// chiamante parla e poi sceglie la strada, come chi usa la tastiera preme Invio.
+    /// Senza questo, il trasferimento cieco da mouse passava solo da «Trasferisci»
+    /// premuto a campo vuoto, che adesso è spento.
+    /// </para>
+    /// <para>
+    /// <b>È un metodo a parte, e non una tolleranza di
+    /// <see cref="BlindTransferNowAsync"/></b>: quello resta rifiutato fuori dalla
+    /// procedura, perché Invio premuto in conversazione non deve inventarsi un
+    /// trasferimento. Qui invece l'apertura è il gesto stesso: il pulsante esiste solo
+    /// con la destinazione scritta.
+    /// </para>
+    /// <para>
+    /// La procedura si apre senza l'annuncio che chiede la destinazione — la
+    /// destinazione c'è già — e il riscontro resta quello di sempre: l'esito, con il
+    /// numero riletto cifra per cifra. Se una procedura è già aperta si prosegue da
+    /// quella, come Invio.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> BlindTransferFromConversationAsync(
+        string destination,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            _announcer.Announce(Announcement.CommandResponse("Nessuna destinazione inserita", _clock.Now));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return false;
+        }
+
+        if (Phase == TransferPhase.Idle)
+        {
+            var session = await OpenSessionAsync(cancellationToken).ConfigureAwait(false);
+            if (session is null) return false;
+
+            RaisePhaseChanged(TransferPhase.EnteringDestination);
+        }
+
+        return await BlindTransferNowAsync(destination, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -647,7 +698,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             _announcer.Announce(Announcement.CommandResponse(
                 session.ConsultationCall is null
                     ? AnnouncementTexts.SwapBeforeConsultation
-                    : AnnouncementTexts.SwapWhileDestinationRinging(session.DestinationSpeech),
+                    : AnnouncementTexts.SwapWhileDestinationRinging(SpokenDestination(session)),
                 _clock.Now));
 
             _announcer.PlayEarcon(EarconKind.CommandRejected);
@@ -805,46 +856,8 @@ public sealed class TransferOrchestrator : IAsyncDisposable
     /// <param name="cancellationToken">Token di annullamento.</param>
     private async Task<bool> BeginTransferAsync(string? preparedDestination, CancellationToken cancellationToken)
     {
-        var call = _calls.ActiveCall ?? _calls.HeldCalls.FirstOrDefault();
-        if (call is null)
-        {
-            return RejectCommand();
-        }
-
-        // LA PROCEDURA ESISTE PRIMA DELL'ATTESA, non dopo.
-        //
-        // La messa in attesa e' una transizione, e a ogni transizione la finestra
-        // ricalcola la barra e le spie della cuffia. Con la procedura creata dopo, quel
-        // ricalcolo vedeva un chiamante in attesa e nessun trasferimento: la spia della
-        // linea si spegneva e si riaccendeva in pochi millisecondi, e la conferma della
-        // cuffia arrivata in ritardo veniva presa per la pressione che chiude. Il
-        // chiamante cadeva nell'istante in cui l'operatore cominciava a passarlo.
-        var session = new TransferSession(call, _clock.Now);
-        lock (_gate) _session = session;
-
-        try
-        {
-            // Il chiamante va messo in attesa prima di qualunque altra cosa: durante
-            // l'inserimento della destinazione non deve sentire l'operatore digitare.
-            if (call.State == CallState.Active)
-            {
-                await _telephony.HoldAsync(call.Id, cancellationToken).ConfigureAwait(false);
-                _calls.ApplyTrigger(call.Id, CallTrigger.Hold, suppressAnnouncement: true);
-            }
-        }
-        catch
-        {
-            // Un'attesa non riuscita non deve lasciare una procedura senza chiamante
-            // parcheggiato: e' lo stato da cui nessun comando esce.
-            lock (_gate)
-            {
-                if (ReferenceEquals(_session, session)) _session = null;
-            }
-
-            throw;
-        }
-
-        _calls.ApplyTrigger(call.Id, CallTrigger.TransferStarted, suppressAnnouncement: true);
+        var session = await OpenSessionAsync(cancellationToken).ConfigureAwait(false);
+        if (session is null) return false;
 
         if (!string.IsNullOrWhiteSpace(preparedDestination))
         {
@@ -881,6 +894,68 @@ public sealed class TransferOrchestrator : IAsyncDisposable
 
         RaisePhaseChanged(TransferPhase.EnteringDestination);
         return true;
+    }
+
+    /// <summary>
+    /// Apre la procedura di trasferimento: parcheggia il chiamante e lo dichiara
+    /// coinvolto in un trasferimento, senza annunci.
+    /// </summary>
+    /// <param name="cancellationToken">Token di annullamento.</param>
+    /// <returns>
+    /// La procedura aperta, in fase di inserimento della destinazione; <c>null</c> se
+    /// non c'è nessuna chiamata da trasferire, e in quel caso il rifiuto è già stato
+    /// annunciato.
+    /// </returns>
+    /// <remarks>
+    /// Il punto da cui partono sia il tasto di trasferimento sia il pulsante
+    /// «Trasferisci subito» a procedura ancora chiusa. Gli annunci li fa chi chiama,
+    /// perché dipendono dalla strada: chi chiede la destinazione la deve nominare, chi
+    /// trasferisce subito annuncia solo l'esito.
+    /// </remarks>
+    private async Task<TransferSession?> OpenSessionAsync(CancellationToken cancellationToken)
+    {
+        var call = _calls.ActiveCall ?? _calls.HeldCalls.FirstOrDefault();
+        if (call is null)
+        {
+            RejectCommand();
+            return null;
+        }
+
+        // LA PROCEDURA ESISTE PRIMA DELL'ATTESA, non dopo.
+        //
+        // La messa in attesa e' una transizione, e a ogni transizione la finestra
+        // ricalcola la barra e le spie della cuffia. Con la procedura creata dopo, quel
+        // ricalcolo vedeva un chiamante in attesa e nessun trasferimento: la spia della
+        // linea si spegneva e si riaccendeva in pochi millisecondi, e la conferma della
+        // cuffia arrivata in ritardo veniva presa per la pressione che chiude. Il
+        // chiamante cadeva nell'istante in cui l'operatore cominciava a passarlo.
+        var session = new TransferSession(call, _clock.Now);
+        lock (_gate) _session = session;
+
+        try
+        {
+            // Il chiamante va messo in attesa prima di qualunque altra cosa: durante
+            // l'inserimento della destinazione non deve sentire l'operatore digitare.
+            if (call.State == CallState.Active)
+            {
+                await _telephony.HoldAsync(call.Id, cancellationToken).ConfigureAwait(false);
+                _calls.ApplyTrigger(call.Id, CallTrigger.Hold, suppressAnnouncement: true);
+            }
+        }
+        catch
+        {
+            // Un'attesa non riuscita non deve lasciare una procedura senza chiamante
+            // parcheggiato: e' lo stato da cui nessun comando esce.
+            lock (_gate)
+            {
+                if (ReferenceEquals(_session, session)) _session = null;
+            }
+
+            throw;
+        }
+
+        _calls.ApplyTrigger(call.Id, CallTrigger.TransferStarted, suppressAnnouncement: true);
+        return session;
     }
 
     /// <summary>
@@ -965,7 +1040,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             session.BeginConsultation(consultation, _clock.Now);
 
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.ConsultationStarted(session.DestinationSpeech),
+                AnnouncementTexts.ConsultationStarted(SpokenDestination(session)),
                 _clock.Now,
                 coalesceKey: "transfer:consultation",
                 braille: $"CONS {session.DestinationSpeech}"));
@@ -1273,7 +1348,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             session.BeginConsultation(consultation, _clock.Now);
 
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.ConsultationStarted(session.DestinationSpeech),
+                AnnouncementTexts.ConsultationStarted(SpokenDestination(session)),
                 _clock.Now,
                 coalesceKey: "transfer:consultation"));
 
@@ -1384,7 +1459,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
         // da un comando che non ha funzionato.
         _announcer.Announce(new Announcement
         {
-            Text = AnnouncementTexts.TransferFailed(outcome, session.DestinationSpeech, recovered),
+            Text = AnnouncementTexts.TransferFailed(outcome, SpokenDestination(session), recovered),
             Priority = AnnouncementPriority.High,
             Earcon = EarconKind.TransferFailed,
             CoalesceKey = "transfer:result",
@@ -1443,7 +1518,7 @@ public sealed class TransferOrchestrator : IAsyncDisposable
             && session.Phase == TransferPhase.Consulting)
         {
             _announcer.Announce(Announcement.High(
-                AnnouncementTexts.ConsultationAnswered(session.DestinationSpeech, Options.TransferKeyName),
+                AnnouncementTexts.ConsultationAnswered(SpokenDestination(session), Options.TransferKeyName),
                 e.At,
                 EarconKind.CallAnswered,
                 coalesceKey: "transfer:consultation"));
@@ -1639,18 +1714,26 @@ public sealed class TransferOrchestrator : IAsyncDisposable
     {
         if (string.IsNullOrWhiteSpace(number)) return false;
 
-        var digits = number.Count(char.IsDigit);
+        var digits = number.Count(char.IsAsciiDigit);
         return digits > 0
                && digits <= Options.MaxInternalNumberLength
                && !number.StartsWith('+');
     }
 
     /// <summary>
-    /// La destinazione come si pronuncia negli annunci che chiudono il trasferimento:
-    /// il nome che le dà la rubrica, oppure il numero cifra per cifra.
+    /// La destinazione come si pronuncia in ogni annuncio del trasferimento: il nome
+    /// che le dà la rubrica, oppure il numero cifra per cifra.
     /// </summary>
     /// <param name="session">Trasferimento in corso.</param>
     /// <remarks>
+    /// <para>
+    /// <b>Vale per tutta la procedura, non solo per la chiusura.</b> Nata per l'annuncio
+    /// di fine trasferimento, è passata anche a «Chiamata a …, in corso», «… ha
+    /// risposto», all'esito negativo, all'alternanza e all'inclusione. «Chiamata a
+    /// 3638, in corso» è la rilettura di verifica delle cifre digitate sotto dettatura,
+    /// e detta «tremilaseicentotrentotto» non si confronta con quello che si è scritto.
+    /// Il braille resta il numero com'è: lì le cifre si leggono già una per una.
+    /// </para>
     /// <para>
     /// <see cref="TransferSession.DestinationSpeech"/> ricade sul numero così come è
     /// stato digitato, e «4021» passato intero alla sintesi si sente

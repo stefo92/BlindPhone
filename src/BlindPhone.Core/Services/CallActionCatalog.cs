@@ -555,9 +555,42 @@ public static class CallActionCatalog
     {
         switch (context.TransferPhase)
         {
+            // SENZA UNA DESTINAZIONE NEL CAMPO IL PULSANTE C'E' MA E' SPENTO.
+            //
+            // Trasferire vuol dire passare la chiamata a qualcuno, e quel qualcuno si
+            // scrive nel campo di composizione: un \u00ABTrasferisci\u00BB acceso con il campo
+            // vuoto prometteva un'azione che non aveva ancora un oggetto. Spento e non
+            // nascosto, come gli interruttori della conversazione: resta dove chi lo
+            // cerca se lo aspetta, e la descrizione dice che cosa manca. Si accende alla
+            // prima cifra, o al nome da cercare in rubrica, perche' la barra si
+            // ricalcola a ogni battitura nel campo.
+            //
+            // Vale solo per il pulsante. Il tasto di trasferimento con il campo vuoto
+            // continua a mettere in attesa il chiamante e a chiedere la destinazione:
+            // e' la sequenza che la guida insegna a chi lavora da tastiera.
+            //
+            // CON LA DESTINAZIONE SCRITTA LE STRADE SONO DUE, COME DA TASTIERA.
+            // \u00ABTrasferisci\u00BB chiama l'interno per annunciargli la chiamata, come il
+            // tasto premuto una volta; \u00ABTrasferisci subito\u00BB lo manda alla cieca, come
+            // Invio. Senza il secondo, chi usa il mouse non aveva piu' un modo di
+            // trasferire alla cieca: l'unica strada passava dal pulsante premuto a
+            // campo vuoto, che adesso e' spento. Compare solo con la destinazione, per
+            // la stessa ragione per cui l'altro e' spento senza.
             case TransferPhase.Idle when context.HasActiveCall || context.HeldCount > 0:
                 buttons.Add(new(CallAction.TransferStart, "\uE72A", "Trasferisci",
-                    "Mette il chiamante in attesa e chiede a chi passarlo", CallActionGroup.Call));
+                    context.HasTypedDestination
+                        ? "Mette il chiamante in attesa e chiama la destinazione scritta nel campo di composizione, per annunciarle la chiamata"
+                        : "Scrivi prima nel campo di composizione il numero o il nome a cui passare la chiamata",
+                    CallActionGroup.Call,
+                    IsEnabled: context.HasTypedDestination));
+
+                if (context.HasTypedDestination)
+                {
+                    buttons.Add(new(CallAction.TransferBlind, "\uE8AD", "Trasferisci subito",
+                        "Manda il chiamante alla destinazione scritta nel campo di composizione, senza annunciarlo",
+                        CallActionGroup.Call));
+                }
+
                 break;
 
             case TransferPhase.EnteringDestination:

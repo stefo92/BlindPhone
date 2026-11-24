@@ -49,12 +49,6 @@ public interface IContactRepository
     /// <returns>Numero di contatti scritti.</returns>
     Task<int> UpsertAsync(IEnumerable<Contact> contacts, string sourceName, CancellationToken cancellationToken);
 
-    /// <summary>Aggiorna la presenza di un interno.</summary>
-    /// <param name="extension">Interno.</param>
-    /// <param name="presence">Nuovo stato.</param>
-    /// <param name="cancellationToken">Token di annullamento.</param>
-    Task UpdatePresenceAsync(string extension, PresenceState presence, CancellationToken cancellationToken);
-
     /// <summary>Numero di contatti presenti in archivio.</summary>
     /// <param name="cancellationToken">Token di annullamento.</param>
     Task<int> CountAsync(CancellationToken cancellationToken);

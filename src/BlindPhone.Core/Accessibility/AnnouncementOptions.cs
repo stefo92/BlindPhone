@@ -1,10 +1,15 @@
 namespace BlindPhone.Core.Accessibility;
 
-/// <summary>Livello di dettaglio degli annunci automatici.</summary>
+/// <summary>Livello di dettaglio degli annunci della chiamata.</summary>
+/// <remarks>
+/// Lo applica <see cref="Services.CallAnnouncementMapper"/>, ed è l'unico punto: gli
+/// annunci della coda, dei colleghi e del trasferimento non cambiano con il livello.
+/// </remarks>
 public enum VerbosityLevel
 {
     /// <summary>
-    /// Principiante: annunci estesi, con l'indicazione dei tasti disponibili.
+    /// Principiante: in coda agli annunci della chiamata entrante, della risposta e
+    /// della pausa si dicono i tasti che servono in quel momento.
     /// </summary>
     Beginner,
 
@@ -12,8 +17,9 @@ public enum VerbosityLevel
     Standard,
 
     /// <summary>
-    /// Esperto: annunci ridotti all'essenziale, molti eventi affidati al solo
-    /// earcon.
+    /// Esperto: le conferme di routine — pausa e ripresa, risposta, rifiuto e
+    /// annullamento — si sentono solo come segnale acustico. Con i segnali spenti
+    /// tornano a voce, come in Standard.
     /// </summary>
     Expert,
 }
@@ -131,9 +137,6 @@ public sealed record AnnouncementOptions
     /// </para>
     /// </remarks>
     public TimeSpan TypingSilenceWindow { get; init; } = TimeSpan.FromSeconds(3);
-
-    /// <summary>Livello di dettaglio.</summary>
-    public VerbosityLevel Verbosity { get; set; } = VerbosityLevel.Standard;
 
     /// <summary>Modalità di annuncio automatico delle variazioni di coda.</summary>
     public QueueAnnouncementMode QueueMode { get; set; } = QueueAnnouncementMode.CountOnly;

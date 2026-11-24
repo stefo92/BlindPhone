@@ -202,14 +202,16 @@ public sealed class LiveSettingsApplier : IDisposable
 
         var annunci = _services.GetRequiredService<AnnouncementOptions>();
         var nuoviAnnunci = App.BuildAnnouncementOptions(next);
-        annunci.Verbosity = nuoviAnnunci.Verbosity;
         annunci.QueueMode = nuoviAnnunci.QueueMode;
         annunci.SilenceDuringConversation = nuoviAnnunci.SilenceDuringConversation;
         annunci.QueueWaitThreshold = nuoviAnnunci.QueueWaitThreshold;
         annunci.HoldReminderInterval = nuoviAnnunci.HoldReminderInterval;
 
+        // Il livello di dettaglio dipende anche dai segnali acustici: in Esperto le
+        // conferme di routine si affidano al solo suono, e a segnali spenti tornano a
+        // voce. Per questo il mappatore li riceve insieme.
         _services.GetRequiredService<CallAnnouncementMapper>()
-            .UpdateOptions(accessibilita.DigitGrouping, accessibilita.Verbosity);
+            .UpdateOptions(accessibilita.DigitGrouping, accessibilita.Verbosity, accessibilita.EarconsEnabled);
         _services.GetRequiredService<QueueMonitorService>()
             .UpdateOptions(annunci, accessibilita.DigitGrouping);
 

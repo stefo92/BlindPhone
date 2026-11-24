@@ -294,9 +294,27 @@ portale, **`https://blindphone.curti.cloud/download/`**: un rilascio pubblicato 
 trovano sia le persone sia le postazioni. Su una postazione già installata si corregge in
 `settings.json` sotto `Updates.ServerUrl`, che ha la precedenza. **Un indirizzo vuoto vale
 come il portale**, e non spegne gli aggiornamenti: per non cercarli si mette
-`Updates.CheckOnStartup` a `false`, la casella «Controlla la presenza di aggiornamenti
+`Updates.CheckOnStartup` a `false`, la casella «Proponi gli aggiornamenti automatici
 all'avvio» della scheda Diagnostica. Deve essere l'indirizzo di una **cartella** e finire
 con la barra.
+
+**All'avvio l'aggiornamento si propone con una finestra, appena la postazione è libera**
+(nessuna chiamata, nessun'altra finestra modale aperta). I pulsanti sono tre:
+
+- **Scarica e installa ora** (Alt O): scarica, verifica e avvia l'installazione, che
+  chiude BlindPhone.
+- **Scarica e installa successivamente** (Alt S, ed è il pulsante di Invio): scarica in
+  sottofondo mentre si lavora. Al prossimo avvio la finestra chiede soltanto se
+  installare il pacchetto già scaricato: «Sì, installa adesso» oppure «No, più tardi»,
+  che lo richiede all'avvio dopo.
+- **Annulla** (Esc): non scarica niente; l'aggiornamento torna al prossimo avvio.
+
+I pacchetti scaricati stanno in `%LOCALAPPDATA%\BlindPhone\aggiornamenti`, con la firma
+e le novità accanto, e non più fra i file temporanei di Windows, che il Sensore memoria
+svuota da solo. La firma si riverifica sul file tenuto aperto un istante prima
+dell'installazione. Se fra lo scaricamento e il riavvio sul server esce una versione più
+recente, si propone quella e il pacchetto vecchio si elimina; i pacchetti di versioni già
+installate si eliminano all'avvio.
 
 **Su `https://` la cartella risponde a una domanda.** Un elenco dei file su HTTP non
 esiste, e la cartella lo sostituisce con un rimando: `download/?per=x64` (o
@@ -470,9 +488,12 @@ non lo stato in cui ci si trova.
 
 **Il trasferimento è il punto in cui i pulsanti dicono più della tastiera.** Da
 tastiera la differenza fra trasferimento cieco e con annuncio sta nella doppia
-pressione rapida — una destrezza che si impara. Con il mouse sono due pulsanti
-distinti, *Trasferisci subito* e *Annuncia e trasferisci*, che compaiono appena c'è una
-destinazione scritta nel campo.
+pressione rapida — una destrezza che si impara. Con il mouse si scrive prima la
+destinazione: *Trasferisci* resta spento finché il campo di composizione è vuoto. Con la
+destinazione scritta le strade sono due pulsanti distinti: *Trasferisci* mette in attesa
+il chiamante e chiama l'interno per annunciarlo, *Trasferisci subito* lo manda alla
+cieca. Se il trasferimento è stato avviato da tastiera a campo vuoto, appena c'è una
+destinazione compaiono *Trasferisci subito* e *Annuncia e trasferisci*.
 
 **Per chi non vede, ogni barra è una tappa sola** del giro di tabulazione, e lo resta
 qualunque cosa contenga: dentro ci si muove con le frecce, che girano in tondo. Senza

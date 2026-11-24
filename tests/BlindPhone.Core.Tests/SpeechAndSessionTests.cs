@@ -238,6 +238,126 @@ public sealed class CallSessionManagerTests
         Assert.True(h.Engine.Did($"resume:{first}"));
     }
 
+    // -----------------------------------------------------------------------
+    // Squilla, e intanto l'operatore chiama
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task ConUnaChiamataCheSquillaIlPrimoRiaggancioAnnullaQuellaCompostaDallOperatore()
+    {
+        // Il telefono squilla e l'operatore compone lo stesso: ha scelto di
+        // telefonare, e il primo riaggancio e' per la linea che ha aperto lui.
+        var h = new Harness();
+        var entrante = h.Engine.SimulateIncoming("0211111111", "Chiamante");
+        await Task.Delay(20);
+        var uscente = await h.Calls.DialAsync("4021");
+
+        await h.Calls.HangUpAsync();
+
+        Assert.True(h.Engine.Did($"hangup:{uscente}"));
+        Assert.False(h.Engine.Did($"hangup:{entrante}"));
+        Assert.Equal(entrante, h.Calls.RingingCall?.Id);
+    }
+
+    [Fact]
+    public async Task IlSecondoRiaggancioRifiutaLaChiamataCheSquilla()
+    {
+        var h = new Harness();
+        var entrante = h.Engine.SimulateIncoming("0211111111", "Chiamante");
+        await Task.Delay(20);
+        await h.Calls.DialAsync("4021");
+
+        await h.Calls.HangUpAsync();
+        await h.Calls.HangUpAsync();
+
+        Assert.True(h.Engine.Did($"hangup:{entrante}"));
+        Assert.Null(h.Calls.RingingCall);
+    }
+
+    [Fact]
+    public async Task QuandoRispondeLaChiamataInUscitaIlChiamanteVaInAttesa()
+    {
+        // L'operatore compone, intanto squilla e risponde con F2. La sua chiamata sta
+        // ancora squillando dall'altra parte e non si puo' mettere in attesa: quando
+        // la destinazione risponde ha la precedenza, l'operatore passa a lei e il
+        // chiamante con cui stava parlando va in attesa.
+        var h = new Harness();
+        var uscente = await h.Calls.DialAsync("4021");
+        var entrante = h.Engine.SimulateIncoming("0211111111", "Chiamante");
+        await Task.Delay(20);
+        await h.Calls.AnswerAsync();
+        h.Announcer.Clear();
+
+        h.Engine.SimulateProgress(uscente, CallTrigger.RemoteAnswered);
+        await Task.Delay(50);
+
+        Assert.True(h.Engine.Did($"hold:{entrante}"));
+        Assert.False(h.Engine.Did($"hold:{uscente}"));
+        Assert.Equal(uscente, h.Calls.ActiveCall?.Id);
+        Assert.Equal(entrante, Assert.Single(h.Calls.HeldCalls).Id);
+
+        // Un annuncio solo, che dice entrambe le cose e passa il silenzio della
+        // conversazione: l'operatore si ritrova in linea con un'altra persona.
+        var annuncio = Assert.Single(h.Announcer.Announcements);
+        Assert.Contains("ha risposto, sei in linea", annuncio.Text);
+        Assert.Contains("Chiamante in attesa", annuncio.Text);
+        Assert.True(annuncio.BypassConversationSilence);
+    }
+
+    [Fact]
+    public async Task DopoIlPassaggioLAlternanzaRiportaAlChiamante()
+    {
+        var h = new Harness();
+        var uscente = await h.Calls.DialAsync("4021");
+        var entrante = h.Engine.SimulateIncoming("0211111111", "Chiamante");
+        await Task.Delay(20);
+        await h.Calls.AnswerAsync();
+        h.Engine.SimulateProgress(uscente, CallTrigger.RemoteAnswered);
+        await Task.Delay(50);
+
+        await h.Calls.SwapAsync();
+
+        Assert.Equal(entrante, h.Calls.ActiveCall?.Id);
+        Assert.Equal(uscente, Assert.Single(h.Calls.HeldCalls).Id);
+    }
+
+    [Fact]
+    public async Task DopoIlPassaggioIlRiaggancioChiudeLaChiamataInUscitaERiprendeIlChiamante()
+    {
+        // Prima le linee in conversazione diventavano due e il riaggancio ne trovava
+        // una sola: l'altra restava aperta e il comando seguente rispondeva "nessuna
+        // chiamata attiva".
+        var h = new Harness();
+        var uscente = await h.Calls.DialAsync("4021");
+        var entrante = h.Engine.SimulateIncoming("0211111111", "Chiamante");
+        await Task.Delay(20);
+        await h.Calls.AnswerAsync();
+        h.Engine.SimulateProgress(uscente, CallTrigger.RemoteAnswered);
+        await Task.Delay(50);
+
+        var chiusa = await h.Calls.HangUpAsync();
+        await Task.Delay(50);
+
+        Assert.True(chiusa);
+        Assert.True(h.Engine.Did($"hangup:{uscente}"));
+        Assert.True(h.Engine.Did($"resume:{entrante}"));
+        Assert.Equal(entrante, h.Calls.ActiveCall?.Id);
+    }
+
+    [Fact]
+    public async Task SenzaAltreConversazioniChiRispondeVaInLinea()
+    {
+        // Il caso di sempre non cambia: chiamata composta a riposo, risposta, in linea.
+        var h = new Harness();
+        var uscente = await h.Calls.DialAsync("4021");
+
+        h.Engine.SimulateProgress(uscente, CallTrigger.RemoteAnswered);
+        await Task.Delay(50);
+
+        Assert.False(h.Engine.Did($"hold:{uscente}"));
+        Assert.Equal(uscente, h.Calls.ActiveCall?.Id);
+    }
+
     [Fact]
     public async Task AlternareProduceUnSoloAnnuncioCheDiceEntrambiGliInterlocutori()
     {

@@ -26,8 +26,6 @@ namespace BlindPhone.Core.Tests;
 /// </remarks>
 public sealed class SrtpFallbackTests
 {
-    private static readonly DateTimeOffset Now = new(2026, 8, 8, 15, 17, 0, TimeSpan.FromHours(2));
-
     [Fact]
     public void LaChiusuraPerCifraturaMancanteHaUnMotivoTuttoSuo()
     {

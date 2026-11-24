@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Sockets;
-using BlindPhone.Telephony;
 using DnsClient;
 using DnsClient.Protocol;
 using Microsoft.Extensions.Logging;

@@ -23,34 +23,58 @@ namespace BlindPhone.Core.Services;
 /// <see cref="Map"/> restituisca un annuncio per ognuna. Una transizione muta
 /// ferma la build.
 /// </para>
+/// <para>
+/// <b>Il livello di dettaglio si applica qui, e solo qui.</b> La tabella delle
+/// transizioni descrive il livello Standard; <see cref="VerbosityLevel.Beginner"/>
+/// aggiunge in coda i tasti che servono in quel momento, e
+/// <see cref="VerbosityLevel.Expert"/> affida al solo segnale acustico le conferme di
+/// routine. Nessuna transizione cambia significato: cambia quanto se ne dice.
+/// </para>
 /// </remarks>
 public sealed class CallAnnouncementMapper
 {
     private DigitGrouping _grouping;
     private VerbosityLevel _verbosity;
+    private bool _earconsEnabled;
+    private readonly Func<HotkeyCommand, string?> _keyName;
 
     /// <summary>Crea il mappatore.</summary>
     /// <param name="grouping">Come leggere i numeri telefonici.</param>
     /// <param name="verbosity">Livello di dettaglio degli annunci.</param>
+    /// <param name="earconsEnabled">
+    /// Se i segnali che accompagnano un annuncio sono accesi. Spenti, il livello
+    /// Esperto non può affidare nulla al solo suono.
+    /// </param>
+    /// <param name="keyName">
+    /// Nome pronunciabile del tasto di un comando, chiesto al momento dell'annuncio
+    /// perché il profilo e la modalità cambiano a caldo. Vedi <see cref="CallKeyHints"/>.
+    /// Se manca, il livello Principiante non ha tasti da suggerire.
+    /// </param>
     public CallAnnouncementMapper(
         DigitGrouping grouping = DigitGrouping.Single,
-        VerbosityLevel verbosity = VerbosityLevel.Standard)
+        VerbosityLevel verbosity = VerbosityLevel.Standard,
+        bool earconsEnabled = true,
+        Func<HotkeyCommand, string?>? keyName = null)
     {
         _grouping = grouping;
         _verbosity = verbosity;
+        _earconsEnabled = earconsEnabled;
+        _keyName = keyName ?? (_ => null);
     }
 
     /// <summary>Applica una nuova configurazione degli annunci, senza ricostruire il mappatore.</summary>
     /// <param name="grouping">Come leggere i numeri telefonici.</param>
     /// <param name="verbosity">Livello di dettaglio degli annunci.</param>
+    /// <param name="earconsEnabled">Se i segnali che accompagnano un annuncio sono accesi.</param>
     /// <remarks>
     /// Stessa ragione di <see cref="QueueMonitorService.UpdateOptions"/>: il mappatore
     /// è agganciato al gestore delle chiamate, e ricostruirlo vorrebbe dire riavviare.
     /// </remarks>
-    public void UpdateOptions(DigitGrouping grouping, VerbosityLevel verbosity)
+    public void UpdateOptions(DigitGrouping grouping, VerbosityLevel verbosity, bool earconsEnabled)
     {
         _grouping = grouping;
         _verbosity = verbosity;
+        _earconsEnabled = earconsEnabled;
     }
 
     /// <summary>
@@ -64,6 +88,117 @@ public sealed class CallAnnouncementMapper
     /// transizione presente in <see cref="CallStateMachine.Transitions"/>.
     /// </returns>
     public Announcement Map(CallTransition transition, Call call, DateTimeOffset now)
+        => ApplyVerbosity(transition, MapStandard(transition, call, now));
+
+    /// <summary>
+    /// L'annuncio della chiamata fatta da qui che ha risposto mentre l'operatore
+    /// parlava già con un altro: l'operatore è passato a lei, l'altro è in attesa.
+    /// </summary>
+    /// <param name="answered">Chiamata appena risposta, ora in conversazione.</param>
+    /// <param name="heldParty">
+    /// Chi è andato in attesa, oppure <c>null</c> se in attesa è andata un'intera
+    /// conferenza.
+    /// </param>
+    /// <param name="now">Istante corrente.</param>
+    /// <remarks>
+    /// <para>
+    /// Non è una transizione sola ma due — risposta e attesa — dette in una frase.
+    /// Per questo non passa da <see cref="Map"/>.
+    /// </para>
+    /// <para>
+    /// <b>Il tasto dell'alternanza si dice a ogni livello di dettaglio</b>, non solo
+    /// al Principiante: è una situazione rara, che l'operatore non ha provocato con un
+    /// tasto, e la domanda «come torno dal chiamante?» se la pone chiunque. Per la
+    /// stessa ragione l'annuncio passa il silenzio della conversazione: l'operatore
+    /// stava parlando con una persona e si ritrova in linea con un'altra.
+    /// </para>
+    /// </remarks>
+    public Announcement AnsweredWhileTalking(Call answered, CallParty? heldParty, DateTimeOffset now)
+        => Announcement.High(
+            AnnouncementTexts.AnsweredWhileTalking(
+                answered.RemoteParty,
+                heldParty,
+                heldParty is null ? null : _keyName(HotkeyCommand.Swap)),
+            now,
+            EarconKind.CallAnswered,
+            coalesceKey: $"call:{answered.Id}:progress",
+            braille: BrailleActive(answered.RemoteParty)) with
+        {
+            BypassConversationSilence = true,
+        };
+
+    /// <summary>
+    /// Adatta l'annuncio Standard al livello di dettaglio scelto.
+    /// </summary>
+    private Announcement ApplyVerbosity(CallTransition transition, Announcement standard)
+    {
+        switch (_verbosity)
+        {
+            case VerbosityLevel.Beginner:
+                return KeysFor(transition) is { } keys
+                    ? standard with { Text = AnnouncementTexts.WithKeys(standard.Text, keys) }
+                    : standard;
+
+            // Solo con i segnali accesi, e solo se un segnale c'e': un annuncio senza
+            // voce e senza suono sarebbe una transizione muta, cioe' proprio cio' che
+            // questa classe esiste per impedire.
+            case VerbosityLevel.Expert when _earconsEnabled
+                                            && standard.Earcon != EarconKind.None
+                                            && IsRoutineConfirmation(transition):
+                return standard with { EarconOnly = true };
+
+            default:
+                return standard;
+        }
+    }
+
+    /// <summary>
+    /// Le conferme che il livello Esperto affida al solo segnale acustico.
+    /// </summary>
+    /// <remarks>
+    /// Sono quasi tutte la conseguenza di un tasto appena premuto dall'operatore —
+    /// pausa, ripresa, risposta, rifiuto, annullamento — e il suono basta a dire che il
+    /// tasto ha funzionato. La risposta dell'interlocutore a una chiamata fatta da qui
+    /// non è un gesto dell'operatore, ma è attesa: il suono di chiamata risposta la
+    /// dice. Tutto quello che arriva da fuori senza essere atteso — la chiamata
+    /// entrante, quella persa, il rifiuto dell'altro, gli errori — resta a voce.
+    /// </remarks>
+    private static bool IsRoutineConfirmation(CallTransition transition)
+        => (transition.From, transition.Trigger) is
+            (CallState.Active, CallTrigger.Hold) or
+            (CallState.Held, CallTrigger.Resume) or
+            (CallState.Alerting, CallTrigger.Answer) or
+            (CallState.Alerting, CallTrigger.HangUp) or
+            (CallState.Calling, CallTrigger.HangUp) or
+            (CallState.Calling, CallTrigger.RemoteAnswered);
+
+    /// <summary>
+    /// I tasti che il livello Principiante suggerisce dopo una transizione.
+    /// </summary>
+    /// <remarks>
+    /// Tre momenti, quelli in cui chi inizia si chiede che cosa premere: mentre
+    /// squilla, appena in linea, con la chiamata in pausa.
+    /// </remarks>
+    private string? KeysFor(CallTransition transition) => (transition.From, transition.Trigger) switch
+    {
+        (CallState.Idle, CallTrigger.IncomingCall) => AnnouncementTexts.RingingKeys(
+            _keyName(HotkeyCommand.Answer),
+            _keyName(HotkeyCommand.HangUp)),
+
+        (CallState.Alerting, CallTrigger.Answer) or
+        (CallState.Calling, CallTrigger.RemoteAnswered) => AnnouncementTexts.ConnectedKeys(
+            _keyName(HotkeyCommand.ToggleHold),
+            _keyName(HotkeyCommand.Transfer),
+            _keyName(HotkeyCommand.HangUp)),
+
+        (CallState.Active, CallTrigger.Hold) => AnnouncementTexts.HeldKeys(
+            _keyName(HotkeyCommand.ToggleHold)),
+
+        _ => null,
+    };
+
+    /// <summary>L'annuncio di una transizione al livello Standard.</summary>
+    private Announcement MapStandard(CallTransition transition, Call call, DateTimeOffset now)
     {
         var party = call.RemoteParty;
 
@@ -71,12 +206,17 @@ public sealed class CallAnnouncementMapper
         {
             // Chiamata entrante: critico, perche' e' l'evento su cui si fonda il
             // lavoro dell'operatore e non deve mai essere perso.
+            // Il trasferimento restituito dal centralino squilla come una chiamata
+            // qualunque, ma la voce lo dice per quello che e': un chiamante che
+            // l'operatore aveva gia' passato e che il collega non ha preso.
             (CallState.Idle, CallTrigger.IncomingCall) => Announcement.Critical(
-                AnnouncementTexts.IncomingCall(party, call.QueueName, _grouping),
+                call.IsTransferRebound
+                    ? AnnouncementTexts.IncomingTransferRebound(party, call.QueueName, _grouping)
+                    : AnnouncementTexts.IncomingCall(party, call.QueueName, _grouping),
                 now,
                 EarconKind.IncomingCall,
                 coalesceKey: null,
-                braille: BrailleIncoming(party)),
+                braille: call.IsTransferRebound ? BrailleRebound(party) : BrailleIncoming(party)),
 
             (CallState.Idle, CallTrigger.OutgoingCall) => Announcement.High(
                 AnnouncementTexts.Dialing(SpeechFormatter.Party(party.DisplayName, party.Number, _grouping)),
@@ -332,6 +472,8 @@ public sealed class CallAnnouncementMapper
     };
 
     private static string BrailleIncoming(CallParty party) => $">{Short(party)}";
+
+    private static string BrailleRebound(CallParty party) => $">RIT {Short(party)}";
 
     private static string BrailleActive(CallParty party) => $"={Short(party)}";
 

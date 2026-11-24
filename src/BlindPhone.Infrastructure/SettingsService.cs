@@ -640,54 +640,6 @@ public sealed class SettingsService
         }
     }
 
-    /// <summary>
-    /// Esporta la configurazione, senza segreti, in un file scelto dall'operatore.
-    /// </summary>
-    /// <param name="path">Percorso di destinazione.</param>
-    /// <returns><c>true</c> se l'esportazione è riuscita.</returns>
-    /// <remarks>
-    /// Serve a due scopi: consentire all'ufficio IT di preparare una postazione e
-    /// replicarla, e permettere all'operatore di portare le proprie scorciatoie su
-    /// un'altra macchina. L'assenza dei segreti è deliberata e va detta all'utente:
-    /// dopo l'importazione le credenziali vanno reinserite.
-    /// </remarks>
-    public bool Export(string path)
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(Current, JsonOptions);
-            File.WriteAllText(path, json, Encoding.UTF8);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Esportazione della configurazione non riuscita");
-            return false;
-        }
-    }
-
-    /// <summary>Importa una configurazione da file.</summary>
-    /// <param name="path">Percorso del file.</param>
-    /// <returns>La configurazione importata, oppure <c>null</c> se il file non è valido.</returns>
-    public AppSettings? Import(string path)
-    {
-        try
-        {
-            var json = File.ReadAllText(path, Encoding.UTF8);
-            var settings = JsonSerializer.Deserialize<AppSettings>(json, JsonOptions);
-
-            if (settings is null) return null;
-
-            Save(settings);
-            return settings;
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Importazione della configurazione non riuscita");
-            return null;
-        }
-    }
-
     private void TryBackupCorruptedFile()
     {
         try

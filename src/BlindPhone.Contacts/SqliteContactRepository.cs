@@ -208,7 +208,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
             {
                 // Con un termine tutto numerico si cerca anche in T9: l'operatore che
                 // digita sul tastierino sta cercando un nome, non solo un numero.
-                condizioni.Add(termini[i].All(char.IsDigit)
+                condizioni.Add(termini[i].All(char.IsAsciiDigit)
                     ? $"(search_text LIKE $p{i} OR search_t9 LIKE $p{i})"
                     : $"search_text LIKE $p{i}");
             }
@@ -251,7 +251,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
         string number,
         CancellationToken cancellationToken)
     {
-        var normalized = NormalizeNumber(number);
+        var normalized = PhoneDigits.MatchKey(number);
         if (normalized is null) return [];
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -420,7 +420,7 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
 
         foreach (var number in contact.Numbers)
         {
-            var normalized = NormalizeNumber(number.Number);
+            var normalized = PhoneDigits.MatchKey(number.Number);
             if (normalized is null) continue;
 
             using var insert = _connection.CreateCommand();
@@ -433,34 +433,6 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
             insert.Parameters.AddWithValue("$id", contact.Id.ToString());
             insert.Parameters.AddWithValue("$number", normalized);
             insert.ExecuteNonQuery();
-        }
-    }
-
-    /// <inheritdoc />
-    public async Task UpdatePresenceAsync(
-        string extension,
-        PresenceState presence,
-        CancellationToken cancellationToken)
-    {
-        var normalized = NormalizeNumber(extension);
-        if (normalized is null) return;
-
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            using var command = _connection.CreateCommand();
-            command.CommandText = """
-                UPDATE contacts SET presence = $presence
-                WHERE id IN (SELECT contact_id FROM contact_numbers WHERE normalized = $number)
-                """;
-
-            command.Parameters.AddWithValue("$presence", (int)presence);
-            command.Parameters.AddWithValue("$number", normalized);
-            command.ExecuteNonQuery();
-        }
-        finally
-        {
-            _gate.Release();
         }
     }
 
@@ -665,25 +637,6 @@ public sealed class SqliteContactRepository : IContactRepository, IDisposable
         }
 
         return result.ToString();
-    }
-
-    /// <summary>
-    /// Riduce un numero alla forma confrontabile: sole cifre, ultime nove.
-    /// </summary>
-    /// <remarks>
-    /// Il confronto sulle ultime cifre permette di riconoscere lo stesso contatto
-    /// indipendentemente dal prefisso con cui si presenta: interno, numero diretto
-    /// o formato internazionale. Nove cifre rendono improbabile una collisione senza
-    /// far fallire il confronto sugli interni brevi.
-    /// </remarks>
-    private static string? NormalizeNumber(string? number)
-    {
-        if (string.IsNullOrWhiteSpace(number)) return null;
-
-        var digits = new string([.. number.Where(char.IsDigit)]);
-        if (digits.Length == 0) return null;
-
-        return digits.Length <= 9 ? digits : digits[^9..];
     }
 
     /// <inheritdoc />

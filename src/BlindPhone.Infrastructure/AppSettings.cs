@@ -383,12 +383,24 @@ public sealed record UpdateSettings
     /// </remarks>
     public string PasswordKey => "update.password";
 
-    /// <summary>Se controllare la presenza di aggiornamenti all'avvio.</summary>
+    /// <summary>
+    /// Se cercare e proporre gli aggiornamenti all'avvio: è la casella «Proponi gli
+    /// aggiornamenti automatici all'avvio».
+    /// </summary>
     /// <remarks>
+    /// <para>
     /// Il controllo è una lettura dell'elenco della cartella remota: qualche
     /// centinaio di byte, e non scarica nulla finché l'operatore non lo chiede. Se il
     /// server non risponde la cosa finisce nel registro e basta — un posto operatore
     /// non deve rallentare l'avvio per un aggiornamento.
+    /// </para>
+    /// <para>
+    /// <b>Dalla 1.0.25 la proposta è una finestra e non più un annuncio.</b> Appena la
+    /// postazione è libera si apre la finestra dell'aggiornamento con «Scarica e
+    /// installa ora», «Scarica e installa successivamente» e «Annulla»; un pacchetto già
+    /// scaricato si propone con la sola domanda se installarlo. La chiave è rimasta la
+    /// stessa, così chi aveva tolto la spunta continua a non vedere niente.
+    /// </para>
     /// </remarks>
     public bool CheckOnStartup { get; init; } = true;
 
@@ -890,8 +902,9 @@ public sealed record TraySettings
 public sealed record CallSettings
 {
     /// <summary>
-    /// Modalità del tasto unico di trasferimento: ProgressiveDoubleTap,
-    /// ProgressiveOnly, ExplicitChoice.
+    /// Modalità del tasto unico di trasferimento: ProgressiveDoubleTap oppure
+    /// ProgressiveOnly. Un valore sconosciuto, compreso il vecchio ExplicitChoice,
+    /// vale come ProgressiveDoubleTap.
     /// </summary>
     public string TransferMode { get; init; } = "ProgressiveDoubleTap";
 

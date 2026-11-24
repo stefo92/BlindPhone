@@ -286,6 +286,8 @@ public static class HelpBook
 
         Con il microfono muto l'interlocutore resta in linea e non ti sente: serve per parlare con un collega senza chiudere e senza mettere in attesa.
 
+        Se il telefono squilla mentre stai chiamando qualcuno, {K(profile, HotkeyCommand.HangUp)} chiude prima la chiamata che hai fatto partire tu; premuto una seconda volta rifiuta quella che squilla. Se invece rispondi a chi squilla, la tua chiamata continua a squillare dall'altra parte, e ha la precedenza: quando risponde passi a lei, chi era in linea con te va in attesa e la voce te lo dice. Per tornare dal chiamante usa {K(profile, HotkeyCommand.Swap)}.
+
         Con due chiamate aperte hai tre possibilità, e conviene tenerle distinte: alternare significa parlare a uno per volta mentre l'altro aspetta; la conferenza li mette insieme e sentono tutti; il trasferimento ti fa uscire e la linea non è più tua. La conferenza ha un argomento suo in questa guida.
 
         Rispondere a un menu automatico. Quando chiami un ente che risponde con un centralino automatico — «digita 1 per l'ufficio tecnico» — le cifre della tastiera servono in linea, non nel campo di composizione. Due modi:
@@ -315,7 +317,9 @@ public static class HelpBook
 
         Strada rapida, per smaltire la coda: premi Invio. La chiamata parte subito, alla cieca, senza altre conferme. Digita, Invio, avanti il prossimo.
 
-        Con il mouse le due strade sono due pulsanti distinti, «trasferisci subito» e «annuncia e trasferisci», che compaiono appena hai scritto una destinazione: lì non serve ricordare quale gesto scelga quale strada, perché il pulsante lo dice.
+        Se l'interno non la prende, il centralino può restituirti la chiamata: squilla di nuovo, e la voce dice «Torna dal trasferimento non risposto» seguito da chi sta chiamando. Rispondi con {K(profile, HotkeyCommand.Answer)} come a una chiamata qualunque. Succede anche quando il collega sembra occupato ma il suo telefono accetta una seconda chiamata: per lui squilla di sottofondo e, se non la prende, torna a te. Con un collega che sembra occupato conviene la strada con annuncio, che ti dice subito se prende la chiamata.
+
+        Con il mouse scrivi prima la destinazione nel campo di composizione: finché il campo è vuoto il pulsante «trasferisci» è spento. Appena c'è una destinazione le strade sono due pulsanti distinti: «trasferisci» mette in attesa il chiamante e chiama l'interno per annunciargli la chiamata, come {key} premuto una volta; «trasferisci subito» lo manda alla cieca, come Invio. Se invece hai avviato il trasferimento con {key} a campo vuoto, appena scrivi la destinazione compaiono «trasferisci subito» e «annuncia e trasferisci». In tutti e due i casi non serve ricordare quale gesto scelga quale strada, perché il pulsante lo dice.
 
         Strada con annuncio, per presentare il chiamante: premi {key}. Chiami l'interno e gli parli. Poi:
 
@@ -709,7 +713,7 @@ public static class HelpBook
 
         Statistiche d'uso, nella scheda Diagnostica. Sono spente finché non le accendi, rispondendo sì alla domanda del primo avvio oppure da qui: la casella «Invia statistiche d'uso anonime», Alt T, le accende e le spegne. Che cosa mandano, e soprattutto che cosa non mandano mai, lo dice l'argomento dedicato.
 
-        Aggiornamenti, nella scheda Diagnostica. All'avvio BlindPhone guarda se è uscita una versione più recente nella cartella dei download del portale, o in quella indicata da chi amministra la postazione; se il campo dell'indirizzo è vuoto vale il portale. Per non cercarli togli la spunta a «Controlla la presenza di aggiornamenti all'avvio». Quando la trova te lo dice e compare un pulsante nella barra dei comandi della postazione, in alto: aprendolo leggi che versione è e cosa porta di nuovo. Non scarica e non installa niente finché non lo chiedi tu, e l'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro.
+        Aggiornamenti, nella scheda Diagnostica. All'avvio BlindPhone guarda se è uscita una versione più recente nella cartella dei download del portale, o in quella indicata da chi amministra la postazione; se il campo dell'indirizzo è vuoto vale il portale. Per non cercarli togli la spunta a «Proponi gli aggiornamenti automatici all'avvio», Alt O. Quando la trova, appena non ci sono chiamate e nessun'altra finestra è aperta, si apre la finestra dell'aggiornamento: leggi che versione è e cosa porta di nuovo, e scegli. «Scarica e installa ora», Alt O, scarica il pacchetto e avvia subito l'installazione, chiudendo BlindPhone. «Scarica e installa successivamente», Alt S oppure Invio, lo scarica in sottofondo mentre continui a lavorare, e al prossimo avvio ti chiede se installarlo: rispondi «Sì, installa adesso», Alt S, oppure «No, più tardi», Invio o Esc, e allora te lo richiede all'avvio dopo. «Annulla», Esc, non scarica niente e te lo ripropone al prossimo avvio. Intanto resta il pulsante Aggiornamento disponibile nella barra dei comandi della postazione, in alto, per riaprire la finestra quando vuoi. L'installazione è la stessa procedura della prima volta, con la richiesta di consenso di Windows. Se il server non risponde non succede nulla e la cosa resta nel registro; un aggiornamento già scaricato ti viene proposto lo stesso.
 
         Tutto quello che salvi vale subito, senza riavviare BlindPhone. L'unica cosa che aspetta è una modifica all'account SIP o al buffer audio fatta mentre sei in linea: per applicarla il telefono rifà la registrazione al centralino, e la chiamata cadrebbe. Te lo dice, e la applica da solo appena chiudi; subito dopo senti la nuova registrazione.
         """;

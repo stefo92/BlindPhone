@@ -205,12 +205,27 @@ public static class CallBoardTexts
     /// </para>
     /// </remarks>
     public static string IncomingCall(CallParty party, string? queueName = null)
+        => IncomingCall(party, queueName, transferRebound: false);
+
+    /// <summary>
+    /// Come <see cref="IncomingCall(CallParty, string?)"/>, dicendo anche se la chiamata
+    /// è un trasferimento che il centralino ha restituito perché l'interno non l'ha
+    /// presa.
+    /// </summary>
+    /// <param name="party">Controparte, già passata dalla risoluzione in rubrica.</param>
+    /// <param name="queueName">Coda di provenienza, se nota.</param>
+    /// <param name="transferRebound">
+    /// La chiamata torna da un trasferimento: la riga lo dice al posto di «Chiamata
+    /// da», come l'annuncio parlato. Vedi <see cref="Domain.TransferRebound"/>.
+    /// </param>
+    public static string IncomingCall(CallParty party, string? queueName, bool transferRebound)
     {
         var chi = IncomingIdentity(party);
+        var apertura = transferRebound ? "Torna dal trasferimento non risposto" : "Chiamata da";
 
         return string.IsNullOrWhiteSpace(queueName)
-            ? $"Chiamata da: {chi}"
-            : $"Chiamata da: {chi}  -  coda {queueName}";
+            ? $"{apertura}: {chi}"
+            : $"{apertura}: {chi}  -  coda {queueName}";
     }
 
     /// <summary>

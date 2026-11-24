@@ -39,6 +39,7 @@ public static class HotkeyCommandCatalog
 
         new(HotkeyCommand.HangUp, HotkeyCategory.CallControl, "Riaggancia o rifiuta",
             "Chiude la conversazione in corso. Se il telefono sta squillando, rifiuta la chiamata. "
+            + "Se hai composto un numero mentre squillava, annulla prima la tua chiamata. "
             + "Durante una consultazione di trasferimento chiude la linea con l'interno e riprende il chiamante."),
 
         new(HotkeyCommand.ToggleHold, HotkeyCategory.CallControl, "Attesa o riprendi",
@@ -234,10 +235,6 @@ public static class HotkeyCommandCatalog
     public static HotkeyCommandInfo Describe(HotkeyCommand command)
         => Entries.FirstOrDefault(e => e.Command == command)
            ?? new HotkeyCommandInfo(command, HotkeyCategory.Information, command.ToString(), string.Empty);
-
-    /// <summary>Etichetta di un comando.</summary>
-    /// <param name="command">Comando cercato.</param>
-    public static string Label(HotkeyCommand command) => Describe(command).Label;
 
     /// <summary>Comandi di una categoria, nell'ordine di presentazione.</summary>
     /// <param name="category">Categoria richiesta.</param>

@@ -105,6 +105,51 @@ public sealed class AnonimizzazioneRegistriTests
         Assert.All(righe, r => Assert.DoesNotContain("4021", r));
     }
 
+    [Fact]
+    public void IlRecapitoDettoAParoleNellAnnuncioSparisce()
+    {
+        // Il registro scrive il testo degli annunci, e la sintesi i numeri li dice
+        // cifra per cifra.
+        var righe = Anonimizza(
+            "DBG AnnouncementService  Annuncio pronunciato (Critical, interrompe): "
+            + "Chiamata da più, tre, nove, tre, tre, tre, uno, due, tre, quattro, cinque, sei, sette");
+
+        Assert.DoesNotContain("uno, due, tre, quattro", righe[0]);
+        Assert.Contains("ESTERNO-01", righe[0]);
+        Assert.Contains("Annuncio pronunciato (Critical, interrompe): Chiamata da ", righe[0]);
+    }
+
+    [Fact]
+    public void LInternoDettoAParoleHaLaStessaEtichettaDiQuelloScrittoInCifre()
+    {
+        var righe = Anonimizza(
+            "SIP inviato: INVITE a <sip:3638@pbx>",
+            "DBG AnnouncementService  Annuncio pronunciato (High): Chiamate esterne trasferito a tre, sei, tre, otto");
+
+        Assert.Contains("INTERNO-01", righe[0]);
+        Assert.EndsWith("trasferito a INTERNO-01", righe[1]);
+    }
+
+    [Fact]
+    public void ARaggruppamentoACoppieIlRecapitoSparisceLoStesso()
+    {
+        var righe = Anonimizza(
+            "DBG AnnouncementService  Annuncio scartato (ConversationActive): Chiamata da zero cinque, due uno, uno due, tre quattro, cinque sei");
+
+        Assert.DoesNotContain("cinque sei", righe[0]);
+        Assert.Contains("ESTERNO-01", righe[0]);
+    }
+
+    [Fact]
+    public void LeParoleCheSonoAncheCifreRestanoNelleFrasiNormali()
+    {
+        // «sei» e «tre» sono anche parole: sotto le tre cifre di fila non si tocca.
+        var righe = Anonimizza(
+            "DBG AnnouncementService  Annuncio pronunciato (Normal): Sei in pausa da tre minuti");
+
+        Assert.Contains("Sei in pausa da tre minuti", righe[0]);
+    }
+
     // -----------------------------------------------------------------------
     // Seconda promessa: il registro resta leggibile
     // -----------------------------------------------------------------------

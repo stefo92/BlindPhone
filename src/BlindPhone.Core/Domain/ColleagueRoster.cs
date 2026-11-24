@@ -9,7 +9,7 @@ namespace BlindPhone.Core.Domain;
 public sealed record ColleagueEntry(string Number, string? Name)
 {
     /// <summary>Interno ridotto alle sole cifre, per i confronti.</summary>
-    public string Key => ColleagueRoster.Normalize(Number);
+    public string Key => PhoneDigits.Only(Number);
 }
 
 /// <summary>
@@ -87,19 +87,6 @@ public static class ColleagueRoster
         => string.Join(
             Environment.NewLine,
             entries.Select(e => string.IsNullOrWhiteSpace(e.Name) ? e.Number : $"{e.Number} {e.Name}"));
-
-    /// <summary>
-    /// Riduce un interno alla forma con cui viene confrontato.
-    /// </summary>
-    /// <param name="number">Numero nella forma in cui è arrivato.</param>
-    /// <remarks>
-    /// Solo cifre, come fa il resto del prodotto: il centralino può riportare l'interno
-    /// con spazi o punteggiatura e la rubrica può averlo memorizzato in un'altra forma
-    /// ancora. Senza questa riduzione lo stato arriverebbe e non verrebbe attribuito a
-    /// nessuno.
-    /// </remarks>
-    public static string Normalize(string? number)
-        => number is null ? string.Empty : new string([.. number.Where(char.IsAsciiDigit)]);
 
     /// <summary>Legge una riga sola, o restituisce <c>null</c> se non ne esce niente.</summary>
     /// <remarks>

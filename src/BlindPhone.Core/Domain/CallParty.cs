@@ -84,7 +84,7 @@ public sealed record CallParty(
     /// </para>
     /// </remarks>
     public bool HasName
-        => !string.IsNullOrWhiteSpace(PhoneticName) || MeaningfulName is not null;
+        => Contact.Pronounceable(PhoneticName) is not null || MeaningfulName is not null;
 
     /// <summary>
     /// Testo da usare per la sintesi vocale, con la resa fonetica se disponibile.
@@ -96,7 +96,7 @@ public sealed record CallParty(
     /// (ANALISI §12.1). Del nome visualizzato conta <see cref="MeaningfulName"/>: un
     /// numero scritto al posto del nome lascia il posto al numero vero.
     /// </remarks>
-    public string SpeechName => PhoneticName ?? MeaningfulName ?? Number;
+    public string SpeechName => Contact.Pronounceable(PhoneticName) ?? MeaningfulName ?? Number;
 
     /// <summary>
     /// Il nome della controparte, quando dice qualcosa che il numero non dice già.
@@ -122,6 +122,17 @@ public sealed record CallParty(
     /// 39 da sé.
     /// </para>
     /// <para>
+    /// <b>Un nome fatto solo di trattini, punti o spazi non è un nome</b>, ed è una
+    /// correzione nata dal campo. La rubrica importata dal centralino scrive «- -» al
+    /// posto di nome e cognome per gli interni non assegnati a nessuno, e quel «- -»
+    /// passava per un nome: l'annuncio di fine trasferimento diventava «… trasferito
+    /// a - -», e lo screen reader, che la punteggiatura non la legge, si fermava a
+    /// «trasferito a». Cioè proprio l'interno, che è l'unica cosa che quell'annuncio
+    /// deve far verificare. Nel registro del 20 novembre 2026 lo stesso nome compare
+    /// anche in «- - ha risposto» e «In linea con - -». Senza lettere né cifre non
+    /// c'è niente da pronunciare, e al suo posto si legge il numero.
+    /// </para>
+    /// <para>
     /// <b>Basta una lettera per fare un nome.</b> «Chiamate esterne» resta, e resta
     /// anche un'etichetta che contiene il numero: toglierlo da lì vorrebbe dire
     /// indovinare come il centralino compone le proprie etichette, ed è una scelta da
@@ -141,11 +152,16 @@ public sealed record CallParty(
     /// <returns>Il nome invariato, oppure <c>null</c>.</returns>
     /// <remarks>
     /// Serve a chi costruisce una controparte, per non metterci il numero come nome fin
-    /// dall'inizio. La regola è quella di <see cref="MeaningfulName"/>.
+    /// dall'inizio. La regola è quella di <see cref="MeaningfulName"/>: vale come nome
+    /// solo un testo che ha almeno una lettera o una cifra, e che non è il numero
+    /// scritto un'altra volta.
     /// </remarks>
     public static string? MeaningfulNameOf(string? name, string? number)
     {
         if (string.IsNullOrWhiteSpace(name)) return null;
+
+        // «- -», «.», «--»: segnaposto per un campo vuoto, che la sintesi tace.
+        if (!name.Any(char.IsLetterOrDigit)) return null;
 
         return IsSameNumber(name, number) ? null : name;
     }

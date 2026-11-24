@@ -43,6 +43,26 @@ public static class AnnouncementTexts
     }
 
     /// <summary>
+    /// Chiamata che il centralino restituisce perché l'interno a cui era stata
+    /// trasferita non l'ha presa.
+    /// </summary>
+    /// <param name="party">Il chiamante, già senza il prefisso del centralino.</param>
+    /// <param name="queueName">Coda di provenienza, se nota.</param>
+    /// <param name="grouping">Raggruppamento per la lettura del numero.</param>
+    /// <remarks>
+    /// La notizia viene prima del nome: l'operatore deve sapere subito che non è un
+    /// chiamante nuovo ma uno che aveva già passato, e che il collega non ha risposto.
+    /// Vedi <see cref="Domain.TransferRebound"/>.
+    /// </remarks>
+    public static string IncomingTransferRebound(CallParty party, string? queueName, DigitGrouping grouping)
+    {
+        var who = CallerIdentity(party, grouping);
+        return string.IsNullOrWhiteSpace(queueName)
+            ? $"Torna dal trasferimento non risposto: {who}"
+            : $"Torna dal trasferimento non risposto: {who}, coda {queueName}";
+    }
+
+    /// <summary>
     /// Identificazione del chiamante: nome e interno se il numero è in rubrica, il
     /// solo numero se non lo è.
     /// </summary>
@@ -140,8 +160,8 @@ public static class AnnouncementTexts
     {
         if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right)) return false;
 
-        var a = new string([.. left.Where(char.IsDigit)]);
-        var b = new string([.. right.Where(char.IsDigit)]);
+        var a = PhoneDigits.Only(left);
+        var b = PhoneDigits.Only(right);
 
         return a.Length > 0 && string.Equals(a, b, StringComparison.Ordinal);
     }
@@ -149,6 +169,32 @@ public static class AnnouncementTexts
     /// <summary>Chiamata risposta.</summary>
     /// <param name="party">Controparte.</param>
     public static string CallAnswered(CallParty party) => $"In linea con {party.SpeechName}";
+
+    /// <summary>
+    /// La chiamata fatta da qui ha risposto mentre l'operatore parlava già con un
+    /// altro: l'operatore è passato a lei, l'altro è in attesa.
+    /// </summary>
+    /// <param name="answered">Chi ha risposto, ora in linea.</param>
+    /// <param name="held">Chi è andato in attesa; <c>null</c> se era una conferenza.</param>
+    /// <param name="swapKey">Tasto che alterna le due linee, se ce n'è uno da dire.</param>
+    public static string AnsweredWhileTalking(CallParty answered, CallParty? held, string? swapKey)
+    {
+        var inAttesa = held is null ? "Conferenza in attesa" : $"{held.SpeechName} in attesa";
+
+        return WithKeys(
+            $"{answered.SpeechName} ha risposto, sei in linea. {inAttesa}",
+            KeyList((swapKey, "alterna")));
+    }
+
+    /// <summary>
+    /// Come <see cref="AnsweredWhileTalking"/>, quando mettere in attesa non è riuscito:
+    /// l'operatore sta parlando a due persone insieme.
+    /// </summary>
+    /// <param name="answered">Chi ha risposto.</param>
+    /// <param name="notHeld">Chi doveva andare in attesa e non c'è andato.</param>
+    public static string AnsweredWhileTalkingNotHeld(CallParty answered, CallParty notHeld)
+        => $"{answered.SpeechName} ha risposto, ma la chiamata con {notHeld.SpeechName} "
+           + "non è andata in attesa: ti sentono entrambe le linee";
 
     /// <summary>Chiamata terminata, con il motivo quando è informativo.</summary>
     /// <param name="party">Controparte.</param>
@@ -208,6 +254,51 @@ public static class AnnouncementTexts
     /// <summary>Chiamata ripresa dall'attesa.</summary>
     /// <param name="party">Controparte. Non compare nella frase, come in <see cref="CallHeld"/>.</param>
     public static string CallResumed(CallParty party) => "Chiamata ripresa";
+
+    // ---------------------------------------------------------------------
+    // Tasti suggeriti (livello di dettaglio «Principiante»)
+    // ---------------------------------------------------------------------
+
+    /// <summary>Tasti utili mentre una chiamata squilla.</summary>
+    /// <param name="answerKey">Tasto che risponde, se ce n'è uno da suggerire.</param>
+    /// <param name="rejectKey">Tasto che rifiuta, se ce n'è uno da suggerire.</param>
+    /// <returns>La frase, oppure <c>null</c> se non c'è nessun tasto da dire.</returns>
+    /// <remarks>
+    /// Il tasto prima del verbo, «F2 risponde», perché è il tasto la cosa da ricordare:
+    /// chi ascolta tiene a mente l'ultima parola utile prima di premere.
+    /// </remarks>
+    public static string? RingingKeys(string? answerKey, string? rejectKey)
+        => KeyList((answerKey, "risponde"), (rejectKey, "rifiuta"));
+
+    /// <summary>Tasti utili quando si è in linea.</summary>
+    /// <param name="holdKey">Tasto che mette in pausa.</param>
+    /// <param name="transferKey">Tasto che trasferisce.</param>
+    /// <param name="hangUpKey">Tasto che chiude.</param>
+    /// <returns>La frase, oppure <c>null</c> se non c'è nessun tasto da dire.</returns>
+    public static string? ConnectedKeys(string? holdKey, string? transferKey, string? hangUpKey)
+        => KeyList((holdKey, "attesa"), (transferKey, "trasferisce"), (hangUpKey, "chiude"));
+
+    /// <summary>Tasto utile quando la chiamata è in pausa.</summary>
+    /// <param name="holdKey">Tasto che la riprende.</param>
+    /// <returns>La frase, oppure <c>null</c> se non c'è un tasto da dire.</returns>
+    public static string? HeldKeys(string? holdKey)
+        => KeyList((holdKey, "la riprende"));
+
+    /// <summary>Aggiunge i tasti suggeriti in coda a un annuncio.</summary>
+    /// <param name="text">Annuncio.</param>
+    /// <param name="keys">Tasti, come li compongono i metodi qui sopra.</param>
+    public static string WithKeys(string text, string? keys)
+        => keys is { Length: > 0 } ? $"{text}. {keys}" : text;
+
+    private static string? KeyList(params (string? Key, string Action)[] voci)
+    {
+        var parti = voci
+            .Where(v => !string.IsNullOrWhiteSpace(v.Key))
+            .Select(v => $"{v.Key} {v.Action}")
+            .ToList();
+
+        return parti.Count == 0 ? null : string.Join(", ", parti);
+    }
 
     /// <summary>Da quanto tempo una chiamata entrante sta squillando.</summary>
     /// <param name="ringingFor">Tempo trascorso dall'inizio dello squillo.</param>
@@ -929,6 +1020,50 @@ public static class AnnouncementTexts
         => canAnswer
             ? $"Cuffia collegata: {name}. Il pulsante della cuffia risponde e chiude le chiamate"
             : $"Cuffia collegata: {name}. Dalla cuffia funziona il tasto del microfono, per rispondere usa la tastiera";
+
+    /// <summary>
+    /// Come stanno i pulsanti della cuffia all'avvio di BlindPhone, oppure <c>null</c>
+    /// se non c'è niente da dire.
+    /// </summary>
+    /// <param name="activeName">
+    /// Cuffia ascoltata, o i nomi di quelle ascoltate; <c>null</c> se nessuna.
+    /// </param>
+    /// <param name="canAnswer">La cuffia ascoltata ha il pulsante per rispondere e chiudere.</param>
+    /// <param name="chosenName">Cuffia scelta nelle impostazioni, o <c>null</c> per qualunque.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>All'avvio prima non si diceva niente</b>, e l'operatore scopriva se il pulsante
+    /// della cuffia rispondeva solo alla prima chiamata, premendolo. La frase dice quale
+    /// cuffia è stata trovata e che cosa fa il suo pulsante, cioè le due cose che servono
+    /// prima che il telefono squilli.
+    /// </para>
+    /// <para>
+    /// <b>La cuffia scelta e non collegata si dice</b>, e il caso è più frequente di
+    /// quanto sembri: la cuffia passa a un collega e torna diversa. Le altre cuffie
+    /// collegate non la sostituiscono — chi ne ha scelta una ha detto che le altre non
+    /// comandano le chiamate — quindi l'unico rimedio è la tastiera, e la frase lo dice.
+    /// </para>
+    /// <para>
+    /// Senza cuffie con i pulsanti telefonici e senza una cuffia scelta si tace: una
+    /// postazione che usa il vivavoce o una cuffia semplice sentirebbe a ogni avvio una
+    /// frase che non la riguarda.
+    /// </para>
+    /// </remarks>
+    public static string? HeadsetAtStartup(string? activeName, bool canAnswer, string? chosenName)
+    {
+        if (activeName is null)
+        {
+            return chosenName is null
+                ? null
+                : $"Cuffia {chosenName} non collegata: per rispondere usa la tastiera";
+        }
+
+        var pulsante = canAnswer
+            ? "il pulsante della cuffia risponde e chiude le chiamate"
+            : "dalla cuffia funziona il tasto del microfono, per rispondere usa la tastiera";
+
+        return $"Cuffia {activeName} pronta: {pulsante}";
+    }
 
     /// <summary>La cuffia con i pulsanti telefonici è stata scollegata.</summary>
     /// <param name="name">Nome della cuffia.</param>

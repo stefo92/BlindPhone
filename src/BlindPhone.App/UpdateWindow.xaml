@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="BlindPhone - aggiornamento disponibile"
-        Width="720"
+        Width="760"
         SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
@@ -23,10 +23,10 @@
         guida in linea.
 
         LA FINESTRA SI APRE CON IL CURSORE SULLE NOVITA', e non su un pulsante. Prima
-        il fuoco andava a «Piu' tardi»: lo screen reader leggeva il titolo e il
+        il fuoco andava a un pulsante: lo screen reader leggeva il titolo e il
         pulsante, e le novita' - cioe' la ragione per cui la finestra esiste - si
         raggiungevano soltanto con un Tab che nessuno annunciava abbastanza. La
-        casella non accetta Invio, cosi' Invio ed Esc chiudono con «Piu' tardi» anche
+        casella non accetta Invio, cosi' Invio arriva al pulsante predefinito anche
         da li'.
 
         NIENTE NOME FISSO SULLE RIGHE DI TESTO. Versione e provenienza avevano un nome
@@ -34,10 +34,19 @@
         copriva il testo: lo screen reader diceva l'etichetta e non le versioni.
         Senza, legge quello che c'e' scritto.
 
-        Il pulsante predefinito e' "Piu' tardi" e non "Installa". Un aggiornamento non
-        e' un'emergenza, la finestra puo' comparire mentre squilla il telefono, e un
-        Invio dato per chiudere qualcosa non deve far partire un'installazione che
-        chiude l'applicazione.
+        TRE PULSANTI, E INVIO NON CHIUDE BLINDPHONE. «Scarica e installa ora» scarica
+        e avvia l'installazione, che chiude l'applicazione. «Scarica e installa
+        successivamente» scarica in sottofondo e chiede di installare al prossimo
+        avvio. «Annulla» non fa niente, e l'aggiornamento torna al prossimo avvio.
+        Il predefinito, cioe' Invio, e' il secondo: la finestra puo' comparire
+        mentre squilla il telefono, e un Invio dato per togliersela di torno non deve
+        far partire un'installazione che chiude l'applicazione con una chiamata in
+        corso. Esc e' «Annulla».
+
+        LA STESSA FINESTRA FA LA DOMANDA DEL RIAVVIO. Quando il pacchetto e' gia'
+        scaricato, il codice cambia titolo e pulsanti: «Si', installa adesso» e «No,
+        piu' tardi», e il secondo prende Invio ed Esc. Una seconda finestra con lo
+        stesso aspetto sarebbe una copia da tenere allineata.
     -->
 
     <Grid Margin="20">
@@ -76,7 +85,7 @@
                  FontSize="16"
                  Text=""
                  AutomationProperties.Name="Novità introdotte da questa versione"
-                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga. Invio o Esc per aggiornare piu' tardi, Alt S per scaricare e installare." />
+                 AutomationProperties.HelpText="Frecce su e giu' per leggere riga per riga." />
 
         <TextBlock Grid.Row="3"
                    x:Name="ChannelText"
@@ -106,21 +115,31 @@
                        AutomationProperties.LiveSetting="Polite" />
         </StackPanel>
 
-        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-            <Button x:Name="InstallButton"
-                    Content="_Scarica e installa"
-                    MinWidth="220"
+        <WrapPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button x:Name="InstallNowButton"
+                    Content="Scarica e installa _ora"
+                    MinWidth="200"
                     Margin="0,0,8,0"
-                    AutomationProperties.Name="Scarica e installa l'aggiornamento"
-                    AutomationProperties.HelpText="Scarica il pacchetto, ne verifica l'integrità e avvia l'installazione. BlindPhone verrà chiuso: nessuna chiamata deve essere in corso."
-                    Click="OnInstallClick" />
+                    AutomationProperties.Name="Scarica e installa ora"
+                    AutomationProperties.HelpText="Scarica il pacchetto, ne verifica l'integrità e avvia subito l'installazione. BlindPhone verrà chiuso: nessuna chiamata deve essere in corso."
+                    Click="OnInstallNowClick" />
 
-            <Button x:Name="LaterButton"
-                    Content="Più _tardi"
+            <Button x:Name="InstallLaterButton"
+                    Content="Scarica e installa _successivamente"
+                    MinWidth="260"
+                    Margin="0,0,8,0"
                     IsDefault="True"
+                    AutomationProperties.Name="Scarica e installa successivamente"
+                    AutomationProperties.HelpText="Scarica il pacchetto in sottofondo mentre continui a lavorare. Al prossimo avvio di BlindPhone ti chiede se installarlo."
+                    Click="OnInstallLaterClick" />
+
+            <Button x:Name="CancelButton"
+                    Content="_Annulla"
+                    MinWidth="110"
                     IsCancel="True"
-                    AutomationProperties.Name="Chiudi e aggiorna più tardi"
-                    Click="OnLaterClick" />
-        </StackPanel>
+                    AutomationProperties.Name="Annulla"
+                    AutomationProperties.HelpText="Non scarica niente. L'aggiornamento ti verrà riproposto al prossimo avvio di BlindPhone."
+                    Click="OnCancelClick" />
+        </WrapPanel>
     </Grid>
 </Window>

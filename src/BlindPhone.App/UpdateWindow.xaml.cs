@@ -1,6 +1,5 @@
-using System.Diagnostics;
-using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Services;
 using BlindPhone.Infrastructure;
@@ -13,17 +12,27 @@ namespace BlindPhone.App;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Niente parte senza che l'operatore lo chieda.</b> La finestra si apre già
-/// sapendo che una versione nuova c'è — il controllo è una lettura dell'elenco della
-/// cartella remota, fatta altrove — ma non ha scaricato niente. Lo scaricamento parte
-/// col pulsante, e l'installazione è un programma di Windows che chiede a sua volta il
-/// consenso di amministratore.
+/// <b>Tre scelte.</b> «Scarica e installa ora» scarica il pacchetto qui, con la barra
+/// di avanzamento, e avvia l'installazione: BlindPhone si chiude. «Scarica e installa
+/// successivamente» chiude la finestra e lascia lo scaricamento a
+/// <see cref="BackgroundUpdateDownloader"/>: al prossimo avvio la stessa finestra
+/// chiede se installare. «Annulla» non scarica niente, e il controllo all'avvio
+/// successivo ripropone l'aggiornamento da sé.
 /// </para>
 /// <para>
-/// <b>Il pulsante predefinito è «Più tardi».</b> Un aggiornamento non è un'emergenza e
-/// la finestra può comparire mentre squilla il telefono: un Invio dato per togliersela
-/// di torno non deve far partire un'installazione che chiude l'applicazione con una
-/// chiamata in corso.
+/// <b>Il pulsante predefinito è «Scarica e installa successivamente».</b> Un
+/// aggiornamento non è un'emergenza e la finestra può comparire mentre squilla il
+/// telefono: un Invio dato per togliersela di torno non deve far partire
+/// un'installazione che chiude l'applicazione con una chiamata in corso. Scaricare in
+/// sottofondo non chiude niente.
+/// </para>
+/// <para>
+/// <b>Quando il pacchetto c'è già, la finestra fa la domanda del riavvio.</b> Se nella
+/// cartella degli scaricamenti c'è la stessa versione, o una più recente, non ha senso
+/// proporre di scaricarla: titolo e pulsanti diventano «Sì, installa adesso» e «No, più
+/// tardi», e il secondo prende Invio ed Esc. Così la domanda è la stessa da qualunque
+/// parte si arrivi — l'avvio, il pulsante della barra, l'area di notifica, le
+/// impostazioni.
 /// </para>
 /// <para>
 /// Tutto quello che compare a schermo viene anche annunciato. Una finestra che si apre
@@ -33,10 +42,14 @@ namespace BlindPhone.App;
 public partial class UpdateWindow : Window
 {
     private readonly UpdateService _updates;
+    private readonly BackgroundUpdateDownloader _downloader;
     private readonly IAnnouncer _announcer;
     private readonly ILogger<UpdateWindow> _log;
     private readonly AvailableUpdate _update;
     private readonly UpdateNotes _notes;
+
+    /// <summary>Il pacchetto già scaricato da installare, se la finestra fa la domanda del riavvio.</summary>
+    private readonly DownloadedUpdate? _ready;
 
     private bool _busy;
 
@@ -44,24 +57,47 @@ public partial class UpdateWindow : Window
     /// <param name="updates">Servizio degli aggiornamenti.</param>
     /// <param name="result">Esito del controllo, con l'aggiornamento e le sue novità.</param>
     /// <param name="installed">Versione installata su questa postazione.</param>
+    /// <param name="downloader">Scaricamento in sottofondo, condiviso da tutta l'applicazione.</param>
     /// <param name="announcer">Pipeline di annuncio.</param>
     /// <param name="logger">Log diagnostico.</param>
     public UpdateWindow(
         UpdateService updates,
         UpdateCheckResult result,
         string installed,
+        BackgroundUpdateDownloader downloader,
         IAnnouncer announcer,
         ILogger<UpdateWindow> logger)
     {
         InitializeComponent();
 
         _updates = updates;
+        _downloader = downloader;
         _announcer = announcer;
         _log = logger;
-        _update = result.Update ?? throw new ArgumentException("Nessun aggiornamento da mostrare", nameof(result));
-        _notes = result.Notes;
 
-        VersionText.Text = $"Versione installata: {installed}    →    versione disponibile: {_update.DisplayVersion}";
+        var trovato = result.Update ?? throw new ArgumentException("Nessun aggiornamento da mostrare", nameof(result));
+
+        // Uno scaricamento ancora in corso ha soltanto il .part: non e' pronto, e
+        // FindDownloaded non lo vede.
+        _ready = updates.FindDownloaded() is { } scaricato && scaricato.Update.Version >= trovato.Version
+            ? scaricato
+            : null;
+
+        _update = _ready?.Update ?? trovato;
+
+        // Le novita' sono quelle del pacchetto che si installa. Quelle lette dal server
+        // valgono al posto di quelle salvate solo se sono della stessa versione e le
+        // salvate mancano.
+        _notes = _ready switch
+        {
+            null => result.Notes,
+            { Notes.Features.Count: 0 } pronto when pronto.Update.Version == trovato.Version => result.Notes,
+            var pronto => pronto.Notes,
+        };
+
+        if (_ready is not null) ShowAsReadyToInstall(installed);
+        else VersionText.Text = $"Versione installata: {installed}    →    versione disponibile: {_update.DisplayVersion}";
+
         NotesText.Text = DescribeNotes();
         ChannelText.Text = DescribeChannel();
 
@@ -69,8 +105,8 @@ public partial class UpdateWindow : Window
 
         // Il nome della casella dice di quale versione sono le novita': e' la prima cosa
         // che lo screen reader legge arrivandoci, cioe' all'apertura.
-        System.Windows.Automation.AutomationProperties.SetName(
-            NotesText, $"Novità della versione {_update.DisplayVersion}");
+        AutomationProperties.SetName(NotesText, $"Novità della versione {_update.DisplayVersion}");
+        AutomationProperties.SetHelpText(NotesText, $"Frecce su e giu' per leggere riga per riga. {DescribeKeys()}");
 
         Loaded += (_, _) =>
         {
@@ -82,15 +118,56 @@ public partial class UpdateWindow : Window
 
             // Non interrompe: arriva dopo la lettura della casella, e dice quello che la
             // casella non dice - da quale versione si parte, da dove arriva il pacchetto,
-            // e come si chiude.
+            // e come si sceglie.
+            var apertura = _ready is null
+                ? $"Aggiornamento disponibile: versione {_update.DisplayVersion}, installata la {installed}. "
+                : $"Aggiornamento pronto da installare: la versione {_update.DisplayVersion} e' gia' scaricata, "
+                  + $"installata la {installed}. ";
+
             _announcer.Announce(Announcement.High(
-                $"Aggiornamento disponibile: versione {_update.DisplayVersion}, installata la {installed}. "
-                + $"{CountNotes()} Invio o Esc per aggiornare piu' tardi, Alt S per scaricare e installare. "
-                + ChannelText.Text,
+                apertura + $"{CountNotes()} {DescribeKeys()} {ChannelText.Text}",
                 DateTimeOffset.Now,
                 coalesceKey: "update:available"));
         };
     }
+
+    /// <summary>
+    /// Trasforma la finestra nella domanda del riavvio: il pacchetto c'è già, resta da
+    /// decidere se installarlo.
+    /// </summary>
+    private void ShowAsReadyToInstall(string installed)
+    {
+        Title = "BlindPhone - aggiornamento pronto da installare";
+        TitleText.Text = "Aggiornamento pronto da installare";
+        AutomationProperties.SetName(TitleText, "Aggiornamento pronto da installare");
+
+        VersionText.Text = $"Versione installata: {installed}    →    versione già scaricata: {_update.DisplayVersion}";
+
+        InstallNowButton.Content = "_Sì, installa adesso";
+        AutomationProperties.SetName(InstallNowButton, "Sì, installa adesso");
+        AutomationProperties.SetHelpText(InstallNowButton,
+            "Verifica di nuovo la firma del pacchetto già scaricato e avvia l'installazione. "
+            + "BlindPhone verrà chiuso: nessuna chiamata deve essere in corso.");
+
+        // Senza «successivamente» il predefinito passa al no: Invio ed Esc non
+        // installano e non chiudono niente.
+        InstallLaterButton.IsDefault = false;
+        InstallLaterButton.Visibility = Visibility.Collapsed;
+
+        CancelButton.Content = "_No, più tardi";
+        CancelButton.IsDefault = true;
+        AutomationProperties.SetName(CancelButton, "No, più tardi");
+        AutomationProperties.SetHelpText(CancelButton,
+            "Non installa adesso. Il pacchetto resta scaricato e te lo richiedo al prossimo avvio di BlindPhone.");
+    }
+
+    /// <summary>Quante novità ci sono, detto in una frase.</summary>
+    private string CountNotes() => _notes.Features.Count switch
+    {
+        0 => "Per questa versione non sono state pubblicate note sulle novita'.",
+        1 => "Una novita', nella casella.",
+        var n => $"{n} novita', nella casella: frecce su e giu' per leggerle.",
+    };
 
     /// <summary>
     /// Compone il testo delle novità.
@@ -101,14 +178,6 @@ public partial class UpdateWindow : Window
     /// non sono state pubblicate, che è un'informazione, e non «errore nella lettura
     /// del file», che è un rimprovero a qualcuno che non è l'operatore.
     /// </remarks>
-    /// <summary>Quante novità ci sono, detto in una frase.</summary>
-    private string CountNotes() => _notes.Features.Count switch
-    {
-        0 => "Per questa versione non sono state pubblicate note sulle novita'.",
-        1 => "Una novita', nella casella.",
-        var n => $"{n} novita', nella casella: frecce su e giu' per leggerle.",
-    };
-
     private string DescribeNotes()
     {
         if (_notes.Features.Count == 0)
@@ -118,6 +187,21 @@ public partial class UpdateWindow : Window
 
         var righe = _notes.Features.Select(f => $"• {f}");
         return string.Join(Environment.NewLine, righe);
+    }
+
+    /// <summary>I tasti della finestra, detti come si premono.</summary>
+    private string DescribeKeys()
+    {
+        if (!InstallNowButton.IsEnabled)
+        {
+            return "Esc per chiudere.";
+        }
+
+        return _ready is null
+            ? "Invio per scaricarlo adesso e installarlo al prossimo avvio, Alt O per scaricarlo e installarlo "
+              + "subito chiudendo BlindPhone, Esc per annullare: te lo ripropongo al prossimo avvio."
+            : "Alt S per installarlo adesso: BlindPhone verra' chiuso. Invio o Esc per non installarlo ora: "
+              + "te lo richiedo al prossimo avvio.";
     }
 
     /// <summary>
@@ -140,16 +224,22 @@ public partial class UpdateWindow : Window
     /// </remarks>
     private string DescribeChannel()
     {
-        if (!_updates.IsSecureChannel)
-        {
-            return "Il server degli aggiornamenti usa un canale NON cifrato: l'aggiornamento non viene "
-                   + "scaricato. Chiedi a chi amministra il server di abilitare FTPS.";
-        }
-
         if (!UpdateSignature.IsConfigured)
         {
             return "Questa versione di BlindPhone non puo' verificare la firma degli aggiornamenti, quindi "
                    + "non li installa da sola. L'aggiornamento va fatto a mano da chi amministra la postazione.";
+        }
+
+        if (_ready is not null)
+        {
+            return "Il pacchetto e' gia' stato scaricato e verificato. La sua firma viene controllata di nuovo "
+                   + "un istante prima dell'installazione, e durante l'installazione BlindPhone viene chiuso.";
+        }
+
+        if (!_updates.IsSecureChannel)
+        {
+            return "Il server degli aggiornamenti usa un canale NON cifrato: l'aggiornamento non viene "
+                   + "scaricato. Chiedi a chi amministra il server di abilitare FTPS.";
         }
 
         var impronta = _notes.Sha256 is null
@@ -161,190 +251,133 @@ public partial class UpdateWindow : Window
     }
 
     /// <summary>
-    /// Toglie il pulsante di installazione quando l'aggiornamento non è installabile.
+    /// Toglie i pulsanti di scaricamento quando l'aggiornamento non è installabile.
     /// </summary>
     /// <remarks>
     /// Un pulsante che c'è e fallisce sempre è peggio di un pulsante che non c'è: per
     /// chi non vede lo schermo, premerlo e sentire un errore è l'unico modo di
     /// scoprire che non era disponibile. Il perché sta già in
-    /// <see cref="DescribeChannel"/>, che viene letto ad alta voce.
+    /// <see cref="DescribeChannel"/>, che viene letto ad alta voce. Invio passa ad
+    /// «Annulla», perché un predefinito spento non risponde a niente.
     /// </remarks>
     private void DisableInstallIfUnverifiable()
     {
-        if (_updates.IsSecureChannel && UpdateSignature.IsConfigured) return;
+        var installabile = UpdateSignature.IsConfigured && (_ready is not null || _updates.IsSecureChannel);
+        if (installabile) return;
 
-        InstallButton.IsEnabled = false;
-        InstallButton.ToolTip = "L'aggiornamento non puo' essere verificato su questa postazione";
+        InstallNowButton.IsEnabled = false;
+        InstallLaterButton.IsEnabled = false;
+        InstallLaterButton.IsDefault = false;
+        CancelButton.IsDefault = true;
+
+        const string motivo = "L'aggiornamento non puo' essere verificato su questa postazione";
+        InstallNowButton.ToolTip = motivo;
+        InstallLaterButton.ToolTip = motivo;
     }
 
-    private async void OnInstallClick(object sender, RoutedEventArgs e)
+    private async void OnInstallNowClick(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
 
         _busy = true;
-        InstallButton.IsEnabled = false;
+        InstallNowButton.IsEnabled = false;
+        InstallLaterButton.IsEnabled = false;
         ProgressPanel.Visibility = Visibility.Visible;
 
         try
         {
-            var avanzamento = new Progress<int>(percentuale =>
-            {
-                DownloadProgress.Value = percentuale;
-                ProgressText.Text = $"Scaricamento in corso: {percentuale} per cento";
-            });
+            var pacchetto = _ready is { } pronto
+                ? pronto.PackagePath
+                : await DownloadForInstallAsync().ConfigureAwait(true);
 
-            ProgressText.Text = "Scaricamento in corso";
-
-            _announcer.Announce(Announcement.CommandResponse(
-                "Scaricamento dell'aggiornamento avviato", DateTimeOffset.Now));
-
-            var pacchetto = await _updates
-                .DownloadAsync(_update, _notes, avanzamento, CancellationToken.None)
-                .ConfigureAwait(true);
-
-            ProgressText.Text = "Pacchetto scaricato e verificato. Avvio dell'installazione";
+            ProgressText.Text = "Pacchetto verificato. Avvio dell'installazione";
 
             _announcer.Announce(Announcement.High(
-                "Aggiornamento scaricato e verificato. L'installazione sta per partire e BlindPhone verra' chiuso.",
+                _ready is null
+                    ? "Aggiornamento scaricato e verificato. L'installazione sta per partire e BlindPhone verra' chiuso."
+                    : "L'installazione sta per partire e BlindPhone verra' chiuso.",
                 DateTimeOffset.Now));
 
-            LaunchInstaller(pacchetto);
+            UpdateInstaller.Launch(pacchetto, _log);
+
+            DialogResult = true;
+            Close();
+
+            // La chiusura dell'applicazione passa dal percorso normale: le chiamate in
+            // corso vengono chiuse come si deve e la registrazione SIP viene ritirata.
+            Application.Current.Shutdown();
         }
         catch (Exception ex)
         {
             _log.LogError(ex, "Aggiornamento alla versione {Versione} non riuscito", _update.DisplayVersion);
 
-            ProgressText.Text = ex.Message;
-            InstallButton.IsEnabled = true;
+            var messaggio = ex.Message;
+
+            // Un pacchetto gia' scaricato che non passa la verifica non si
+            // riproporra' mai bene: va tolto, e al prossimo avvio si riparte dallo
+            // scaricamento.
+            if (_ready is { } scartato && ex is InvalidOperationException)
+            {
+                _updates.DiscardDownloaded(scartato);
+                messaggio += " Il pacchetto scaricato e' stato eliminato: al prossimo avvio ti ripropongo lo scaricamento.";
+            }
+            else
+            {
+                InstallNowButton.IsEnabled = true;
+                InstallLaterButton.IsEnabled = true;
+            }
+
+            ProgressText.Text = messaggio;
             _busy = false;
 
             _announcer.Announce(Announcement.High(
-                $"Aggiornamento non riuscito. {ex.Message}", DateTimeOffset.Now));
+                $"Aggiornamento non riuscito. {messaggio}", DateTimeOffset.Now));
         }
     }
 
-    /// <summary>
-    /// Avvia l'installatore di Windows sul pacchetto scaricato.
-    /// </summary>
-    /// <param name="packagePath">Percorso del pacchetto verificato.</param>
-    /// <remarks>
-    /// <para>
-    /// <b>Si lancia <c>msiexec</c> e si chiude l'applicazione</b>, in quest'ordine e
-    /// non nell'altro: un pacchetto che deve sostituire i file di un programma in
-    /// esecuzione chiederebbe un riavvio della macchina, e su una postazione di
-    /// servizio quello è un costo che si può evitare uscendo prima.
-    /// </para>
-    /// <para>
-    /// <b>Fra la verifica e l'avvio non c'è una finestra da sfruttare.</b> Prima
-    /// c'era: il pacchetto restava in <c>%TEMP%</c> — cartella su cui l'utente ha
-    /// pieno controllo — senza che nessuno lo trattenesse, e fra il controllo
-    /// dell'impronta e l'avvio di <c>msiexec</c> un altro processo poteva
-    /// sostituirlo. Quello che partiva era l'altro, con i privilegi di
-    /// amministratore. Ora il file viene aperto in modo da negarne la scrittura e la
-    /// cancellazione, la firma si riverifica <b>su quel flusso</b> e il blocco resta
-    /// fino a quando <c>msiexec</c> non ha preso in mano il pacchetto.
-    /// </para>
-    /// <para>
-    /// L'installazione <b>non</b> è silenziosa. L'operatore vede la stessa procedura
-    /// della prima installazione, con la richiesta di consenso di Windows: è quello che
-    /// permette di fermarsi a metà se qualcosa non torna, ed è l'ultima occasione in
-    /// cui un pacchetto sbagliato può ancora essere rifiutato.
-    /// </para>
-    /// </remarks>
-    /// <exception cref="InvalidOperationException">
-    /// Il pacchetto non è più quello verificato, oppure la sua firma non si trova:
-    /// l'installazione non parte e il motivo viene annunciato.
-    /// </exception>
-    private void LaunchInstaller(string packagePath)
+    /// <summary>Scarica il pacchetto qui, con la barra di avanzamento.</summary>
+    private async Task<string> DownloadForInstallAsync()
     {
-        // La lettura resta concessa: msiexec deve poter aprire il pacchetto. Quello
-        // che il blocco nega e' scriverlo e cancellarlo.
-        using var blocco = new FileStream(packagePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-
-        var firma = ReadSignature(packagePath);
-
-        // Si verificano i byte TENUTI APERTI, non quelli che il percorso
-        // restituirebbe riaprendolo: riaprire il file vanificherebbe il blocco,
-        // perche' fra le due aperture ci sarebbe di nuovo spazio per una sostituzione.
-        if (!UpdateSignature.Verify(blocco, firma))
+        if (_downloader.IsDownloadingVersion(_update.Version))
         {
-            _log.LogError(
-                "Firma del pacchetto {Pacchetto} non valida al momento dell'installazione: annullata",
-                packagePath);
+            // Lo stesso pacchetto sta gia' arrivando in sottofondo: si aspetta quello,
+            // senza percentuale da mostrare.
+            DownloadProgress.IsIndeterminate = true;
+            ProgressText.Text = "Lo scaricamento in sottofondo e' gia' in corso: attendi che finisca";
 
-            throw new InvalidOperationException(
-                "Il pacchetto e' cambiato dopo la verifica: l'installazione e' stata annullata. "
-                + "Riprova, e se il problema resta avvisa chi amministra la postazione.");
+            _announcer.Announce(Announcement.CommandResponse(
+                "Lo scaricamento e' gia' in corso in sottofondo: al termine parte l'installazione", DateTimeOffset.Now));
+        }
+        else
+        {
+            ProgressText.Text = "Scaricamento in corso";
+
+            _announcer.Announce(Announcement.CommandResponse(
+                "Scaricamento dell'aggiornamento avviato", DateTimeOffset.Now));
         }
 
-        var avvio = new ProcessStartInfo
+        var avanzamento = new Progress<int>(percentuale =>
         {
-            // PERCORSO ASSOLUTO, E NON "msiexec.exe".
-            //
-            // Con il solo nome, la risoluzione passa per le regole di ricerca di
-            // Windows: la cartella di lavoro e le voci di PATH vengono guardate, e
-            // una cartella scrivibile dall'utente che contenga un file con quel nome
-            // vincerebbe sul programma di sistema. Si chiede quello in
-            // %SystemRoot%\System32, che e' l'unico che si intende avviare.
-            FileName = Path.Combine(Environment.SystemDirectory, "msiexec.exe"),
-            Arguments = $"/i \"{packagePath}\"",
-            UseShellExecute = true,
-        };
+            DownloadProgress.Value = percentuale;
+            ProgressText.Text = $"Scaricamento in corso: {percentuale} per cento";
+        });
 
-        _log.LogInformation("Avvio dell'installazione di {Pacchetto}", packagePath);
+        return await _downloader
+            .DownloadNowAsync(_updates, _update, _notes, avanzamento)
+            .ConfigureAwait(true);
+    }
 
-        using var processo = Process.Start(avvio);
+    private void OnInstallLaterClick(object sender, RoutedEventArgs e)
+    {
+        if (_busy) return;
 
-        // Si attende che msiexec sia pronto, così il blocco cade quando il pacchetto
-        // è già nelle sue mani. Non tutte le configurazioni hanno una finestra da
-        // attendere — un'installazione senza interfaccia non ne ha — e un'attesa
-        // impossibile non è un guasto: il pacchetto è stato verificato un istante
-        // prima e il processo è già partito.
-        //
-        // L'attesa e' breve di proposito. Blocca il thread dell'interfaccia, cioe'
-        // anche la coda degli annunci, e su un posto operatore un programma muto per
-        // dieci secondi e' indistinguibile da un programma bloccato. msiexec apre il
-        // pacchetto nei primi istanti, molto prima di mostrare la sua prima finestra:
-        // cinque secondi sono un tetto, non un'attesa prevista.
-        try
-        {
-            processo?.WaitForInputIdle(5_000);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            _log.LogDebug(ex, "Attesa dell'avvio di msiexec non disponibile: si prosegue");
-        }
+        _downloader.Start(_updates, _update, _notes);
 
-        DialogResult = true;
+        DialogResult = false;
         Close();
-
-        // La chiusura dell'applicazione passa dal percorso normale: le chiamate in
-        // corso vengono chiuse come si deve e la registrazione SIP viene ritirata.
-        Application.Current.Shutdown();
     }
 
-    /// <summary>Legge la firma pubblicata accanto al pacchetto scaricato.</summary>
-    /// <exception cref="InvalidOperationException">La firma non è leggibile.</exception>
-    private byte[] ReadSignature(string packagePath)
-    {
-        var percorso = packagePath + UpdateSignature.SignatureExtension;
-
-        try
-        {
-            return File.ReadAllBytes(percorso);
-        }
-        catch (Exception ex)
-        {
-            _log.LogError(ex, "Firma {Percorso} non leggibile al momento dell'installazione", percorso);
-
-            throw new InvalidOperationException(
-                "La firma del pacchetto non si trova piu': l'installazione non parte. "
-                + "Riprova a scaricare l'aggiornamento.",
-                ex);
-        }
-    }
-
-    private void OnLaterClick(object sender, RoutedEventArgs e)
+    private void OnCancelClick(object sender, RoutedEventArgs e)
     {
         if (_busy) return;
 

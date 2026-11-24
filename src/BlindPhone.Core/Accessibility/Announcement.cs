@@ -60,6 +60,20 @@ public sealed record Announcement
     /// </remarks>
     public bool BypassConversationSilence { get; init; }
 
+    /// <summary>
+    /// Se <c>true</c>, l'annuncio si sente solo come <see cref="Earcon"/>: la voce
+    /// tace, mentre la riga braille e il registro degli annunci si aggiornano.
+    /// </summary>
+    /// <remarks>
+    /// È ciò che il livello di dettaglio «Esperto» fa delle conferme di routine — la
+    /// pausa chiesta con il tasto, la risposta data dall'operatore — che chi conosce il
+    /// prodotto riconosce dal suono. Il testo resta comunque scritto: finisce nel
+    /// registro, e chi vuole sapere cosa è successo lo rilegge. Vedi
+    /// <see cref="Services.CallAnnouncementMapper"/>, che è l'unico a deciderlo e solo
+    /// quando i segnali acustici sono accesi.
+    /// </remarks>
+    public bool EarconOnly { get; init; }
+
     /// <summary>Istante di creazione, usato per la finestra di accorpamento.</summary>
     public DateTimeOffset CreatedAt { get; init; }
 

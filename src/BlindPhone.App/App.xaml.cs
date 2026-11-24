@@ -8,7 +8,6 @@ using BlindPhone.Contacts.SqlServer;
 using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Services;
-using BlindPhone.Core.Speech;
 using BlindPhone.Infrastructure;
 using BlindPhone.Pbx.Yeastar;
 using BlindPhone.Telephony;
@@ -209,6 +208,11 @@ public partial class App : Application
             _services.GetRequiredService<LogLevelSwitch>().Minimum,
             settings.DiagnosticLogRetentionDays,
             settings.DebugModeEnabled ? "attiva" : "spenta");
+
+        // Non ha un ciclo da far avanzare: basta crearlo, e da quel momento ascolta il
+        // motore audio. Va creato qui, prima di qualunque chiamata, perche' nessun altro
+        // servizio lo chiede.
+        _services.GetRequiredService<AudioDeviceMonitor>();
 
         StartPumpLoop();
 
@@ -750,7 +754,6 @@ public partial class App : Application
         {
             var player = new ToneEarconPlayer(
                 sp.GetRequiredService<NAudioEngine>(),
-                sp.GetRequiredService<IClock>(),
                 sp.GetRequiredService<ILogger<ToneEarconPlayer>>())
             {
                 // Spenti, tacciono i soli segnali che accompagnano un annuncio: la
@@ -924,9 +927,24 @@ public partial class App : Application
             sp.GetRequiredService<IAnnouncer>(),
             sp.GetRequiredService<ILogger<SipAccountSwitcher>>()));
 
-        services.AddSingleton(new CallAnnouncementMapper(
-            settings.Accessibility.DigitGrouping,
-            settings.Accessibility.Verbosity));
+        // I tasti che il livello Principiante suggerisce si chiedono al profilo attivo
+        // e alla modalita' di interazione nel momento dell'annuncio: cambiano entrambi a
+        // caldo, e un suggerimento rimasto indietro manderebbe a premere un tasto che
+        // non fa piu' quella cosa.
+        services.AddSingleton(sp =>
+        {
+            var tasti = sp.GetRequiredService<HotkeyProfileStore>();
+            var configurazione = sp.GetRequiredService<SettingsService>();
+
+            return new CallAnnouncementMapper(
+                settings.Accessibility.DigitGrouping,
+                settings.Accessibility.Verbosity,
+                settings.Accessibility.EarconsEnabled,
+                comando => CallKeyHints.KeyName(
+                    tasti.Active,
+                    configurazione.Current.Interaction == Core.Domain.InteractionMode.Simplified,
+                    comando));
+        });
 
         // I nomi dei tasti citati dagli annunci della conferenza vengono dal profilo
         // attivo, come quelli del trasferimento e per lo stesso motivo.
@@ -973,6 +991,14 @@ public partial class App : Application
             sp.GetRequiredService<CallSessionManager>(),
             sp.GetRequiredService<IAnnouncer>(),
             sp.GetRequiredService<ILogger<OneWayAudioMonitor>>()));
+
+        // Dice all'operatore che la cuffia e' sparita e l'audio e' passato su un'altra
+        // uscita, prima che parli a voce alta di cose riservate. Vedi AudioDeviceMonitor.
+        services.AddSingleton(sp => new AudioDeviceMonitor(
+            sp.GetRequiredService<IAudioEngine>(),
+            sp.GetRequiredService<IAnnouncer>(),
+            sp.GetRequiredService<IClock>(),
+            sp.GetRequiredService<ILogger<AudioDeviceMonitor>>()));
 
         services.AddSingleton(sp => new TransferOrchestrator(
             sp.GetRequiredService<ITelephonyEngine>(),
@@ -1113,6 +1139,11 @@ public partial class App : Application
         services.AddSingleton(sp => new LiveSettingsApplier(
             sp, settingsService, sp.GetRequiredService<ILogger<LiveSettingsApplier>>()));
 
+        // Uno solo per processo: lo scaricamento in sottofondo di un aggiornamento
+        // sopravvive alla finestra che l'ha chiesto, e due scaricamenti dello stesso
+        // pacchetto scriverebbero lo stesso file. Vedi BackgroundUpdateDownloader.
+        services.AddSingleton<BackgroundUpdateDownloader>();
+
         services.AddSingleton<MainWindow>();
 
         // Transitorie: il pannello impostazioni rilegge la configurazione a ogni
@@ -1155,7 +1186,7 @@ public partial class App : Application
         var iniziale = settings.ActiveSipAccount;
 
         return new SwitchableTelephonyEngine(
-            account => BuildEngine(sp, settingsService, settings, account),
+            account => BuildEngine(sp, settingsService, account),
             iniziale.IsUsable ? BuildAccountOptions(iniziale, settingsService) : null,
             sp.GetRequiredService<ILogger<SwitchableTelephonyEngine>>());
     }
@@ -1164,7 +1195,6 @@ public partial class App : Application
     private static ITelephonyEngine BuildEngine(
         IServiceProvider sp,
         SettingsService settingsService,
-        AppSettings settings,
         SipAccountOptions? account)
     {
         if (account is null)
@@ -1357,7 +1387,6 @@ public partial class App : Application
 
     internal static AnnouncementOptions BuildAnnouncementOptions(AppSettings settings) => new()
     {
-        Verbosity = settings.Accessibility.Verbosity,
         QueueMode = settings.Accessibility.QueueMode,
         SilenceDuringConversation = settings.Accessibility.SilenceDuringConversation,
         QueueWaitThreshold = TimeSpan.FromSeconds(settings.Accessibility.QueueWaitThresholdSeconds),

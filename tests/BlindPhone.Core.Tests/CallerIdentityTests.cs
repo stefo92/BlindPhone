@@ -92,9 +92,6 @@ internal sealed class FakeContactRepository : IContactRepository
     public Task<int> UpsertAsync(IEnumerable<Contact> contacts, string sourceName, CancellationToken cancellationToken)
         => Task.FromResult(0);
 
-    public Task UpdatePresenceAsync(string extension, PresenceState presence, CancellationToken cancellationToken)
-        => Task.CompletedTask;
-
     public Task<int> CountAsync(CancellationToken cancellationToken) => Task.FromResult(_contacts.Count);
 
     public Task<IReadOnlyList<Contact>> GetAllAsync(CancellationToken cancellationToken)

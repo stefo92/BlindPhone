@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -22,6 +21,17 @@ public sealed record UpdateCheckResult(AvailableUpdate? Update, UpdateNotes Note
     /// <summary>Il controllo non è riuscito.</summary>
     public bool Failed => Error is not null;
 }
+
+/// <summary>Un aggiornamento già scaricato sulla postazione, in attesa di essere installato.</summary>
+/// <param name="Update">Versione e nomi dei file, ricavati dal nome del pacchetto.</param>
+/// <param name="Notes">Le novità, salvate accanto al pacchetto quando è stato scaricato.</param>
+/// <param name="PackagePath">Percorso del pacchetto sul disco.</param>
+/// <remarks>
+/// Il pacchetto è stato verificato quando è arrivato, ma resta in una cartella che
+/// l'utente può scrivere: la firma si riverifica sul file tenuto aperto un istante
+/// prima di avviare l'installazione, come per un pacchetto appena scaricato.
+/// </remarks>
+public sealed record DownloadedUpdate(AvailableUpdate Update, UpdateNotes Notes, string PackagePath);
 
 /// <summary>
 /// Cerca, scarica e verifica gli aggiornamenti pubblicati sul server dell'ente.
@@ -113,7 +123,28 @@ public sealed class UpdateService
     private readonly Version _installed;
     private readonly string _architecture;
     private readonly HttpClient _http;
+    private readonly string _downloadDirectory;
     private readonly ILogger<UpdateService> _log;
+
+    /// <summary>
+    /// Cartella in cui si scaricano i pacchetti: <c>%LOCALAPPDATA%\BlindPhone\aggiornamenti</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Prima era fra i file temporanei di Windows, e lì non può più stare.</b> Da
+    /// quando si può scaricare adesso e installare al prossimo avvio, il pacchetto deve
+    /// arrivare intero al giorno dopo: il Sensore memoria di Windows svuota la cartella
+    /// temporanea da solo, e il pacchetto sparirebbe fra lo scaricamento e la domanda.
+    /// </para>
+    /// <para>
+    /// Locale e non nel profilo che si sposta con l'utente: sessanta megabyte di
+    /// installatore non devono viaggiare sulla rete dell'ente a ogni accesso.
+    /// </para>
+    /// </remarks>
+    public static string DefaultDownloadDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "BlindPhone",
+        "aggiornamenti");
 
     /// <summary>Crea il servizio.</summary>
     /// <param name="settings">Indirizzo del server e credenziali.</param>
@@ -128,14 +159,23 @@ public sealed class UpdateService
     /// Processore del pacchetto da cercare. Se omesso è quello del processo, cioè
     /// quello del pacchetto installato: un BlindPhone x64 su Windows on ARM resta x64.
     /// </param>
+    /// <param name="downloadDirectory">
+    /// Cartella dei pacchetti scaricati. Se omessa è <see cref="DefaultDownloadDirectory"/>;
+    /// le prove ne indicano una propria.
+    /// </param>
     public UpdateService(
         UpdateSettings settings,
         string password,
         Version installed,
         ILogger<UpdateService>? logger = null,
         HttpMessageHandler? httpHandler = null,
-        string? architecture = null)
+        string? architecture = null,
+        string? downloadDirectory = null)
     {
+        _downloadDirectory = string.IsNullOrWhiteSpace(downloadDirectory)
+            ? DefaultDownloadDirectory
+            : downloadDirectory;
+
         // Un indirizzo vuoto vale come la cartella del portale, e lo si traduce qui una
         // volta per tutte: elenco, note, firma e pacchetto si leggono tutti dalla stessa
         // cartella. Vedi UpdateSettings.EffectiveServerUrl.
@@ -165,6 +205,9 @@ public sealed class UpdateService
 
     /// <summary>La cartella a cui il servizio si collega.</summary>
     public string ServerUrl => _settings.ServerUrl;
+
+    /// <summary>La cartella della postazione in cui arrivano i pacchetti scaricati.</summary>
+    public string DownloadDirectory => _downloadDirectory;
 
     /// <summary>Se il canale verso il server è cifrato.</summary>
     public bool IsSecureChannel
@@ -354,6 +397,12 @@ public sealed class UpdateService
     /// il nome definitivo soltanto dopo: un pacchetto scartato non deve restare in
     /// giro con un nome che invita a farci doppio clic.
     /// </para>
+    /// <para>
+    /// <b>Accanto al pacchetto restano la firma e le novità.</b> La firma serve a
+    /// riverificarlo al momento dell'installazione; le novità servono a dire che cosa
+    /// porta quando l'installazione si chiede al riavvio, magari senza rete. È ciò che
+    /// <see cref="FindDownloaded"/> ritrova.
+    /// </para>
     /// </remarks>
     public async Task<string> DownloadAsync(
         AvailableUpdate update,
@@ -375,12 +424,13 @@ public sealed class UpdateService
                 + "quindi non li installa da sola. L'aggiornamento va fatto a mano.");
         }
 
-        var cartella = Path.Combine(Path.GetTempPath(), "BlindPhone-aggiornamenti");
+        var cartella = _downloadDirectory;
         Directory.CreateDirectory(cartella);
 
-        var parziale = Path.Combine(cartella, update.InstallerFileName + ".part");
+        var parziale = Path.Combine(cartella, update.InstallerFileName + PartialExtension);
         var definitivo = Path.Combine(cartella, update.InstallerFileName);
         var fileFirma = definitivo + UpdateSignature.SignatureExtension;
+        var fileNote = Path.Combine(cartella, update.NotesFileName);
 
         var firma = await DownloadSignatureAsync(update, cancellationToken).ConfigureAwait(false);
 
@@ -479,8 +529,167 @@ public sealed class UpdateService
             throw;
         }
 
+        try
+        {
+            await File.WriteAllTextAsync(fileNote, notes.Format(), Encoding.UTF8, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Le novita' non servono a installare: senza, la domanda al riavvio dice
+            // soltanto che non sono state pubblicate. Non vale la pena di buttare un
+            // pacchetto verificato per un file di testo.
+            _log.LogWarning(ex, "Novita' del pacchetto non salvate in {Percorso}", fileNote);
+        }
+
         _log.LogInformation("Pacchetto pronto in {Percorso}", definitivo);
         return definitivo;
+    }
+
+    /// <summary>Estensione del pacchetto mentre sta arrivando.</summary>
+    private const string PartialExtension = ".part";
+
+    /// <summary>
+    /// Cerca fra i pacchetti già scaricati quello da proporre: il più recente, se è
+    /// più nuovo della versione installata.
+    /// </summary>
+    /// <returns>Il pacchetto in attesa, oppure <c>null</c> se non ce n'è.</returns>
+    /// <remarks>
+    /// <para>
+    /// <b>Lo stato è la cartella, e nient'altro.</b> Un pacchetto scaricato con la sua
+    /// firma accanto e una versione più alta di quella installata è, per definizione,
+    /// un aggiornamento da installare: non c'è un registro separato da tenere allineato
+    /// e che potrebbe dire una cosa diversa dai file. Il <c>.part</c> di uno
+    /// scaricamento interrotto non ha ancora il nome del pacchetto, e non viene preso.
+    /// </para>
+    /// <para>
+    /// Non verifica la firma: lo fa l'installazione, sul file tenuto aperto, ed è
+    /// l'unico momento in cui il controllo conta. Qui si decide soltanto se fare la
+    /// domanda.
+    /// </para>
+    /// <para>
+    /// Non solleva eccezioni: una cartella illeggibile vuol dire «nessun pacchetto in
+    /// attesa», e il controllo sul server prosegue come prima.
+    /// </para>
+    /// </remarks>
+    public DownloadedUpdate? FindDownloaded()
+    {
+        try
+        {
+            if (!Directory.Exists(_downloadDirectory)) return null;
+
+            var firmati = DownloadedPackages()
+                .Where(p => File.Exists(p + UpdateSignature.SignatureExtension))
+                .Select(p => Path.GetFileName(p));
+
+            if (UpdateCatalog.FindNewer(firmati, _installed, _architecture) is not { } trovato) return null;
+
+            return new DownloadedUpdate(
+                trovato,
+                ReadDownloadedNotes(trovato),
+                Path.Combine(_downloadDirectory, trovato.InstallerFileName));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning(ex, "Cartella dei pacchetti scaricati {Cartella} non leggibile", _downloadDirectory);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Toglie dalla cartella quello che non si installerà più: i pacchetti di versioni
+    /// già installate o superate, e gli scaricamenti rimasti a metà.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Resta soltanto il pacchetto che <see cref="FindDownloaded"/> proporrebbe. Il
+    /// pacchetto installato ieri — fra i sessanta e i settanta megabyte — non ha più
+    /// ragione di occupare il disco, e un <c>.part</c> è il resto di un BlindPhone
+    /// chiuso mentre scaricava.
+    /// </para>
+    /// <para>
+    /// <b>Va chiamato all'avvio, prima di qualunque scaricamento</b>: un <c>.part</c>
+    /// che sta arrivando in quel momento non è un resto. Tocca soltanto i file con il
+    /// nome di un pacchetto di BlindPhone, la loro firma e le loro novità: nessun
+    /// carattere jolly che possa allargarsi a quello che qualcuno deposita nella
+    /// cartella.
+    /// </para>
+    /// </remarks>
+    public void PurgeStaleDownloads()
+    {
+        try
+        {
+            if (!Directory.Exists(_downloadDirectory)) return;
+
+            var daTenere = FindDownloaded()?.PackagePath;
+
+            foreach (var pacchetto in DownloadedPackages())
+            {
+                if (string.Equals(pacchetto, daTenere, StringComparison.OrdinalIgnoreCase)) continue;
+
+                DeletePackageFiles(pacchetto);
+                _log.LogInformation("Pacchetto superato eliminato: {Pacchetto}", Path.GetFileName(pacchetto));
+            }
+
+            foreach (var parziale in Directory.GetFiles(
+                         _downloadDirectory, UpdateCatalog.InstallerPrefix + "*" + PartialExtension))
+            {
+                TryDelete(parziale);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogWarning(ex, "Pulizia dei pacchetti scaricati in {Cartella} non riuscita", _downloadDirectory);
+        }
+    }
+
+    /// <summary>Elimina un pacchetto scaricato, con la sua firma e le sue novità.</summary>
+    /// <param name="downloaded">Il pacchetto da eliminare.</param>
+    /// <remarks>
+    /// Serve quando il pacchetto non si installerà più: sul server ce n'è uno più
+    /// recente, oppure al momento dell'installazione la firma non torna. Restando,
+    /// verrebbe riproposto a ogni avvio.
+    /// </remarks>
+    public void DiscardDownloaded(DownloadedUpdate downloaded)
+    {
+        ArgumentNullException.ThrowIfNull(downloaded);
+
+        DeletePackageFiles(downloaded.PackagePath);
+        _log.LogInformation("Pacchetto scaricato eliminato: {Pacchetto}", downloaded.Update.InstallerFileName);
+    }
+
+    /// <summary>I pacchetti di BlindPhone presenti nella cartella degli scaricamenti.</summary>
+    /// <remarks>
+    /// Il filtro di Windows su <c>*.msi</c> prende anche <c>.msix</c> e simili, per la
+    /// vecchia regola delle estensioni di tre lettere: il nome si ricontrolla con
+    /// <see cref="UpdateCatalog.ParseVersion"/>.
+    /// </remarks>
+    private IEnumerable<string> DownloadedPackages()
+        => Directory.GetFiles(_downloadDirectory, UpdateCatalog.InstallerPrefix + "*" + UpdateCatalog.InstallerExtension)
+            .Where(p => UpdateCatalog.ParseVersion(Path.GetFileName(p)) is not null);
+
+    private void DeletePackageFiles(string packagePath)
+    {
+        TryDelete(packagePath);
+        TryDelete(packagePath + UpdateSignature.SignatureExtension);
+        TryDelete(Path.Combine(
+            Path.GetDirectoryName(packagePath) ?? _downloadDirectory,
+            UpdateCatalog.NotesFileNameFor(Path.GetFileName(packagePath))));
+    }
+
+    private UpdateNotes ReadDownloadedNotes(AvailableUpdate update)
+    {
+        var percorso = Path.Combine(_downloadDirectory, update.NotesFileName);
+
+        try
+        {
+            return File.Exists(percorso) ? UpdateNotes.Parse(File.ReadAllText(percorso, Encoding.UTF8)) : UpdateNotes.Empty;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.LogDebug(ex, "Novita' del pacchetto scaricato {Percorso} non leggibili", percorso);
+            return UpdateNotes.Empty;
+        }
     }
 
     /// <summary>

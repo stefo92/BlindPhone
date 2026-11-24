@@ -109,9 +109,18 @@ public sealed partial class LogAnonymizer
     public string AnonymizeLine(string line)
     {
         if (line.Length < MinimumDigits) return line;
-        if (!line.Any(char.IsAsciiDigit)) return line;
 
         var risultato = line;
+
+        // 0. Il testo degli annunci, dove il recapito e' scritto a parole. Viene prima
+        //    del controllo sulle cifre qui sotto: una riga come «trasferito a tre, sei,
+        //    tre, otto» di cifre non ne ha nessuna, e passerebbe in chiaro.
+        if (risultato.Contains("Annuncio ", StringComparison.Ordinal))
+        {
+            risultato = SpokenDigits().Replace(risultato, m => LabelFor(DigitsOf(m.Value)));
+        }
+
+        if (!risultato.Any(char.IsAsciiDigit)) return risultato;
 
         // 1. Parte utente di un URI SIP. Copre From, To, Contact, Refer-To e le
         //    righe del programma. Il dominio resta: serve a riconoscere il centralino.
@@ -135,6 +144,40 @@ public sealed partial class LogAnonymizer
         }
 
         return risultato;
+    }
+
+    private static readonly string[] DigitWords =
+        ["zero", "uno", "due", "tre", "quattro", "cinque", "sei", "sette", "otto", "nove"];
+
+    /// <summary>
+    /// Le cifre di un recapito scritto come lo pronuncia la sintesi.
+    /// </summary>
+    /// <param name="spoken">Per esempio «più, tre, nove, tre, tre, nove».</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Il registro ora scrive che cosa è stato pronunciato</b>, e la sintesi i
+    /// numeri li dice cifra per cifra: «Chiamata da tre, tre, nove, …». Nessuna delle
+    /// regole precedenti riconosceva un recapito scritto a parole, e il numero
+    /// intero finiva nel pacchetto per l'assistenza.
+    /// </para>
+    /// <para>
+    /// Le cifre ricostruite danno la stessa etichetta dello stesso numero scritto in
+    /// cifre altrove: «tre, sei, tre, otto» e <c>sip:3638@…</c> diventano lo stesso
+    /// INTERNO, e la chiamata si segue ancora da una riga all'altra.
+    /// </para>
+    /// </remarks>
+    private static string DigitsOf(string spoken)
+    {
+        var cifre = new StringBuilder();
+
+        foreach (var parola in spoken.Split([' ', ','], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var indice = Array.IndexOf(DigitWords, parola);
+            if (indice >= 0) cifre.Append((char)('0' + indice));
+            else if (parola == "più") cifre.Append('+');
+        }
+
+        return cifre.ToString();
     }
 
     private string TranslateDisplayName(string content)
@@ -285,4 +328,11 @@ public sealed partial class LogAnonymizer
 
     [GeneratedRegex(@"^\+?[\d\s\-\.]{3,}$")]
     private static partial Regex OnlyDigitsAndPlus();
+
+    /// <summary>
+    /// Almeno tre cifre pronunciate di fila, separate da virgole o spazi: sotto le
+    /// tre «sei» e «tre» sono anche parole qualunque.
+    /// </summary>
+    [GeneratedRegex(@"(?<![\p{L}])(?:più,? )?(?:zero|uno|due|tre|quattro|cinque|sei|sette|otto|nove)(?:,? (?:zero|uno|due|tre|quattro|cinque|sei|sette|otto|nove)){2,}(?![\p{L}])")]
+    private static partial Regex SpokenDigits();
 }

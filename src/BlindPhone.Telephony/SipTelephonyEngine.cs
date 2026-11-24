@@ -2854,6 +2854,21 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
                 break;
 
             case >= 200 and < 300:
+                // Le ripetizioni dello stesso esito non si rilanciano: una riga di
+                // debug basta a dire che il centralino continua a mandarle.
+                if (_calls.TryGetValue(callId, out var trasferita))
+                {
+                    if (trasferita.TransferSuccessReported)
+                    {
+                        _log.LogDebug(
+                            "Trasferimento della chiamata {CallId}: il centralino ripete {Stato}, gia' segnalato",
+                            callId, statusCode);
+                        break;
+                    }
+
+                    trasferita.TransferSuccessReported = true;
+                }
+
                 // Il centralino ha accettato e portato avanti il trasferimento. Si
                 // annuncia, ma NON si tocca la linea: se il chiamante e' davvero
                 // passato all'interno, il dialogo si chiudera' da se' con il BYE.
@@ -3266,7 +3281,7 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
     private string NextCallId() => $"call-{Interlocked.Increment(ref _callCounter)}";
 
     private bool IsLikelyInternal(string? number)
-        => !string.IsNullOrWhiteSpace(number) && number.Length <= 5 && number.All(char.IsDigit);
+        => !string.IsNullOrWhiteSpace(number) && number.Length <= 5 && number.All(char.IsAsciiDigit);
 
     /// <summary>
     /// Aggiorna lo stato della registrazione e lo notifica, se è cambiato davvero.
@@ -3387,6 +3402,17 @@ public sealed class SipTelephonyEngine : ITelephonyEngine
         public string Destination { get; } = destination;
 
         public SIPServerUserAgent? ServerUserAgent { get; init; }
+
+        /// <summary>
+        /// Se la riuscita del trasferimento di questa chiamata è già stata segnalata.
+        /// </summary>
+        /// <remarks>
+        /// Il centralino ripete il <c>NOTIFY</c> con <c>200 OK</c> ogni pochi secondi
+        /// finché non chiude la linea: nel registro del 20 novembre 2026 sono stati
+        /// dodici in trenta secondi. L'esito si segnala la prima volta; le ripetizioni
+        /// non dicono niente di nuovo.
+        /// </remarks>
+        public bool TransferSuccessReported { get; set; }
 
         /// <summary>
         /// Se questa chiamata è stata offerta con la cifratura del flusso audio.

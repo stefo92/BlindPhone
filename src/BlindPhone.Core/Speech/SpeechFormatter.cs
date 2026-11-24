@@ -60,7 +60,7 @@ public static class SpeechFormatter
         var digits = new StringBuilder();
         foreach (var c in number)
         {
-            if (char.IsDigit(c)) digits.Append(c);
+            if (char.IsAsciiDigit(c)) digits.Append(c);
             else if (c is '+' or '*' or '#') digits.Append(c);
         }
 
@@ -123,7 +123,7 @@ public static class SpeechFormatter
 
         foreach (var c in number)
         {
-            if (!char.IsDigit(c) && c is not ('+' or '*' or '#')) continue;
+            if (!char.IsAsciiDigit(c) && c is not ('+' or '*' or '#')) continue;
 
             if (result.Length > 0) result.Append(' ');
             result.Append(c);

@@ -393,10 +393,8 @@ public partial class ContactsWindow : Window
     /// <summary>Confronta due numeri guardando le sole cifre.</summary>
     private static bool SameExtension(string? left, string? right)
     {
-        static string Cifre(string? value) => value is null ? string.Empty : new string([.. value.Where(char.IsAsciiDigit)]);
-
-        var a = Cifre(left);
-        return a.Length > 0 && a == Cifre(right);
+        var a = PhoneDigits.Only(left);
+        return a.Length > 0 && a == PhoneDigits.Only(right);
     }
 
     private ContactRow ToRow(Contact contact) => new(

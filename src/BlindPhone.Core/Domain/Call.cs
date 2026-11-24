@@ -45,8 +45,8 @@ public sealed class Call
     /// <summary>Stato corrente.</summary>
     public CallState State { get; private set; }
 
-    /// <summary>Controparte. Può essere aggiornata quando la rubrica risolve il nome.</summary>
-    public CallParty RemoteParty { get; private set; }
+    /// <summary>Controparte, già risolta in rubrica quando la chiamata nasce.</summary>
+    public CallParty RemoteParty { get; }
 
     /// <summary>
     /// Identificativo di dialogo dello stack SIP, se la chiamata è già instaurata.
@@ -68,6 +68,12 @@ public sealed class Call
 
     /// <summary>Nome della coda da cui proviene la chiamata, se pertinente.</summary>
     public string? QueueName { get; private set; }
+
+    /// <summary>
+    /// La chiamata è un trasferimento che il centralino ha restituito perché
+    /// l'interno non l'ha presa. Vedi <see cref="TransferRebound"/>.
+    /// </summary>
+    public bool IsTransferRebound { get; private set; }
 
     /// <summary>Istante di creazione dell'oggetto chiamata.</summary>
     public DateTimeOffset CreatedAt { get; }
@@ -168,13 +174,6 @@ public sealed class Call
         }
     }
 
-    /// <summary>
-    /// Aggiorna la controparte, tipicamente quando la rubrica risolve il nome di un
-    /// numero fino a quel momento sconosciuto.
-    /// </summary>
-    /// <param name="party">Nuovi dati della controparte.</param>
-    public void UpdateRemoteParty(CallParty party) => RemoteParty = party;
-
     /// <summary>Associa gli identificativi tecnici della chiamata.</summary>
     /// <param name="sipCallId">Call-ID SIP.</param>
     /// <param name="pbxCallId">Identificativo lato PBX, <c>null</c> se non correlato.</param>
@@ -187,6 +186,11 @@ public sealed class Call
     /// <summary>Indica da quale coda proviene la chiamata.</summary>
     /// <param name="queueName">Nome della coda.</param>
     public void AttachQueue(string? queueName) => QueueName = queueName;
+
+    /// <summary>
+    /// Segna la chiamata come trasferimento restituito dal centralino.
+    /// </summary>
+    public void MarkAsTransferRebound() => IsTransferRebound = true;
 
     /// <summary>Registra le caratteristiche del media negoziato.</summary>
     /// <param name="codec">Nome del codec (es. "G722", "PCMA", "OPUS").</param>

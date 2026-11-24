@@ -1,4 +1,5 @@
 using BlindPhone.Core.Abstractions;
+using BlindPhone.Core.Domain;
 
 namespace BlindPhone.Pbx.Yeastar;
 
@@ -98,7 +99,7 @@ public sealed class CallCorrelator
         lock (_gate)
         {
             PruneExpired(observedAt);
-            _candidates.Add(new CandidateCall(localCallId, Normalize(remoteNumber), observedAt, null));
+            _candidates.Add(new CandidateCall(localCallId, PhoneDigits.MatchKey(remoteNumber), observedAt, null));
         }
     }
 
@@ -139,7 +140,9 @@ public sealed class CallCorrelator
             if (known is not null) return new CorrelationResult(known.LocalCallId, CorrelationConfidence.Certain);
 
             // Livello 1: controparte piu' finestra temporale.
-            var normalized = Normalize(remoteNumber);
+            // Stessa chiave della rubrica: lo stesso chiamante si presenta ai due livelli
+            // con o senza prefisso di uscita, in formato internazionale o nazionale.
+            var normalized = PhoneDigits.MatchKey(remoteNumber);
             var byNumber = _candidates
                 .Where(c => c.PbxCallId is null)
                 .Where(c => normalized is not null && c.RemoteNumber == normalized)
@@ -208,26 +211,6 @@ public sealed class CallCorrelator
         var candidate = dash > 0 ? afterSlash[..dash] : afterSlash;
 
         return candidate.Equals(extension, StringComparison.OrdinalIgnoreCase);
-    }
-
-    /// <summary>
-    /// Riduce un numero alla forma confrontabile: sole cifre, ultime nove.
-    /// </summary>
-    /// <remarks>
-    /// Il confronto avviene sulle ultime cifre perché lo stesso chiamante può
-    /// presentarsi in forme diverse ai due livelli: con o senza prefisso di uscita,
-    /// in formato internazionale o nazionale. Nove cifre sono sufficienti a rendere
-    /// improbabile una collisione senza essere così tante da far fallire il
-    /// confronto sui numeri brevi.
-    /// </remarks>
-    private static string? Normalize(string? number)
-    {
-        if (string.IsNullOrWhiteSpace(number)) return null;
-
-        var digits = new string([.. number.Where(char.IsDigit)]);
-        if (digits.Length == 0) return null;
-
-        return digits.Length <= 9 ? digits : digits[^9..];
     }
 
     private void PruneExpired(DateTimeOffset now)

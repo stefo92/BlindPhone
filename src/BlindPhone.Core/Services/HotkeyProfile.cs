@@ -61,9 +61,6 @@ public sealed class HotkeyProfile
     public HotkeyBinding? Get(HotkeyCommand command, HotkeyScope scope)
         => _bindings.GetValueOrDefault((command, scope));
 
-    /// <summary>Svuota il profilo.</summary>
-    public void Clear() => _bindings.Clear();
-
     /// <summary>Sostituisce tutte le assegnazioni con quelle indicate.</summary>
     /// <param name="bindings">Nuove assegnazioni.</param>
     public void ReplaceAll(IEnumerable<HotkeyBinding> bindings)

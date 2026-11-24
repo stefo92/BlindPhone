@@ -8,7 +8,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
-using BlindPhone.Accessibility;
 using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Accessibility;
 using BlindPhone.Core.Domain;
@@ -247,7 +246,6 @@ public partial class MainWindow : Window
     /// <summary>Statistiche d'uso: annotano quale comando, e da dove, senza contarli.</summary>
     private readonly TelemetryService? _telemetry;
 
-    private readonly CompositeSpeechOutput _speech;
     private readonly IContactRepository _contacts;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<MainWindow> _log;
@@ -356,7 +354,6 @@ public partial class MainWindow : Window
     /// Opzioni della conferenza, di cui vanno tenuti aggiornati i nomi dei tasti.
     /// </param>
     /// <param name="globalHotkeys">Registratore delle scorciatoie globali.</param>
-    /// <param name="speech">Destinazione della voce.</param>
     /// <param name="contacts">Rubrica.</param>
     /// <param name="settings">Configurazione.</param>
     /// <param name="settingsService">
@@ -385,7 +382,6 @@ public partial class MainWindow : Window
         TransferOptions transferOptions,
         ConferenceOptions conferenceOptions,
         GlobalHotkeyRegistrar globalHotkeys,
-        CompositeSpeechOutput speech,
         IContactRepository contacts,
         AppSettings settings,
         SettingsService settingsService,
@@ -411,7 +407,6 @@ public partial class MainWindow : Window
         _transferOptions = transferOptions;
         _conferenceOptions = conferenceOptions;
         _globalHotkeys = globalHotkeys;
-        _speech = speech;
         _contacts = contacts;
         _showHotkeysOnButtons = settings.Accessibility.ShowHotkeysOnButtons;
         _settingsService = settingsService;
@@ -736,11 +731,21 @@ public partial class MainWindow : Window
     // Aggiornamenti
     // -----------------------------------------------------------------------
 
-    /// <summary>Aggiornamento trovato sul server, se ce n'è uno.</summary>
+    /// <summary>Aggiornamento trovato sul server, o già scaricato, se ce n'è uno.</summary>
     private UpdateCheckResult? _updateFound;
 
     /// <summary>
-    /// Chiede al server se c'è una versione più recente.
+    /// Aspetta che la postazione sia libera per proporre l'aggiornamento trovato
+    /// all'avvio; spento quando non c'è niente da proporre.
+    /// </summary>
+    private System.Windows.Threading.DispatcherTimer? _updatePromptTimer;
+
+    /// <summary>Controlli consecutivi in cui la postazione è risultata libera.</summary>
+    private int _updatePromptFreeTicks;
+
+    /// <summary>
+    /// Chiede al server se c'è una versione più recente, guarda se ce n'è una già
+    /// scaricata, e propone l'una o l'altra.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -751,9 +756,19 @@ public partial class MainWindow : Window
     /// niente che possa farci.
     /// </para>
     /// <para>
-    /// Quando invece trova qualcosa lo dice a voce e fa comparire il pulsante nella
-    /// barra. Non apre la finestra da sé: aprirla di prepotenza sopra una chiamata
-    /// entrante sarebbe il modo peggiore di dare una notizia che può aspettare.
+    /// <b>Quando trova qualcosa apre la finestra dell'aggiornamento</b>, con «Scarica e
+    /// installa ora», «Scarica e installa successivamente» e «Annulla»; se il pacchetto
+    /// è già stato scaricato in un turno precedente, la finestra chiede soltanto se
+    /// installarlo. La apre <b>quando la postazione è libera</b>: aprirla di prepotenza
+    /// sopra una chiamata sarebbe il modo peggiore di dare una notizia che può
+    /// aspettare. Vedi <see cref="ProposeUpdateWhenStationIsFree"/>.
+    /// </para>
+    /// <para>
+    /// <b>Un pacchetto scaricato non vince su uno più nuovo.</b> Se fra lo scaricamento
+    /// e il riavvio sul server è uscita un'altra versione, si propone quella, e il
+    /// pacchetto vecchio si elimina: installarlo vorrebbe dire aggiornare due volte.
+    /// Senza rete, invece, il pacchetto scaricato si propone lo stesso — è esattamente
+    /// il caso per cui lo si è scaricato prima.
     /// </para>
     /// </remarks>
     private async Task CheckForUpdatesAsync()
@@ -766,24 +781,122 @@ public partial class MainWindow : Window
 
         try
         {
+            // All'avvio non c'e' nessuno scaricamento in corso: quello che resta a meta'
+            // o che e' gia' installato si puo' togliere.
+            servizio.PurgeStaleDownloads();
+            var scaricato = servizio.FindDownloaded();
+
             var esito = await servizio.CheckAsync().ConfigureAwait(true);
-            if (!esito.HasUpdate) return;
 
-            _telemetry?.RecordUpdateFound(esito.Update!.Version);
-            _updateFound = esito;
+            if (esito.Update is { } trovato && (scaricato is null || trovato.Version > scaricato.Update.Version))
+            {
+                if (scaricato is not null)
+                {
+                    _log.LogInformation(
+                        "Il pacchetto scaricato {Scaricato} e' superato dalla versione {Nuova}: eliminato",
+                        scaricato.Update.DisplayVersion, trovato.DisplayVersion);
+                    servizio.DiscardDownloaded(scaricato);
+                }
+
+                _telemetry?.RecordUpdateFound(trovato.Version);
+                _updateFound = esito;
+            }
+            else if (scaricato is not null)
+            {
+                _log.LogInformation(
+                    "Aggiornamento {Versione} gia' scaricato e in attesa di installazione", scaricato.Update.DisplayVersion);
+                _updateFound = new UpdateCheckResult(scaricato.Update, scaricato.Notes);
+            }
+            else
+            {
+                return;
+            }
+
             UpdateCommandBar();
-
-            _announcer.Announce(Announcement.Normal(
-                $"Aggiornamento disponibile: versione {esito.Update!.DisplayVersion}. "
-                + "Il pulsante per installarlo e' nella barra dei comandi della postazione.",
-                DateTimeOffset.Now,
-                coalesceKey: "update:available"));
+            ProposeUpdateWhenStationIsFree();
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Controllo degli aggiornamenti non riuscito");
         }
     }
+
+    /// <summary>
+    /// Apre la finestra dell'aggiornamento adesso, se la postazione è libera, oppure
+    /// appena lo diventa.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Libera vuol dire nessuna chiamata e nessuna finestra modale aperta.</b> Una
+    /// chiamata che squilla, una in corso, una in attesa o una che si sta componendo
+    /// tengono la finestra in sospeso; così un'altra finestra modale — il pannello delle
+    /// impostazioni, la domanda su un certificato — perché due finestre modali una
+    /// sopra l'altra si chiudono entrambe fuori dalla portata di chi le sta usando.
+    /// </para>
+    /// <para>
+    /// <b>Dopo una chiamata si aspetta qualche secondo.</b> La postazione deve risultare
+    /// libera a due controlli di fila: la finestra non deve comparire nell'istante in
+    /// cui si riaggancia, mentre la chiamata successiva della coda sta già arrivando.
+    /// </para>
+    /// <para>
+    /// Mentre aspetta lo dice una volta, e il pulsante nella barra dei comandi c'è già:
+    /// chi vuole aggiornare prima non deve aspettare il programma.
+    /// </para>
+    /// </remarks>
+    private void ProposeUpdateWhenStationIsFree()
+    {
+        if (_updateFound?.Update is not { } aggiornamento) return;
+
+        if (IsStationFreeForUpdate())
+        {
+            ShowUpdateWindow();
+            return;
+        }
+
+        _announcer.Announce(Announcement.Normal(
+            $"Aggiornamento disponibile: versione {aggiornamento.DisplayVersion}. Te lo propongo appena la postazione "
+            + "e' libera; il pulsante e' gia' nella barra dei comandi.",
+            DateTimeOffset.Now,
+            coalesceKey: "update:available"));
+
+        _updatePromptFreeTicks = 0;
+        _updatePromptTimer ??= CreateUpdatePromptTimer();
+        _updatePromptTimer.Start();
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateUpdatePromptTimer()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(2),
+        };
+
+        timer.Tick += (_, _) =>
+        {
+            if (!IsStationFreeForUpdate())
+            {
+                _updatePromptFreeTicks = 0;
+                return;
+            }
+
+            if (++_updatePromptFreeTicks < 2) return;
+
+            ShowUpdateWindow();
+        };
+
+        return timer;
+    }
+
+    private void StopUpdatePrompt()
+    {
+        _updatePromptTimer?.Stop();
+        _updatePromptFreeTicks = 0;
+    }
+
+    /// <summary>Se si può aprire la finestra dell'aggiornamento senza disturbare.</summary>
+    private bool IsStationFreeForUpdate()
+        => _calls.LiveCalls.Count == 0
+           && !System.Windows.Interop.ComponentDispatcher.IsThreadModal;
 
     /// <summary>Costruisce il servizio degli aggiornamenti con la configurazione corrente.</summary>
     /// <remarks>
@@ -815,8 +928,15 @@ public partial class MainWindow : Window
         => System.Reflection.Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0, 0);
 
     /// <summary>Apre la finestra dell'aggiornamento trovato.</summary>
+    /// <remarks>
+    /// Da qualunque parte la si apra, la proposta dell'avvio è soddisfatta: chi ha già
+    /// visto la finestra dal pulsante della barra e ha scelto «Annulla» non deve
+    /// vedersela ricomparire a fine chiamata.
+    /// </remarks>
     private void ShowUpdateWindow()
     {
+        StopUpdatePrompt();
+
         if (_updateFound is not { HasUpdate: true } esito) return;
 
         try
@@ -825,6 +945,7 @@ public partial class MainWindow : Window
                 CreateUpdateService(),
                 esito,
                 UpdateCatalog.Describe(InstalledVersion()),
+                _serviceProvider.GetRequiredService<BackgroundUpdateDownloader>(),
                 _announcer,
                 _serviceProvider.GetRequiredService<ILogger<UpdateWindow>>())
             {
@@ -1946,7 +2067,7 @@ public partial class MainWindow : Window
         // fare sempre la stessa cosa.
         if (TryHandleSimplifiedKeypad(e)) return;
 
-        var modifiers = ToHotkeyModifiers(Keyboard.Modifiers);
+        var modifiers = TastiModificatori.DaWpf(Keyboard.Modifiers);
 
         // I TASTI DI SISTEMA ARRIVANO SOTTO FALSO NOME.
         //
@@ -2126,7 +2247,7 @@ public partial class MainWindow : Window
         if (e.Key != Key.System) return;
 
         var keyName = HotkeyKeyNames.ResolveSystemKey(e.Key.ToString(), e.SystemKey.ToString());
-        var modifiers = ToHotkeyModifiers(Keyboard.Modifiers);
+        var modifiers = TastiModificatori.DaWpf(Keyboard.Modifiers);
 
         if (_hotkeys.Resolve(keyName, modifiers, HotkeyScope.Local) is null) return;
 
@@ -2971,7 +3092,9 @@ public partial class MainWindow : Window
 
         if (blind)
         {
-            await _transfer.BlindTransferNowAsync(destination).ConfigureAwait(true);
+            // Dalla conversazione, accanto a «Trasferisci», il pulsante apre anche la
+            // procedura; dentro la procedura prosegue da quella, come Invio.
+            await _transfer.BlindTransferFromConversationAsync(destination).ConfigureAwait(true);
             DialerBox.Clear();
             return;
         }
@@ -4467,7 +4590,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        IncomingCallText.Text = CallBoardTexts.IncomingCall(ringing.RemoteParty, ringing.QueueName);
+        IncomingCallText.Text = CallBoardTexts.IncomingCall(
+            ringing.RemoteParty, ringing.QueueName, ringing.IsTransferRebound);
         IncomingCallText.Visibility = Visibility.Visible;
     }
 
@@ -6147,16 +6271,6 @@ public partial class MainWindow : Window
         _ => "sconosciuto",
     };
 
-    private static HotkeyModifiers ToHotkeyModifiers(ModifierKeys keys)
-    {
-        var result = HotkeyModifiers.None;
-        if (keys.HasFlag(ModifierKeys.Control)) result |= HotkeyModifiers.Control;
-        if (keys.HasFlag(ModifierKeys.Alt)) result |= HotkeyModifiers.Alt;
-        if (keys.HasFlag(ModifierKeys.Shift)) result |= HotkeyModifiers.Shift;
-        if (keys.HasFlag(ModifierKeys.Windows)) result |= HotkeyModifiers.Windows;
-        return result;
-    }
-
     /// <summary>Converte il nome di un tasto nel codice virtuale di Windows.</summary>
     private static uint ToVirtualKey(string keyName)
         => Enum.TryParse<Key>(keyName, ignoreCase: true, out var key)
@@ -6167,6 +6281,7 @@ public partial class MainWindow : Window
     {
         _suggestionTimer.Stop();
         _clockTimer.Stop();
+        StopUpdatePrompt();
         _suggestionSearch?.Dispose();
 
         _announcements.Spoken -= OnAnnouncementSpoken;

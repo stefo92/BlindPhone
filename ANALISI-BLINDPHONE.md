@@ -770,7 +770,7 @@ Non tutti gli operatori preferiscono lo stesso modello. Nelle impostazioni, *Chi
 |---|---|
 | **Progressiva a doppia pressione** (default) | Come descritta sopra: `F9` = con annuncio, `F9 F9` = cieco |
 | **Progressiva pura** | `F9` avvia sempre la consultazione; completando mentre l'interno squilla si ottiene di fatto un trasferimento semi-cieco. Nessuna doppia pressione |
-| **Con selezione modalità** | `F9` apre un elenco di 2 voci ("Con annuncio" / "Cieco") navigabile con le frecce. Più lenta, ma preferita da chi inizia |
+| **Con selezione modalità** | `F9` apre un elenco di 2 voci ("Con annuncio" / "Cieco") navigabile con le frecce. Più lenta, ma preferita da chi inizia. **Non realizzata**: offerta nelle impostazioni senza esistere, è stata tolta a novembre 2026 |
 | **Tasti separati** | Per chi arriva da un altro softphone e vuole due tasti distinti |
 
 Il default resta la modalità a combinazione unica richiesta; le alternative sono un'opzione, non una scusa per non implementarla.

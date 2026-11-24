@@ -101,7 +101,7 @@ public partial class HotkeyCaptureWindow : Window
         }
 
         CapturedKey = keyName;
-        CapturedModifiers = ToHotkeyModifiers(Keyboard.Modifiers);
+        CapturedModifiers = TastiModificatori.DaWpf(Keyboard.Modifiers);
 
         // Il comando e l'ambito non contano qui: serve solo comporre il testo della
         // combinazione, che dipende da tasto e modificatori. Il legame con il comando
@@ -134,15 +134,5 @@ public partial class HotkeyCaptureWindow : Window
     {
         DialogResult = false;
         Close();
-    }
-
-    private static HotkeyModifiers ToHotkeyModifiers(ModifierKeys keys)
-    {
-        var result = HotkeyModifiers.None;
-        if (keys.HasFlag(ModifierKeys.Control)) result |= HotkeyModifiers.Control;
-        if (keys.HasFlag(ModifierKeys.Alt)) result |= HotkeyModifiers.Alt;
-        if (keys.HasFlag(ModifierKeys.Shift)) result |= HotkeyModifiers.Shift;
-        if (keys.HasFlag(ModifierKeys.Windows)) result |= HotkeyModifiers.Windows;
-        return result;
     }
 }

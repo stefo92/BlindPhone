@@ -678,6 +678,82 @@ public sealed class TransferOrchestratorTests
         Assert.False(h.Engine.Did("blind:"));
     }
 
+    // -----------------------------------------------------------------------
+    // «Trasferisci subito» dalla conversazione, con la destinazione già scritta
+    // -----------------------------------------------------------------------
+    //
+    // Il pulsante compare accanto a «Trasferisci» appena c'e' qualcosa nel campo: e'
+    // la sola via del trasferimento cieco da mouse, da quando «Trasferisci» a campo
+    // vuoto e' spento.
+
+    [Fact]
+    public async Task TrasferisciSubito_DallaConversazioneParcheggiaETrasferisceAllaCieca()
+    {
+        var h = new Harness();
+        var callId = await h.ConChiamataAttivaAsync();
+
+        var sent = await h.Transfer.BlindTransferFromConversationAsync("4021");
+
+        Assert.True(sent);
+        Assert.True(h.Engine.Did($"hold:{callId}"));
+        Assert.True(h.Engine.Did($"blind:{callId}:4021"));
+        Assert.False(h.Engine.Did("dial:4021"));
+    }
+
+    [Fact]
+    public async Task TrasferisciSubito_NonChiedeLaDestinazioneMaLaRilegge()
+    {
+        // La destinazione c'e' gia': l'annuncio che spiega come inserirla
+        // arriverebbe a cose fatte. Resta la rilettura cifra per cifra dell'esito.
+        var h = new Harness();
+        await h.ConChiamataAttivaAsync();
+
+        await h.Transfer.BlindTransferFromConversationAsync("4021");
+
+        Assert.DoesNotContain(h.Announcer.Announcements, a => a.BrailleText == "TRASF>");
+        Assert.True(h.Announcer.Said("quattro, zero, due, uno"));
+    }
+
+    [Fact]
+    public async Task TrasferisciSubito_ConCampoVuotoNonApreNiente()
+    {
+        var h = new Harness();
+        await h.ConChiamataAttivaAsync();
+
+        var sent = await h.Transfer.BlindTransferFromConversationAsync("  ");
+
+        Assert.False(sent);
+        Assert.False(h.Engine.Did("hold:"));
+        Assert.False(h.Engine.Did("blind:"));
+        Assert.Equal(TransferPhase.Idle, h.Transfer.Phase);
+        Assert.True(h.Announcer.Said("Nessuna destinazione"));
+    }
+
+    [Fact]
+    public async Task TrasferisciSubito_ConLaProceduraGiaApertaProsegueDaQuella()
+    {
+        var h = new Harness();
+        var callId = await h.ConChiamataAttivaAsync();
+        await h.Transfer.HandleTransferKeyAsync();
+
+        var sent = await h.Transfer.BlindTransferFromConversationAsync("4021");
+
+        Assert.True(sent);
+        Assert.True(h.Engine.Did($"blind:{callId}:4021"));
+    }
+
+    [Fact]
+    public async Task TrasferisciSubito_SenzaChiamateVieneRifiutato()
+    {
+        var h = new Harness();
+
+        var sent = await h.Transfer.BlindTransferFromConversationAsync("4021");
+
+        Assert.False(sent);
+        Assert.False(h.Engine.Did("blind:"));
+        Assert.Equal(TransferPhase.Idle, h.Transfer.Phase);
+    }
+
     [Fact]
     public async Task IlTastoDiTrasferimento_ContinuaAChiamareLInterno()
     {

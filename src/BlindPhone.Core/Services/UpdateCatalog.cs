@@ -67,6 +67,23 @@ public sealed record UpdateNotes(IReadOnlyList<string> Features, string? Sha256 
 
         return new UpdateNotes(features, string.IsNullOrWhiteSpace(sha) ? null : sha);
     }
+
+    /// <summary>
+    /// Scrive le novità nello stesso formato del file pubblicato sul server.
+    /// </summary>
+    /// <returns>Una novità per riga con il trattino davanti, e la riga <c>SHA256:</c> se c'è.</returns>
+    /// <remarks>
+    /// Serve a conservarle accanto al pacchetto scaricato, così che la domanda al
+    /// riavvio possa dire che cosa porta anche senza rete. Rilette con
+    /// <see cref="Parse"/> tornano identiche.
+    /// </remarks>
+    public string Format()
+    {
+        var righe = Features.Select(f => $"- {f}").ToList();
+        if (Sha256 is not null) righe.Add($"SHA256: {Sha256}");
+
+        return string.Join("\n", righe) + (righe.Count > 0 ? "\n" : string.Empty);
+    }
 }
 
 /// <summary>
