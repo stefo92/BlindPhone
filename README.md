@@ -470,9 +470,12 @@ non lo stato in cui ci si trova.
 
 **Il trasferimento è il punto in cui i pulsanti dicono più della tastiera.** Da
 tastiera la differenza fra trasferimento cieco e con annuncio sta nella doppia
-pressione rapida — una destrezza che si impara. Con il mouse sono due pulsanti
-distinti, *Trasferisci subito* e *Annuncia e trasferisci*, che compaiono appena c'è una
-destinazione scritta nel campo.
+pressione rapida — una destrezza che si impara. Con il mouse si scrive prima la
+destinazione: *Trasferisci* resta spento finché il campo di composizione è vuoto. Con la
+destinazione scritta le strade sono due pulsanti distinti: *Trasferisci* mette in attesa
+il chiamante e chiama l'interno per annunciarlo, *Trasferisci subito* lo manda alla
+cieca. Se il trasferimento è stato avviato da tastiera a campo vuoto, appena c'è una
+destinazione compaiono *Trasferisci subito* e *Annuncia e trasferisci*.
 
 **Per chi non vede, ogni barra è una tappa sola** del giro di tabulazione, e lo resta
 qualunque cosa contenga: dentro ci si muove con le frecce, che girano in tondo. Senza

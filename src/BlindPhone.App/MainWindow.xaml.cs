@@ -2966,7 +2966,9 @@ public partial class MainWindow : Window
 
         if (blind)
         {
-            await _transfer.BlindTransferNowAsync(destination).ConfigureAwait(true);
+            // Dalla conversazione, accanto a «Trasferisci», il pulsante apre anche la
+            // procedura; dentro la procedura prosegue da quella, come Invio.
+            await _transfer.BlindTransferFromConversationAsync(destination).ConfigureAwait(true);
             DialerBox.Clear();
             return;
         }

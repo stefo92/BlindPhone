@@ -319,7 +319,7 @@ public static class HelpBook
 
         Se l'interno non la prende, il centralino può restituirti la chiamata: squilla di nuovo, e la voce dice «Torna dal trasferimento non risposto» seguito da chi sta chiamando. Rispondi con {K(profile, HotkeyCommand.Answer)} come a una chiamata qualunque. Succede anche quando il collega sembra occupato ma il suo telefono accetta una seconda chiamata: per lui squilla di sottofondo e, se non la prende, torna a te. Con un collega che sembra occupato conviene la strada con annuncio, che ti dice subito se prende la chiamata.
 
-        Con il mouse le due strade sono due pulsanti distinti, «trasferisci subito» e «annuncia e trasferisci», che compaiono appena hai scritto una destinazione: lì non serve ricordare quale gesto scelga quale strada, perché il pulsante lo dice.
+        Con il mouse scrivi prima la destinazione nel campo di composizione: finché il campo è vuoto il pulsante «trasferisci» è spento. Appena c'è una destinazione le strade sono due pulsanti distinti: «trasferisci» mette in attesa il chiamante e chiama l'interno per annunciargli la chiamata, come {key} premuto una volta; «trasferisci subito» lo manda alla cieca, come Invio. Se invece hai avviato il trasferimento con {key} a campo vuoto, appena scrivi la destinazione compaiono «trasferisci subito» e «annuncia e trasferisci». In tutti e due i casi non serve ricordare quale gesto scelga quale strada, perché il pulsante lo dice.
 
         Strada con annuncio, per presentare il chiamante: premi {key}. Chiami l'interno e gli parli. Poi:
 

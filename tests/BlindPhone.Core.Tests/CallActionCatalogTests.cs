@@ -90,6 +90,61 @@ public sealed class CallActionCatalogTests
     }
 
     [Fact]
+    public void ConIlCampoVuotoTrasferisciCeMaESpento()
+    {
+        // Trasferire vuol dire passare la chiamata a qualcuno: senza una destinazione
+        // nel campo il pulsante non ha ancora un oggetto. Resta al suo posto, spento,
+        // e la descrizione dice che cosa manca.
+        var trasferisci = Pulsante(InConversazione, CallAction.TransferStart);
+
+        Assert.False(trasferisci.IsEnabled);
+        Assert.Contains("campo di composizione", trasferisci.Description);
+    }
+
+    [Fact]
+    public void ConUnaDestinazioneNelCampoTrasferisciSiAccende()
+    {
+        var trasferisci = Pulsante(InConversazione with { HasTypedDestination = true }, CallAction.TransferStart);
+
+        Assert.True(trasferisci.IsEnabled);
+        Assert.Contains("chiama la destinazione", trasferisci.Description);
+    }
+
+    [Fact]
+    public void ConUnaDestinazioneNelCampoCompareAncheTrasferisciSubito()
+    {
+        // Le strade sono due, come da tastiera: «Trasferisci» annuncia, «Trasferisci
+        // subito» manda alla cieca. Senza il secondo, da mouse il cieco non c'era piu'.
+        var subito = Pulsante(InConversazione with { HasTypedDestination = true }, CallAction.TransferBlind);
+
+        Assert.True(subito.IsEnabled);
+        Assert.Contains("senza annunciarlo", subito.Description);
+    }
+
+    [Fact]
+    public void ConIlCampoVuotoTrasferisciSubitoNonCompare()
+    {
+        Assert.DoesNotContain(CallAction.TransferBlind, Azioni(InConversazione));
+    }
+
+    [Fact]
+    public void ConLaChiamataInAttesaEIlCampoVuotoTrasferisciESpento()
+    {
+        var trasferisci = Pulsante(new CallActionContext(HeldCount: 1), CallAction.TransferStart);
+
+        Assert.False(trasferisci.IsEnabled);
+    }
+
+    [Fact]
+    public void ConLaChiamataInAttesaEUnaDestinazioneTrasferisciSiAccende()
+    {
+        var trasferisci = Pulsante(
+            new CallActionContext(HeldCount: 1, HasTypedDestination: true), CallAction.TransferStart);
+
+        Assert.True(trasferisci.IsEnabled);
+    }
+
+    [Fact]
     public void ConUnaInAttesaEUnaAttivaSiAlternaESiFaConferenza()
     {
         var azioni = Azioni(InConversazione with { HeldCount = 1 });
