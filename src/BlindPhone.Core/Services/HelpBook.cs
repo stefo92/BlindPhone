@@ -542,6 +542,8 @@ public static class HelpBook
 
         Molte esportazioni non hanno la riga dei titoli: la prima riga e' gia' un contatto. BlindPhone se ne accorge da solo e attiva la casella «il file non ha la riga dei titoli», che puoi comunque correggere. Con quella attiva le colonne si abbinano per posizione e ognuna porta un esempio preso dal file — «Colonna 6, esempio: GIULIA» — cosi' riconosci quale sia senza vedere il file. Serve anche a non perdere nessuno: senza, la prima riga verrebbe presa per un'intestazione e quel contatto sparirebbe dalla rubrica a ogni importazione.
 
+        Se il file distingue i numeri brevi del centralino con una colonna intitolata «Numero breve», che vale Sì oppure No, BlindPhone la riconosce da sola e te lo dice quando analizza il file. Quelle voci si annunciano come numero breve e l'esito dell'importazione le conta a parte dai contatti.
+
         Se il file e' aperto in Excel non si puo' leggere, e BlindPhone te lo dice: Excel tiene i file aperti in modo che nessun altro programma li apra. Chiudi la finestra e riprova.
 
         Con un backup compare un passo in più, «Tabella da importare»: un backup contiene tutte le tabelle del gestionale e nessuna regola dice quale sia la rubrica. Accanto a ogni nome trovi quante colonne e quante righe contiene, che è il modo più rapido per riconoscerla ascoltando, e viene proposta quella che ha più l'aria di essere la rubrica. La proposta va sempre confermata: una tabella sbagliata produce una rubrica in cui i numeri appartengono alle persone sbagliate, e te ne accorgeresti passando una chiamata a chi non c'entra.

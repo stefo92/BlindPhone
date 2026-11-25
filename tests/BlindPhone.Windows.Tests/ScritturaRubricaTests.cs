@@ -152,6 +152,47 @@ public sealed class ScritturaRubricaTests : IDisposable
     }
 
     [Fact]
+    public void AncheUnFileHaLaSottoSorgenteDeiNumeriBrevi()
+    {
+        var sorgente = new CsvContactSource(Path.Combine(_cartella, "rubrica.csv"), new CsvColumnMapping());
+
+        Assert.Equal(
+            [sorgente.Name, sorgente.ShortCodeSourceName],
+            ContactsSyncService.SourceNamesOf(sorgente));
+    }
+
+    [Fact]
+    public async Task INumeriBreviTolitiDalFileSparisconoDallaPostazione()
+    {
+        // La stessa regola delle tabelle, per un file reimportato con «sostituisci»:
+        // svuotare la sola sorgente del file lascerebbe in rubrica i numeri brevi
+        // che il file non contiene piu'.
+        var percorso = Path.Combine(_cartella, "numeri-brevi.csv");
+
+        await File.WriteAllTextAsync(
+            percorso,
+            "Numero;Descrizione;Numero breve\n2094;Studio medico;No\n6005;ASOLA OSPEDALE;Sì\n");
+        await ImportaAsync(percorso);
+
+        Assert.Equal(2, await _rubrica.CountAsync(CancellationToken.None));
+
+        await File.WriteAllTextAsync(percorso, "Numero;Descrizione;Numero breve\n2094;Studio medico;No\n");
+        await ImportaAsync(percorso);
+
+        Assert.Equal(1, await _rubrica.CountAsync(CancellationToken.None));
+    }
+
+    private async Task ImportaAsync(string percorso)
+    {
+        var sorgente = new CsvContactSource(
+            percorso,
+            CsvColumnMapping.Guess(CsvContactSource.ReadHeaders(percorso)));
+
+        var contatti = await sorgente.LoadAsync(CancellationToken.None);
+        await _servizio.WriteAsync(sorgente, contatti, replace: true, CancellationToken.None);
+    }
+
+    [Fact]
     public void LEsitoDistingueIContattiDaiNumeriBrevi()
     {
         // Senza la ripartizione, un totale di duemila voci su una rubrica che ne ha

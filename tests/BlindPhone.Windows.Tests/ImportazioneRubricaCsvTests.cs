@@ -1,4 +1,5 @@
 using BlindPhone.Contacts;
+using BlindPhone.Core.Domain;
 using Xunit;
 
 namespace BlindPhone.Windows.Tests;
@@ -174,6 +175,85 @@ public sealed class ImportazioneRubricaCsvTests
         Assert.Null(mappatura.DisplayName);
         Assert.Equal("nome", mappatura.FirstName);
         Assert.Equal("cognome", mappatura.LastName);
+    }
+
+    [Fact]
+    public void UnaColonnaNumeroBreveConSiENoVieneRiconosciuta()
+    {
+        // E' la forma dell'esportazione dei numeri brevi del centralino: il codice
+        // da comporre in "Numero", il contrassegno in una colonna a parte.
+        var mappatura = CsvColumnMapping.Guess(["Numero", "Telefono", "Descrizione", "Numero breve"]);
+
+        Assert.Equal("Numero breve", mappatura.ShortCodeFlag);
+        Assert.Equal("Numero", mappatura.Extension);
+        Assert.Equal("Telefono", mappatura.WorkPhone);
+    }
+
+    [Fact]
+    public void LaColonnaNumeroBreveCheContieneIlCodiceNonDiventaUnContrassegno()
+    {
+        // Qui "Numero breve" e' il numero da comporre: e' l'unica colonna con quella
+        // parola, e il riconoscimento parziale la sceglie come numero. Dire
+        // all'operatore che il file distingue i numeri brevi sarebbe falso.
+        var mappatura = CsvColumnMapping.Guess(["Numero breve", "Destinazione", "descrizione"]);
+
+        Assert.Equal("Numero breve", mappatura.Extension);
+        Assert.Null(mappatura.ShortCodeFlag);
+    }
+
+    [Fact]
+    public void LaParolaBreveDentroUnAltroTitoloNonBasta()
+    {
+        // Il contrassegno cambia tipo e sorgente della voce: si riconosce solo dal
+        // titolo intero, mai da una parola trovata in mezzo.
+        var mappatura = CsvColumnMapping.Guess(["numero", "descrizione", "Osservazione breve"]);
+
+        Assert.Null(mappatura.ShortCodeFlag);
+    }
+
+    /// <summary>
+    /// Dal file fino a come la voce si annuncia.
+    /// </summary>
+    /// <remarks>
+    /// Prima l'importazione da file non assegnava nessun tipo di voce: un numero
+    /// breve si annunciava come un contatto qualunque e finiva nella stessa sorgente
+    /// della rubrica. Le stesse regole valgono anche per fax e servizi, come per le
+    /// tabelle, la directory e Outlook.
+    /// </remarks>
+    [Fact]
+    public async Task INumeriBreviDiUnFileSiAnnuncianoComeTali()
+    {
+        var percorso = Path.Combine(Path.GetTempPath(), $"brevi-{Guid.NewGuid():N}.csv");
+
+        await File.WriteAllTextAsync(
+            percorso,
+            "Numero;Telefono;Descrizione;Numero breve\n"
+            + "6005;003767211;ASOLA OSPEDALE;Sì\n"
+            + "2094;;Studio medico;No\n"
+            + "2095;;FAX Accettazione;\n");
+
+        try
+        {
+            var mappatura = CsvColumnMapping.Guess(CsvContactSource.ReadHeaders(percorso));
+            var sorgente = new CsvContactSource(percorso, mappatura);
+
+            var contatti = await sorgente.LoadAsync(CancellationToken.None);
+
+            var breve = Assert.Single(contatti, c => c.PrimaryNumber == "6005");
+            Assert.Equal(ContactKind.ShortCode, breve.Kind);
+            Assert.Equal(sorgente.ShortCodeSourceName, breve.Source);
+            Assert.Equal("numero breve, ASOLA OSPEDALE", breve.FullSpeechDescription);
+
+            var studio = Assert.Single(contatti, c => c.PrimaryNumber == "2094");
+            Assert.Equal(ContactKind.Service, studio.Kind);
+            Assert.Equal(sorgente.Name, studio.Source);
+
+            Assert.Equal(ContactKind.Fax, Assert.Single(contatti, c => c.PrimaryNumber == "2095").Kind);
+        }
+        finally
+        {
+            File.Delete(percorso);
+        }
     }
 
     [Fact]

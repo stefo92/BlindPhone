@@ -277,8 +277,12 @@ public sealed class ContactsSyncService : IDisposable
 
     /// <summary>Tutti i nomi di sorgente che una lettura può produrre.</summary>
     /// <param name="source">Sorgente interrogata.</param>
-    public static IReadOnlyList<string> SourceNamesOf(IContactSource source)
-        => source is TabularContactSource tabellare ? tabellare.SourceNames : [source.Name];
+    public static IReadOnlyList<string> SourceNamesOf(IContactSource source) => source switch
+    {
+        TabularContactSource tabellare => tabellare.SourceNames,
+        CsvContactSource file => file.SourceNames,
+        _ => [source.Name],
+    };
 
     /// <summary>
     /// Descrive che cosa è stato letto, distinguendo i numeri brevi dai contatti.

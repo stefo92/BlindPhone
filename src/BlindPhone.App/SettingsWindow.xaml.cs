@@ -5006,8 +5006,8 @@ public partial class SettingsWindow : Window
             Report(senzaTitoli
                 ? $"File analizzato: {layout.Columns.Count} colonne, senza riga dei titoli. "
                   + "Abbina le colonne per posizione: ognuna porta un esempio preso dalla prima riga"
-                : $"File analizzato: {layout.Columns.Count} colonne, {recognized} abbinate automaticamente. "
-                  + "Controlla l'anteprima prima di importare");
+                : $"File analizzato: {layout.Columns.Count} colonne, {recognized} abbinate automaticamente"
+                  + $"{ShortCodeColumnNotice()}. Controlla l'anteprima prima di importare");
         }
         catch (Exception ex)
         {
@@ -6034,8 +6034,23 @@ public partial class SettingsWindow : Window
         if (_recognizedProfile is { } profilo) return $"{profilo.Name}. {profilo.Description}";
 
         var abbinate = MappingCombos.Count(m => SelectedTag(m.Combo) is not null);
-        return $"{abbinate} colonne abbinate automaticamente";
+        return $"{abbinate} colonne abbinate automaticamente{ShortCodeColumnNotice()}";
     }
+
+    /// <summary>
+    /// Il seguito della frase di riconoscimento, quando la sorgente distingue i
+    /// numeri brevi.
+    /// </summary>
+    /// <remarks>
+    /// La colonna dei numeri brevi non ha una casella a schermo, perché è un fatto
+    /// della sorgente e non una scelta. Proprio per questo va detta: cambia come le
+    /// voci si annunciano e dove finiscono, e l'anteprima lo mostra solo se fra le
+    /// prime righe capita un numero breve.
+    /// </remarks>
+    private string ShortCodeColumnNotice()
+        => _structuralMapping.ShortCodeFlag is { } colonna
+            ? $", e la colonna «{colonna}» indica i numeri brevi"
+            : string.Empty;
 
     /// <summary>
     /// Compone la mappatura dalle scelte a schermo.

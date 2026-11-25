@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using BlindPhone.Core.Abstractions;
 using BlindPhone.Core.Domain;
+using BlindPhone.Core.Services;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
@@ -98,10 +99,18 @@ public sealed record CsvColumnMapping
     /// Colonna che marca la voce come codice abbreviato invece che come contatto.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// I numeri brevi sono l'elenco esterno del centralino — altri ospedali, ditte,
     /// cellulari di reperibili — e nelle rubriche dei gestionali stanno nella stessa
     /// tabella dei contatti interni. Tenerli distinti evita che chi cerca un reparto
     /// se li ritrovi in mezzo ai risultati.
+    /// </para>
+    /// <para>
+    /// È l'unica colonna strutturale che si riconosce anche dal nome, oltre che dal
+    /// profilo: un CSV preparato a mano non ha un profilo, e una colonna «Numero
+    /// breve» con «Sì» e «No» dice da sola che cosa contiene. Il nome deve
+    /// corrispondere per intero, vedi <see cref="Guess"/>.
+    /// </para>
     /// </remarks>
     public string? ShortCodeFlag { get; init; }
 
@@ -197,6 +206,41 @@ public sealed record CsvColumnMapping
             return null;
         }
 
+        string? FindExact(params string[] candidates)
+        {
+            foreach (var candidate in candidates)
+            {
+                foreach (var (key, header) in columns)
+                {
+                    if (string.Equals(key, candidate, StringComparison.Ordinal)) return header;
+                }
+            }
+
+            return null;
+        }
+
+        // "numero" copre il caso in cui la rubrica non distingua fra interno e
+        // numero diretto, che e' la norma nelle esportazioni dai gestionali.
+        var extension = Find("interno", "numero", "extension", "ext");
+        var workPhone = Find("telefono", "phone", "business", "diretto");
+        var mobilePhone = Find("cellulare", "mobile", "cell");
+
+        // LA COLONNA DEI NUMERI BREVI SI RICONOSCE SOLO PER NOME ESATTO, E SOLO SE NON
+        // E' GIA' LA COLONNA DEL NUMERO.
+        //
+        // "Numero breve" e' il titolo naturale tanto del contrassegno ("Si'") quanto
+        // del codice stesso ("6206"). Nel secondo caso la colonna porta il numero da
+        // comporre, e trattarla anche come contrassegno non farebbe danni, perche' un
+        // codice non vale come "si'", ma farebbe dire all'operatore che il file
+        // distingue i numeri brevi quando non e' vero.
+        var shortCodeFlag = FindExact("numero breve", "numero_breve", "breve", "codice breve", "shortcode", "short code");
+
+        if (shortCodeFlag is not null
+            && (shortCodeFlag == extension || shortCodeFlag == workPhone || shortCodeFlag == mobilePhone))
+        {
+            shortCodeFlag = null;
+        }
+
         return new CsvColumnMapping
         {
             // "nominativo" viene cercato per primo fra i nomi visualizzati perche'
@@ -206,11 +250,10 @@ public sealed record CsvColumnMapping
             FirstName = Find("nome", "firstname", "first_name", "given"),
             LastName = Find("cognome", "lastname", "last_name", "surname"),
 
-            // "numero" copre il caso in cui la rubrica non distingua fra interno e
-            // numero diretto, che e' la norma nelle esportazioni dai gestionali.
-            Extension = Find("interno", "numero", "extension", "ext"),
-            WorkPhone = Find("telefono", "phone", "business", "diretto"),
-            MobilePhone = Find("cellulare", "mobile", "cell"),
+            Extension = extension,
+            WorkPhone = workPhone,
+            MobilePhone = mobilePhone,
+            ShortCodeFlag = shortCodeFlag,
 
             Email = Find("email", "mail", "posta"),
             Organization = Find("struttura", "azienda", "ente", "organization", "company"),
@@ -296,6 +339,27 @@ public sealed class CsvContactSource : IContactSource
 
     /// <inheritdoc />
     public string Name => $"CSV: {Path.GetFileName(_path)}";
+
+    /// <summary>
+    /// Nome sotto cui vengono archiviati i numeri brevi del file.
+    /// </summary>
+    /// <remarks>
+    /// È la stessa separazione delle tabelle, e per la stessa ragione: i codici
+    /// abbreviati sono l'elenco esterno dell'ente, non la sua rubrica, e devono poter
+    /// essere svuotati e contati per conto loro. Vedi
+    /// <see cref="SqlBackup.TabularContactSource.ShortCodeSourceName"/>.
+    /// </remarks>
+    public string ShortCodeSourceName => $"{Name} (numeri brevi)";
+
+    /// <summary>
+    /// Tutti i nomi di sorgente che questo file può produrre.
+    /// </summary>
+    /// <remarks>
+    /// Chi sostituisce i contatti importati in precedenza deve svuotarli tutti: un
+    /// file che oggi non ha più numeri brevi lascerebbe altrimenti sulla postazione
+    /// quelli di ieri, che nessuna importazione successiva nominerebbe più.
+    /// </remarks>
+    public IReadOnlyList<string> SourceNames => [Name, ShortCodeSourceName];
 
     /// <summary>
     /// Come si presentano le colonne di un file nella procedura guidata.
@@ -511,6 +575,18 @@ public sealed class CsvContactSource : IContactSource
         var firstName = Read(csv, _mapping.FirstName);
         var lastName = Read(csv, _mapping.LastName);
         var displayName = Read(csv, _mapping.DisplayName);
+        var category = Read(csv, _mapping.Category);
+
+        // Il tipo di voce si ricava con le stesse regole delle tabelle, della
+        // directory e di Outlook. Lasciato indefinito, un numero breve importato da
+        // file non si annunciava come tale e, quando chiama, competeva alla pari con
+        // la persona che condivide lo stesso numero.
+        var shortCode = SourceFlags.IsTrue(Read(csv, _mapping.ShortCodeFlag));
+
+        var kind = ContactKindRules.Derive(
+            hasPersonName: !string.IsNullOrWhiteSpace(firstName) || !string.IsNullOrWhiteSpace(lastName),
+            isShortCode: shortCode,
+            description: category);
 
         // L'identificativo e' deterministico: reimportare lo stesso file aggiorna i
         // contatti esistenti invece di duplicarli, e i preferiti e i numeri rapidi
@@ -533,12 +609,13 @@ public sealed class CsvContactSource : IContactSource
             Organization = Read(csv, _mapping.Organization),
             Department = Read(csv, _mapping.Department),
             JobTitle = Read(csv, _mapping.JobTitle),
-            Category = Read(csv, _mapping.Category),
+            Category = category,
             RelatedTo = Read(csv, _mapping.RelatedTo),
             Building = Read(csv, _mapping.Building),
             Floor = Read(csv, _mapping.Floor),
             Numbers = numbers,
-            Source = Name,
+            Kind = kind,
+            Source = shortCode ? ShortCodeSourceName : Name,
             UpdatedAt = DateTimeOffset.Now,
         };
     }

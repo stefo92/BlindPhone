@@ -153,7 +153,7 @@ public abstract class TabularContactSource : IContactSource
 
     /// <summary>La riga è marcata come non più in uso nella sorgente.</summary>
     private bool IsInactive(IReadOnlyDictionary<string, string?> riga)
-        => IsTrue(ReadColumn(riga, _mapping.InactiveFlag));
+        => SourceFlags.IsTrue(ReadColumn(riga, _mapping.InactiveFlag));
 
     private Contact? Build(IReadOnlyDictionary<string, string?> riga)
     {
@@ -196,7 +196,7 @@ public abstract class TabularContactSource : IContactSource
         var visualizzato = Leggi(_mapping.DisplayName);
         var descrizione = Leggi(_mapping.Category);
 
-        var numeroBreve = IsTrue(Leggi(_mapping.ShortCodeFlag));
+        var numeroBreve = SourceFlags.IsTrue(Leggi(_mapping.ShortCodeFlag));
 
         var tipo = ContactKindRules.Derive(
             hasPersonName: !string.IsNullOrWhiteSpace(nome) || !string.IsNullOrWhiteSpace(cognome),
@@ -292,31 +292,6 @@ public abstract class TabularContactSource : IContactSource
         if (!riga.TryGetValue(colonna, out var valore)) return null;
 
         return string.IsNullOrWhiteSpace(valore) ? null : valore.Trim();
-    }
-
-    /// <summary>
-    /// Interpreta come vero un contrassegno letto da una tabella.
-    /// </summary>
-    /// <param name="valore">Valore della colonna, come stringa.</param>
-    /// <remarks>
-    /// Lo stesso contrassegno arriva come <c>1</c> da SQL Server, come <c>True</c>
-    /// dal lettore che converte i bit in testo e come <c>Sì</c> da un CSV compilato a
-    /// mano. Riconoscere una sola di queste forme significherebbe importare come
-    /// contatti gli ottocento numeri brevi di una rubrica, o tenere in elenco le voci
-    /// disattivate: due errori che si notano contando le voci, non guardandole.
-    /// </remarks>
-    private static bool IsTrue(string? valore)
-    {
-        if (string.IsNullOrWhiteSpace(valore)) return false;
-
-        var v = valore.Trim();
-
-        return v is "1"
-            || v.Equals("true", StringComparison.OrdinalIgnoreCase)
-            || v.Equals("si", StringComparison.OrdinalIgnoreCase)
-            || v.Equals("sì", StringComparison.OrdinalIgnoreCase)
-            || v.Equals("yes", StringComparison.OrdinalIgnoreCase)
-            || v.Equals("y", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
