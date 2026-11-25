@@ -1,0 +1,352 @@
+﻿# BlindPhone 1.0.25.2 beta - 25 novembre 2026
+# Elenco cumulativo: chi aggiorna da una versione qualsiasi trova qui tutto quello
+# che cambia per lui. Una novita' per riga; le righe con il cancelletto sono
+# commenti e non compaiono a schermo. La riga SHA256 serve a BlindPhone per
+# verificare il pacchetto scaricato.
+
+Novita' introdotte da questa versione, la 1.0.25.2:
+Nella rubrica la nuova colonna Secondo numero, subito dopo Numero, mostra il secondo recapito abbinato all'importazione: per un numero breve e' il numero per esteso a cui il codice rimanda. Prima il numero c'era ma non si vedeva, e si sentiva solo con Control Invio
+Control D, la scheda completa del contatto, dice anche il secondo numero
+Nella colonna Relativo lo screen reader legge l'interno di riferimento della voce: prima leggeva per errore il numero del contatto
+Nell'importazione della rubrica l'anteprima mostra anche il secondo numero di ogni voce, e si aggiorna da sola quando cambi un abbinamento delle colonne: prima restava quella dell'analisi anche dopo una correzione
+Con la rubrica collegata a Microsoft SQL Server, dopo il collegamento la casella Banca dati propone le banche dati del server che la tua utenza puo' aprire: prima andava scritta a memoria, e si vedevano soltanto le tabelle di quella scritta
+Puoi lasciare vuota la casella Banca dati e premere Collegati e leggi le tabelle: con una sola banca dati la sceglie da se', con piu' d'una le elenca a voce; scegliendone una dall'elenco se ne leggono subito le tabelle
+Se cambi banca dati senza ricollegarti, Importa la rubrica ti chiede di collegarti di nuovo e il salvataggio non conserva la tabella della banca dati precedente, che nella nuova non c'e'
+L'abbinamento automatico delle colonne riconosce i titoli con un prefisso o con le parole attaccate, come _NumeroInterno o _Destinazione_uso: il nome non viene piu' preso dalla colonna del cognome
+Vengono riconosciuti anche alternativo ed esterno come secondo numero, destinazione d'uso come descrizione e struttura come reparto, e una stessa colonna non viene piu' abbinata a due campi
+La guida in linea elenca le colonne vere della rubrica e spiega come abbinare il numero per esteso dei numeri brevi e come scegliere la banca dati
+
+Gia' presenti dalla 1.0.25.1:
+All'avvio, e soprattutto dopo un aggiornamento, le notizie che BlindPhone da' da solo si dicono una alla volta e ognuna per intero: prima arrivavano nello stesso secondo, ognuna interrompeva quella di prima e non si capiva che cosa stesse succedendo
+Vale per la registrazione del telefono, la cuffia, gli aggiornamenti, la configurazione distribuita dall'amministratore, gli errori della sessione precedente, le credenziali da reinserire, la risposta sulle statistiche d'uso e le combinazioni globali gia' usate da altri programmi; il segnale acustico di ogni notizia si sente insieme alla sua frase
+Se all'avvio la registrazione passa in un attimo da in corso a riuscita senti soltanto Telefono registrato, con il suo segnale: prima si sentivano anche Registrazione in corso e il segnale della registrazione persa
+La finestra dell'aggiornamento proposta all'avvio si apre quando la voce ha finito queste notizie, perche' aprendosi fa tacere lo screen reader a meta' frase
+La chiamata in arrivo e le risposte ai tasti che premi si sentono subito come prima, anche se interrompono una di queste notizie
+Nell'importazione della rubrica da file CSV una colonna intitolata Numero breve, che vale Si' oppure No, indica i numeri brevi del centralino: BlindPhone la riconosce da sola e lo dice quando analizza il file
+Quelle voci si annunciano come numero breve e l'esito dell'importazione le conta a parte dai contatti; con la casella Sostituisci i contatti importati in precedenza dallo stesso file, un numero breve tolto dal file sparisce anche dalla postazione
+Anche dai file CSV una voce la cui descrizione comincia con fax o contiene emergenza si annuncia come fax o come numero di emergenza, come gia' succedeva con le tabelle e i backup
+
+Gia' presenti dalla 1.0.25:
+All'avvio, quando c'e' una versione nuova, si apre da sola la finestra dell'aggiornamento con tre pulsanti: Scarica e installa ora, Scarica e installa successivamente e Annulla; prima c'erano soltanto un annuncio e il pulsante nella barra dei comandi
+La finestra si apre quando la postazione e' libera: se una chiamata squilla, e' in corso o in attesa, oppure e' aperta un'altra finestra, compare qualche secondo dopo; nel frattempo il pulsante Aggiornamento disponibile e' gia' nella barra dei comandi
+Scarica e installa ora, Alt O, scarica il pacchetto, lo verifica e avvia l'installazione, che chiude BlindPhone
+Scarica e installa successivamente, Alt S oppure Invio, scarica il pacchetto in sottofondo mentre continui a lavorare e dice a voce quando ha finito; al prossimo avvio la finestra chiede soltanto se installarlo
+Alla domanda del riavvio Si', installa adesso, Alt S, avvia l'installazione; No, piu' tardi, Invio o Esc, lascia il pacchetto scaricato e te lo richiede all'avvio dopo
+Annulla, Esc, non scarica niente, e l'aggiornamento ti viene riproposto al prossimo avvio
+Se fra lo scaricamento e il riavvio esce una versione ancora piu' nuova si propone quella; senza rete il pacchetto gia' scaricato si propone lo stesso
+In Impostazioni, scheda Diagnostica, la casella Proponi gli aggiornamenti automatici all'avvio, Alt O, prende il posto di Controlla la presenza di aggiornamenti all'avvio: e' attiva di partenza, chi l'aveva tolta la ritrova tolta, e senza spunta all'avvio non si cerca niente
+I pacchetti scaricati restano in una cartella di BlindPhone e non piu' fra i file temporanei di Windows, che potevano cancellarli prima del riavvio; Libera spazio su disco non tocca l'aggiornamento in attesa, e all'avvio si tolgono da soli i pacchetti delle versioni gia' installate
+Durante la conversazione il pulsante Trasferisci resta spento finche' il campo di composizione e' vuoto, e si accende appena scrivi il numero o il nome di chi deve ricevere la chiamata; il tasto di trasferimento a campo vuoto chiede ancora la destinazione
+Con la destinazione scritta, accanto a Trasferisci compare Trasferisci subito, che passa la chiamata senza annunciarla come Invio da tastiera: e' il trasferimento cieco per chi usa il mouse
+Se il collega non prende una chiamata che gli hai trasferito e il centralino te la restituisce, la voce dice Torna dal trasferimento non risposto seguito da chi sta chiamando: prima si sentiva in inglese, Rebound Transfer Call, con il nome per ultimo
+La stessa chiamata restituita a schermo si legge Torna dal trasferimento non risposto al posto di Chiamata da, e in braille RIT seguito dal nome; dopo la risposta il nome compare senza prefisso
+In Impostazioni, scheda Account SIP, sezione Lavoro agile, la nuova casella Usa ICE per verificare la strada dell'audio con il centralino: con il centralino raggiunto in VPN la postazione e il centralino provano le strade possibili e la voce passa da quella che risponde, invece di affidarsi a un indirizzo indovinato
+La casella e' spenta di partenza e vale per il singolo account; non ha un tasto di accesso: si raggiunge con Tab, oppure con Alt Z scrivendo ICE. Se il centralino non usa ICE la chiamata procede come prima
+Nella scheda Diagnostica le righe ICE e Candidati ICE annunciati dicono se ICE e' acceso e quali indirizzi la postazione propone al centralino
+In Impostazioni, scheda Tasti rapidi, le combinazioni globali si cambiano davvero: finche' la finestra di cattura e' aperta le scorciatoie globali di BlindPhone sono sospese, cosi' puoi premere anche Control Maiusc F2 e spostarla su un altro comando invece di rispondere alla chiamata
+Quando assegni una combinazione globale BlindPhone la prova subito presso Windows: se la tiene un altro programma la rifiuta e lo dice, prima del salvataggio. Se premi una combinazione che non arriva alla finestra di cattura, la finestra dice che la tiene Windows, lo screen reader o un altro programma
+Una combinazione globale sugli stessi tasti della combinazione locale di un altro comando viene segnalata come conflitto, perche' Windows la consegnerebbe anche con BlindPhone in primo piano: se confermi, la combinazione viene tolta all'altro comando
+Nella tabella dei tasti Backspace, oppure il nuovo pulsante Torna al predefinito, Alt N, riporta al valore di BlindPhone solo la combinazione su cui ti trovi; Ripristina tutti i predefiniti, Alt D, riporta l'intero profilo e dice quali combinazioni globali predefinite sono tenute da altri programmi
+All'avvio la voce dice quali combinazioni globali sono gia' usate da altri programmi e non funzioneranno fuori da BlindPhone: prima finivano soltanto nel registro
+La combinazione globale della postazione fuori servizio, Control Alt Maiusc Pausa, viene registrata presso Windows con il tasto che la tastiera manda davvero quando Control e' premuto, e Control Alt Pausa assegnata dal pannello dei tasti non viene piu' salvata con un nome che BlindPhone non riconosceva
+Alt C copia negli appunti il numero di chi e' in linea, senza spazi, e te lo rilegge cifra per cifra: poi lo incolli dove serve con Control V
+Senza nessuno in linea Alt C copia il numero di chi sta chiamando, poi di chi stai chiamando, poi della chiamata in attesa piu' recente, e dopo che hai riagganciato quello dell'ultima chiamata ricevuta, anche persa; la voce dice sempre di chi e' il numero
+Un numero nascosto non si copia, e gli appunti restano com'erano. Per copiare il numero stando in un altro programma assegna al comando Copia il numero del chiamante una combinazione globale, dalla scheda Tasti rapidi
+
+Gia' presenti dalla 1.0.24:
+Se il telefono squilla mentre stai chiamando qualcuno, F3 chiude prima la chiamata che hai fatto partire tu e un secondo F3 rifiuta quella che squilla: prima il primo F3 rifiutava chi squillava e lasciava in piedi la chiamata che volevi annullare
+Se rispondi con F2 a chi squilla mentre la tua chiamata squilla ancora dall'altra parte, quando la persona chiamata risponde passi a lei e chi era in linea con te va in attesa; la voce lo dice, per esempio Mario Rossi ha risposto, sei in linea. Chiamante in attesa, e F5 ti riporta dal chiamante
+Prima, in quel caso, le due linee restavano aperte insieme e ti sentivano entrambe, e dopo averne chiusa una F3 rispondeva che non c'era nessuna chiamata attiva mentre l'altra era ancora in linea
+La scelta Quanto dettaglio negli annunci, in Impostazioni, scheda Accessibilita', adesso ha effetto: prima si salvava ma gli annunci restavano quelli del livello Standard
+Con Principiante gli annunci della chiamata dicono in coda i tasti da premere: quando squilla, per esempio F2 risponde, F3 rifiuta, appena in linea e con la chiamata in pausa
+Con Esperto pausa, ripresa, risposta, rifiuto, annullamento e la risposta di chi hai chiamato si sentono solo con il segnale acustico; con i segnali acustici spenti restano a voce, e Ripeti l'ultimo annuncio li dice comunque a voce
+Se stacchi la cuffia mentre BlindPhone e' aperto la voce lo dice, con il nome della cuffia e il dispositivo su cui e' passato l'audio: prima l'audio finiva sugli altoparlanti senza nessun avviso
+In Impostazioni, scheda Chiamate, Come funziona il tasto di trasferimento non propone piu' Con scelta esplicita, che non funzionava: scorrendo l'elenco con le frecce partiva un trasferimento cieco; chi l'aveva scelta torna alla progressiva con doppia pressione
+
+Gia' presenti dalla 1.0.23:
+A trasferimento concluso l'annuncio dice l'interno o il numero cifra per cifra anche quando la rubrica non ha un nome: prima, per gli interni che la rubrica del centralino riporta con dei trattini al posto del nome, l'annuncio si fermava a trasferito a
+Anche gli altri annunci del trasferimento leggono il numero cifra per cifra invece che come un numero intero: Chiamata a, in corso, ha risposto, occupato, non risponde, l'alternanza e l'inclusione
+Nella rubrica e nei suggerimenti del campo di composizione le voci con solo trattini o punti al posto di nome e cognome mostrano la descrizione o il numero, invece di una riga che lo screen reader legge vuota
+All'avvio BlindPhone dice quale cuffia con i tasti telefonici ha trovato e se il suo pulsante risponde e chiude le chiamate; se la cuffia scelta nelle impostazioni non e' collegata lo dice, e ricorda di rispondere dalla tastiera
+Il registro diagnostico scrive il testo di ogni annuncio pronunciato, e di ogni annuncio scartato o sostituito da uno piu' recente, con il motivo
+Nel pacchetto per l'assistenza i numeri detti a parole negli annunci vengono resi anonimi come quelli scritti in cifre
+Dopo un trasferimento riuscito il registro non riporta piu' un avviso di chiamata sconosciuta, e la conferma che il centralino ripete per mezzo minuto si segnala una volta sola
+
+Gia' presenti dalla 1.0.22.1:
+Un indirizzo degli aggiornamenti vuoto vale come la cartella dei download del portale: prima spegneva gli aggiornamenti senza dirlo, e Cerca aggiornamenti rispondeva che non c'era nessun server
+Nella scheda Diagnostica il campo dell'indirizzo degli aggiornamenti mostra la cartella che si usa davvero; per non cercare aggiornamenti si toglie la spunta a Controlla la presenza di aggiornamenti all'avvio
+Il menu dell'icona nell'area di notifica ha due voci nuove, Ricerca aggiornamenti e Impostazioni; si apre come prima con Windows B e poi il tasto applicazione o Maiusc F10
+Ricerca aggiornamenti cerca subito e dice sempre com'e' andata; se trova una versione nuova apre la finestra delle novita', raggiungibile con Alt Tab anche con la finestra principale riposta
+Impostazioni apre il pannello senza riaprire la finestra principale; se una finestra di BlindPhone e' gia' aperta, la voce la riporta in primo piano invece di aprirne un'altra
+La finestra delle novita' di un aggiornamento si apre con il cursore sulle novita', che lo screen reader legge subito; le frecce le leggono riga per riga, Invio o Esc chiudono con Piu' tardi, Alt S scarica e installa
+Nella stessa finestra lo screen reader legge la versione installata, quella disponibile e la provenienza del pacchetto, invece di un'etichetta generica
+Nelle tabelle lo screen reader legge solo il testo a schermo: le celle vuote si leggono vuoto, le caselle di spunta selezionato o non selezionato, e non compare piu' la parola Elemento seguita dal nome interno del programma
+Le righe dell'elenco degli account SIP si leggono con nome, interno, centralino, trasporto e stato, invece del nome interno BlindPhone.App
+
+Gia' presenti dalla 1.0.22:
+Nelle impostazioni, scheda Audio, sotto ogni dispositivo d'uscita c'e' il suo volume: Volume della conversazione, Volume di suoneria e segnali di coda, Volume della voce degli annunci
+I volumi sono cursori da 10 a 100 per cento e si regolano da tastiera: freccia su o destra alza di 5, freccia giu' o sinistra abbassa di 5, Pagina su e Pagina giu' spostano di 20, Inizio e Fine portano al minimo e al massimo; lo screen reader legge il valore
+Ai cursori si arriva con Tab dal dispositivo a cui si riferiscono, oppure cercandoli per nome con Alt Z; non scendono sotto il 10 per cento, perche' una suoneria muta fa perdere le chiamate
+Il volume della conversazione vale da quando si salva, anche sulla chiamata in corso; prima il volume salvato non veniva applicato alla voce dell'interlocutore
+Il volume della suoneria vale anche per la suoneria sintetizzata e per i segnali di coda, e non piu' solo per la suoneria caricata da file; con il valore predefinito, l'80 per cento, la suoneria sintetizzata suona un po' piu' piano di prima
+Il volume della voce degli annunci regola la voce di BlindPhone, non quella dello screen reader, che si regola dallo screen reader
+La voce di BlindPhone esce dal dispositivo scelto in Voce degli annunci: prima usciva sempre dal dispositivo predefinito di Windows, anche quando ne era scelto un altro, e poteva finire nello stesso orecchio dell'interlocutore
+Senza un dispositivo scelto per gli annunci la voce resta sul predefinito di Windows, come prima; se il dispositivo scelto non suona, per esempio perche' e' stato staccato, la frase si ripete dal predefinito invece di perdersi
+Il pulsante Riproduci un suono di prova sui dispositivi scelti fa sentire conversazione, suoneria e ora anche la voce degli annunci, ciascuna sul suo dispositivo e al livello del suo cursore, anche prima di salvare
+Al primo avvio BlindPhone chiede, una volta sola, se inviare le statistiche d'uso anonime all'autore: la finestra dice che cosa viene inviato e verso quale server; Alt S risponde si', Alt N o Esc rispondono no, e nessuna risposta e' scelta in anticipo
+Le statistiche restano spente finche' l'operatore non risponde si', e si cambiano in ogni momento dalla scheda Diagnostica delle impostazioni, Alt T; la domanda non compare se l'ente ha bloccato quella scheda
+Sulle postazioni gia' installate che non avevano un server delle statistiche il server diventa quello dell'autore e la casella riparte spenta, cosi' arriva la domanda; un server o una chiave scritti dall'ente restano come sono
+Rubrica e registro delle chiamate usano un motore di cifratura aggiornato, SQLite 3.54.1 con SQLite3 Multiple Ciphers 2.7.1, che corregge le vulnerabilita' di SQLite scoperte dal 2022; gli archivi gia' presenti si aprono come prima, nello stesso formato, senza conversioni
+
+Gia' presenti dalla 1.0.21.1:
+BlindPhone cerca gli aggiornamenti nella cartella dei download del portale, https://blindphone.curti.cloud/download/, la stessa da cui si scarica il programma: non serve piu' un server FTPS dell'ente
+Ogni postazione riceve il pacchetto del proprio processore, x64 o arm64, anche quando i due stanno nella stessa cartella; prima a una postazione x64 poteva essere proposto il pacchetto arm64, che Windows rifiuta
+Le postazioni che non avevano un server degli aggiornamenti passano al portale da sole, una volta sola; chi ha scritto il server del proprio ente lo tiene
+L'indirizzo del server degli aggiornamenti puo' cominciare con https; http in chiaro viene rifiutato come ftp, perche' password e pacchetto viaggerebbero leggibili
+Se lo scaricamento di un aggiornamento non riesce, BlindPhone dice il motivo in italiano: per esempio che il server non risponde o che il pacchetto non e' pubblicato
+
+Gia' presenti dalla 1.0.21:
+I pulsanti hanno un aspetto nuovo, lo stesso delle illustrazioni del sito: fondo bianco, bordo grigio e angoli arrotondati; nel tema scuro il fondo e' grigio scuro
+Nelle finestre di dialogo il pulsante che risponde a Invio e' blu pieno, per esempio Salva nelle impostazioni; Riaggancia e' rosso pieno, per trovarlo a colpo d'occhio fra i pulsanti della chiamata
+Sotto il mouse un pulsante si schiarisce appena e il bordo diventa blu, invece di diventare tutto blu
+Con i tasti scritti sui pulsanti, nella barra della chiamata il tasto sta sotto il nome, in piccolo; nella barra della postazione sta accanto al nome, senza riquadro
+Il pulsante Messaggi mostra in un pallino blu quanti messaggi ci sono da leggere; lo screen reader dice sempre Messaggi e il numero
+La conversazione con un collega ha i messaggi a fumetti: i tuoi a destra in blu, quelli del collega a sinistra in grigio, e sotto ciascuno chi l'ha scritto, l'ora e, se c'e', lo stato della consegna
+Nello storico della conversazione il messaggio scelto ha un contorno blu attorno al fumetto; con le frecce ci si muove e si legge come prima
+La casella per scrivere sta in fondo, con Invia, Chiama e Chiudi accanto; a finestra stretta i pulsanti scendono sotto la casella
+Quando la casella e' vuota ci si legge Scrivi un messaggio; Alt S ci porta come prima, e l'ordine del tasto TAB non cambia
+Nell'elenco delle conversazioni i messaggi da leggere stanno in un pallino blu accanto al nome del collega
+Nelle impostazioni le schede stanno su una colonna grigia: la scheda scelta e' bianca, con una barretta blu a sinistra, e i titoli dei gruppi sono in maiuscolo
+Le proposte della ricerca nelle impostazioni stanno in un riquadro, con il nome dell'impostazione a sinistra e la scheda a destra; la proposta scelta ha un fondo azzurro e la barretta blu
+Nel tema Sistema e con il contrasto elevato pulsanti, fumetti e schede usano i colori scelti in Windows
+
+Gia' presenti dalla 1.0.20.2:
+Il motore .NET incluso nel pacchetto passa alla 10.0.15, con le correzioni di sicurezza di ottobre e novembre 2026: fra queste il decompressore Brotli, i socket su cui viaggia il collegamento al centralino e quattro difetti del motore
+La rubrica letta da SQL Server usa il client 7.1.2, una versione di sicurezza: controlla il certificato del server indicato nel collegamento e scarta le risposte malformate
+Se l'indirizzo del server degli aggiornamenti comincia con sftp, BlindPhone dice che SFTP non e' supportato e che serve ftps, invece di parlare di canale non cifrato
+Un indirizzo del server degli aggiornamenti che non puo' funzionare si annuncia gia' quando si salvano le impostazioni, senza impedire di salvare il resto
+
+Gia' presenti dalla 1.0.20.1:
+Nella scheda Diagnostica delle impostazioni, in cima, ci sono la versione installata, con il processore per cui e' fatto il pacchetto, e l'autore con il suo indirizzo di posta: si raggiungono con Tab e si leggono con le frecce
+Il pulsante Cerca aggiornamenti, nella stessa scheda, chiede subito al server se c'e' una versione piu' recente e dice sempre com'e' andata, anche quando non ce n'e'; se la trova apre la finestra con le novita'
+Cerca aggiornamenti usa l'indirizzo, l'utente e la password scritti nella parte Aggiornamenti anche prima di salvarli: e' il modo di provare se il server risponde
+Gli aggiornamenti sono firmati: BlindPhone installa solo un pacchetto accompagnato dalla firma dell'autore, il file con estensione sig, e rifiuta tutti gli altri
+Questa versione va installata a mano una volta, perche' le precedenti non sanno verificare la firma; dalla prossima l'aggiornamento parte dalla finestra delle novita'
+La finestra dell'aggiornamento dice la versione per intero, anche il quarto numero: installata 1.0.20, disponibile 1.0.20.1
+L'indirizzo del server degli aggiornamenti deve cominciare con ftps: su ftp semplice il controllo viene rifiutato, e ora lo dice anche il testo di aiuto del campo
+
+Gia' presenti dalla 1.0.20:
+Si scrivono messaggi ai colleghi senza farli squillare: il pulsante Messaggi della postazione, o Alt M, apre la conversazione con il collega evidenziato o con l'interno scritto nel campo di composizione
+Senza nessuno davanti Alt M apre l'elenco delle conversazioni, con quelle da leggere in cima, e un campo per scrivere a un interno o a un nome della rubrica
+Ogni conversazione ha la sua finestra, con il nome del collega nel titolo per ritrovarla con ALT+TAB: Invio manda, Maiusc Invio va a capo, il pulsante Chiama telefona al collega
+Negli elenchi di interni - colleghi in turno, contatti proposti, rubrica, conversazioni - il tasto Applicazioni apre il menu con Chiama e Invia messaggio; in rubrica c'e' anche il pulsante Invia messaggio, Alt M
+Dopo ogni invio la voce dice messaggio consegnato, oppure perche' non lo e': l'interno non esiste, il collega non e' raggiungibile, il centralino non inoltra i messaggi
+Se il centralino non risponde affatto la voce dice consegna non confermata, con la causa piu' probabile: un centralino che non inoltra i messaggi fra gli interni
+Un messaggio in arrivo non sposta il cursore: la voce dice chi ha scritto e che cosa, con un segnale nuovo di due note acute; durante una telefonata resta il solo segnale
+Il pulsante Messaggi conta quelli da leggere e Control F5 li nomina; le conversazioni durano finche' BlindPhone resta aperto e non vengono scritte sul disco
+I messaggi passano dal centralino con il metodo SIP MESSAGE: se tornano indietro o restano senza conferma con due colleghi diversi, la voce suggerisce di chiedere a chi amministra il centralino di abilitarli fra gli interni
+Le impostazioni salvate valgono subito, senza riavviare BlindPhone: voce, dispositivi audio, segnali, suoneria, annunci, trasferimento, rubrica e collegamento al centralino
+Un cambio dell'account SIP si applica subito se non c'e' nessuna chiamata in corso; altrimenti la voce lo dice e lo applica quando la chiamata si chiude
+Le spunte Segnali acustici e Braille della scheda Accessibilita' fanno quello che dicono: spente, tacciono i segnali che accompagnano un annuncio e BlindPhone non scrive piu' sul display braille
+Con i segnali spenti restano la suoneria, i toni di libero, occupato e numero inesistente, la registrazione perduta, il promemoria dell'attesa e il comando rifiutato: sono l'unica notizia di quello che succede
+Le colonne abbinate all'importazione della rubrica decidono anche i campi mostrati accanto ai contatti proposti: l'elenco a parte nella scheda Rubrica non c'e' piu'
+L'importazione della rubrica ha meno passi: l'analisi del file parte da sola dopo Sfoglia, e le caselle compaiono solo quando servono
+
+Gia' presenti dalla 1.0.19:
+Durante il trasferimento la linea non cade piu' con i pulsanti della cuffia USB attivi: all'avvio del trasferimento la spia della linea si spegneva per un istante, e la conferma della cuffia arrivata in ritardo veniva presa per la pressione che chiude
+Dopo un trasferimento le chiamate entranti continuano ad arrivare e quelle uscenti a partire: con il collegamento cifrato TLS il segnale di mantenimento poteva far perdere la chiusura di una chiamata, e il centralino considerava l'interno ancora occupato
+Il segnale di mantenimento verso il centralino parte solo dopo un tratto senza messaggi: ogni messaggio tiene gia' aperto il passaggio nel router, e il router non resta comunque mai piu' dell'intervallo impostato senza un pacchetto
+L'elenco dei colleghi resta aggiornato dopo l'avvio: scrivere nel campo di composizione o cercare nella rubrica toglieva la sorveglianza dei colleghi, che restavano nello stato letto all'avvio
+L'elenco dei colleghi cambia appena un collega cambia stato, e l'ora "verificato alle" avanza a ogni verifica anche quando nessuno si e' mosso
+Quando l'elenco dei colleghi si aggiorna cambiano solo le righe toccate: il cursore resta sulla riga che si stava leggendo
+BlindPhone puo' mandare statistiche d'uso anonime a un server PostHog, dell'ente oppure PostHog Cloud nell'Unione europea: si accendono dalla scheda Diagnostica con la casella Invia statistiche d'uso anonime, Alt T, e sono spente di partenza
+Senza un server configurato dall'ente non parte nessuna connessione e non si scrive nessun file: e' la situazione di ogni postazione che aggiorna
+Le statistiche non contano le chiamate e non registrano orari, solo il giorno: dicono quali funzioni sono accese e quali comandi si usano, e la guida elenca una per una le informazioni inviate
+La guida ha un argomento nuovo, Licenza e autore: la licenza GPL-3.0, l'assenza di garanzie e come scrivere all'autore, Stefano Curti
+Nell'elenco delle app installate di Windows compaiono l'editore, il contatto e il collegamento al progetto
+
+Gia' presenti dalla 1.0.18:
+La finestra principale non salta piu' a ogni chiamata: gli avvisi che comparivano in cima diventano una fascia fissa in testa alla scheda della chiamata, sempre alta uguale
+La fascia dice lo stato a parole, con un pittogramma e un cronometro: LIBERO, SQUILLA, IN LINEA, IN ATTESA e FUORI SERVIZIO, ciascuno con il suo colore; lampeggiano solo squilla e fuori servizio
+Il nome di chi e' in linea sta nella casella "Chiamata in conversazione": per lo screen reader ha lo stesso nome di prima, si seleziona e si copia, e prende il posto del riquadro verde e della riga "Collegato a"
+I comandi sono divisi in due barre: quelli della postazione in alto - rubrica, elenco chiamate, impostazioni, account, aggiornamento - e quelli della chiamata nella sua scheda
+Ogni barra e' una tappa sola del tasto TAB, con le frecce per muoversi dentro: rispetto a prima c'e' una tappa in piu', sempre la stessa, quella della postazione
+A riposo la barra della chiamata ha il pulsante Componi, che porta al campo di composizione come F8: cosi' il numero di TAB per arrivare al campo non cambia da una chiamata all'altra
+Con la finestra larga la chiamata sta a sinistra, coda e colleghi a destra; con la finestra stretta o lo schermo ingrandito la colonna di destra scende sotto la chiamata
+L'ordine del tasto TAB e quello di lettura dello screen reader restano gli stessi nelle due disposizioni
+La finestra si apre piu' grande, 1280 per 800, e si puo' stringere fino a 600 pixel: e' la larghezza di uno schermo da 1920 ingrandito al 300 per cento
+Coda e colleghi non hanno piu' colonne a larghezza fissa: le voci vanno a capo e non compare lo scorrimento orizzontale, e lo screen reader le legge come prima
+Le impostazioni hanno le schede in un elenco a sinistra, in cinque gruppi: Collegamento, Dispositivi, Lavoro, Voce e tastiera, Assistenza; Control TAB le percorre in quest'ordine
+L'account SIP e' diviso in gruppi - Identita', Centralino, Lavoro agile, Segreteria - e le voci che si toccano di rado stanno nella sezione Avanzate, chiusa all'apertura
+I tasti Alt dei campi avanzati aprono la sezione da soli e portano al campo: Alt R, Alt X, Alt U, Alt G
+Nuovo campo "Cerca un'impostazione", Alt Z o Control F: si scrive una parola, si sente quante impostazioni corrispondono, e Invio apre la scheda giusta e porta al campo
+Nuova scelta in Impostazioni, scheda Accessibilita': "Mostra i tasti rapidi sui pulsanti", Alt R. Scrive accanto a ogni comando il tasto che lo esegue, per esempio F3 accanto a Riaggancia
+Serve a chi guarda lo schermo, come un collega che affianca l'operatore: e' spenta di partenza, e lo screen reader la scorciatoia la dice comunque
+Nel tema scuro la selezione negli elenchi e' un blu piu' scuro, che porta il testo bianco sopra il 7 a 1
+La rubrica si alimenta anche dalla directory LDAP o Active Directory dell'ente e dai contatti di Outlook classico
+Un clic su un numero in un gestionale o in una pagina - link tel, sip e callto - porta il numero nel campo di composizione di BlindPhone, senza comporlo
+La voce avvisa dei messaggi nuovi in segreteria, e Control Alt V li fa ascoltare; il numero della segreteria si imposta in Impostazioni, scheda Account SIP
+Si risponde, si chiude e si silenzia il microfono dai pulsanti della cuffia USB, e le spie della cuffia seguono la chiamata: si regola in Impostazioni, scheda Cuffia
+Da casa, dietro il router, la voce dell'interlocutore arriva e le chiamate entranti non si perdono: server STUN e segnale di mantenimento in Impostazioni, scheda Account SIP, gruppo Lavoro agile
+Nelle impostazioni dell'account SIP Alt X porta al proxy in uscita: prima Alt P portava sia li' sia alla password
+Senza collegamento all'API del centralino la riga di stato non scrive piu' "Agente: disconnesso": lo stato di agente non si conosce, e la parola faceva pensare al telefono scollegato. Control F5 e Control Alt S dicono che il collegamento non e' attivo
+
+Gia' presenti dalla 1.0.17:
+Gli aggiornamenti sono firmati: BlindPhone installa un pacchetto solo se la firma corrisponde alla chiave di chi pubblica, e nessuna impostazione lo disattiva
+Un pacchetto senza impronta dichiarata non viene piu' installato, e i server di aggiornamento in ftp o http in chiaro vengono rifiutati
+La cartella con la configurazione distribuita dall'amministratore deve essere protetta: se un utente qualsiasi puo' scriverci, BlindPhone la ignora e dice come sistemarla
+Le password restano legate al server per cui sono state inserite: cambiando l'indirizzo nel file di configurazione non partono piu' verso il nuovo server
+Un aggiornamento dalla 1.0.16 non chiede di reinserire niente; se una password va reinserita, all'avvio si sente quale e perche'
+Il progetto dichiara la propria licenza: GPL-3.0-only
+
+Gia' presenti dalla 1.0.16:
+L'operatore sa quali colleghi sono in turno: gli interni si dichiarano in Impostazioni, scheda Colleghi, e Control Alt C dice quanti ci sono e chi manca
+Ingresso in riunione Zoom dal posto operatore, attraverso il Cloud Room Connector
+Riduzione del rumore ambientale sul microfono, in Impostazioni, scheda Audio
+Il server SIP si trova anche dai record SRV del dominio, e il proxy in uscita si puo' indicare a mano
+In rubrica si cerca anche per interno, senza badare agli spazi e ai trattini con cui i numeri sono stati importati
+Il numero di chi chiama non compare piu' due volte quando il centralino lo scrive anche al posto del nome
+A trasferimento concluso l'interno fuori rubrica viene letto cifra per cifra
+La barra del titolo segue il tema scuro
+Il pulsante Rubrica entra nella barra dei comandi
+Il pacchetto di installazione esiste anche per i computer arm64
+
+Gia' presenti dalla 1.0.13:
+Guida, rubrica ed elenco delle ultime chiamate non bloccano piu' il resto del programma: restano aperte accanto alla postazione mentre si lavora
+Da prima erano finestre modali, e i comandi dell'elenco chiamate - richiama, usa per il trasferimento - non erano nemmeno raggiungibili, perche' il trasferimento non si puo' avviare con la finestra principale bloccata
+Impostazioni, guida, rubrica e ultime chiamate ricompaiono in ALT+TAB e nella barra delle applicazioni: prima ne erano escluse, e chi le lasciava non aveva piu' modo di tornarci se non chiudendo e riaprendo
+Ci si finiva senza fare niente di sbagliato: bastava una chiamata entrante, che porta avanti la finestra principale da sola
+Il tasto della rubrica premuto due volte non apre piu' due rubriche: riporta avanti quella che c'e' gia', e ci porta la ricerca appena digitata nel campo di composizione
+Il tasto di aiuto premuto dalla rubrica o dall'elenco chiamate porta la guida gia' aperta sull'argomento di quel punto, invece di limitarsi a mostrarla com'era
+Le impostazioni restano una finestra modale, ed e' voluto: cambiare la configurazione mentre il programma la sta usando aprirebbe casi che oggi non esistono
+In modalita' standard Invio non compone piu' un numero mentre c'e' qualcuno in linea: il tasto non fa niente
+Prima partiva una seconda chiamata in parallelo e il chiamante restava in linea, perche' comporre non mette in attesa nessuno; l'unico riscontro era "Chiamata a 4021", che a chi si aspettava un trasferimento suona come una conferma
+Vale anche per Invio sull'elenco della rubrica e su quello delle ultime chiamate, dove il tasto per passare il chiamante c'e' gia' ed e' F9
+Con la chiamata in attesa si compone come sempre: e' cosi' che ci si procura la seconda chiamata di una conferenza a tre
+
+Gia' presenti dalla 1.0.12:
+Gli annunci tornano a essere pronunciati anche quando resta un numero scritto nel campo di composizione: prima quel numero zittiva la postazione finche' qualcuno non svuotava la casella
+Il caso piu' grave era rispondere e non sentirsi dire con chi si e' in linea, perche' l'annuncio veniva soppresso senza lasciare traccia udibile
+Adesso il silenzio dura tre secondi dall'ultimo tasto premuto e si spegne da solo: chi digita lentamente continua a non essere disturbato in mezzo a un numero
+Il trasferimento non viene piu' impedito verso interni che funzionano: il centralino di questo ente rifiuta ogni richiesta sullo stato degli interni, e ogni rifiuto veniva preso per "telefono spento"
+In una sola mattina erano ottantuno interni dichiarati fuori servizio pur rispondendo al primo squillo, e verso quelli il trasferimento si fermava con un avviso
+Lo stato di un interno adesso si considera noto solo quando il centralino lo comunica davvero; quando non lo comunica mai, la funzione si dichiara non disponibile invece di continuare a chiedere per tutto il turno
+L'avviso che sconsiglia una destinazione si conferma con lo stesso tasto con cui si trasferisce: prima Invio ripeteva l'avviso all'infinito e il trasferimento partiva solo con F9
+Nel registro di una postazione si vedono sei pressioni di Invio in un secondo e mezzo senza alcun effetto, seguite dal trasferimento riuscito al primo F9
+L'avviso adesso nomina il tasto della modalita' in uso: con il tastierino semplificato dice Invio, che e' il tasto che quella modalita' insegna
+Se dopo l'avviso si corregge una cifra, il controllo viene rifatto sul numero nuovo: la conferma vale per la destinazione su cui era stata chiesta, non per un'altra
+Un interno non disponibile viene detto "fuori servizio" e non piu' "non registrato", che e' la frase con cui la postazione annuncia di aver perso lei il collegamento al centralino
+A trasferimento riuscito non viene piu' detto che la destinazione ha chiuso la chiamata: succedeva quasi sempre trasferendo a un risponditore automatico, subito dopo l'annuncio di riuscita
+La chiamata compare nell'elenco come "trasferita" invece che come chiusa dall'altra parte
+Gli annunci possono passare a NVDA per via diretta: BlindPhone include la libreria di NV Access che lo consente
+Serve a una cosa che le notifiche di sistema non permettono: interrompere. Una chiamata in arrivo mentre lo screen reader sta leggendo altro viene annunciata subito, invece di mettersi in coda
+Funziona anche avviando la postazione prima di NVDA: prima, in quel caso, il collegamento diretto restava spento fino al riavvio successivo
+L'elenco delle chiamate non si ferma piu' a cinquanta: continua a registrare, e si svuota secondo le impostazioni o quando lo decide l'operatore
+Il messaggio che ripristina i codec audio elenca l'ordine reale che verra' applicato, invece di un ordine che non corrispondeva
+
+Gia' presenti dalla 1.0.11:
+La libreria audio passa alla versione 3: e' il motore che porta la voce dalla rete alla cuffia e viceversa
+Non cambia niente in quello che si sente o si fa: e' manutenzione, perche' la serie precedente non ricevera' piu' correzioni
+La catena di riproduzione ha adesso dodici prove automatiche che prima non aveva: buffer di rete, riempimento del silenzio e generazione dei segnali acustici
+Servono a far scoprire alla compilazione, e non all'orecchio del centralinista, un difetto in quella parte
+
+Gia' presenti dalla 1.0.10:
+BlindPhone gira su .NET 10, che e' una versione con supporto a lungo termine: la 9 era a supporto breve ed e' uscita di supporto a maggio 2026
+Il motore di esecuzione viaggia dentro il pacchetto, quindi non c'e' niente da installare a parte e le postazioni gia' aggiornate non cambiano procedura
+
+Gia' presenti dalla 1.0.9:
+Il motore SIP passa alla versione 10.0.15: quella precedente aveva due vulnerabilita' note di gravita' alta, ed era dentro il pacchetto installato
+Aggiornate anche le altre librerie di terze parti, compreso il collegamento a Microsoft SQL Server della rubrica
+Torna visibile il testo dei suggerimenti che compaiono tenendo il puntatore sui comandi: nel tema scuro era bianco su bianco, e il riquadro sembrava vuoto
+Il fondo del suggerimento non era mai stato dichiarato e restava quello di Windows, uguale in tutti i temi, mentre il testo dentro seguiva il colore del tema
+Adesso il suggerimento segue il tema come il resto della finestra: contrasto 17 a 1 nel tema chiaro, 13 a 1 nello scuro, e il testo va a capo invece di allungare il riquadro
+Una sezione delle impostazioni bloccata dall'amministratore adesso lo dice appena la apri, con il messaggio dell'amministratore e il nome del pulsante che la sblocca
+Prima non lo diceva nessuno nel momento in cui serviva: i campi di una sezione bloccata non rispondono ne' al TAB ne' al mouse, e il blocco era indistinguibile da un guasto del programma
+La parola "bloccata" c'era solo nell'etichetta della scheda, che si sente scorrendo le schede con Control TAB e non arrivandoci da un'altra strada
+Gli elenchi e le tabelle non fanno piu' pronunciare il nome interno della classe prima di ogni voce: nelle impostazioni della rubrica si sentiva "blindphone punto app punto dialer field entry" davanti a ogni campo
+Vale per tutti gli elenchi del programma: campi della ricerca rapida, codec, tasti rapidi, contatti, ultime chiamate
+La tabella dei tasti rapidi torna utilizzabile con lo screen reader: le celle erano esposte come campi da compilare, e il lettore entrava in modalita' modulo invece di lasciar passare Invio alla finestra che riassegna la combinazione
+Nella stessa tabella sono sparite nove colonne che WPF aggiungeva da solo, una per ogni proprieta' interna della riga, con nomi come LocalSpeech e GlobalDisplay come intestazione: chi si muoveva con le frecce le attraversava tutte
+Le colonne restano le quattro dichiarate - comando, locale, globale, gruppo - e sono anche le uniche su cui il tasto Invio sa se riassegnare la combinazione locale o quella globale
+Stessa pulizia su tutte le altre tabelle del programma, e via la riga vuota che compariva in fondo a ognuna
+La casella di spunta dentro le voci non ripete piu' il nome gia' detto dalla voce
+Con il numero gia' scritto nel campo, il trasferimento costa due pressioni invece di tre: la prima chiama l'interno, la seconda gli passa il chiamante
+Spariva cosi' la pressione che serviva solo a confermare un numero appena digitato dall'operatore stesso: non aggiungeva nessuna verifica e si pagava su ogni chiamata del turno
+Il numero continua a essere riletto cifra per cifra, adesso mentre l'interno squilla: se una cifra e' sbagliata ESC chiude la chiamata all'interno e riporta il chiamante, che fino all'ultima pressione resta dell'operatore
+Il trasferimento cieco resta la doppia pressione rapida, e con il campo vuoto la procedura e' quella di prima: il tasto chiede la destinazione, si digita, si preme
+Quando una chiamata entrante riporta avanti la finestra, adesso arrivano anche i tasti: prima la finestra si vedeva ma F2 e "piu'" continuavano ad andare al programma che si stava usando
+Era il caso peggiore, perche' non si vedeva: F2 premuto dentro Esplora file rinomina il file selezionato, e chi non guarda lo schermo non ha modo di accorgersene
+Se Windows nega comunque il primo piano - succede se il programma davanti e' bloccato - la voce lo dice e ricorda la scorciatoia globale, che funziona da qualunque finestra
+Dal campo di composizione la freccia giu' scende davvero fra i contatti proposti: prima non faceva niente e bisognava premere due volte TAB
+Se la ricerca e' ancora in corso viene completata subito, cosi' chi digita in fretta e preme la freccia trova l'elenco gia' pronto
+Si puo' scegliere quali campi della rubrica vedere accanto ai contatti proposti - descrizione, reparto, collocazione, relativo, stato - in Impostazioni, scheda Rubrica
+Nominativo e interno ci sono sempre: senza il primo il contatto non si riconosce, senza il secondo non si chiama
+Si sceglie anche l'ordine in cui i campi vengono letti: barra spaziatrice per mostrare o nascondere, Alt piu' freccia su e giu' per spostare, come nell'elenco dei codec
+Serve a mettere per primo il campo che fa decidere - lo stato, o il reparto dove i nominativi si assomigliano - cosi' si trova subito dopo l'interno e sugli altri non bisogna arrivare
+Accanto a ogni campo mostrato compare la sua posizione, e la voce la ripete dopo ogni spostamento
+Il pulsante "Ripristina i campi consigliati" rimette la scelta iniziale: accanto a nominativo e interno solo lo stato dell'interno
+Le sottoscrizioni allo stato degli interni dichiarano il trasporto dell'account: partivano in chiaro mentre l'account era in TLS, e il centralino le rifiutava quasi tutte
+Un rifiuto definitivo del centralino non viene piu' ritentato all'infinito: erano 1.589 richieste respinte in due giorni, che un SBC puo' scambiare per un attacco
+L'ordine dei codec audio torna modificabile: era finito sotto il lucchetto sbagliato, e su una postazione con la sezione Audio bloccata dall'amministratore l'operatore non poteva piu' toccarlo
+La scelta si e' spostata nella scheda Account SIP, che e' dove l'impostazione viene salvata: chi blocca i dispositivi audio vuole impedire che si cambi cuffia, non che si scelga come viaggia la voce
+Restano invariati i comandi: barra spaziatrice per attivare un codec, Alt piu' freccia su e giu' per spostarlo nell'ordine, e il primo dell'elenco e' quello che il centralino usera' quasi sempre
+Le chiamate che partono dalla postazione tornano ad avere audio: erano mute in entrambi i versi da quando il centralino ha cominciato a rispondere aggiungendo un flusso video che non era stato offerto
+Il flusso non offerto viene ignorato e la cosa resta scritta nel registro: una risposta non puo' aggiungere flussi, e accettarli interrompeva la ricezione dell'audio
+Le chiamate in arrivo non erano interessate, perche' li' e' la postazione a comporre la risposta
+I contatori del percorso audio non vengono piu' alterati dall'anonimizzazione dei registri: un conteggio di pacchetti che coincideva con un interno veniva scambiato per un recapito, e sono la riga con cui si distingue una chiamata muta da una che funziona
+Nuova funzione: inclusione su interno occupato, con Alt+B. Quando l'interno a cui stai passando la chiamata e' occupato, entri nella sua conversazione per dirgli che ce n'e' una urgente
+Tutti i presenti sentono un segnale breve ogni cinque secondi che dichiara il tuo ascolto: non si puo' spegnere da nessuna impostazione, ed e' cio' che distingue questa funzione da un ascolto di nascosto
+Il chiamante resta in attesa dov'era: chiudendo l'inclusione lo ritrovi in linea, con la destinazione ancora in memoria per completare il trasferimento
+Il comando compare solo quando e' eseguibile davvero: serve un interno occupato e un centralino che comunichi i dati della conversazione in corso
+Se il centralino non sostiene la funzione, la voce lo dice invece di lasciare l'operatore davanti a un comando muto
+Dopo un trasferimento a interno che squilla ancora, il tono di libero si spegne: prima continuava a suonare a trasferimento gia' riuscito, e non c'era modo di fermarlo
+Sparisce anche la chiamata fantasma che restava a schermo in attesa di risposta dopo quel trasferimento: la linea con l'interno era gia' chiusa, ma il programma non lo sapeva e bisognava riagganciarla a mano
+Rispondendo, chiudendo e a trasferimento finito il cursore torna da solo nel campo di composizione, con quello che c'era gia' scritto selezionato: la prima cifra del nuovo interno prende il posto di quello vecchio, senza cancellare cifra per cifra
+Il numero non viene perso: se serve ancora - l'interno era occupato e si vuole riprovare - basta non toccarlo e premere il tasto di trasferimento
+Il pulsante "Crea un pacchetto per l'assistenza" del pannello di diagnostica anonimizza i registri: fino alla 1.0.8 li allegava in chiaro, con i numeri chiamati e chiamanti, mentre le note di versione dichiaravano il contrario
+Chi ha creato un pacchetto da quel pulsante con la 1.0.8 o con una versione precedente lo consideri materiale con dati personali, e verifichi dove e' finito
+Nuova sezione Spazio su disco in Impostazioni, scheda Diagnostica: dice quanto occupano i file che BlindPhone puo' buttare e li elimina su richiesta
+Prima di eliminare li elenca uno per uno con quanto pesano, perche' i registri dei giorni scorsi sono la sola traccia di quello che e' successo e chi cancella deve saperlo prima
+Non vengono toccati la configurazione, la rubrica, l'elenco delle chiamate, le registrazioni e il registro di oggi
+Guida in linea aggiornata sul campo di composizione e sulla pulizia del disco
+La finestra principale ha un aspetto piu' curato: aree su schede con angoli arrotondati invece di riquadri col contorno, spaziature e corpi del testo regolari, fondo leggermente grigio dietro le schede bianche
+Chi e' in linea adesso e' il dato piu' grande della finestra e si legge da due metri: prima otto aree si susseguivano con lo stesso peso e non si capiva dove guardare
+Nuovo tema scuro, in Impostazioni, scheda Accessibilita', alla voce "Colori dell'interfaccia": chiaro, scuro, oppure come Windows
+Serve al turno di notte e a chi lavora in penombra, e cambia subito senza riavviare: si puo' scegliere anche con una chiamata in corso
+Con il contrasto elevato di Windows attivo la scelta resta in attesa e comandano i colori di sistema, come e' giusto che sia per chi li ha configurati per la propria vista
+Pulsanti, caselle, elenchi a discesa, caselle di spunta, tabelle ed elenchi sono stati ridisegnati: angoli arrotondati, stato disattivato leggibile, e il bordo che si accende quando il cursore e' nel campo
+Il contorno del focus da tre pixel adesso c'e' in tutte le finestre: prima era solo in quella principale, e negli altri pannelli chi si muove a tastiera aveva il tratteggio sottile di sistema
+I pittogrammi dei pulsanti non sono piu' emoji colorate ma icone di Windows: seguono il colore e il corpo del testo accanto, quindi si vedono bene in tutti e tre i temi
+Niente e' rimpicciolito: i corpi del testo sono quelli di prima, perche' la postazione deve reggere l'ingrandimento di sistema fino al 300 per cento
+
+Gia' presenti dalla 1.0.8:
+Mettendo una chiamata in attesa l'operatore smette davvero di sentire chi ha messo in attesa: prima continuava a sentirlo mentre il chiamante ascoltava la musica di attesa
+Il promemoria della chiamata in attesa torna udibile, perche' non e' piu' coperto dalla voce del chiamante: e' un doppio bip ogni trenta secondi, e l'intervallo si regola in Impostazioni, scheda Accessibilita'
+Il promemoria conta dall'inizio dell'attesa: prima poteva arrivare dopo pochi secondi oppure farsi aspettare mezzo minuto, a seconda di quanto si era parlato prima
+Un trasferimento non chiude piu' la linea con il chiamante sulla base di una notifica del centralino: la chiude il BYE quando il trasferimento e' davvero compiuto, oppure l'operatore
+I registri allegati alla segnalazione all'assistenza escono anonimizzati: numeri e nominativi sostituiti da etichette stabili, il resto del registro intatto (dalla 1.0.9 vale anche per il pulsante del pannello di diagnostica)
+Vale anche per i rapporti di errore, che portano il testo completo delle eccezioni e quindi anche numeri e indirizzi SIP
+Un file che non si riesce ad anonimizzare non viene allegato: meglio un pacchetto incompleto che uno che esce dall'ente con dentro i dati di chi ha telefonato
+Nuovo strumento tools\anonimizza-registro.ps1 per anonimizzare i registri a mano, con la mappa delle etichette che resta sulla postazione
+
+Gia' presenti dalla 1.0.7:
+Annullando la linea di consultazione per completare un trasferimento non si sente piu' il tono di fuori servizio: la chiamata la chiudeva la postazione, e veniva riportata come se la destinazione avesse rifiutato
+Un trasferimento rifiutato dal centralino non viene piu' annunciato come riuscito: prima l'operatore sentiva "trasferimento riuscito" e il chiamante spariva in silenzio, mentre il centralino non aveva eseguito nulla
+Quando il trasferimento non va a buon fine il chiamante torna all'operatore invece di cadere, e nel registro resta scritto il motivo
+Il numero di chi chiama compare sempre, a schermo e a voce: prima, quando il centralino accompagnava la chiamata con un'etichetta come "Chiamate esterne", restava solo quella e il numero non arrivava da nessuna parte
+Vale anche per il riquadro verde della conversazione in corso, che usa la stessa forma
+La rubrica si puo' collegare a Microsoft SQL Server, locale o remoto: si sceglie in Impostazioni fra rubrica da file e rubrica collegata al gestionale dell'ente
+Il collegamento legge una tabella o una vista e ne copia il contenuto nell'archivio cifrato della postazione, riallineandolo a intervalli configurabili
+Il server non viene mai modificato: si legge soltanto, e il collegamento si dichiara di sola lettura
+A rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito, e il nome di chi chiama continua a comparire senza attese: e' il motivo per cui la copia locale esiste
+Un riallineamento che non riesce non svuota la rubrica, e non parte mai durante una chiamata
+La procedura per collegare il server e' la stessa dei file: ci si collega, si sceglie la tabella dall'elenco, si abbinano le stesse colonne, si controlla l'anteprima
+Gli errori del server vengono detti in italiano: utenza rifiutata, permesso mancante, server irraggiungibile, certificato non verificabile
+La password del server sta nel deposito protetto di Windows, mai nel file delle impostazioni, e il traffico verso il server e' cifrato
+I backup con estensioni non previste - punto bkp, punto dmp, punto backup o nessuna estensione - vengono riconosciuti dal contenuto invece che dal nome
+
+# Impronta di BlindPhone-1.0.25.2-x64.msi, calcolata sul pacchetto costruito.
+# BlindPhone la confronta con quella del file scaricato e rifiuta l'aggiornamento
+# se non corrisponde: se il pacchetto viene ricostruito, questa riga va rifatta.
+# La scrive tools\crea-installatore.ps1: non modificarla a mano.
+SHA256: C9ECC06E5A26707A4C62BCD0C4DB2A47FBCD99FF16A943CD3F4F95E62BB12643
