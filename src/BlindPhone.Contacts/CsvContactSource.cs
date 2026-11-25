@@ -168,7 +168,7 @@ public sealed record CsvColumnMapping
         // che si incontra per prima scorrendo il file. Per questo si conserva l'ordine
         // delle colonne invece di affidarsi a quello di un dizionario, che non e'
         // garantito e renderebbe la scelta imprevedibile fra un'esecuzione e l'altra.
-        var columns = new List<(string Key, string Header)>();
+        var columns = new List<(string Key, string Words, string Header)>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var header in headers)
@@ -182,22 +182,46 @@ public sealed record CsvColumnMapping
             if (string.IsNullOrEmpty(key)) continue;
             if (!seen.Add(key)) continue;
 
-            columns.Add((key, header!));
+            columns.Add((key, Words(header!), header!));
         }
 
+        // IL CONFRONTO VA DAL PIU' SICURO AL MENO SICURO, IN TRE PASSI.
+        //
+        // 1. Il titolo, letto a parole, e' la parola cercata: "_Nome" e' "nome".
+        // 2. Il titolo contiene la parola cercata all'inizio di una delle sue parole:
+        //    "_NumeroInterno" e' "numero interno", e contiene "interno".
+        // 3. Il titolo contiene la parola cercata in un punto qualunque, com'era prima:
+        //    resta per i titoli scritti tutti attaccati, "telefonoufficio".
+        //
+        // Prima c'erano solo il primo e il terzo, e il primo confrontava il titolo
+        // grezzo. Sulle tabelle dei gestionali, dove i titoli portano un prefisso, il
+        // primo non scattava mai e decideva il terzo: "nome" si trovava dentro
+        // "_Cognome", e il cognome finiva anche nella casella del nome.
         string? Find(params string[] candidates)
         {
             foreach (var candidate in candidates)
             {
-                foreach (var (key, header) in columns)
+                var parole = Words(candidate);
+
+                foreach (var (_, words, header) in columns)
                 {
-                    if (string.Equals(key, candidate, StringComparison.Ordinal)) return header;
+                    if (string.Equals(words, parole, StringComparison.Ordinal)) return header;
                 }
             }
 
             foreach (var candidate in candidates)
             {
-                foreach (var (key, header) in columns)
+                var parole = Words(candidate);
+
+                foreach (var (_, words, header) in columns)
+                {
+                    if (StartsAWord(words, parole)) return header;
+                }
+            }
+
+            foreach (var candidate in candidates)
+            {
+                foreach (var (key, _, header) in columns)
                 {
                     if (key.Contains(candidate, StringComparison.Ordinal)) return header;
                 }
@@ -210,9 +234,11 @@ public sealed record CsvColumnMapping
         {
             foreach (var candidate in candidates)
             {
-                foreach (var (key, header) in columns)
+                var parole = Words(candidate);
+
+                foreach (var (_, words, header) in columns)
                 {
-                    if (string.Equals(key, candidate, StringComparison.Ordinal)) return header;
+                    if (string.Equals(words, parole, StringComparison.Ordinal)) return header;
                 }
             }
 
@@ -222,8 +248,18 @@ public sealed record CsvColumnMapping
         // "numero" copre il caso in cui la rubrica non distingua fra interno e
         // numero diretto, che e' la norma nelle esportazioni dai gestionali.
         var extension = Find("interno", "numero", "extension", "ext");
-        var workPhone = Find("telefono", "phone", "business", "diretto");
+
+        // "alternativo" ed "esterno" sono i titoli con cui le rubriche degli enti
+        // chiamano il secondo recapito: l'apparecchio alternativo della postazione, il
+        // numero da fuori. Vengono dopo quelli che dicono "telefono", che restano
+        // preferiti dove ci sono entrambi.
+        var workPhone = Find("telefono", "phone", "business", "diretto", "alternativo", "esterno");
         var mobilePhone = Find("cellulare", "mobile", "cell");
+
+        // Una colonna e' un recapito solo: abbinata due volte darebbe alla voce lo
+        // stesso numero come principale e come secondo.
+        if (workPhone == extension) workPhone = null;
+        if (mobilePhone == extension || mobilePhone == workPhone) mobilePhone = null;
 
         // LA COLONNA DEI NUMERI BREVI SI RICONOSCE SOLO PER NOME ESATTO, E SOLO SE NON
         // E' GIA' LA COLONNA DEL NUMERO.
@@ -241,14 +277,30 @@ public sealed record CsvColumnMapping
             shortCodeFlag = null;
         }
 
+        var firstName = Find("nome", "firstname", "first_name", "given");
+        var lastName = Find("cognome", "lastname", "last_name", "surname");
+
+        // Una colonna sola per nome e cognome e' il cognome, oppure il nominativo
+        // intero: in nessuno dei due casi va ripetuta come nome, che produrrebbe
+        // «Rossi Rossi».
+        if (firstName == lastName) firstName = null;
+
+        // "struttura" e' il reparto nelle rubriche ospedaliere — la struttura
+        // complessa, la struttura semplice — ed e' li' che chi importa la abbina. Come
+        // organizzazione resta solo se il reparto ha una colonna sua: la stessa
+        // colonna in due campi verrebbe letta due volte in ogni scheda.
+        var department = Find("reparto", "unita", "department", "servizio", "struttura");
+        var organization = Find("struttura", "azienda", "ente", "organization", "company");
+        if (organization == department) organization = null;
+
         return new CsvColumnMapping
         {
             // "nominativo" viene cercato per primo fra i nomi visualizzati perche'
             // e' l'intestazione tipica delle rubriche degli enti italiani, dove il
             // nome non e' spezzato in nome e cognome.
             DisplayName = Find("nominativo", "displayname", "display_name", "fullname", "denominazione"),
-            FirstName = Find("nome", "firstname", "first_name", "given"),
-            LastName = Find("cognome", "lastname", "last_name", "surname"),
+            FirstName = firstName,
+            LastName = lastName,
 
             Extension = extension,
             WorkPhone = workPhone,
@@ -256,8 +308,8 @@ public sealed record CsvColumnMapping
             ShortCodeFlag = shortCodeFlag,
 
             Email = Find("email", "mail", "posta"),
-            Organization = Find("struttura", "azienda", "ente", "organization", "company"),
-            Department = Find("reparto", "unita", "department", "servizio"),
+            Organization = organization,
+            Department = department,
             JobTitle = Find("qualifica", "ruolo", "title", "mansione"),
             PhoneticName = Find("fonetico", "phonetic", "pronuncia"),
 
@@ -270,11 +322,72 @@ public sealed record CsvColumnMapping
             // Non sta fra i titoli del nome visualizzato, e non e' una svista: il nome
             // visualizzato, quando c'e', vince sulla composizione di nome e cognome, e
             // una descrizione finita li' cancellerebbe "Mario Rossi" dalla rubrica.
-            Category = Find("tipo", "categoria", "descrizione", "category", "kind"),
+            //
+            // "destinazione d'uso" e' lo stesso dato scritto dagli uffici tecnici:
+            // che cosa c'e' in quel locale. Si cerca per intero, perche' "destinazione"
+            // da sola, in un elenco di numeri brevi, e' il numero a cui il codice porta.
+            Category = Find("tipo", "categoria", "descrizione", "category", "kind", "destinazione uso", "destinazione d uso"),
             RelatedTo = Find("relativo", "riferimento", "afferenza", "related"),
             Building = Find("padiglione", "edificio", "building", "blocco", "sede"),
             Floor = Find("piano", "floor", "livello"),
         };
+    }
+
+    /// <summary>
+    /// Il titolo di una colonna letto a parole: minuscolo, con uno spazio fra una
+    /// parola e l'altra.
+    /// </summary>
+    /// <param name="header">Titolo come sta nella sorgente.</param>
+    /// <remarks>
+    /// Separano le parole i trattini bassi, i trattini, i punti, gli apostrofi e gli
+    /// spazi, e il passaggio da minuscola a maiuscola. Sono i modi in cui i gestionali
+    /// scrivono un titolo di più parole: <c>_NumeroInterno</c>,
+    /// <c>_Destinazione_uso</c>, <c>first_name</c>, <c>Destinazione d'uso</c>.
+    /// </remarks>
+    internal static string Words(string header)
+    {
+        var parole = new System.Text.StringBuilder(header.Length + 4);
+        var precedente = '\0';
+
+        foreach (var c in header.Trim())
+        {
+            if (!char.IsLetterOrDigit(c))
+            {
+                if (parole.Length > 0 && parole[^1] != ' ') parole.Append(' ');
+            }
+            else
+            {
+                if (char.IsUpper(c) && char.IsLower(precedente) && parole.Length > 0 && parole[^1] != ' ')
+                    parole.Append(' ');
+
+                parole.Append(char.ToLowerInvariant(c));
+            }
+
+            precedente = c;
+        }
+
+        return parole.ToString().Trim();
+    }
+
+    /// <summary>Il testo contiene le parole cercate all'inizio di una delle sue parole.</summary>
+    /// <param name="words">Titolo letto a parole.</param>
+    /// <param name="wanted">Parole cercate.</param>
+    /// <remarks>
+    /// «interno» si trova in «numero interno», mentre «nome» non si trova in
+    /// «cognome»: è la differenza fra una parola del titolo e un pezzo di parola.
+    /// </remarks>
+    private static bool StartsAWord(string words, string wanted)
+    {
+        if (wanted.Length == 0) return false;
+
+        for (var i = words.IndexOf(wanted, StringComparison.Ordinal);
+             i >= 0;
+             i = words.IndexOf(wanted, i + 1, StringComparison.Ordinal))
+        {
+            if (i == 0 || words[i - 1] == ' ') return true;
+        }
+
+        return false;
     }
 }
 

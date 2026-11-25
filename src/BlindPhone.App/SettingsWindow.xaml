@@ -1689,8 +1689,23 @@
                                          AutomationProperties.HelpText="Se l'istanza non e' quella predefinita, scrivila dopo una barra rovesciata." />
 
                                 <Label Grid.Row="1" Grid.Column="0" Content="_Banca dati" Target="{Binding ElementName=SqlServerDatabase}" VerticalAlignment="Center" />
-                                <TextBox Grid.Row="1" Grid.Column="1" x:Name="SqlServerDatabase" Margin="8,3" MinHeight="34" FontSize="15"
-                                         AutomationProperties.Name="Nome della banca dati che contiene la rubrica" />
+                                <!--
+                                    UNA CASELLA IN CUI SI SCRIVE O SI SCEGLIE.
+
+                                    Prima era un campo di testo e la banca dati andava
+                                    saputa a memoria: l'elenco delle tabelle era quello
+                                    della sola banca dati scritta, e le altre del server
+                                    restavano invisibili. Dopo il collegamento l'elenco
+                                    porta le banche dati che l'utenza puo' aprire;
+                                    scegliendone una se ne leggono le tabelle. Resta
+                                    scrivibile per le utenze a cui il server non da'
+                                    l'elenco.
+                                -->
+                                <ComboBox Grid.Row="1" Grid.Column="1" x:Name="SqlServerDatabase" Margin="8,3" MinHeight="34" FontSize="15"
+                                          IsEditable="True"
+                                          SelectionChanged="OnSqlServerDatabaseChanged"
+                                          AutomationProperties.Name="Banca dati che contiene la rubrica"
+                                          AutomationProperties.HelpText="Puoi lasciarla vuota: collegandoti, l'elenco propone le banche dati del server che puoi aprire, e scegliendone una se ne leggono le tabelle. Puoi anche scriverne il nome." />
 
                                 <Label Grid.Row="2" Grid.Column="0" Content="Accesso" Target="{Binding ElementName=SqlServerAuth}" VerticalAlignment="Center" />
                                 <ComboBox Grid.Row="2" Grid.Column="1" x:Name="SqlServerAuth" Margin="8,3" MinHeight="34" FontSize="15"
@@ -1731,6 +1746,7 @@
                             <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                                 <Button x:Name="SqlServerConnectButton" Content="Colle_gati e leggi le tabelle"
                                         AutomationProperties.Name="Collegati al server e leggi l'elenco delle tabelle"
+                                        AutomationProperties.HelpText="Propone anche le banche dati del server nella casella Banca dati: se e' vuota, scegline una e le sue tabelle si leggono da sole."
                                         Click="OnSqlServerConnectClick" />
 
                                 <Button x:Name="SqlServerSyncButton" Content="Riallinea adesso" Margin="8,0,0,0"

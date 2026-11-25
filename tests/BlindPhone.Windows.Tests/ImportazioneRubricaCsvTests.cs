@@ -300,6 +300,83 @@ public sealed class ImportazioneRubricaCsvTests
         }
     }
 
+    /// <summary>
+    /// Le colonne della tabella <c>Elenco_AOPR</c> di una rubrica ospedaliera su SQL
+    /// Server, nell'ordine in cui il server le restituisce.
+    /// </summary>
+    private static readonly string[] ElencoConPrefisso =
+    [
+        "_NumeroInterno", "_Niumero_Alternativo", "_Cognome", "_Nome", "_Struttura",
+        "_Padiglione", "_Piano", "_Destinazione_uso", "_Numero_esterno", "id",
+        "_Padiglione_Piano", "_Cognome_Nome", "_Struttura_Destinazione_uso", "_summary",
+    ];
+
+    [Fact]
+    public void IlNomeNonVienePescatoDentroIlCognome()
+    {
+        // Il difetto: con il prefisso nessun titolo era uguale a "nome", e il
+        // confronto parziale trovava "nome" dentro "_Cognome", che veniva prima.
+        // Nome e cognome finivano sulla stessa colonna.
+        var mappatura = CsvColumnMapping.Guess(ElencoConPrefisso);
+
+        Assert.Equal("_Nome", mappatura.FirstName);
+        Assert.Equal("_Cognome", mappatura.LastName);
+    }
+
+    [Fact]
+    public void UnaTabellaConIlPrefissoVieneAbbinataComeLAvrebbeAbbinataChiLaConosce()
+    {
+        // E' l'abbinamento che l'operatore aveva fatto a mano su questa tabella.
+        var mappatura = CsvColumnMapping.Guess(ElencoConPrefisso);
+
+        Assert.Equal("_NumeroInterno", mappatura.Extension);
+        Assert.Equal("_Niumero_Alternativo", mappatura.WorkPhone);
+        Assert.Equal("_Destinazione_uso", mappatura.Category);
+        Assert.Equal("_Struttura", mappatura.Department);
+        Assert.Equal("_Padiglione", mappatura.Building);
+        Assert.Equal("_Piano", mappatura.Floor);
+    }
+
+    [Fact]
+    public void UnaColonnaSolaPerNomeECognomeNonDiventaAncheIlNome()
+    {
+        var mappatura = CsvColumnMapping.Guess(["Interno", "Cognome"]);
+
+        Assert.Equal("Cognome", mappatura.LastName);
+        Assert.Null(mappatura.FirstName);
+    }
+
+    [Fact]
+    public void LaStrutturaVaNelRepartoSoloSeIlRepartoNonHaUnaColonnaSua()
+    {
+        var soloStruttura = CsvColumnMapping.Guess(["Interno", "Struttura"]);
+        Assert.Equal("Struttura", soloStruttura.Department);
+        Assert.Null(soloStruttura.Organization);
+
+        var entrambe = CsvColumnMapping.Guess(["Interno", "Struttura", "Reparto"]);
+        Assert.Equal("Reparto", entrambe.Department);
+        Assert.Equal("Struttura", entrambe.Organization);
+    }
+
+    [Fact]
+    public void LaDestinazioneDaSolaNonEUnaDescrizione()
+    {
+        // In un elenco di numeri brevi "Destinazione" e' il numero a cui porta il
+        // codice: farne la descrizione darebbe alle voci un numero come nome.
+        Assert.Null(CsvColumnMapping.Guess(["Codice", "Destinazione"]).Category);
+    }
+
+    [Fact]
+    public void LaStessaColonnaNonEInsiemeNumeroESecondoNumero()
+    {
+        // "Numero esterno" e' l'unica colonna di numeri: il confronto la trova sia
+        // come numero sia come numero esterno.
+        var mappatura = CsvColumnMapping.Guess(["Numero esterno", "Descrizione"]);
+
+        Assert.Equal("Numero esterno", mappatura.Extension);
+        Assert.Null(mappatura.WorkPhone);
+    }
+
     [Fact]
     public void UnaColonnaSenzaNomeNonVieneMaiScelta()
     {

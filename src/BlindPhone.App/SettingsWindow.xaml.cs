@@ -173,6 +173,11 @@ public partial class SettingsWindow : Window
         _mappingPreviewTimer.Tick += OnMappingPreviewTick;
         Closed += (_, _) => _mappingPreviewTimer.Stop();
 
+        // La banca dati scelta dall'elenco fa leggere le sue tabelle: vedi
+        // OnSqlServerDatabaseChanged.
+        _sqlServerDatabaseTimer.Tick += OnSqlServerDatabaseTick;
+        Closed += (_, _) => _sqlServerDatabaseTimer.Stop();
+
         LoadDevices();
         LoadSettings(_settingsService.Current);
         LoadProductInfo();
@@ -5130,6 +5135,15 @@ public partial class SettingsWindow : Window
     {
         var corrente = CurrentSqlServerSettings();
 
+        // UNA TABELLA SALVATA APPARTIENE ALLA SUA BANCA DATI.
+        //
+        // Cambiata la banca dati senza ricollegarsi, tabella e abbinamento salvati sono
+        // quelli dell'altra: conservarli produrrebbe un riallineamento che cerca una
+        // tabella che li' non c'e'. Si lasciano vuoti, e il collegamento risulta da
+        // completare finche' non se ne leggono le tabelle.
+        var stessaBancaDati = string.Equals(
+            precedenti.SqlServer.Database, corrente.Database, StringComparison.OrdinalIgnoreCase);
+
         var server = CurrentImport == ImportKind.SqlServer
             ? corrente
             : precedenti.SqlServer with
@@ -5140,6 +5154,8 @@ public partial class SettingsWindow : Window
                 Username = corrente.Username,
                 TrustServerCertificate = corrente.TrustServerCertificate,
                 SyncIntervalMinutes = corrente.SyncIntervalMinutes,
+                Table = stessaBancaDati ? precedenti.SqlServer.Table : string.Empty,
+                Mapping = stessaBancaDati ? precedenti.SqlServer.Mapping : new ContactsColumnMapping(),
             };
 
         return new ContactsSettings
@@ -5232,7 +5248,10 @@ public partial class SettingsWindow : Window
         Database = SqlServerDatabase.Text.Trim(),
         UseWindowsAuthentication = !string.Equals(SelectedTag(SqlServerAuth), "SqlLogin", StringComparison.Ordinal),
         Username = SqlServerUser.Text.Trim(),
-        Table = _backupTables.Count > 0 && BackupTable.SelectedIndex >= 0
+
+        // La tabella vale solo per la banca dati da cui e' stata letta: vedi
+        // _sqlTablesDatabase.
+        Table = _backupTables.Count > 0 && BackupTable.SelectedIndex >= 0 && !IsSqlServerDatabaseChanged
             ? _backupTables[BackupTable.SelectedIndex].Name
             : string.Empty,
         TrustServerCertificate = SqlServerTrustCertificate.IsChecked == true,
@@ -5259,20 +5278,38 @@ public partial class SettingsWindow : Window
         },
     };
 
+    private async void OnSqlServerConnectClick(object sender, RoutedEventArgs e)
+        => await ConnectSqlServerAsync().ConfigureAwait(true);
+
     /// <summary>
-    /// Si collega al server e riempie l'elenco delle tabelle.
+    /// Si collega al server, propone le banche dati e riempie l'elenco delle tabelle.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// La password digitata viene depositata prima del tentativo: se il collegamento
     /// riesce, la prova successiva parte gia' configurata senza doverla ridigitare.
+    /// </para>
+    /// <para>
+    /// <b>La banca dati non va piu' saputa a memoria.</b> Il collegamento chiede
+    /// prima al server quali banche dati l'utenza puo' aprire e le mette nella
+    /// casella «Banca dati». Se la casella e' vuota ci si ferma li': con una sola
+    /// banca dati la si sceglie da se', con piu' d'una la scelta e' dell'operatore,
+    /// perche' indovinare quale contenga la rubrica vorrebbe dire leggere le tabelle
+    /// di tutte.
+    /// </para>
+    /// <para>
+    /// Se l'elenco non si puo' avere — un'utenza che non entra in <c>master</c>, per
+    /// esempio — e la banca dati e' scritta, si prosegue con quella: l'elenco e' un
+    /// aiuto, non una condizione.
+    /// </para>
     /// </remarks>
-    private async void OnSqlServerConnectClick(object sender, RoutedEventArgs e)
+    private async Task ConnectSqlServerAsync()
     {
         var impostazioni = CurrentSqlServerSettings();
 
-        if (string.IsNullOrWhiteSpace(impostazioni.Server) || string.IsNullOrWhiteSpace(impostazioni.Database))
+        if (string.IsNullOrWhiteSpace(impostazioni.Server))
         {
-            Report("Indica prima il server e la banca dati");
+            Report("Indica prima il server");
             SqlServerHost.Focus();
             return;
         }
@@ -5299,6 +5336,40 @@ public partial class SettingsWindow : Window
 
             var opzioni = ContactsSyncService.ToOptions(impostazioni);
 
+            IReadOnlyList<string> banche;
+
+            try
+            {
+                banche = await Task.Run(() => SqlServerReader.ListDatabases(opzioni, password)).ConfigureAwait(true);
+            }
+            catch (SqlException ex) when (!string.IsNullOrWhiteSpace(impostazioni.Database))
+            {
+                _log.LogInformation(ex, "Elenco delle banche dati non disponibile: si prosegue con quella indicata");
+                banche = [];
+            }
+
+            ShowSqlServerDatabases(banche);
+
+            if (string.IsNullOrWhiteSpace(impostazioni.Database))
+            {
+                if (banche.Count != 1)
+                {
+                    var invito = banche.Count == 0
+                        ? "Collegamento riuscito, ma l'utenza non puo' aprire nessuna banca dati. Scrivi il nome di quella che contiene la rubrica"
+                        : $"Collegamento riuscito: {banche.Count} banche dati, {string.Join(", ", banche)}. "
+                          + "Scegli nella casella Banca dati quella che contiene la rubrica";
+
+                    LiveRegion.Update(SqlServerStatusText, invito);
+                    Report(invito);
+                    SqlServerDatabase.Focus();
+                    return;
+                }
+
+                SelectSqlServerDatabase(banche[0]);
+                impostazioni = CurrentSqlServerSettings();
+                opzioni = ContactsSyncService.ToOptions(impostazioni);
+            }
+
             var tabelle = await Task.Run(() =>
             {
                 using var lettore = new SqlServerReader(opzioni, password);
@@ -5307,13 +5378,19 @@ public partial class SettingsWindow : Window
 
             if (tabelle.Count == 0)
             {
-                LiveRegion.Update(SqlServerStatusText, "Collegamento riuscito, ma l'utenza non vede nessuna tabella");
-                Report("Collegamento riuscito, ma l'utenza non vede nessuna tabella");
+                // Le tabelle a schermo sono di un'altra banca dati: lasciarle li'
+                // inviterebbe a importare una tabella che in questa non esiste.
+                ForgetSqlServerTables();
+
+                var vuota = $"Collegamento riuscito, ma nella banca dati {impostazioni.Database} l'utenza non vede nessuna tabella";
+                LiveRegion.Update(SqlServerStatusText, vuota);
+                Report(vuota);
                 return;
             }
 
             CurrentImport = ImportKind.SqlServer;
             ShowBackupTables(tabelle);
+            _sqlTablesDatabase = impostazioni.Database;
 
             var scelta = PickLikelyTable(tabelle);
 
@@ -5328,10 +5405,10 @@ public partial class SettingsWindow : Window
 
             LiveRegion.Update(
                 SqlServerStatusText,
-                $"Collegamento riuscito: {tabelle.Count} fra tabelle e viste");
+                $"Collegamento riuscito: banca dati {impostazioni.Database}, {tabelle.Count} fra tabelle e viste");
 
-            Report($"Collegamento riuscito: {tabelle.Count} fra tabelle e viste. Proposta {scelta.Name}: "
-                   + $"{riconoscimento}. Controlla la tabella e l'anteprima, poi salva");
+            Report($"Collegamento riuscito: banca dati {impostazioni.Database}, {tabelle.Count} fra tabelle e viste. "
+                   + $"Proposta {scelta.Name}: {riconoscimento}. Controlla la tabella e l'anteprima, poi salva");
         }
         catch (SqlException ex)
         {
@@ -5351,6 +5428,120 @@ public partial class SettingsWindow : Window
         {
             SqlServerConnectButton.IsEnabled = true;
         }
+    }
+
+    /// <summary>Banca dati da cui vengono le tabelle a schermo, se ce ne sono.</summary>
+    /// <remarks>
+    /// La casella «Banca dati» si puo' cambiare senza ricollegarsi. Senza questo
+    /// riferimento la configurazione salvata e l'importazione mettevano insieme la
+    /// banca dati nuova con la tabella della vecchia: un collegamento che non trova
+    /// la tabella e non importa niente, senza dire perche'.
+    /// </remarks>
+    private string? _sqlTablesDatabase;
+
+    /// <summary>Le tabelle a schermo sono di una banca dati diversa da quella scritta.</summary>
+    private bool IsSqlServerDatabaseChanged
+        => _sqlTablesDatabase is not null
+           && !string.Equals(_sqlTablesDatabase, SqlServerDatabase.Text.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Impedisce che il riempimento dell'elenco delle banche dati faccia ricollegare.</summary>
+    private bool _fillingSqlServerDatabases;
+
+    /// <summary>
+    /// Ritarda la lettura delle tabelle dopo la scelta di una banca dati.
+    /// </summary>
+    /// <remarks>
+    /// Una casella chiusa cambia scelta a ogni freccia, e ogni lettura conta le righe
+    /// di tutte le tabelle: chi scorre le banche dati ascoltandole non deve pagare un
+    /// collegamento per ognuna di quelle che attraversa.
+    /// </remarks>
+    private readonly DispatcherTimer _sqlServerDatabaseTimer = new() { Interval = TimeSpan.FromMilliseconds(600) };
+
+    /// <summary>Mette nella casella le banche dati del server, senza perdere quella scritta.</summary>
+    private void ShowSqlServerDatabases(IReadOnlyList<string> databases)
+    {
+        var scritta = SqlServerDatabase.Text.Trim();
+
+        _fillingSqlServerDatabases = true;
+
+        try
+        {
+            SqlServerDatabase.Items.Clear();
+            foreach (var nome in databases) SqlServerDatabase.Items.Add(nome);
+
+            SqlServerDatabase.Text = scritta;
+
+            var uguale = databases.FirstOrDefault(d => string.Equals(d, scritta, StringComparison.OrdinalIgnoreCase));
+            if (uguale is not null) SqlServerDatabase.SelectedItem = uguale;
+        }
+        finally
+        {
+            _fillingSqlServerDatabases = false;
+        }
+    }
+
+    /// <summary>Sceglie una banca dati dal codice, senza far partire un altro collegamento.</summary>
+    private void SelectSqlServerDatabase(string database)
+    {
+        _fillingSqlServerDatabases = true;
+
+        try
+        {
+            SqlServerDatabase.SelectedItem = database;
+            SqlServerDatabase.Text = database;
+        }
+        finally
+        {
+            _fillingSqlServerDatabases = false;
+        }
+    }
+
+    /// <summary>
+    /// Toglie tabelle, abbinamenti e anteprima di una banca dati che non è più quella scelta.
+    /// </summary>
+    private void ForgetSqlServerTables()
+    {
+        _sqlTablesDatabase = null;
+
+        if (CurrentImport != ImportKind.SqlServer) return;
+
+        ShowBackupTables([]);
+        SvuotaAbbinamento();
+    }
+
+    /// <summary>
+    /// L'operatore ha scelto un'altra banca dati: se ne leggono le tabelle.
+    /// </summary>
+    /// <remarks>
+    /// È la stessa regola del file: scelto il file, l'analisi parte da sola.
+    /// Chiedere di premere di nuovo «Collegati» costringerebbe a cercare un pulsante
+    /// senza che ci sia altro da decidere.
+    /// </remarks>
+    private void OnSqlServerDatabaseChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_fillingSqlServerDatabases) return;
+        if (SqlServerDatabase.SelectedItem is not string scelta) return;
+        if (string.Equals(scelta, _sqlTablesDatabase, StringComparison.OrdinalIgnoreCase)) return;
+
+        _sqlServerDatabaseTimer.Stop();
+        _sqlServerDatabaseTimer.Start();
+    }
+
+    private async void OnSqlServerDatabaseTick(object? sender, EventArgs e)
+    {
+        _sqlServerDatabaseTimer.Stop();
+
+        // Un collegamento gia' in corso finisce prima: due letture incrociate
+        // riempirebbero l'elenco delle tabelle con quelle della banca dati sbagliata.
+        if (!SqlServerConnectButton.IsEnabled)
+        {
+            _sqlServerDatabaseTimer.Start();
+            return;
+        }
+
+        if (!IsSqlServerDatabaseChanged && _sqlTablesDatabase is not null) return;
+
+        await ConnectSqlServerAsync().ConfigureAwait(true);
     }
 
     private async void OnSqlServerSyncClick(object sender, RoutedEventArgs e)
@@ -6440,6 +6631,15 @@ public partial class SettingsWindow : Window
     {
         if (CurrentImport == ImportKind.SqlServer)
         {
+            if (IsSqlServerDatabaseChanged)
+            {
+                // Le tabelle a schermo sono di un'altra banca dati: dirlo, invece di
+                // «scegli la tabella», manda a fare la cosa giusta.
+                Report($"La banca dati e' cambiata: collegati di nuovo per leggere le tabelle di {SqlServerDatabase.Text.Trim()}");
+                SqlServerConnectButton.Focus();
+                return null;
+            }
+
             var collegamento = CurrentSqlServerSettings();
 
             if (string.IsNullOrWhiteSpace(collegamento.Table))

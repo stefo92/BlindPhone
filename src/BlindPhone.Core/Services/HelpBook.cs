@@ -526,6 +526,8 @@ public static class HelpBook
 
         La copia locale non e' un ripiego, e' il motivo per cui il collegamento si puo' usare: il nome di chi chiama viene cercato mentre il telefono squilla, e se quella ricerca dovesse attraversare la rete un rallentamento ti lascerebbe senza sapere chi risponde. Con la copia, a rete caduta la rubrica resta quella dell'ultimo riallineamento riuscito e continui a lavorare. Preferiti e numeri rapidi restano tuoi e restano sulla postazione.
 
+        Non serve sapere come si chiama la banca dati. Collegandoti, la casella «Banca dati» propone quelle del server che la tua utenza puo' aprire: se l'hai lasciata vuota, scegline una e le sue tabelle si leggono da sole. Ogni banca dati ha le sue tabelle, quindi una rubrica che non trovi nell'elenco puo' stare in un'altra banca dati dello stesso server.
+
         La procedura e' la stessa dei file: ci si collega, si sceglie la tabella dallo stesso elenco, si abbinano le stesse colonne e si controlla l'anteprima. Il pulsante «Riallinea adesso» aggiorna la copia quando serve; il riallineamento automatico non parte durante una chiamata.
 
         Con la rubrica collegata alla directory LDAP o ad Active Directory vale lo stesso: la directory si legge soltanto e i contatti finiscono nella copia locale. Servono il server, che con Active Directory puo' essere il nome del dominio, e la base della ricerca. Filtro e attributi proposti sono gia' quelli di Active Directory: prendono gli utenti attivi e i contatti con almeno un numero, e l'interno dal campo Telefono IP. Il pulsante «Chiedi i contatti alla directory», Alt H, prova il collegamento, dice quanti contatti ha trovato e mostra le prime voci nell'anteprima.

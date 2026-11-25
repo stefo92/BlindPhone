@@ -36,6 +36,55 @@ public sealed class SqlServerReader : ISqlBackupReader
         Tables = LeggiTabelle();
     }
 
+    /// <summary>
+    /// Le banche dati del server che l'utenza può aprire, in ordine di nome.
+    /// </summary>
+    /// <param name="options">
+    /// Parametri del collegamento. La banca dati indicata non conta: l'elenco si
+    /// chiede a <c>master</c>.
+    /// </param>
+    /// <param name="password">Password dal deposito protetto, se serve.</param>
+    /// <remarks>
+    /// <para>
+    /// <b>Prima la banca dati andava scritta a memoria</b>, e l'elenco delle tabelle
+    /// era quello della sola banca dati scritta: su un server con la rubrica in
+    /// «RUBRICA» e un'estrazione in «Phonebook», chi aveva scritto la seconda non
+    /// aveva modo di sapere che la prima esistesse.
+    /// </para>
+    /// <para>
+    /// <b>Si chiede a <c>master</c></b> perché è l'unica banca dati in cui ogni utenza
+    /// può entrare: la banca dati predefinita dell'utenza può essere stata tolta o
+    /// chiusa, e il collegamento fallirebbe prima ancora di chiedere l'elenco.
+    /// </para>
+    /// <para>
+    /// Restano fuori le banche dati di sistema, quelle non in linea e quelle in cui
+    /// l'utenza non ha accesso: proporle significherebbe invitare a una scelta che
+    /// finisce in un errore di permessi.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyList<string> ListDatabases(SqlServerOptions options, string? password)
+    {
+        using var connessione = new SqlConnection(
+            (options with { Database = "master" }).BuildConnectionString(password));
+
+        connessione.Open();
+
+        using var comando = connessione.CreateCommand();
+        comando.CommandText = """
+            SELECT name
+            FROM sys.databases
+            WHERE database_id > 4 AND state = 0 AND HAS_DBACCESS(name) = 1
+            ORDER BY name
+            """;
+
+        using var lettore = comando.ExecuteReader();
+
+        var nomi = new List<string>();
+        while (lettore.Read()) nomi.Add(lettore.GetString(0));
+
+        return nomi;
+    }
+
     /// <inheritdoc />
     public string FormatDescription => "Microsoft SQL Server";
 
