@@ -502,7 +502,7 @@ public static class HelpBook
 
         - Freccia giù dal campo di ricerca scende nei risultati
         - Frecce su e giù cambiano contatto
-        - Frecce destra e sinistra percorrono i campi: nominativo, numero, tipo, collocazione, struttura, stato
+        - Frecce destra e sinistra percorrono i campi: nominativo, numero, secondo numero, descrizione, reparto, collocazione, relativo, stato
         - Freccia su dal primo contatto torna al campo di ricerca
 
         La colonna «stato» dice se l'interno è libero, occupato, squilla, in non disturbare, assente o fuori servizio. «Fuori servizio» significa telefono spento o scollegato: è la destinazione peggiore per un trasferimento, perché la chiamata squilla nel vuoto e il chiamante torna indietro quando lo hai già salutato. La cella resta vuota quando lo stato non è noto: lo si sa solo per gli interni di cui il centralino ha segnalato un cambiamento da quando BlindPhone è acceso.
@@ -543,6 +543,8 @@ public static class HelpBook
         Molte esportazioni non hanno la riga dei titoli: la prima riga e' gia' un contatto. BlindPhone se ne accorge da solo e attiva la casella «il file non ha la riga dei titoli», che puoi comunque correggere. Con quella attiva le colonne si abbinano per posizione e ognuna porta un esempio preso dal file — «Colonna 6, esempio: GIULIA» — cosi' riconosci quale sia senza vedere il file. Serve anche a non perdere nessuno: senza, la prima riga verrebbe presa per un'intestazione e quel contatto sparirebbe dalla rubrica a ogni importazione.
 
         Se il file distingue i numeri brevi del centralino con una colonna intitolata «Numero breve», che vale Sì oppure No, BlindPhone la riconosce da sola e te lo dice quando analizza il file. Quelle voci si annunciano come numero breve e l'esito dell'importazione le conta a parte dai contatti.
+
+        Il numero per esteso di un numero breve, quando il file lo porta in una colonna a parte come «Telefono», si abbina a «Secondo numero». In rubrica compare nella colonna «Secondo numero», accanto al codice, e Control D lo legge nella scheda completa. L'anteprima si aggiorna da sola ogni volta che cambi un abbinamento, quindi puoi controllare subito la scelta.
 
         Se il file e' aperto in Excel non si puo' leggere, e BlindPhone te lo dice: Excel tiene i file aperti in modo che nessun altro programma li apra. Chiudi la finestra e riprova.
 

@@ -72,6 +72,32 @@
         <Style x:Key="SpokenNumberText" TargetType="TextBlock">
             <Setter Property="AutomationProperties.Name" Value="{Binding SpokenNumber}" />
         </Style>
+
+        <!--
+            OGNI COLONNA DI CIFRE HA LA SUA COPPIA DI STILI.
+
+            Il nome accessibile e' un valore della riga, non della colonna: uno stile
+            condiviso fa dire a tutte le celle che lo usano lo stesso valore. E' il
+            difetto per cui la cella «Relativo» pronunciava il numero predefinito
+            della voce invece dell'interno di riferimento.
+        -->
+        <Style x:Key="SpokenSecondNumberCell" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Setter Property="AutomationProperties.Name" Value="{Binding SpokenSecondNumber}" />
+        </Style>
+
+        <Style x:Key="SpokenSecondNumberText" TargetType="TextBlock">
+            <Setter Property="AutomationProperties.Name" Value="{Binding SpokenSecondNumber}" />
+        </Style>
+
+        <Style x:Key="SpokenRelatedToCell" TargetType="DataGridCell"
+               BasedOn="{StaticResource {x:Type DataGridCell}}">
+            <Setter Property="AutomationProperties.Name" Value="{Binding SpokenRelatedTo}" />
+        </Style>
+
+        <Style x:Key="SpokenRelatedToText" TargetType="TextBlock">
+            <Setter Property="AutomationProperties.Name" Value="{Binding SpokenRelatedTo}" />
+        </Style>
     </Window.Resources>
 
     <Grid Margin="12">
@@ -160,17 +186,25 @@
                 <!--
                     LE COLONNE SONO QUELLE CHE LA RUBRICA DELL'ENTE PORTA DAVVERO.
 
-                    "Descrizione" viene subito dopo il numero perche' e' cio' che
+                    "Secondo numero" e' la voce omonima dell'abbinamento delle colonne, e
+                    sta accanto al numero perche' e' la sua continuazione: per un numero
+                    breve e' il numero per esteso a cui il codice rimanda. Prima mancava,
+                    e il valore importato non si vedeva da nessuna parte.
+
+                    "Descrizione" viene subito dopo i numeri perche' e' cio' che
                     identifica le voci senza nome, e in una rubrica ospedaliera sono la
                     maggioranza: ambulatori, sale, guardiole. "Struttura" e' sparita
                     perche' l'importazione da file non la riempie piu'.
                 -->
+                <DataGridTextColumn Header="Secondo numero" Binding="{Binding SecondNumber}" Width="140"
+                                    CellStyle="{StaticResource SpokenSecondNumberCell}"
+                                    ElementStyle="{StaticResource SpokenSecondNumberText}" />
                 <DataGridTextColumn Header="Descrizione" Binding="{Binding Description}" Width="260" />
                 <DataGridTextColumn Header="Reparto" Binding="{Binding Department}" Width="200" />
                 <DataGridTextColumn Header="Collocazione" Binding="{Binding Location}" Width="180" />
                 <DataGridTextColumn Header="Relativo" Binding="{Binding RelatedTo}" Width="100"
-                                    CellStyle="{StaticResource SpokenNumberCell}"
-                                    ElementStyle="{StaticResource SpokenNumberText}" />
+                                    CellStyle="{StaticResource SpokenRelatedToCell}"
+                                    ElementStyle="{StaticResource SpokenRelatedToText}" />
                 <DataGridTextColumn Header="Stato" Binding="{Binding Presence}" Width="110" />
             </DataGrid.Columns>
         </DataGrid>

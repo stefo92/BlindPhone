@@ -256,6 +256,50 @@ public sealed class ImportazioneRubricaCsvTests
         }
     }
 
+    /// <summary>
+    /// Il numero per esteso di un numero breve arriva fino alla voce.
+    /// </summary>
+    /// <remarks>
+    /// Sono le prime righe dell'esportazione vera dei numeri brevi del centralino:
+    /// il codice in «Numero», il numero per esteso in «Telefono». La colonna
+    /// «Telefono», abbinata a «Secondo numero», deve restare un recapito della voce
+    /// che non prende il posto del codice, ed essere quello che la rubrica mostra
+    /// come secondo numero.
+    /// </remarks>
+    [Fact]
+    public async Task IlTelefonoDiUnNumeroBreveDiventaIlSecondoNumero()
+    {
+        var percorso = Path.Combine(Path.GetTempPath(), $"brevi-{Guid.NewGuid():N}.csv");
+
+        await File.WriteAllTextAsync(
+            percorso,
+            "﻿\"Numero\";\"Telefono\";\"Descrizione\";\"Numero breve\"\n"
+            + "\"9\";\"7004\";\"\";\"Sì\"\n"
+            + "\"6000\";\"03665635293\";\"MDG MEDICINA INTERNA DIP.EMER/UR\";\"Sì\"\n");
+
+        try
+        {
+            var mappatura = CsvColumnMapping.Guess(CsvContactSource.ReadHeaders(percorso));
+
+            Assert.Equal("Numero", mappatura.Extension);
+            Assert.Equal("Telefono", mappatura.WorkPhone);
+            Assert.Equal("Numero breve", mappatura.ShortCodeFlag);
+
+            var contatti = await new CsvContactSource(percorso, mappatura).LoadAsync(CancellationToken.None);
+
+            var medicina = Assert.Single(contatti, c => c.PrimaryNumber == "6000");
+            Assert.Equal(ContactKind.ShortCode, medicina.Kind);
+            Assert.Equal(["03665635293"], medicina.OtherNumbers);
+
+            var senzaDescrizione = Assert.Single(contatti, c => c.PrimaryNumber == "9");
+            Assert.Equal(["7004"], senzaDescrizione.OtherNumbers);
+        }
+        finally
+        {
+            File.Delete(percorso);
+        }
+    }
+
     [Fact]
     public void UnaColonnaSenzaNomeNonVieneMaiScelta()
     {

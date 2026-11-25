@@ -167,6 +167,12 @@ public partial class SettingsWindow : Window
         _searchAnnouncement.Tick += OnSearchAnnouncementTick;
         Closed += (_, _) => _searchAnnouncement.Stop();
 
+        // L'anteprima della rubrica segue gli abbinamenti scelti a mano: vedi
+        // OnMappingSelectionChanged.
+        foreach (var (combo, _) in MappingCombos) combo.SelectionChanged += OnMappingSelectionChanged;
+        _mappingPreviewTimer.Tick += OnMappingPreviewTick;
+        Closed += (_, _) => _mappingPreviewTimer.Stop();
+
         LoadDevices();
         LoadSettings(_settingsService.Current);
         LoadProductInfo();
@@ -4910,7 +4916,13 @@ public partial class SettingsWindow : Window
     /// </summary>
     private void SvuotaAbbinamento()
     {
-        foreach (var (combo, _) in MappingCombos) combo.Items.Clear();
+        _fillingMapping = true;
+        try { foreach (var (combo, _) in MappingCombos) combo.Items.Clear(); }
+        finally { _fillingMapping = false; }
+
+        // Un'anteprima chiesta poco prima non deve riapparire dopo lo svuotamento.
+        _mappingPreviewTimer.Stop();
+        _previewTurn++;
 
         PreviewText.Text = string.Empty;
         _analyzedPath = null;
@@ -5958,21 +5970,30 @@ public partial class SettingsWindow : Window
     /// </remarks>
     private void FillMappingCombos(IReadOnlyList<string> columns, IReadOnlyList<string> labels)
     {
-        foreach (var (combo, _) in MappingCombos)
+        _fillingMapping = true;
+
+        try
         {
-            combo.Items.Clear();
-            combo.Items.Add(new ComboBoxItem { Content = "(nessuna colonna)", Tag = null });
-
-            for (var i = 0; i < columns.Count; i++)
+            foreach (var (combo, _) in MappingCombos)
             {
-                combo.Items.Add(new ComboBoxItem
-                {
-                    Content = i < labels.Count ? labels[i] : columns[i],
-                    Tag = columns[i],
-                });
-            }
+                combo.Items.Clear();
+                combo.Items.Add(new ComboBoxItem { Content = "(nessuna colonna)", Tag = null });
 
-            combo.SelectedIndex = 0;
+                for (var i = 0; i < columns.Count; i++)
+                {
+                    combo.Items.Add(new ComboBoxItem
+                    {
+                        Content = i < labels.Count ? labels[i] : columns[i],
+                        Tag = columns[i],
+                    });
+                }
+
+                combo.SelectedIndex = 0;
+            }
+        }
+        finally
+        {
+            _fillingMapping = false;
         }
 
         // Adesso c'e' qualcosa da abbinare: il passo compare.
@@ -5994,15 +6015,26 @@ public partial class SettingsWindow : Window
     /// <param name="mapping">Mappatura proposta o già salvata.</param>
     private void ApplyMapping(CsvColumnMapping mapping)
     {
-        SelectByTag(MapNumber, mapping.Extension);
-        SelectByTag(MapSecondNumber, mapping.WorkPhone);
-        SelectByTag(MapRelatedTo, mapping.RelatedTo);
-        SelectByTag(MapCategory, mapping.Category);
-        SelectByTag(MapFirstName, mapping.FirstName);
-        SelectByTag(MapLastName, mapping.LastName);
-        SelectByTag(MapDepartment, mapping.Department);
-        SelectByTag(MapBuilding, mapping.Building);
-        SelectByTag(MapFloor, mapping.Floor);
+        // Chi chiama rifa' l'anteprima subito dopo: le scelte allineate qui non
+        // devono chiederne un'altra.
+        _fillingMapping = true;
+
+        try
+        {
+            SelectByTag(MapNumber, mapping.Extension);
+            SelectByTag(MapSecondNumber, mapping.WorkPhone);
+            SelectByTag(MapRelatedTo, mapping.RelatedTo);
+            SelectByTag(MapCategory, mapping.Category);
+            SelectByTag(MapFirstName, mapping.FirstName);
+            SelectByTag(MapLastName, mapping.LastName);
+            SelectByTag(MapDepartment, mapping.Department);
+            SelectByTag(MapBuilding, mapping.Building);
+            SelectByTag(MapFloor, mapping.Floor);
+        }
+        finally
+        {
+            _fillingMapping = false;
+        }
 
         _structuralMapping = new CsvColumnMapping
         {
@@ -6101,10 +6133,17 @@ public partial class SettingsWindow : Window
     private async Task RefreshPreviewAsync(
         Func<int, CancellationToken, Task<IReadOnlyList<Contact>>> preview5)
     {
+        // Con l'anteprima che segue gli abbinamenti, due letture possono incrociarsi:
+        // scrive solo l'ultima chiesta, altrimenti una lettura lenta partita prima
+        // rimetterebbe a schermo l'abbinamento appena cambiato.
+        var turno = ++_previewTurn;
+
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             var preview = await preview5(5, timeout.Token).ConfigureAwait(true);
+
+            if (turno != _previewTurn) return;
 
             if (preview.Count == 0)
             {
@@ -6114,15 +6153,121 @@ public partial class SettingsWindow : Window
                 return;
             }
 
-            var lines = preview.Select((c, i) =>
-                $"{i + 1}. {c.FullSpeechDescription} - numero {c.PrimaryNumber}");
-
-            PreviewText.Text = string.Join(Environment.NewLine, lines);
+            PreviewText.Text = string.Join(Environment.NewLine, preview.Select(PreviewLine));
         }
         catch (Exception ex)
         {
             _log.LogWarning(ex, "Anteprima del file CSV non riuscita");
+            if (turno == _previewTurn) PreviewText.Text = "Anteprima non disponibile.";
+        }
+    }
+
+    /// <summary>Ultima anteprima chiesta: le precedenti non scrivono più.</summary>
+    private int _previewTurn;
+
+    /// <summary>
+    /// Una riga dell'anteprima: la voce, il numero e il secondo numero se c'è.
+    /// </summary>
+    /// <remarks>
+    /// <b>Il secondo numero mancava</b>, e l'anteprima è il punto in cui chi importa
+    /// controlla gli abbinamenti: chi sceglieva la colonna «Telefono» come secondo
+    /// numero non la ritrovava qui, e non aveva modo di sapere se la scelta fosse
+    /// stata presa.
+    /// </remarks>
+    private static string PreviewLine(Contact contact, int index)
+    {
+        var riga = $"{index + 1}. {contact.FullSpeechDescription} - numero {contact.PrimaryNumber}";
+
+        return contact.OtherNumbers.Count > 0
+            ? $"{riga}, secondo numero {string.Join(", ", contact.OtherNumbers)}"
+            : riga;
+    }
+
+    /// <summary>
+    /// Ritarda la nuova anteprima dopo un cambio di abbinamento.
+    /// </summary>
+    /// <remarks>
+    /// Una casella chiusa cambia scelta a ogni freccia: chi scorre le colonne
+    /// ascoltandole ne attraversa dieci prima di fermarsi, e rileggere il file — o
+    /// interrogare il server — a ogni passaggio sarebbe lavoro buttato.
+    /// </remarks>
+    private readonly DispatcherTimer _mappingPreviewTimer = new() { Interval = TimeSpan.FromMilliseconds(400) };
+
+    /// <summary>
+    /// Le caselle si stanno riempiendo o allineando dal codice, non dall'operatore.
+    /// </summary>
+    private bool _fillingMapping;
+
+    /// <summary>
+    /// L'operatore ha cambiato un abbinamento: l'anteprima lo segue.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Prima l'anteprima restava quella dell'analisi.</b> La scheda promette che
+    /// «l'anteprima mostra come verranno importate le voci», ma un abbinamento
+    /// corretto a mano non la toccava: l'importazione usava la scelta nuova e
+    /// l'anteprima continuava a mostrare quella vecchia. Chi controlla ascoltando non
+    /// ha altro modo di verificare la propria scelta.
+    /// </para>
+    /// </remarks>
+    private void OnMappingSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_fillingMapping) return;
+
+        _mappingPreviewTimer.Stop();
+        _mappingPreviewTimer.Start();
+    }
+
+    private async void OnMappingPreviewTick(object? sender, EventArgs e)
+    {
+        _mappingPreviewTimer.Stop();
+
+        try
+        {
+            await RefreshPreviewForMappingAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            _log.LogWarning(ex, "Aggiornamento dell'anteprima dopo un cambio di abbinamento non riuscito");
             PreviewText.Text = "Anteprima non disponibile.";
+        }
+    }
+
+    /// <summary>
+    /// Rifà l'anteprima con gli abbinamenti a schermo, dalla provenienza preparata.
+    /// </summary>
+    private async Task RefreshPreviewForMappingAsync()
+    {
+        if (MapNumber.Items.Count == 0) return;
+
+        switch (CurrentImport)
+        {
+            case ImportKind.SqlServer:
+                if (string.IsNullOrWhiteSpace(CurrentSqlServerSettings().Table)) return;
+
+                await RefreshServerPreviewAsync().ConfigureAwait(true);
+                return;
+
+            case ImportKind.Csv or ImportKind.Backup:
+                // Un percorso scritto e non ancora analizzato non ha niente a che
+                // vedere con le caselle a schermo, che vengono dal file precedente.
+                if (IsCsvPathPending) return;
+
+                var path = CsvPath.Text.Trim();
+                if (!File.Exists(path)) return;
+
+                if (CurrentImport == ImportKind.Csv)
+                {
+                    var csv = BuildCsvSource(path);
+                    await RefreshPreviewAsync((righe, token) => csv.PreviewAsync(righe, token)).ConfigureAwait(true);
+                    return;
+                }
+
+                if (BackupTable.SelectedIndex < 0 || BackupTable.SelectedIndex >= _backupTables.Count) return;
+
+                var backup = BuildBackupSource(path, _backupTables[BackupTable.SelectedIndex].Name);
+                await RefreshPreviewAsync((righe, token) => backup.PreviewAsync(righe, token)).ConfigureAwait(true);
+                return;
         }
     }
 

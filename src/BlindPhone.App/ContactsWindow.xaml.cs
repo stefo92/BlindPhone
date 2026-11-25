@@ -15,6 +15,10 @@ namespace BlindPhone.App;
 /// <summary>Riga della tabella dei risultati di ricerca in rubrica.</summary>
 /// <param name="Name">Nominativo.</param>
 /// <param name="Number">Numero predefinito.</param>
+/// <param name="SecondNumber">
+/// Gli altri recapiti, separati da virgola: il «secondo numero» abbinato
+/// all'importazione, per esempio il numero per esteso di un numero breve.
+/// </param>
 /// <param name="Description">Descrizione della voce: che cosa e' e chi risponde.</param>
 /// <param name="Department">Reparto o unita' operativa.</param>
 /// <param name="Location">Collocazione fisica in forma breve.</param>
@@ -24,6 +28,7 @@ namespace BlindPhone.App;
 public sealed record ContactRow(
     string Name,
     string Number,
+    string SecondNumber,
     string Description,
     string Department,
     string Location,
@@ -35,12 +40,29 @@ public sealed record ContactRow(
     /// Numero nella forma che lo screen reader legge cifra per cifra.
     /// </summary>
     /// <remarks>
-    /// È il nome accessibile della sola cella del numero. Il contenuto letterale
+    /// È il nome accessibile della cella del numero. Il contenuto letterale
     /// "4021" verrebbe pronunciato "quattromilaventuno", che è inutilizzabile per
     /// trascriverlo o ricomporlo; le cifre separate da spazi vengono lette una per
     /// una e sulla riga braille restano quattro caratteri.
     /// </remarks>
     public string SpokenNumber => SpeechFormatter.SpacedDigits(Number);
+
+    /// <summary>Gli altri recapiti, cifra per cifra, separati da virgola.</summary>
+    /// <remarks>
+    /// Ogni numero si spazia da solo: spaziare la stringa intera fonderebbe
+    /// «2876, 2877» in un'unica sequenza di otto cifre, che nessuno saprebbe
+    /// ricomporre.
+    /// </remarks>
+    public string SpokenSecondNumber
+        => string.Join(", ", Contact.OtherNumbers.Select(SpeechFormatter.SpacedDigits));
+
+    /// <summary>Interno di riferimento, cifra per cifra.</summary>
+    /// <remarks>
+    /// Ha un nome suo e non quello del numero: la cella «Relativo» usava lo stesso
+    /// stile della cella «Numero», e lo screen reader vi leggeva il numero
+    /// predefinito della voce al posto dell'interno di riferimento.
+    /// </remarks>
+    public string SpokenRelatedTo => SpeechFormatter.SpacedDigits(RelatedTo);
 
     /// <summary>Rappresentazione testuale breve della riga.</summary>
     /// <remarks>
@@ -400,6 +422,7 @@ public partial class ContactsWindow : Window
     private ContactRow ToRow(Contact contact) => new(
         contact.EffectiveDisplayName,
         contact.PrimaryNumber ?? string.Empty,
+        string.Join(", ", contact.OtherNumbers),
         contact.Category ?? string.Empty,
         contact.Department ?? string.Empty,
         contact.LocationSpeech ?? string.Empty,
@@ -715,6 +738,11 @@ public partial class ContactsWindow : Window
 
         if (contact.PrimaryNumber is { Length: > 0 } number)
             parts.Add($"numero {SpeechFormatter.Digits(number)}");
+
+        // La scheda completa diceva il solo numero predefinito: il secondo numero
+        // abbinato all'importazione si sentiva solo con Control Invio.
+        if (contact.OtherNumbers.Count > 0)
+            parts.Add($"secondo numero {string.Join(", ", contact.OtherNumbers.Select(n => SpeechFormatter.Digits(n)))}");
 
         if (DescribePresence(contact) is { Length: > 0 } stato) parts.Add(stato);
 

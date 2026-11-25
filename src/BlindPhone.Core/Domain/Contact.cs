@@ -465,4 +465,38 @@ public sealed record Contact
     /// </remarks>
     public string? ExtensionNumber
         => Numbers.FirstOrDefault(n => n.Kind == PhoneNumberKind.Extension)?.Number;
+
+    /// <summary>
+    /// I recapiti diversi da <see cref="PrimaryNumber"/>, nell'ordine della sorgente.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>È il «secondo numero» della procedura di importazione</b>, e prima non lo
+    /// mostrava nessuno. Arrivava in archivio, la ricerca lo trovava, ma la tabella
+    /// della rubrica, la scheda e l'anteprima dicevano il solo numero predefinito: chi
+    /// abbinava la colonna «Telefono» di un elenco di numeri brevi — il numero per
+    /// esteso a cui il codice rimanda, 6000 → 03665635293 — non lo ritrovava da nessuna
+    /// parte e concludeva che l'abbinamento non avesse funzionato.
+    /// </para>
+    /// <para>
+    /// Lo stesso numero abbinato a due colonne compare una volta sola: ripeterlo
+    /// farebbe pensare a due recapiti dove ce n'è uno.
+    /// </para>
+    /// </remarks>
+    public IReadOnlyList<string> OtherNumbers
+    {
+        get
+        {
+            var predefinito = PrimaryNumber;
+
+            return
+            [
+                .. Numbers
+                    .Select(n => n.Number)
+                    .Where(n => !string.IsNullOrWhiteSpace(n)
+                                && !string.Equals(n, predefinito, StringComparison.Ordinal))
+                    .Distinct(StringComparer.Ordinal),
+            ];
+        }
+    }
 }
