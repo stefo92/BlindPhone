@@ -270,6 +270,11 @@ public partial class App : Application
         MainWindow = window;
         window.Show();
 
+        // GLI AVVISI DELL'AVVIO VANNO IN CODA, come la configurazione distribuita.
+        //
+        // Cadono nello stesso secondo della cuffia e della registrazione del telefono,
+        // e senza coda ognuno tagliava a meta' quello di prima. Vedi
+        // Announcement.Sequential.
         AnnouncePendingCrashReports();
         AnnounceRejectedSecrets();
         AnnounceTelemetryConsent(rispostaStatistiche);
@@ -340,7 +345,7 @@ public partial class App : Application
                     ? $"Configurazione aggiornata dall'amministratore. {esito.Message}"
                     : $"Configurazione distribuita non applicata. {esito.Message}",
                 DateTimeOffset.Now,
-                coalesceKey: "provisioning"));
+                coalesceKey: "provisioning") with { Sequential = true });
 
             return esito.Settings ?? settings;
         }
@@ -435,7 +440,8 @@ public partial class App : Application
                   + $"l'ultimo {quando}. Premi {tasto} per segnalarli all'assistenza";
 
             _announcer?.Announce(Announcement.High(
-                testo, DateTimeOffset.Now, EarconKind.PbxLinkDegraded, coalesceKey: "crash:pending"));
+                testo, DateTimeOffset.Now, EarconKind.PbxLinkDegraded, coalesceKey: "crash:pending")
+                with { Sequential = true });
         }
         catch (Exception ex)
         {
@@ -490,7 +496,7 @@ public partial class App : Application
                     negato.Speech,
                     DateTimeOffset.Now,
                     EarconKind.PbxLinkDegraded,
-                    coalesceKey: $"secret:rejected:{negato.Key}"));
+                    coalesceKey: $"secret:rejected:{negato.Key}") with { Sequential = true });
             }
         }
         catch (Exception ex)
@@ -633,7 +639,7 @@ public partial class App : Application
             _announcer?.Announce(Announcement.High(
                 TelemetryConsentPrompt.Confirmation(accettate),
                 DateTimeOffset.Now,
-                coalesceKey: "statistiche:domanda"));
+                coalesceKey: "statistiche:domanda") with { Sequential = true });
         }
         catch (Exception ex)
         {

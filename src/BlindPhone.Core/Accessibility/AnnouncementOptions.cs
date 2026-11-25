@@ -138,6 +138,40 @@ public sealed record AnnouncementOptions
     /// </remarks>
     public TimeSpan TypingSilenceWindow { get; init; } = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// Velocità di lettura presunta, in caratteri al secondo, con cui si stima quanto
+    /// dura un annuncio in coda.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// La pipeline non sa quando lo screen reader ha finito di parlare: la notifica
+    /// UI Automation non ha riscontro. Per non far partire l'annuncio in coda
+    /// successivo sopra quello di prima si stima la durata dal numero di caratteri.
+    /// Vedi <see cref="Announcement.Sequential"/>.
+    /// </para>
+    /// <para>
+    /// Quindici è più lento di quanto parli quasi chiunque usi uno screen reader, e di
+    /// proposito: sbagliare per eccesso costa una pausa fra due frasi, sbagliare per
+    /// difetto costa la fine della frase di prima.
+    /// </para>
+    /// </remarks>
+    public double SpeechCharactersPerSecond { get; init; } = 15;
+
+    /// <summary>Pausa fra un annuncio in coda e il successivo.</summary>
+    /// <remarks>
+    /// Due frasi attaccate si sentono come una frase sola, e la seconda sembra il
+    /// seguito della prima.
+    /// </remarks>
+    public TimeSpan SequencePause { get; init; } = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>Attesa massima fra un annuncio in coda e il successivo.</summary>
+    /// <remarks>
+    /// Un testo lungo — le novità di un aggiornamento — non deve tenere ferma per
+    /// mezzo minuto la notizia della cuffia staccata: oltre questo tetto la stima è
+    /// più probabilmente sbagliata che giusta.
+    /// </remarks>
+    public TimeSpan SequenceMaxWait { get; init; } = TimeSpan.FromSeconds(10);
+
     /// <summary>Modalità di annuncio automatico delle variazioni di coda.</summary>
     public QueueAnnouncementMode QueueMode { get; set; } = QueueAnnouncementMode.CountOnly;
 

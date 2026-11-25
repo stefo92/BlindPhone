@@ -511,7 +511,10 @@ public partial class MainWindow : Window
         var refusedAtStartup = RegisterGlobalHotkeys();
         if (refusedAtStartup.Count > 0)
         {
-            _announcer.Announce(Announcement.Normal(RefusedGlobalsWarning(refusedAtStartup), DateTimeOffset.Now));
+            // In coda, come gli altri avvisi dell'avvio: arriva insieme alla cuffia e
+            // alla registrazione del telefono. Vedi Announcement.Sequential.
+            _announcer.Announce(
+                Announcement.Normal(RefusedGlobalsWarning(refusedAtStartup), DateTimeOffset.Now) with { Sequential = true });
         }
 
         ApplyTraySettings(_settingsService.Current);
@@ -856,6 +859,12 @@ public partial class MainWindow : Window
     /// cui si riaggancia, mentre la chiamata successiva della coda sta già arrivando.
     /// </para>
     /// <para>
+    /// <b>E si aspetta che la voce abbia finito gli annunci in coda.</b> All'avvio la
+    /// ricerca risponde mentre si annunciano la registrazione del telefono e la cuffia,
+    /// e la finestra che passa in primo piano fa tacere lo screen reader a metà frase.
+    /// Vedi <see cref="AnnouncementService.IsSequenceIdle"/>.
+    /// </para>
+    /// <para>
     /// Mentre aspetta lo dice una volta, e il pulsante nella barra dei comandi c'è già:
     /// chi vuole aggiornare prima non deve aspettare il programma.
     /// </para>
@@ -866,7 +875,22 @@ public partial class MainWindow : Window
 
         if (IsStationFreeForUpdate())
         {
-            ShowUpdateWindow();
+            if (_announcements.IsSequenceIdle)
+            {
+                ShowUpdateWindow();
+                return;
+            }
+
+            // LIBERA, MA LA VOCE STA ANCORA DANDO LE NOTIZIE DELL'AVVIO.
+            //
+            // La finestra che passa in primo piano fa tacere lo screen reader: aperta
+            // adesso taglierebbe a meta' la registrazione del telefono o la cuffia, che
+            // all'avvio arrivano proprio in questi secondi. Si aspetta in silenzio — non
+            // c'e' niente da dire all'operatore, la finestra arriva fra poco — e il
+            // primo controllo libero con la voce ferma la apre.
+            _updatePromptFreeTicks = 1;
+            _updatePromptTimer ??= CreateUpdatePromptTimer();
+            _updatePromptTimer.Start();
             return;
         }
 
@@ -874,7 +898,7 @@ public partial class MainWindow : Window
             $"Aggiornamento disponibile: versione {aggiornamento.DisplayVersion}. Te lo propongo appena la postazione "
             + "e' libera; il pulsante e' gia' nella barra dei comandi.",
             DateTimeOffset.Now,
-            coalesceKey: "update:available"));
+            coalesceKey: "update:available") with { Sequential = true });
 
         _updatePromptFreeTicks = 0;
         _updatePromptTimer ??= CreateUpdatePromptTimer();
@@ -897,6 +921,11 @@ public partial class MainWindow : Window
             }
 
             if (++_updatePromptFreeTicks < 2) return;
+
+            // Libera da abbastanza, ma se la voce sta ancora dicendo qualcosa in coda si
+            // aspetta il controllo dopo: la finestra in primo piano la zittirebbe. Il
+            // conto non si azzera, la postazione e' rimasta libera.
+            if (!_announcements.IsSequenceIdle) return;
 
             ShowUpdateWindow();
         };
@@ -6353,12 +6382,34 @@ public partial class MainWindow : Window
 
             peer?.RaiseNotificationEvent(
                 AutomationNotificationKind.Other,
-                announcement.Priority >= AnnouncementPriority.High
-                    ? AutomationNotificationProcessing.ImportantMostRecent
-                    : AutomationNotificationProcessing.MostRecent,
+                NotificationProcessing(announcement),
                 announcement.Text,
                 Guid.NewGuid().ToString());
         });
+
+    /// <summary>Come lo screen reader deve trattare la notifica rispetto a quelle di prima.</summary>
+    /// <remarks>
+    /// <para>
+    /// <b>«La più recente» fa tacere la frase in corso</b>: NVDA, ricevendola, interrompe
+    /// quello che sta dicendo. È giusto per gli eventi delle chiamate e per le risposte
+    /// ai comandi, dove conta l'ultima notizia, ed era il difetto degli annunci di
+    /// stato all'avvio dopo un aggiornamento: registrazione, cuffia e aggiornamento
+    /// arrivavano nello stesso secondo e ognuno tagliava a metà quello prima.
+    /// </para>
+    /// <para>
+    /// Gli annunci in coda chiedono invece di essere detti tutti, uno dopo l'altro. La
+    /// pipeline li distanzia già da sé, su una stima della durata; questo è il secondo
+    /// riparo, per quando la voce dell'operatore è più lenta della stima.
+    /// </para>
+    /// </remarks>
+    private static AutomationNotificationProcessing NotificationProcessing(Announcement announcement)
+    {
+        if (announcement.Sequential) return AutomationNotificationProcessing.All;
+
+        return announcement.Priority >= AnnouncementPriority.High
+            ? AutomationNotificationProcessing.ImportantMostRecent
+            : AutomationNotificationProcessing.MostRecent;
+    }
 
     // -----------------------------------------------------------------------
     // Ausiliari

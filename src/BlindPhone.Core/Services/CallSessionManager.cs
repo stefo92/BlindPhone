@@ -1742,7 +1742,13 @@ public sealed class CallSessionManager : IAsyncDisposable
                 coalesceKey: "sip:registration",
                 braille: "NON REG");
 
-        _announcer.Announce(announcement);
+        // IN CODA, anche quando e' critico. All'avvio la registrazione arriva insieme
+        // alla cuffia e all'aggiornamento, e il critico che interrompeva tagliava a
+        // meta' la frase di prima: l'operatore sentiva spezzoni e nessuna notizia
+        // intera. In coda «in corso» seguito subito da «registrato» si dice una volta
+        // sola, e il critico aspetta al piu' la fine di una frase. Vedi
+        // Announcement.Sequential.
+        _announcer.Announce(announcement with { Sequential = true });
     }
 
     // -----------------------------------------------------------------------

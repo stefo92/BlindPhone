@@ -74,6 +74,28 @@ public sealed record Announcement
     /// </remarks>
     public bool EarconOnly { get; init; }
 
+    /// <summary>
+    /// Se <c>true</c>, l'annuncio aspetta il suo turno: parla solo quando l'annuncio
+    /// in coda precedente è finito, e non interrompe e non viene interrotto dagli
+    /// altri annunci in coda.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// È per le notizie sullo stato della postazione che arrivano da sole e tutte
+    /// insieme: la registrazione del telefono, la cuffia, gli aggiornamenti. All'avvio
+    /// dopo un aggiornamento cadevano nello stesso secondo, e ognuna tagliava a metà
+    /// quella prima — un annuncio critico interrompe, e lo screen reader che riceve
+    /// una notifica «la più recente» zittisce quella in corso. L'operatore sentiva
+    /// spezzoni di tre frasi e nessuna intera. Vedi
+    /// <see cref="AnnouncementService.Pump"/> per la regola.
+    /// </para>
+    /// <para>
+    /// Non si usa per le risposte ai comandi e per gli eventi delle chiamate: quelle
+    /// devono arrivare subito, anche a costo di interrompere.
+    /// </para>
+    /// </remarks>
+    public bool Sequential { get; init; }
+
     /// <summary>Istante di creazione, usato per la finestra di accorpamento.</summary>
     public DateTimeOffset CreatedAt { get; init; }
 

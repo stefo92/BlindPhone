@@ -56,6 +56,18 @@ public sealed class AnnouncementService : IAnnouncer
     /// <summary>Annunci senza chiave, da emettere al prossimo pump nell'ordine di arrivo.</summary>
     private readonly List<Announcement> _immediateQueue = [];
 
+    /// <summary>
+    /// Annunci che aspettano il loro turno, nell'ordine di arrivo. Vedi
+    /// <see cref="Announcement.Sequential"/>.
+    /// </summary>
+    private readonly List<PendingAnnouncement> _sequence = [];
+
+    /// <summary>
+    /// Fino a quando si presume che parli l'ultimo annuncio in coda, o l'annuncio
+    /// critico che l'ha interrotto: prima di allora il turno successivo aspetta.
+    /// </summary>
+    private DateTimeOffset _sequenceBusyUntil = DateTimeOffset.MinValue;
+
     private readonly LinkedList<Announcement> _history = [];
 
     private string? _lastSpokenText;
@@ -119,6 +131,22 @@ public sealed class AnnouncementService : IAnnouncer
     /// </remarks>
     public event EventHandler<AnnouncementDroppedEventArgs>? Dropped;
 
+    /// <summary>
+    /// Se la coda degli annunci è vuota e l'ultimo si presume finito.
+    /// </summary>
+    /// <remarks>
+    /// Serve a chi sta per aprire una finestra senza che l'operatore l'abbia chiesta:
+    /// la finestra che passa in primo piano fa tacere lo screen reader, e la frase in
+    /// corso si perderebbe a metà. Vedi <see cref="Announcement.Sequential"/>.
+    /// </remarks>
+    public bool IsSequenceIdle
+    {
+        get
+        {
+            lock (_gate) return _sequence.Count == 0 && _clock.Now >= _sequenceBusyUntil;
+        }
+    }
+
     /// <inheritdoc />
     public void Announce(Announcement announcement)
     {
@@ -128,7 +156,14 @@ public sealed class AnnouncementService : IAnnouncer
         // soppressione. E' il canale che permette di tacere senza smettere di
         // informare: se la voce viene soppressa perche' l'operatore sta parlando,
         // il suono passa comunque.
-        if (announcement.Earcon != EarconKind.None) _earcons.Play(announcement.Earcon);
+        //
+        // Quello di un annuncio in coda parte con la sua frase, quando arriva il suo
+        // turno: suonato adesso cadrebbe sopra la frase di un altro, e il suono della
+        // registrazione persa sotto la notizia della cuffia non spiega niente. Resta
+        // immune alla soppressione, solo che la decisione si prende piu' tardi.
+        var earconAlTurno = announcement.Sequential && !announcement.EarconOnly;
+
+        if (announcement.Earcon != EarconKind.None && !earconAlTurno) _earcons.Play(announcement.Earcon);
 
         // Il suono e' gia' partito, ed e' tutto quello che l'operatore deve sentire.
         // Braille e registro si aggiornano lo stesso: chi legge la riga o rilegge gli
@@ -153,8 +188,19 @@ public sealed class AnnouncementService : IAnnouncer
         var suppression = EvaluateSuppression(announcement);
         if (suppression is not null)
         {
+            // Non avra' un turno: il suono che aspettava il turno parte adesso.
+            if (earconAlTurno && announcement.Earcon != EarconKind.None) _earcons.Play(announcement.Earcon);
+
             _log.LogDebug("Annuncio scartato ({Reason}): {Text}", suppression, announcement.Text);
             Dropped?.Invoke(this, new AnnouncementDroppedEventArgs(announcement, suppression.Value));
+            return;
+        }
+
+        if (announcement.Sequential)
+        {
+            // Anche un critico, se e' in coda, aspetta il turno: non deve tagliare la
+            // frase di prima, che e' la ragione per cui e' in coda.
+            EnqueueInSequence(announcement, now);
             return;
         }
 
@@ -198,7 +244,8 @@ public sealed class AnnouncementService : IAnnouncer
 
     /// <summary>
     /// Fa avanzare la pipeline: emette gli annunci la cui finestra di accorpamento
-    /// è scaduta e quelli senza chiave.
+    /// è scaduta e quelli senza chiave, e dà il turno al prossimo annuncio in coda se
+    /// quello di prima ha finito.
     /// </summary>
     /// <param name="now">
     /// Istante corrente. Se omesso si usa l'orologio iniettato; il parametro
@@ -237,8 +284,6 @@ public sealed class AnnouncementService : IAnnouncer
             }
         }
 
-        if (ready.Count == 0) return;
-
         // Priorita' decrescente, poi ordine di creazione: dentro allo stesso pump,
         // l'esito di un trasferimento va detto prima di una variazione di coda.
         ready.Sort(static (a, b) =>
@@ -267,6 +312,119 @@ public sealed class AnnouncementService : IAnnouncer
 
             EmitNow(announcement, timestamp, interrupt: false);
         }
+
+        PumpSequence(timestamp);
+    }
+
+    /// <summary>
+    /// Dà il turno al prossimo annuncio in coda, se quello di prima ha finito.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Uno per volta, e solo quando il precedente si presume finito.</b> La fine
+    /// non la dice nessuno — la notifica UI Automation non ha riscontro — e quindi la
+    /// si stima dalla lunghezza del testo: vedi
+    /// <see cref="AnnouncementOptions.SpeechCharactersPerSecond"/>. Un annuncio critico
+    /// fuori coda, come la chiamata in arrivo, interrompe anche la coda, e il turno
+    /// successivo aspetta che abbia finito lui.
+    /// </para>
+    /// <para>
+    /// Fra quelli pronti passa prima il più importante, poi il più vecchio. Un
+    /// annuncio in coda con la stessa chiave di uno che aspetta ancora lo sostituisce
+    /// al suo posto: «registrazione in corso» seguito da «telefono registrato» prima
+    /// che arrivi il turno si sente come «telefono registrato», l'unico ancora vero.
+    /// </para>
+    /// </remarks>
+    private void PumpSequence(DateTimeOffset now)
+    {
+        while (true)
+        {
+            Announcement next;
+
+            lock (_gate)
+            {
+                if (_sequence.Count == 0 || now < _sequenceBusyUntil) return;
+
+                var index = NextDueInSequence(now);
+                if (index < 0) return;
+
+                next = _sequence[index].Announcement;
+                _sequence.RemoveAt(index);
+            }
+
+            if (next.Earcon != EarconKind.None) _earcons.Play(next.Earcon);
+
+            var suppression = EvaluateSuppression(next);
+            if (suppression is not null)
+            {
+                // Il turno passa al successivo: uno scartato non occupa la voce.
+                _log.LogDebug("Annuncio in coda scartato ({Reason}): {Text}", suppression, next.Text);
+                Dropped?.Invoke(this, new AnnouncementDroppedEventArgs(next, suppression.Value));
+                continue;
+            }
+
+            EmitNow(next, now, interrupt: false);
+            return;
+        }
+    }
+
+    /// <summary>Posizione del prossimo annuncio in coda da dire, o -1 se nessuno è pronto.</summary>
+    /// <remarks>Da chiamare dentro <c>_gate</c>.</remarks>
+    private int NextDueInSequence(DateTimeOffset now)
+    {
+        var best = -1;
+
+        for (var i = 0; i < _sequence.Count; i++)
+        {
+            if (_sequence[i].DueAt > now) continue;
+
+            if (best < 0 || _sequence[i].Announcement.Priority > _sequence[best].Announcement.Priority) best = i;
+        }
+
+        return best;
+    }
+
+    private void EnqueueInSequence(Announcement announcement, DateTimeOffset now)
+    {
+        lock (_gate)
+        {
+            var index = announcement.CoalesceKey is { } key
+                ? _sequence.FindIndex(p => p.Announcement.CoalesceKey == key)
+                : -1;
+
+            if (index >= 0)
+            {
+                // Al posto di quello vecchio e con la sua scadenza, come l'accorpamento
+                // fuori coda: chi era in fila da prima non perde il posto.
+                var existing = _sequence[index];
+                _sequence[index] = existing with { Announcement = announcement };
+
+                _log.LogDebug(
+                    "Annuncio in coda accorpato in uno piu' recente ({Key}): {Text}",
+                    announcement.CoalesceKey, existing.Announcement.Text);
+
+                return;
+            }
+
+            // Con la chiave aspetta la finestra di accorpamento, come fuori coda:
+            // la registrazione che passa da «in corso» a «registrato» in mezzo secondo
+            // si dice una volta sola.
+            var dueAt = announcement.CoalesceKey is null ? now : now + Options.CoalesceWindow;
+            _sequence.Add(new PendingAnnouncement(announcement, dueAt));
+        }
+    }
+
+    /// <summary>Quanto si presume che duri la lettura di un testo, pausa compresa.</summary>
+    private TimeSpan EstimateSpeechDuration(string text)
+    {
+        var caratteriAlSecondo = Options.SpeechCharactersPerSecond > 0 ? Options.SpeechCharactersPerSecond : 15;
+
+        // In millisecondi interi: un turno che scade un decimo di tick dopo il previsto
+        // non si sente, ma rende le prove dipendenti dagli arrotondamenti.
+        var durata = TimeSpan.FromMilliseconds(Math.Round(text.Length * 1000 / caratteriAlSecondo))
+                     + Options.SequencePause;
+
+        return durata < Options.SequenceMaxWait ? durata : Options.SequenceMaxWait;
     }
 
     /// <inheritdoc />
@@ -279,6 +437,10 @@ public sealed class AnnouncementService : IAnnouncer
         {
             _pending.Clear();
             _immediateQueue.Clear();
+
+            // Chi zittisce la postazione zittisce anche quello che aspettava il turno.
+            _sequence.Clear();
+            _sequenceBusyUntil = DateTimeOffset.MinValue;
         }
 
         _speech.Stop();
@@ -305,7 +467,12 @@ public sealed class AnnouncementService : IAnnouncer
 
     private void EmitNow(Announcement announcement, DateTimeOffset now, bool interrupt)
     {
-        if (interrupt && Options.DuckConversationOnCritical && _context.IsConversationActive)
+        // Sul critico e non sull'interruzione: un critico in coda non interrompe, ma
+        // la registrazione persa durante una chiamata va sentita sopra l'interlocutore
+        // come prima. Fuori coda le due cose coincidono.
+        if (announcement.Priority == AnnouncementPriority.Critical
+            && Options.DuckConversationOnCritical
+            && _context.IsConversationActive)
         {
             _ducker?.Duck(Options.DuckAttenuationDb, TimeSpan.FromSeconds(3));
         }
@@ -330,6 +497,14 @@ public sealed class AnnouncementService : IAnnouncer
         {
             _lastSpokenText = announcement.Text;
             _lastSpokenAt = now;
+
+            // Un annuncio in coda occupa la voce per il suo turno. Un critico che
+            // interrompe l'ha appena tolta a chiunque stesse parlando, coda compresa:
+            // il turno successivo aspetta che finisca lui.
+            if (announcement.Sequential || interrupt)
+            {
+                _sequenceBusyUntil = now + EstimateSpeechDuration(announcement.Text);
+            }
 
             _history.AddFirst(announcement);
             while (_history.Count > Options.HistorySize) _history.RemoveLast();
@@ -386,7 +561,7 @@ public sealed class AnnouncementService : IAnnouncer
         {
             lock (_gate)
             {
-                if (_pending.Count > 0 || _immediateQueue.Count > 0)
+                if (_pending.Count > 0 || _immediateQueue.Count > 0 || _sequence.Count > 0)
                     return AnnouncementDropReason.HigherPriorityPending;
             }
 

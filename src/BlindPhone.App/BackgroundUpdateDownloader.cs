@@ -151,12 +151,14 @@ public sealed class BackgroundUpdateDownloader
 
             if (_joinedByInstallNow) return;
 
+            // In coda, come le altre notizie sugli aggiornamenti: arriva quando arriva,
+            // e non deve tagliare quello che si sta dicendo. Vedi Announcement.Sequential.
             _announcer.Announce(Announcement.Normal(
                 $"Aggiornamento alla versione {update.DisplayVersion} scaricato e verificato. "
                 + "Te lo propongo al prossimo avvio di BlindPhone; per installarlo prima, usa il pulsante "
                 + "Aggiornamento disponibile nella barra dei comandi.",
                 DateTimeOffset.Now,
-                coalesceKey: "update:downloaded"));
+                coalesceKey: "update:downloaded") with { Sequential = true });
         }
         catch (Exception ex)
         {
@@ -169,7 +171,7 @@ public sealed class BackgroundUpdateDownloader
             _announcer.Announce(Announcement.Normal(
                 $"Scaricamento dell'aggiornamento non riuscito. {ex.Message} Te lo ripropongo al prossimo avvio.",
                 DateTimeOffset.Now,
-                coalesceKey: "update:downloaded"));
+                coalesceKey: "update:downloaded") with { Sequential = true });
         }
     }
 }

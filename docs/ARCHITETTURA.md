@@ -77,7 +77,8 @@ CallAnnouncementMapper              decide COSA dire (esaustivo, verificato dai 
    ▼
 AnnouncementService                 decide SE e QUANDO dirlo
    │                                (priorità, accorpamento, anti-ripetizione,
-   │                                 soppressione durante conversazione o digitazione)
+   │                                 soppressione durante conversazione o digitazione,
+   │                                 coda per le notizie di stato: una alla volta)
    ├──────────────► IEarconPlayer   il suono passa SEMPRE, anche se la voce tace
    ▼
 CompositeSpeechOutput               decide COME dirlo

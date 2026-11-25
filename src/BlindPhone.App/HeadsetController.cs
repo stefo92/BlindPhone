@@ -183,7 +183,10 @@ public sealed class HeadsetController : IDisposable
 
             if (testo is null) return;
 
-            _announcer.Announce(Announcement.Normal(testo, DateTimeOffset.Now, coalesceKey: "cuffia:avvio"));
+            // In coda: all'avvio arriva insieme alla registrazione del telefono. Vedi
+            // Announcement.Sequential.
+            _announcer.Announce(
+                Announcement.Normal(testo, DateTimeOffset.Now, coalesceKey: "cuffia:avvio") with { Sequential = true });
         }
         catch (Exception ex)
         {
@@ -234,7 +237,7 @@ public sealed class HeadsetController : IDisposable
         _announcer.Announce(Announcement.Normal(
             AnnouncementTexts.HeadsetConnected(e.Device.Name, e.Device.Capabilities.CanAnswer),
             DateTimeOffset.Now,
-            coalesceKey: "cuffia:" + e.Device.Key));
+            coalesceKey: "cuffia:" + e.Device.Key) with { Sequential = true });
     }
 
     private void OnDisconnected(object? sender, HeadsetDeviceEventArgs e)
@@ -246,7 +249,7 @@ public sealed class HeadsetController : IDisposable
         _announcer.Announce(Announcement.High(
             AnnouncementTexts.HeadsetDisconnected(e.Device.Name),
             DateTimeOffset.Now,
-            coalesceKey: "cuffia:" + e.Device.Key));
+            coalesceKey: "cuffia:" + e.Device.Key) with { Sequential = true });
     }
 
     // -----------------------------------------------------------------------
@@ -297,7 +300,10 @@ public sealed class HeadsetController : IDisposable
         _log.LogWarning(
             "Tasto Play e pausa non disponibile: errore di sistema {Errore}", Marshal.GetLastWin32Error());
 
-        _announcer.Announce(Announcement.High(AnnouncementTexts.HeadsetMediaKeyUnavailable, DateTimeOffset.Now));
+        // In coda: arriva mentre si annuncia la chiamata che squilla, e non deve
+        // tagliarne il nome.
+        _announcer.Announce(
+            Announcement.High(AnnouncementTexts.HeadsetMediaKeyUnavailable, DateTimeOffset.Now) with { Sequential = true });
     }
 
     private void ReleaseMediaKey()

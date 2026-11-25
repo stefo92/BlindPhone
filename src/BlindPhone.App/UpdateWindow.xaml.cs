@@ -124,10 +124,12 @@ public partial class UpdateWindow : Window
                 : $"Aggiornamento pronto da installare: la versione {_update.DisplayVersion} e' gia' scaricata, "
                   + $"installata la {installed}. ";
 
+            // In coda: non deve tagliare la notizia della registrazione o della cuffia
+            // che arriva nello stesso momento, all'avvio. Vedi Announcement.Sequential.
             _announcer.Announce(Announcement.High(
                 apertura + $"{CountNotes()} {DescribeKeys()} {ChannelText.Text}",
                 DateTimeOffset.Now,
-                coalesceKey: "update:available"));
+                coalesceKey: "update:available") with { Sequential = true });
         };
     }
 
