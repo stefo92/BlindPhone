@@ -65,25 +65,44 @@ public sealed class HeadsetSignalInterpreter
     public static readonly TimeSpan ReleaseWindow = TimeSpan.FromMilliseconds(700);
 
     /// <summary>
-    /// Per quanto la conferma di una spia appena sostituita da un'altra si riconosce
-    /// ancora come eco.
+    /// Per quanto, dopo un cambio della spia, un valore uguale alla spia di prima si
+    /// riconosce ancora come un rapporto partito prima del cambio.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>La spia può cambiare due volte prima che la cuffia confermi la prima.</b>
-    /// All'avvio del trasferimento il chiamante passa in attesa un istante prima che la
-    /// procedura esista, e la linea va da «alzata» ad «abbassata» e di nuovo ad
-    /// «alzata» in pochi millisecondi. La conferma di «abbassata» arrivava quando lo
-    /// stato atteso era già tornato «alzata», non coincideva, e veniva presa per una
-    /// pressione: il pulsante della chiamata, in linea, chiude. Il chiamante cadeva nel
-    /// momento in cui l'operatore cominciava a passarlo.
+    /// <b>Il rapporto che arriva dopo il cambio può essere stato scritto prima.</b> La
+    /// cuffia manda un rapporto ogni volta che cambia uno qualunque dei suoi valori, e
+    /// ognuno porta anche il pulsante della chiamata. Se uno parte mentre la spia
+    /// nuova è ancora in viaggio, porta lo stato vecchio. Due casi visti sul campo:
     /// </para>
+    /// <list type="bullet">
+    ///   <item><description>
+    ///   <b>La spia che cambia due volte.</b> All'avvio del trasferimento il chiamante
+    ///   passa in attesa un istante prima che la procedura esista, e la linea va da
+    ///   «alzata» ad «abbassata» e di nuovo ad «alzata» in pochi millisecondi. La
+    ///   conferma di «abbassata» arrivava quando lo stato atteso era già tornato
+    ///   «alzata», e veniva presa per una pressione: il chiamante cadeva nel momento
+    ///   in cui l'operatore cominciava a passarlo.
+    ///   </description></item>
+    ///   <item><description>
+    ///   <b>La spia mostrata a lungo.</b> La Jabra Evolve 30 II, seicento millisecondi
+    ///   dopo ogni cambio della linea, manda un secondo rapporto per un altro dei suoi
+    ///   valori. Il 26 novembre 2026 una chiamata è stata chiusa proprio in quel
+    ///   momento: il secondo rapporto è arrivato quattro millisecondi dopo lo
+    ///   spegnimento della spia, ancora con la cornetta alzata. La linea era rimasta
+    ///   accesa più di mezzo secondo, quindi il valore non era riconosciuto come eco e
+    ///   contava come pressione. Il ritorno subito dopo faceva credere la cuffia a
+    ///   impulsi, e da lì l'eco di ogni risposta chiudeva la chiamata appena presa,
+    ///   fino al riavvio.
+    ///   </description></item>
+    /// </list>
     /// <para>
-    /// Vale solo per uno stato rimasto acceso meno di così: la conferma di uno stato
-    /// mostrato a lungo è già arrivata, e un valore uguale a quello è una pressione.
-    /// Mezzo secondo copre la risposta di una cuffia USB, che conferma in decine di
-    /// millisecondi, e resta sotto <see cref="ReleaseWindow"/>: nessuno torna indietro
-    /// apposta così in fretta dopo un cambio di stato.
+    /// Per questo vale per qualunque cambio, comunque fosse lunga la spia di prima.
+    /// Mezzo secondo copre la cuffia senza fili, che segue la spia in quattro o cinque
+    /// decimi (la Jabra Link 380 dello stesso registro), e resta sotto
+    /// <see cref="ReleaseWindow"/>. Una pressione vera così vicina a un cambio della
+    /// spia è chi risponde e chiude nello stesso istante, cioè il guasto da evitare: si
+    /// perde solo quella, e la successiva conta.
     /// </para>
     /// </remarks>
     public static readonly TimeSpan EchoWindow = TimeSpan.FromMilliseconds(500);
@@ -134,8 +153,23 @@ public sealed class HeadsetSignalInterpreter
 
         _last[button] = value;
 
-        if (button != HeadsetButton.HookSwitch || _hookIsMomentary)
+        if (button != HeadsetButton.HookSwitch) return value;
+
+        if (_hookIsMomentary)
         {
+            // L'ECO DELLA LINEA ACCESA NON E' UN DITO, NEMMENO LETTA A IMPULSI.
+            //
+            // Una cuffia che segue la spia ma e' stata creduta a impulsi alza il gancio
+            // da sola appena la linea si accende: letto come appoggio del dito, chiude
+            // la chiamata nell'istante in cui si e' risposto. E' il seguito del guasto
+            // descritto in EchoWindow, e se un'altra strada riportasse qui la stessa
+            // cuffia la conseguenza sarebbe la stessa. Una cuffia davvero a impulsi
+            // perde solo la pressione data in quel mezzo secondo.
+            if (value && _capabilities.FollowsOffHook && _expectedOffHook && at - _expectedOffHookSince < EchoWindow)
+            {
+                return false;
+            }
+
             // Impulso: conta l'appoggio del dito, non il rilascio.
             return value;
         }
@@ -152,12 +186,22 @@ public sealed class HeadsetSignalInterpreter
             return false;
         }
 
-        // L'eco dell'allineamento: la cuffia ha seguito la spia impostata da BlindPhone,
-        // l'ultima oppure quella che l'ultima ha appena sostituito. Vedi EchoWindow.
-        if (_capabilities.FollowsOffHook
-            && (value == _expectedOffHook || (value == _replacedOffHook && at < _replacedOffHookUntil)))
+        if (_capabilities.FollowsOffHook)
         {
-            return false;
+            // L'eco dell'allineamento: la cuffia ha seguito la spia impostata da
+            // BlindPhone.
+            if (value == _expectedOffHook) return false;
+
+            // Un rapporto partito prima che la spia nuova arrivasse: vedi EchoWindow.
+            // Non dice dove si trova la cuffia adesso, quindi non entra nemmeno
+            // nell'ultimo valore conosciuto. Se la cuffia poi segue la spia senza
+            // dirlo, la pressione successiva deve trovare lo stato della spia, non
+            // quello vecchio: altrimenti risulterebbe uguale e andrebbe persa.
+            if (value == _replacedOffHook && at < _replacedOffHookUntil)
+            {
+                _last[button] = _expectedOffHook;
+                return false;
+            }
         }
 
         _lastHookPressAt = at;
@@ -188,12 +232,10 @@ public sealed class HeadsetSignalInterpreter
     {
         if (indicators.OffHook != _expectedOffHook)
         {
-            // Solo uno stato durato un attimo puo' avere la conferma ancora in viaggio.
-            if (at - _expectedOffHookSince < EchoWindow)
-            {
-                _replacedOffHook = _expectedOffHook;
-                _replacedOffHookUntil = at + EchoWindow;
-            }
+            // Qualunque stato, breve o lungo, puo' avere un rapporto ancora in viaggio:
+            // vedi EchoWindow.
+            _replacedOffHook = _expectedOffHook;
+            _replacedOffHookUntil = at + EchoWindow;
 
             _expectedOffHook = indicators.OffHook;
             _expectedOffHookSince = at;

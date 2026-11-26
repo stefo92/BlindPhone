@@ -2585,6 +2585,12 @@ public partial class MainWindow : Window
     /// <summary>Firma dei pulsanti della barra della chiamata, per non ricostruirla a vuoto.</summary>
     private string _callBarSignature = string.Empty;
 
+    /// <summary>
+    /// Trattiene il clic su Riaggancia o Rifiuta appena comparsi al posto di un altro
+    /// pulsante: vedi <see cref="CommandBarSwapGuard"/>.
+    /// </summary>
+    private readonly CommandBarSwapGuard _callBarSwapGuard = new();
+
     /// <summary>Se scrivere la scorciatoia sui pulsanti: vedi <see cref="AccessibilitySettings.ShowHotkeysOnButtons"/>.</summary>
     private bool _showHotkeysOnButtons;
 
@@ -2658,6 +2664,10 @@ public partial class MainWindow : Window
         if (signature == firma) return;
 
         firma = signature;
+
+        // Solo la barra della chiamata ha pulsanti che chiudono, e solo li' un pulsante
+        // prende il posto di un altro mentre l'operatore ci sta cliccando sopra.
+        if (ReferenceEquals(bar, CallCommandBar)) _callBarSwapGuard.Shown(azioni, DateTimeOffset.Now);
 
         // Se il cursore era su un pulsante, i pulsanti che sta per sostituire se lo
         // porterebbero via: il focus tornerebbe alla finestra, e chi si muove a
@@ -3076,6 +3086,22 @@ public partial class MainWindow : Window
     private async void OnCommandButtonClick(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button { Tag: CallAction action }) return;
+
+        var adesso = DateTimeOffset.Now;
+
+        if (_callBarSwapGuard.Intercept(action, adesso) is { } trattenuto)
+        {
+            // Va registrato con il tempo: davanti a "la chiamata si chiude da sola" e'
+            // la riga che dice se l'operatore ha cliccato sul pulsante appena cambiato.
+            _log.LogInformation(
+                "Clic su {Action} trattenuto: il pulsante era comparso {Millisecondi} ms prima al posto di {Sostituito}",
+                action, (int)trattenuto.SinceArrival.TotalMilliseconds, trattenuto.ReplacedLabel);
+
+            _announcer.Announce(Announcement.CommandResponse(
+                AnnouncementTexts.SwappedButtonHeld(trattenuto.Label, trattenuto.ReplacedLabel), adesso));
+            _announcer.PlayEarcon(EarconKind.CommandRejected);
+            return;
+        }
 
         _log.LogInformation("Comando dal pulsante {Action}", action);
         await ExecuteCallActionAsync(action).ConfigureAwait(true);

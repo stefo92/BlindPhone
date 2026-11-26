@@ -1127,6 +1127,19 @@ public static class AnnouncementTexts
     /// <summary>Comando non valido nello stato corrente.</summary>
     public static string CommandNotAvailable => "Comando non disponibile adesso";
 
+    /// <summary>
+    /// Clic trattenuto su un pulsante che chiude, comparso un istante prima al posto di
+    /// un altro.
+    /// </summary>
+    /// <param name="label">Pulsante premuto, per esempio «Riaggancia».</param>
+    /// <param name="replacedLabel">Pulsante che stava al suo posto, per esempio «Rispondi».</param>
+    /// <remarks>
+    /// Prima l'esito, perché è quello che l'operatore deve sapere subito: la chiamata
+    /// c'è ancora. Poi il perché, e come ottenere quello che voleva.
+    /// </remarks>
+    public static string SwappedButtonHeld(string label, string replacedLabel)
+        => $"{label} non eseguito: era appena comparso al posto di {replacedLabel}. Premi di nuovo per confermare";
+
     /// <summary>Riepilogo completo dello stato, risposta al comando di orientamento.</summary>
     /// <param name="activeCall">Chiamata attiva, se presente.</param>
     /// <param name="heldCalls">Chiamate in attesa.</param>
